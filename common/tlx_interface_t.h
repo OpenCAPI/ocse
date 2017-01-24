@@ -216,14 +216,120 @@
 
 /* *INDENT-OFF* */
 struct AFU_EVENT {
-  int sockfd;                         /* socket file descriptor */
-  uint32_t proto_primary;             /* socket protocol version 1st number */
-  uint32_t proto_secondary;           /* socket protocol version 2nd number */
-  uint32_t proto_tertiary;            /* socket protocol version 3rd number */
-  int clock;                          /* clock */
-  unsigned char tbuf[TLX_BUFFER_SIZE];/* transmit buffer for socket communications */
-  unsigned char rbuf[TLX_BUFFER_SIZE];/* receive buffer for socket communications */
-  uint32_t rbp;                       /* receive buffer position */
+  int sockfd;                             /* socket file descriptor */
+  uint32_t proto_primary;                 /* socket protocol version 1st number */
+  uint32_t proto_secondary;               /* socket protocol version 2nd number */
+  uint32_t proto_tertiary;                /* socket protocol version 3rd number */
+  int clock;                              /* clock */
+  unsigned char tbuf[TLX_BUFFER_SIZE];    /* transmit buffer for socket communications */
+  unsigned char rbuf[TLX_BUFFER_SIZE];    /* receive buffer for socket communications */
+  uint32_t rbp;                           /* receive buffer position */
+  // Config and Credits
+
+  // TLX to AFU Repsonse Interface (table 1)
+  // CAPP to AP (host to afu) responses (generally to ap/capp commands and data)
+  uint8_t tlx_afu_resp_valid;             /* 1 bit valid respoonse from tlx */
+  uint8_t tlx_afu_resp_opcode;            /* 8 bit response op code */
+  uint16_t tlx_afu_resp_afutag;           /* 16 bit response tag - match to afu_tlx_cmd_afutag */
+  uint8_t tlx_afu_resp_code;              /* 4 bit response reason code */
+  uint8_t tlx_afu_resp_pg_size;           /* 6 bit page size */
+  uint8_t tlx_afu_resp_dl;                /* 2 bit encoded data length */
+  uint8_t tlx_afu_resp_dp;                /* 2 bit data part - which part of the data is in resp data */
+  // uint32_t tlx_afu_resp_host_tag;            /* TLX4 */
+  uin32_t tlx_afu_resp_addr_tag;          /* 18 bit bad address tag from a translate request */
+  // uint8_t tlx_afu_resp_cache_state;          /* TLX4 */
+  
+  // AFU to TLX Response Credit Interface (table 2)
+  uint8_t afu_tlx_resp_credit;              /* 1 bit return a credit to tlx */
+  uint8_t afu_tlx_resp_initial_credit;      /* 7 bit initial number of credits that the afu is providing to tlx for consumption - when is this valid? */
+  
+  // TLX to AFU Command Interface (table 3)
+  // CAPP to AP (host to afu) commands and data 
+  uint8_t tlx_afu_cmd_valid;              /* 1 bit command valid from from host */
+  uint8_t tlx_afu_cmd_opcode;             /* 8 bit command op code */
+  uint16_t tlx_afu_cmd_capptag;           /* 16 bit command tag from host */
+  uint8_t tlx_afu_cmd_dl;                 /* 2 bit command encoded data length */
+  uint8_t tlx_afu_cmd_pl;                 /* 3 bit command encoded partial data length */
+  uint64_t tlx_afu_cmd_be;                /* 64 bit command byte enable */
+  uint8_t tlx_afu_cmd_end;                /* 1 bit command endianness 0=little */
+  uint8_t tlx_afu_cmd_t;                  /* 1 bit command type 0=configuration read/write; 1=configuration read/write */
+  uint64_t tlx_afu_cmd_pa;                /* 64 bit command phyiscal address */
+  uint8_t tlx_afu_cmd_flag;               /* 4 bit command flag for atomic memory ops - OCAPI 4 */
+  uint8_t tlx_afu_cmd_os;                 /* 1 bit command ordered segment - OCAPI 4 */
+
+  // TLX Command Credit Interface (table 4)
+  uint8_t afu_tlx_cmd_credit;              /* 1 bit return a credit to tlx */
+  uint8_t afu_tlx_cmd_initial_credit;      /* 7 bit initial number of credits that the afu is providing to tlx for consumption - when is this valid? */
+  
+  // TLX to AFU Repsonse DATA Interface (table 5)
+  // CAPP to AP (host to afu) data responses (generally to ap/capp read commands)
+  uint8_t tlx_afu_resp_data_valid;         /* 1 bit response data valid */
+  unsigned char tlx_afu_resp_data[64];     /* 512 bit (64 byte) response data */
+  uint8_t tlx_afu_resp_data_bdi;           /* 1 bit bad data indicator */
+  uint8_t afu_tlx_resp_rd_req;             /* 1 bit response to a read request */
+  uint8_t afu_tlx_resp_rd_cnt;             /* 3 bit encoded read count */
+  
+  // TLX to AFU command DATA Interface (table 6)
+  // CAPP to AP (host to afu) data (generally to capp/ap write commands)
+  uint8_t tlx_afu_cmd_data_valid;          /* 1 bit command from host valid */
+  unsigned char tlx_afu_cmd_data_bus[64];  /* 512 bit (64 byte) command data */
+  uint8_t tlx_afu_cmd_data_bdi;            /* 1 bit bad data indicator */
+  uint8_t afu_tlx_cmd_rd_req;              /* 1 bit read request */
+  uint8_t afu_tlx_cmd_rd_cnt;              /* 3 bit encoded read count */
+ 
+  // TLX Framer Command Interface (table 7)
+  uint8_t tlx_afu_resp_credit;             /* 1 bit tlx returning a response credit to the afu */
+  uint8_t tlx_afu_resp_data_credit;        /* 1 bit tlx returning a response data credit to the afu */
+  uint8_t tlx_afu_cmd_credit;              /* 1 bit tlx returning a command credit to the afu */
+  uint8_t tlx_afu_cmd_data_credit;         /* 1 bit tlx returning a command data credit to the afu */
+  uint8_t tlx_afu_cmd_resp_initial_credit; /* 3 bit initial number of response credits available to the afu - when is this valid? */
+  uint8_t tlx_afu_data_initial_credit;     /* 5 bit initial number of data credits available to the afu - when is this valid? */
+
+  // TLX Framer Command Interface (table 8)
+  // AP to CAPP (afu to host) commands and data
+  uint8_t afu_tlx_cmd_valid;              /* 1 bit 0|1 indicates that a valid command is being presented by the afu to tlx */
+  uint8_t afu_tlx_cmd_opcode;             /* 8 bit opcode */
+  uint16_t afu_tlx_cmd_actag;             /* 12 bit address context tag */
+  uint8_t afu_tlx_cmd_stream_id;          /* 4 bit address context tag */
+  unsigned char afu_tlx_cmd_ea_or_obj[9]; /* 68 bit effective address or object handle */
+  uint16_t afu_tlx_cmd_afutag;            /* 16 bit command tag */
+  uint8_t afu_tlx_cmd_dl;                 /* 2 bits encoded data length */  /* combine dl and pl ??? */
+  uint8_t afu_tlx_cmd_pl;                 /* 3 bits encoded partial data length */
+  uint8_t afu_tlx_cmd_os;                 /* 1 bit ordered segment CAPI 4 */
+  uint64_t afu_tlx_cmd_be;                /* 64 bit byte enable */
+  uint8_t afu_tlx_cmd_flag;               /* 4 bit command flag for atomic opcodes */
+  uint8_t afu_tlx_cmd_endian;             /* 1 bit endianness 0=little endian; 1=big endian */
+  uint16_t afu_tlx_cmd_bdf;               /* 16 bit bus device function - obtained during device config n*/
+  uint32_t afu_tlx_cmd_pasid;             /* 20 bit PASID */
+  uint8_t afu_tlx_cmd_pg_size;            /* 6 bit page size hint */
+  uint8_t afu_tlx_cdata_valid;            /* 1 bit command data valid */
+  unsigned char afu_tlx_cdata_bus[64];    /* 512 bit command data bus */
+  uint8_t afu_tlx_cdata_bad;              /* 1 bit bad command data */
+
+  // TLX Framer Response Interface (table 9)
+  uint8_t afu_tlx_resp_valid;             /* 1 bit afu response is valid */
+  uint8_t afu_tlx_resp_opcode;            /* 8 bit response op code */
+  uint8_t afu_tlx_resp_dl;                /* 2 bit response data length */
+  uint16_t afu_tlx_resp_capptag;          /* 16 bit response capptag - should match a tlx_afu_cmd_capptag */
+  uint8_t afu_tlx_resp_dp;                /* 2 bit response data part */
+  uint8_t afu_tlx_resp_code;              /* 4 bit response reason code */
+  uint8_t afu_tlx_rdata_valid;            /* 6 bit response data is valid */
+  unsigned char afu_tlx_rdata_bus[64];    /* 512 bit response data */
+  uint8_t afu_tlx_rdata_bad;              /* 1 bit response data is bad */
+  				       
+  // TLX Framer Template Configuration (table 10)
+  uint8_t afu_cfg_xmit_tmpl_config_0;     /* 1 bit xmit template enable - default */
+  uint8_t afu_cfg_xmit_tmpl_config_1;     /* 1 bit xmit template enable */
+  uint8_t afu_cfg_xmit_tmpl_config_2;     /* 1 bit xmit template enable - not in TLX3 */
+  uint8_t afu_cfg_xmit_tmpl_config_3;     /* 1 bit xmit template enable */
+  uint8_t afu_cfg_xmit_rate_config_0;     /* 4 bit xmit rate */
+  uint8_t afu_cfg_xmit_rate_config_1;     /* 4 bit xmit rate */
+  uint8_t afu_cfg_xmit_rate_config_2;     /* 4 bit xmit rate - not in TLX3 */
+  uint8_t afu_cfg_xmit_rate_config_3;     /* 4 bit xmit rate */
+  				       
+  // CREDITS!!!
+
+  // job is no longer a tlx interface
   uint64_t job_address;               /* effective address of the work element descriptor */
   uint64_t job_error;                 /* error code for completed job */
   uint32_t job_valid;                 /* AFU event contains a valid job control command */
@@ -236,6 +342,7 @@ struct AFU_EVENT {
   uint32_t job_yield;                 /* Used to save context in Shared mode. */
   uint32_t timebase_request;          /* Requests TLX to send a timebase control command with current timebase value. */
   uint32_t parity_enable;             /* If asserted, AFU supports parity generation on various interface buses. */
+  // port mmio to some sort of partial read/write
   uint32_t mmio_address;              /* word address of the MMIO data to read/write */
   uint32_t mmio_address_parity;       /* Odd parity for MMIO address */
   uint64_t mmio_wdata;                /* write data for MMIO writes, unused if mmio_read is true */
@@ -247,10 +354,12 @@ struct AFU_EVENT {
   uint32_t mmio_double;               /* MMIO command is a 64-bit operation (otherwise read and write data should be limited to 32 bits) */
   uint32_t mmio_ack;                  /* MMIO command has been acknowledged */
   uint32_t mmio_afudescaccess;        /* MMIO command is access to AFU descriptor space */
+  // port response to tlx_afu response stuff
   uint32_t response_valid;            /* AFU event contains a valid TLX response */
   uint32_t response_tag;              /* tag value from the command in the TLX_EVENT that is being responded to */
   uint32_t response_code;             /* response code for the command with tag value above as documented in the TLX workbook */
   int32_t credits;                    /* number of credits (positive or negative) to return to the AFU */
+  // defer cache support to TLX4
   uint32_t cache_state;               /* cache state granted to the AFU as documented in the TLX workbook */
   uint32_t cache_position;            /* The cache position assigned by TLX */
   uint32_t response_tag_parity;       /* Odd parity for ha_rtag valid with ha_rvalid */
@@ -258,12 +367,14 @@ struct AFU_EVENT {
   uint32_t response_dma0_itag_parity; /* DMA translation tag parity   */
   uint32_t response_extra;            /* extra response information received from xlate logic */
   uint32_t response_r_pgsize;         /* command translated page size. values defined in CAIA2 workbook */
+  // buffer reads are no longer driven from tlx.  rather they are driven complete from the afu as a write form of command
   uint32_t buffer_read;               /* AFU event contains a valid buffer read request */
   uint32_t buffer_read_tag;           /* tag from command in TLX_EVENT which requested the buffer read */
   uint32_t buffer_read_tag_parity;    /* Odd parity for buffer read tag */
   uint32_t buffer_read_address;       /* address within the transfer of the 64 byte chunk of data to read */
   uint32_t buffer_read_length;        /* length of transfer, must be either 64 or 128 bytes */
   uint32_t buffer_read_latency;       /* Read buffer latency in clocks */
+  // buffer writes are sourced from the tlx
   uint32_t buffer_write;              /* AFU event contains a valid buffer write request */
   uint32_t buffer_write_tag;          /* tag from command in TLX_EVENT which requested the buffer write */
   uint32_t buffer_write_tag_parity;   /* Odd parity for buffer write tag */
@@ -288,6 +399,7 @@ struct AFU_EVENT {
   uint32_t command_handle;            /* Context handle (Process Element ID) */
   uint32_t aux2_change;               /* The value of one of the auxilliary signals has changed (running, job done or error, read latency) */
   uint32_t command_cpagesize;	      /*  Page size hint used by TLX for predicting page size during ERAT lookup & paged xlation ordering..codes documented in TLX workbook tbl 1-1 */
+  // dma's are no longer a separate path.
   uint32_t dma0_dvalid;     	      /* DMA request from AFU is valid */
   uint32_t dma0_req_utag;	      /* DMA transaction request user transaction tag */
   uint32_t dma0_req_itag;     	      /* DMA transaction request user translation identifier */
