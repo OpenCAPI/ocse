@@ -42,56 +42,188 @@
 #endif /* TLX3 */
 
 /* Select # of DMA interfaces, per config options in CH 17 of workbook */
+// TODO Remove these CAPI2 DMA port parms
 #define TLX_DMA_A_SUPPORT 1
 #define TLX_DMA_B_SUPPORT 0
 #define MAX_DMA0_RD_CREDITS 8
 #define MAX_DMA0_WR_CREDITS 8
 
-/* Return codes for interface functions */
+/* Return codes for TLX interface functions */
 
 #define TLX_SUCCESS 0
-#define TLX_DOUBLE_COMMAND 1	/* A command has been issued
-				   before the preceeding
-				   command of the same type has
-				   been acknowledged */
+#define TLX_AFU_DOUBLE_COMMAND 1
+#define TLX_AFU_CMD_NOT_VALID 2
+#define TLX_AFU_DOUBLE_CMD_DATA 3
+#define TLX_AFU_CMD_DATA_NOT_VALID 4
+#define TLX_AFU_DOUBLE_RESP 5
+#define TLX_AFU_RESP_NOT_VALID 6
+#define TLX_AFU_DOUBLE_RESP_DATA 7
+#define TLX_AFU_RESP_DATA_NOT_VALID 8
+#define AFU_TLX_DOUBLE_COMMAND 21
+#define AFU_TLX_CMD_NOT_VALID 22
+#define AFU_TLX_DOUBLE_CMD_DATA 23
+#define AFU_TLX_CMD_DATA_NOT_VALID 24
+#define AFU_TLX_DOUBLE_RESP 25
+#define AFU_TLX_RESP_NOT_VALID 26
+#define AFU_TLX_DOUBLE_RESP_DATA 27
+#define AFU_TLX_RESP_DATA_NOT_VALID 28
+#define TLX_BAD_SOCKET 16	/* The socket connection could not be established */
+#define TLX_VERSION_ERROR 48	/* The TLX versions in use on local & remote do not match */
+#define TLX_TRANSMISSION_ERROR 64	/* There was an error sending data across the socket
+					   interface */
+#define TLX_CLOSE_ERROR 128	/* There was an error closing the socket */
+
+/* TL CAPP Command opcodes (from host to AFU) */
+
+#define TLX_CMD_NOP 0
+#define TLX_CMD_XLATE_DONE 	0x18
+#define TLX_CMD_RETURN_ADR_TAG  0x19	// TLX4 only
+#define TLX_CMD_INTRP_RDY  	0x1a 
+#define TLX_CMD_RD_MEM	  	 0x20
+#define TLX_CMD_PR_RD_MEM  	0x28
+#define TLX_CMD_AMO_RD     	0x30	// TLX4 only
+#define TLX_CMD_AMO_RW     	0x31	// TLX4 only
+#define TLX_CMD_AMO_W      	0x40	// TLX4 only
+#define TLX_CMD_WRITE_MEM  	0x81
+#define TLX_CMD_WRITE_MEM_BE	0x82
+#define TLX_CMD_WRITE_META	0x83	// OMI ?
+#define TLX_CMD_PR_WR_MEM	0x86
+#define TLX_CMD_FORCE_EVICT	0xd0	// TLX4 only
+#define TLX_CMD_FORCE_UR	0xd2	// TLX4 only
+#define TLX_CMD_WAKE_AFU_THREAD	0xdf	// TLX4 only
+#define TLX_CMD_CONFIG_READ	0xc0
+#define TLX_CMD_CONFIG_WRITE	0xc1
+
+
+/* TLX AP Command opcodes (from AFU to host) */
+
+#define AFU_CMD_NOP 0
+#define AFU_CMD_RD_WNITC 	0x10
+#define AFU_CMD_RD_WNITC_S 	0x11 	//TLX4 only
+#define AFU_CMD_RD_WNITC_N 	0x14 	
+#define AFU_CMD_RD_WNITC_N_S 	0x15 	//TLX4 only
+#define AFU_CMD_PR_RD_WNITC 	0x12
+#define AFU_CMD_PR_RD_WNITC_S 	0x13 	//TLX4 only
+#define AFU_CMD_PR_RD_WNITC_N 	0x16 	
+#define AFU_CMD_PR_RD_WNITC_N_S	0x17 	//TLX4 only
+#define AFU_CMD_DMA_W  		0x20	
+#define AFU_CMD_DMA_W_S  	0x21	// TLX4 only 
+#define AFU_CMD_DMA_W_P	  	0x22	// TLX4 only
+#define AFU_CMD_DMA_W_P_S	0x23	// TLX4 only
+#define AFU_CMD_DMA_W_N	  	0x24
+#define AFU_CMD_DMA_W_N_S  	0x25	// TLX4 only
+#define AFU_CMD_DMA_W_N_P 	0x26	// TLX4 only
+#define AFU_CMD_DMA_W_N_P_S     0x27	// TLX4 only
+#define AFU_CMD_DMA_W_BE  	0x28
+#define AFU_CMD_DMA_W_BE_S     	0x29	// TLX4 only
+#define AFU_CMD_DMA_W_BE_P     	0x2a	// TLX4 only
+#define AFU_CMD_DMA_W_BE_P_S   	0x2b	// TLX4 only
+#define AFU_CMD_DMA_W_BE_N  	0x2c
+#define AFU_CMD_DMA_W_BE_N_S	0x2d	// TLX4 only
+#define AFU_CMD_DMA_W_BE_N_P	0x2e	// TLX4 only
+#define AFU_CMD_DMA_W_BE_N_P_S	0x2f	// TLX4 only
+#define AFU_CMD_DMA_PR_W  	0x30	
+#define AFU_CMD_DMA_PR_W_S  	0x31	// TLX4 only 
+#define AFU_CMD_DMA_PR_W_P  	0x32	// TLX4 only
+#define AFU_CMD_DMA_PR_W_P_S	0x33	// TLX4 only
+#define AFU_CMD_DMA_PR_W_N  	0x34
+#define AFU_CMD_DMA_PR_W_N_S  	0x35	// TLX4 only
+#define AFU_CMD_DMA_PR_W_N_P 	0x36	// TLX4 only
+#define AFU_CMD_DMA_PR_W_N_P_S  0x37	// TLX4 only
+#define AFU_CMD_AMO_RD  	0x38	
+#define AFU_CMD_AMO_RD_S  	0x39	// TLX4 only	
+#define AFU_CMD_AMO_RD_N  	0x3c	
+#define AFU_CMD_AMO_RD_N_S  	0x3d	// TLX4 only	
+#define AFU_CMD_AMO_RW  	0x40	
+#define AFU_CMD_AMO_RW_S  	0x41	// TLX4 only	
+#define AFU_CMD_AMO_RW_N  	0x44	
+#define AFU_CMD_AMO_RW_N_S  	0x45	// TLX4 only	
+#define AFU_CMD_AMO_W  		0x48	
+#define AFU_CMD_AMO_W_S  	0x49	// TLX4 only 
+#define AFU_CMD_AMO_W_P  	0x4a	// TLX4 only
+#define AFU_CMD_AMO_W_P_S	0x4b	// TLX4 only
+#define AFU_CMD_AMO_W_N  	0x4c
+#define AFU_CMD_AMO_W_N_S  	0x4d	// TLX4 only
+#define AFU_CMD_AMO_W_N_P 	0x4e	// TLX4 only
+#define AFU_CMD_AMO_W_N_P_S  	0x4f	// TLX4 only
+#define AFU_CMD_ASSIGN_ACTAG	0x50	
+#define AFU_CMD_ADR_TAG_RELEASE	0x51	// TLX4 only	
+#define AFU_CMD_MEM_PA_FLUSH	0x52	// TLX4 only	
+#define AFU_CMD_CASTOUT		0x55	// TLX4 only	
+#define AFU_CMD_CASTOUT_PUSH	0x56	// TLX4 only	
+#define AFU_CMD_INTRP_REQ	0x58	
+#define AFU_CMD_INTRP_REQ_S	0x59	// TLX4 only	
+#define AFU_CMD_INTRP_REQ_D	0x5a	
+#define AFU_CMD_INTRP_REQ_D_S	0x5b	// TLX4 only	
+#define AFU_CMD_WAKE_HOST_THRD	0x5c	
+#define AFU_CMD_WAKE_HOST_THRD_S	0x5d // TLX4 only	
+#define AFU_CMD_UPGRADE_STATE	0x60 	// TLX4 only	
+#define AFU_CMD_READ_EXCLUSIVE	0x68 	// TLX4 only	
+#define AFU_CMD_READ_SHARED	0x69 	// TLX4 only	
+#define AFU_CMD_XLATE_TOUCH	0x78 	
+#define AFU_CMD_XLATE_TOUCH_N	0x7c	
+#define AFU_CMD_RD_WNITC_T	0x90 	// TLX4 only	
+#define AFU_CMD_RD_WNITC_T_S	0x91 	// TLX4 only	
+#define AFU_CMD_RD_WNITC_T_N	0x94 	// TLX4 only	
+#define AFU_CMD_RD_WNITC_T_N_S	0x95 	// TLX4 only	
+// there are 20+ more TLX4 only commands; add them later
+
+
+/* TL CAPP responses (from host to AFU)  */
+#define TLX_RSP_NOP 0
+#define TLX_RSP_RET_TLX_CREDITS	0x01
+#define TLX_RSP_TOUCH_RESP	0x02
+#define TLX_RSP_READ_RESP	0x04
+#define TLX_RSP_UGRADE_RESP	0x07 	// TLX4 only
+#define TLX_RSP_READ_FAILED	0x05
+#define TLX_RSP_CL_RD_RESP	0x06 	// TLX4 only
+#define TLX_RSP_WRITE_RESP	0x08
+#define TLX_RSP_WRITE_FAILED	0x09
+#define TLX_RSP_MEM_FLUSH_DONE	0x0a 	// TLX4 only
+#define TLX_RSP_INTRP_RESP	0x0c
+#define TLX_RSP_READ_RESP_OW	0x0d 	// OMI ?
+#define TLX_RSP_READ_RESP_XW	0x0e 	// OMI ?
+#define TLX_RSP_WAKE_HOST_RESP	0x10
+#define TLX_RSP_CL_RD_RESP_OW	0x16 	// TLX4 only
+
+
+/* TLX AP responses (from AFU to host) */
+#define AFU_RSP_NOP  0
+#define AFU_RSP_MEM_RD_RESP	0x01
+#define AFU_RSP_MEM_RD_FAIL	0x02
+#define AFU_RSP_MEM_RD_RESP_OW	0x03 	// OMI ?
+#define AFU_RSP_MEM_WR_RESP	0x04
+#define AFU_RSP_MEM_WR_FAIL	0x05
+#define AFU_RSP_MEM_RD_RESP_XW	0x07 	// OMI ?
+#define AFU_RSP_RET_TL_CREDITS	0x08 	// OMI ?
+#define AFU_RSP_WAKE_AFU_RESP	0x0a 	// TLX4 only
+#define AFU_RSP_FORCE_UR_DONE	0x0c 	// TLX4 only
+
+
+// TODO Delete these RCs for PSL interface
+#define TLX_DOUBLE_COMMAND 1	/* A command has been issuedbefore the preceeding
+				   command of the same type has been acknowledged */
 #define TLX_DOUBLE_DMA0_REQ 2
 #define TLX_NO_DMA_PORT_CREDITS 3
+#define TLX_MMIO_ACK_NOT_VALID 4	/* Read data from previos MMIO read is not available */
+#define TLX_BUFFER_READ_DATA_NOT_VALID 8	/* Read data from previous buffer read is notavailable */
+#define TLX_COMMAND_NOT_VALID 32	/* There is no TLX command available */
+#define TLX_AUX2_NOT_VALID 256	/* There auxilliary signalshave not changed */
 
-#define TLX_MMIO_ACK_NOT_VALID 4	/* Read data from previos MMIO
-					   read is not available */
-#define TLX_BUFFER_READ_DATA_NOT_VALID 8	/* Read data from previous
-						   buffer read is not
-						   available */
-#define TLX_COMMAND_NOT_VALID 32	/* There is no TLX command
-					   available */
-#define TLX_BAD_SOCKET 16	/* The socket connection could
-				   not be established */
-#define TLX_VERSION_ERROR 48	/* The TLX versions in use on local & remote do not match */
-#define TLX_TRANSMISSION_ERROR 64	/* There was an error sending
-					   data across the socket
-					   interface */
-#define TLX_CLOSE_ERROR 128	/* There was an error closing
-				   the socket */
-#define TLX_AUX2_NOT_VALID 256	/* There auxilliary signals
-				   have not changed */
-
-/* Job Control Codes */
-
+/* TODO Remove these CAPI2 Job Control Codes */
 #define TLX_JOB_START 0x90
 #define TLX_JOB_RESET 0x80
 #define TLX_JOB_LLCMD 0x45
 #define TLX_JOB_TIMEBASE 0x42
 
-/* LLCMD decode */
-
+/* TODO Remove these CAPI2 LLCMD decode */
 #define TLX_LLCMD_MASK 0xFFFF000000000000LL
 #define TLX_LLCMD_TERMINATE 0x0001000000000000LL
 #define TLX_LLCMD_REMOVE 0x0002000000000000LL
 #define TLX_LLCMD_ADD 0x0005000000000000LL
 #define TLX_LLCMD_CONTEXT_MASK 0x000000000000FFFFLL
 
-/* Response codes for TLX responses */
-
+/* TODO Remove these CAPI2 Response codes for PSL responses */
 #define TLX_RESPONSE_DONE 0
 #define TLX_RESPONSE_AERROR 1
 #define TLX_RESPONSE_DERROR 3
@@ -106,8 +238,7 @@
 #define TLX_RESPONSE_COMP_NEQ 13
 #define TLX_RESPONSE_CAS_INV 14
 
-/* Command codes for AFU commands */
-
+/* TODO remove these CAPI2 Command codes for AFU commands */
 #define TLX_COMMAND_READ_CL_NA   0x0A00
 #define TLX_COMMAND_READ_CL_S    0x0A50
 #define TLX_COMMAND_READ_CL_M    0x0A60
@@ -194,17 +325,14 @@
 #define AMO_ARMW_CAS_MIN_U	 0x26
 #define AMO_ARMW_CAS_MIN_S	 0x27
 #define AMO_ARMW_CAS_T	 0x38
-
 #define DMA_DTYPE_RD_REQ	0x0
 #define DMA_DTYPE_WR_REQ_128	0x1
 #define DMA_DTYPE_WR_REQ_MORE	0x2
 #define DMA_DTYPE_ATOMIC	0x3
-
 #define DMA_SENT_UTAG_STS_RD	0x0
 #define DMA_SENT_UTAG_STS_WR	0x1
 #define DMA_SENT_UTAG_STS_FAIL	0x2
 #define DMA_SENT_UTAG_STS_FLUSH	0x3
-
 #define DMA_CPL_TYPE_RD_128	0x0
 #define DMA_CPL_TYPE_RD_PLUS	0x1
 #define DMA_CPL_TYPE_ERR	0x2
@@ -236,7 +364,7 @@ struct AFU_EVENT {
   uint8_t tlx_afu_resp_dl;                /* 2 bit encoded data length */
   uint8_t tlx_afu_resp_dp;                /* 2 bit data part - which part of the data is in resp data */
   // uint32_t tlx_afu_resp_host_tag;            /* TLX4 */
-  uin32_t tlx_afu_resp_addr_tag;          /* 18 bit bad address tag from a translate request */
+  uint32_t tlx_afu_resp_addr_tag;          /* 18 bit bad address tag from a translate request */
   // uint8_t tlx_afu_resp_cache_state;          /* TLX4 */
   
   // AFU to TLX Response Credit Interface (table 2)
@@ -329,7 +457,7 @@ struct AFU_EVENT {
   				       
   // CREDITS!!!
 
-  // job is no longer a tlx interface
+  // job is no longer a tlx interface TODO This goes away eventually
   uint64_t job_address;               /* effective address of the work element descriptor */
   uint64_t job_error;                 /* error code for completed job */
   uint32_t job_valid;                 /* AFU event contains a valid job control command */
@@ -342,7 +470,8 @@ struct AFU_EVENT {
   uint32_t job_yield;                 /* Used to save context in Shared mode. */
   uint32_t timebase_request;          /* Requests TLX to send a timebase control command with current timebase value. */
   uint32_t parity_enable;             /* If asserted, AFU supports parity generation on various interface buses. */
-  // port mmio to some sort of partial read/write
+  // port mmio to some sort of partial read/write TODO This goes away/mmio & 
+  // config rd/wr go thru TLX->AFU cmd interface
   uint32_t mmio_address;              /* word address of the MMIO data to read/write */
   uint32_t mmio_address_parity;       /* Odd parity for MMIO address */
   uint64_t mmio_wdata;                /* write data for MMIO writes, unused if mmio_read is true */
@@ -417,7 +546,6 @@ struct AFU_EVENT {
   uint32_t dma0_completion_laddr;     /* DMA completion Atomic attribute - lower addr bits of rx cmpl */
   uint32_t dma0_completion_byte_count; /* DMA completion remaining amount of bytes required to complete originating read request
 						including bytes being transferred in the current transaction   */
-/* TODO must increase size of dma0_req_data & dma0_completion_data to 256 to be able to handle half of max DMA transfer in one socket transaction */
   unsigned char dma0_req_data[128];	      /* DMA data alignment is First byte first */
   unsigned char dma0_completion_data[128];  /* DMA completion data alignment is First Byte first */
   signed char dma0_wr_credits;	/* Used to limit # of outstanding DMA wr ops to MAX_DMA0_WR_CREDITS  */
