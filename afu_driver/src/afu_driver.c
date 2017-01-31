@@ -21,14 +21,20 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "tlx_interface.h"
 #include "vpi_user.h"
 #include "svdpi.h"
 
+// Global Variables
+static struct AFU_EVENT event;
+//
+//
 // Local Variables
 #define CLOCK_EDGE_DELAY 2
 #define CACHELINE_BYTES 128
 uint64_t c_sim_time ;
 int      c_sim_error ;
+//
 //
 // Local Methods
 static int getMy64Bit(const svLogicVecVal *my64bSignal, uint64_t *conv64bit);
@@ -36,6 +42,7 @@ int getMyCacheLine(const svLogicVecVal *myLongSignal, uint8_t myCacheData[]);
 void setMyCacheLine(svLogicVecVal *myLongSignal, uint8_t myCacheData[]);
 void setDpiSignal32(svLogicVecVal *my32bSignal, uint32_t inData, int size);
 static void setDpiSignal64(svLogicVecVal *my64bSignal, uint64_t data);
+static void error_message(const char *str);
 static void tlx_control(void);
 //
 void tlx_bfm(
@@ -51,7 +58,6 @@ void tlx_bfm(
 
 void tlx_bfm_init()
 {
-/*	TODO: This part must be uncommented after we get the tlx_interface methods
   int port = 32768;
   while (tlx_serv_afu_event(&event, port) != TLX_SUCCESS) {
     if (tlx_serv_afu_event(&event, port) == TLX_VERSION_ERROR) {
@@ -64,7 +70,6 @@ void tlx_bfm_init()
     }
     ++port;
   }
-*/
   return;
 }
 
@@ -159,15 +164,13 @@ static void tlx_control(void)
 	// Wait for clock edge from OCSE
 	fd_set watchset;
 	FD_ZERO(&watchset);
-//  TODO: uncheck	FD_SET(event.sockfd, &watchset);
-//  TODO: uncheck	select(event.sockfd + 1, &watchset, NULL, NULL, NULL);
-// TODO: get the tlx_ equivalent of the get_events	int rc = tlx_get_tlx_events(&event);
-// temp setting
-        int rc = 1;
+	FD_SET(event.sockfd, &watchset);
+	select(event.sockfd + 1, &watchset, NULL, NULL, NULL);
+	int rc = tlx_get_tlx_events(&event);
 	// No clock edge
 	while (!rc) {
-//  TODO: uncheck		select(event.sockfd + 1, &watchset, NULL, NULL, NULL);
-// TODO: get the tlx_ equivalent of get_events		rc = tlx_get_tlx_events(&event);
+	  select(event.sockfd + 1, &watchset, NULL, NULL, NULL);
+	  rc = tlx_get_tlx_events(&event);
 	}
 	// Error case
 	if (rc < 0) {
@@ -175,5 +178,14 @@ static void tlx_control(void)
 	  printf("Socket closed: Ending Simulation.");
 	  c_sim_error = 1;
 	}
+}
+
+static void error_message(const char *str)
+{
+	fflush(stdout);
+//	fprintf(stderr, "%08lld: ERROR: %s\n", get_time(), str);
+//	Removing the get_time() from the function, since this is a VPI function unsupported on DPI
+	fprintf(stderr, "%08lld: ERROR: %s\n", (long long) c_sim_time, str);
+	fflush(stderr);
 }
 
