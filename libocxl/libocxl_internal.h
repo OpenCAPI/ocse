@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef _LIBCXL_INTERNAL_H
-#define _LIBCXL_INTERNAL_H
+#ifndef _LIBOCXL_INTERNAL_H
+#define _LIBOCXL_INTERNAL_H
 
 #include <dirent.h>
 #include <inttypes.h>
@@ -24,38 +24,38 @@
 
 #define EVENT_QUEUE_MAX 3
 
-enum libcxl_req_state {
-	LIBCXL_REQ_IDLE,
-	LIBCXL_REQ_REQUEST,
-	LIBCXL_REQ_PENDING
+enum libocxl_req_state {
+	LIBOCXL_REQ_IDLE,
+	LIBOCXL_REQ_REQUEST,
+	LIBOCXL_REQ_PENDING
 };
 
 struct int_req {
-	volatile enum libcxl_req_state state;
+	volatile enum libocxl_req_state state;
 	volatile uint16_t max;
 };
 
 struct open_req {
-	volatile enum libcxl_req_state state;
+	volatile enum libocxl_req_state state;
 	volatile uint8_t context;
 };
 
 struct attach_req {
-	volatile enum libcxl_req_state state;
+	volatile enum libocxl_req_state state;
 	volatile uint64_t wed;
 };
 
 struct mmio_req {
-	volatile enum libcxl_req_state state;
+	volatile enum libocxl_req_state state;
 	volatile uint8_t type;
 	volatile uint32_t addr;
 	uint64_t data;
 };
 
-struct cxl_afu_h {
+struct ocxl_afu_h {
 	pthread_t thread;
 	pthread_mutex_t event_lock;
-	struct cxl_event *events[EVENT_QUEUE_MAX];
+	struct ocxl_event *events[EVENT_QUEUE_MAX];
 	int adapter;
 	char *id;
 	uint16_t context;
@@ -82,12 +82,12 @@ struct cxl_afu_h {
 	struct open_req open;
 	struct attach_req attach;
 	struct mmio_req mmio;
-	struct cxl_afu_h *_head;
-	struct cxl_afu_h *_next;
-	struct cxl_afu_h *_next_adapter;
+	struct ocxl_afu_h *_head;
+	struct ocxl_afu_h *_next;
+	struct ocxl_afu_h *_next_adapter;
 };
 
-struct cxl_adapter_h {
+struct ocxl_adapter_h {
 	DIR *enum_dir;
 	struct dirent *enum_ent;
 	char *sysfs_path;
@@ -99,9 +99,9 @@ struct cxl_adapter_h {
 	uint16_t map;
 	uint16_t mask;
 	uint16_t position;
-	struct cxl_adapter_h *_head;
-	struct cxl_adapter_h *_next;
-	struct cxl_afu_h *afu_list;
+	struct ocxl_adapter_h *_head;
+	struct ocxl_adapter_h *_next;
+	struct ocxl_afu_h *afu_list;
 };
 
 #endif

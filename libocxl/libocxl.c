@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+// first implement ocxl_afu_open_dev and required stack
+// next implement ocxl_afu_attach and required stack
+// then mmio helpers
+// then lpc helpers
+
 #include <arpa/inet.h>
 #include <assert.h>
 #include <errno.h>
@@ -30,8 +35,8 @@
 #include <unistd.h>
 #include <limits.h>
 
-#include "libcxl.h"
-#include "libcxl_internal.h"
+#include "libocxl.h"
+#include "libocxl_internal.h"
 #include "../common/utils.h"
 
 #define API_VERSION            1
@@ -85,31 +90,31 @@ static int _testmemaddr(uint8_t * memaddr)
 	return ret;
 }
 
-static void _all_idle(struct cxl_afu_h *afu)
+static void _all_idle(struct ocxl_afu_h *afu)
 {
 	if (!afu)
-		fatal_msg("NULL afu passed to libcxl.c:_all_idle");
-	afu->int_req.state = LIBCXL_REQ_IDLE;
-	afu->open.state = LIBCXL_REQ_IDLE;
-	afu->attach.state = LIBCXL_REQ_IDLE;
-	afu->mmio.state = LIBCXL_REQ_IDLE;
+		fatal_msg("NULL afu passed to libocxl.c:_all_idle");
+	afu->int_req.state = LIBOCXL_REQ_IDLE;
+	afu->open.state = LIBOCXL_REQ_IDLE;
+	afu->attach.state = LIBOCXL_REQ_IDLE;
+	afu->mmio.state = LIBOCXL_REQ_IDLE;
 	afu->mapped = 0;
 	afu->attached = 0;
 	afu->opened = 0;
 }
 
-static int _handle_dsi(struct cxl_afu_h *afu, uint64_t addr)
+static int _handle_dsi(struct ocxl_afu_h *afu, uint64_t addr)
 {
 	uint16_t size;
 	int i;
 
 	if (!afu)
-		fatal_msg("NULL afu passed to libcxl.c:_handle_dsi");
+		fatal_msg("NULL afu passed to libocxl.c:_handle_dsi");
 	// Only track a single DSI at a time
 	pthread_mutex_lock(&(afu->event_lock));
 	i = 0;
 	while (afu->events[i] != NULL) {
-		if (afu->events[i]->header.type == CXL_EVENT_DATA_STORAGE) {
+		if (afu->events[i]->header.type == OCXL_EVENT_DATA_STORAGE) {
 			pthread_mutex_unlock(&(afu->event_lock));
 			return 0;
 		}
@@ -117,10 +122,10 @@ static int _handle_dsi(struct cxl_afu_h *afu, uint64_t addr)
 	}
 	assert(i < EVENT_QUEUE_MAX);
 
-	size = sizeof(struct cxl_event_header) +
-	    sizeof(struct cxl_event_data_storage);
-	afu->events[i] = (struct cxl_event *)calloc(1, size);
-	afu->events[i]->header.type = CXL_EVENT_DATA_STORAGE;
+	size = sizeof(struct ocxl_event_header) +
+	    sizeof(struct ocxl_event_data_storage);
+	afu->events[i] = (struct ocxl_event *)calloc(1, size);
+	afu->events[i]->header.type = OCXL_EVENT_DATA_STORAGE;
 	afu->events[i]->header.size = size;
 	afu->events[i]->header.process_element = afu->context;
 	afu->events[i]->fault.addr = addr & FOURK_MASK;
@@ -134,14 +139,14 @@ static int _handle_dsi(struct cxl_afu_h *afu, uint64_t addr)
 	return i;
 }
 
-static int _handle_interrupt(struct cxl_afu_h *afu)
+static int _handle_interrupt(struct ocxl_afu_h *afu)
 {
 	uint16_t size, irq;
 	uint8_t data[sizeof(irq)];
 	int i;
 
 	if (!afu)
-		fatal_msg("NULL afu passed to libcxl.c:_handle_interrupt");
+		fatal_msg("NULL afu passed to libocxl.c:_handle_interrupt");
 	DPRINTF("AFU INTERRUPT\n");
 	if (get_bytes_silent(afu->fd, sizeof(irq), data, 1000, 0) < 0) {
 		warn_msg("Socket failure getting IRQ");
@@ -155,7 +160,7 @@ static int _handle_interrupt(struct cxl_afu_h *afu)
 	pthread_mutex_lock(&(afu->event_lock));
 	i = 0;
 	while (afu->events[i] != NULL) {
-		if (afu->events[i]->header.type == CXL_EVENT_AFU_INTERRUPT) {
+		if (afu->events[i]->header.type == OCXL_EVENT_AFU_INTERRUPT) {
 			pthread_mutex_unlock(&(afu->event_lock));
 			return 0;
 		}
@@ -163,10 +168,10 @@ static int _handle_interrupt(struct cxl_afu_h *afu)
 	}
 	assert(i < EVENT_QUEUE_MAX);
 
-	size = sizeof(struct cxl_event_header) +
-	    sizeof(struct cxl_event_afu_interrupt);
-	afu->events[i] = (struct cxl_event *)calloc(1, size);
-	afu->events[i]->header.type = CXL_EVENT_AFU_INTERRUPT;
+	size = sizeof(struct ocxl_event_header) +
+	    sizeof(struct ocxl_event_afu_interrupt);
+	afu->events[i] = (struct ocxl_event *)calloc(1, size);
+	afu->events[i]->header.type = OCXL_EVENT_AFU_INTERRUPT;
 	afu->events[i]->header.size = size;
 	afu->events[i]->header.process_element = afu->context;
 	afu->events[i]->irq.irq = irq;
@@ -179,7 +184,7 @@ static int _handle_interrupt(struct cxl_afu_h *afu)
 	return i;
 }
 
-static int _handle_afu_error(struct cxl_afu_h *afu)
+static int _handle_afu_error(struct ocxl_afu_h *afu)
 {
 	uint64_t error;
 	uint16_t size;
@@ -187,7 +192,7 @@ static int _handle_afu_error(struct cxl_afu_h *afu)
 	int i;
 
 	if (!afu)
-		fatal_msg("NULL afu passed to libcxl.c:_handle_afu_error");
+		fatal_msg("NULL afu passed to libocxl.c:_handle_afu_error");
 	DPRINTF("AFU ERROR\n");
 	if (get_bytes_silent(afu->fd, sizeof(error), data, 1000, 0) < 0) {
 		warn_msg("Socket failure getting AFU ERROR");
@@ -201,7 +206,7 @@ static int _handle_afu_error(struct cxl_afu_h *afu)
 	pthread_mutex_lock(&(afu->event_lock));
 	i = 0;
 	while (afu->events[i] != NULL) {
-		if (afu->events[i]->header.type == CXL_EVENT_AFU_ERROR) {
+		if (afu->events[i]->header.type == OCXL_EVENT_AFU_ERROR) {
 			pthread_mutex_unlock(&(afu->event_lock));
 			return 0;
 		}
@@ -209,10 +214,10 @@ static int _handle_afu_error(struct cxl_afu_h *afu)
 	}
 	assert(i < EVENT_QUEUE_MAX);
 
-	size = sizeof(struct cxl_event_header) +
-	    sizeof(struct cxl_event_afu_error);
-	afu->events[i] = (struct cxl_event *)calloc(1, size);
-	afu->events[i]->header.type = CXL_EVENT_AFU_ERROR;
+	size = sizeof(struct ocxl_event_header) +
+	    sizeof(struct ocxl_event_afu_error);
+	afu->events[i] = (struct ocxl_event *)calloc(1, size);
+	afu->events[i]->header.type = OCXL_EVENT_AFU_ERROR;
 	afu->events[i]->header.size = size;
 	afu->events[i]->header.process_element = afu->context;
 	afu->events[i]->afu_error.error = error;
@@ -225,12 +230,12 @@ static int _handle_afu_error(struct cxl_afu_h *afu)
 	return i;
 }
 
-static void _handle_read(struct cxl_afu_h *afu, uint64_t addr, uint16_t size)
+static void _handle_read(struct ocxl_afu_h *afu, uint64_t addr, uint16_t size)
 {
 	uint8_t buffer[MAX_LINE_CHARS];
 
 	if (!afu)
-		fatal_msg("NULL afu passed to libcxl.c:_handle_read");
+		fatal_msg("NULL afu passed to libocxl.c:_handle_read");
 	if (!_testmemaddr((uint8_t *) addr)) {
 		if (_handle_dsi(afu, addr) < 0) {
 			perror("DSI Failure");
@@ -253,13 +258,13 @@ static void _handle_read(struct cxl_afu_h *afu, uint64_t addr, uint16_t size)
 	DPRINTF("READ from addr @ 0x%016" PRIx64 "\n", addr);
 }
 
-static void _handle_write(struct cxl_afu_h *afu, uint64_t addr, uint16_t size,
+static void _handle_write(struct ocxl_afu_h *afu, uint64_t addr, uint16_t size,
 			  uint8_t * data)
 {
 	uint8_t buffer;
 
 	if (!afu)
-		fatal_msg("NULL afu passed to libcxl.c:_handle_write");
+		fatal_msg("NULL afu passed to libocxl.c:_handle_write");
 	if (!_testmemaddr((uint8_t *) addr)) {
 		if (_handle_dsi(afu, addr) < 0) {
 			perror("DSI Failure");
@@ -282,12 +287,12 @@ static void _handle_write(struct cxl_afu_h *afu, uint64_t addr, uint16_t size,
 	DPRINTF("WRITE to addr @ 0x%016" PRIx64 "\n", addr);
 }
 
-static void _handle_touch(struct cxl_afu_h *afu, uint64_t addr, uint8_t size)
+static void _handle_touch(struct ocxl_afu_h *afu, uint64_t addr, uint8_t size)
 {
 	uint8_t buffer;
 
 	if (!afu)
-		fatal_msg("NULL afu passed to libcxl.c:_handle_touch");
+		fatal_msg("NULL afu passed to libocxl.c:_handle_touch");
 	if (!_testmemaddr((uint8_t *) addr)) {
 		if (_handle_dsi(afu, addr) < 0) {
 			perror("DSI Failure");
@@ -309,12 +314,12 @@ static void _handle_touch(struct cxl_afu_h *afu, uint64_t addr, uint8_t size)
 	DPRINTF("TOUCH of addr @ 0x%016" PRIx64 "\n", addr);
 }
 
-static void _handle_ack(struct cxl_afu_h *afu)
+static void _handle_ack(struct ocxl_afu_h *afu)
 {
 	uint8_t data[sizeof(uint64_t)];
 
 	if (!afu)
-		fatal_msg("NULL afu passed to libcxl.c:_handle_ack");
+		fatal_msg("NULL afu passed to libocxl.c:_handle_ack");
 	DPRINTF("MMIO ACK\n");
 	if ((afu->mmio.type == PSLSE_MMIO_READ64)| (afu->mmio.type == PSLSE_MMIO_EBREAD)) {
 		if (get_bytes_silent(afu->fd, sizeof(uint64_t), data, 1000, 0) <
@@ -340,12 +345,12 @@ static void _handle_ack(struct cxl_afu_h *afu)
 			debug_msg("KEM:0x%08x", afu->mmio.data);
 		}
 	}
-	afu->mmio.state = LIBCXL_REQ_IDLE;
+	afu->mmio.state = LIBOCXL_REQ_IDLE;
 }
 
 #ifdef PSL9
 
-static void _handle_DMO_OPs(struct cxl_afu_h *afu, uint8_t op_size, uint64_t addr,
+static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t addr,
 			  uint8_t function_code, uint64_t op1, uint64_t op2)
 {
 
@@ -359,7 +364,7 @@ static void _handle_DMO_OPs(struct cxl_afu_h *afu, uint8_t op_size, uint64_t add
 	char wb;
 
 	if (!afu)
-		fatal_msg("NULL afu passed to libcxl.c:_handle_DMO_OPs");
+		fatal_msg("NULL afu passed to libocxl.c:_handle_DMO_OPs");
 	if (!_testmemaddr((uint8_t *) addr)) {
 		if (_handle_dsi(afu, addr) < 0) {
 			perror("DSI Failure");
@@ -937,14 +942,14 @@ static void _handle_DMO_OPs(struct cxl_afu_h *afu, uint8_t op_size, uint64_t add
 
 #endif /* ifdef PSL9 */
 
-static void _req_max_int(struct cxl_afu_h *afu)
+static void _req_max_int(struct ocxl_afu_h *afu)
 {
 	uint8_t *buffer;
 	int size;
 	uint16_t value;
 
 	if (!afu)
-		fatal_msg("NULL afu passed to libcxl.c:_req_max_int");
+		fatal_msg("NULL afu passed to libocxl.c:_req_max_int");
 	size = 1 + sizeof(uint16_t);
 	buffer = (uint8_t *) malloc(size);
 	buffer[0] = PSLSE_MAX_INT;
@@ -958,17 +963,17 @@ static void _req_max_int(struct cxl_afu_h *afu)
 		return;
 	}
 	free(buffer);
-	afu->int_req.state = LIBCXL_REQ_PENDING;
+	afu->int_req.state = LIBOCXL_REQ_PENDING;
 }
 
-static void _pslse_attach(struct cxl_afu_h *afu)
+static void _pslse_attach(struct ocxl_afu_h *afu)
 {
 	uint8_t *buffer;
 	uint64_t *wed_ptr;
 	int size, offset;
 
 	if (!afu)
-		fatal_msg("NULL afu passed to libcxl.c:_pslse_attach");
+		fatal_msg("NULL afu passed to libocxl.c:_pslse_attach");
 	size = 1 + sizeof(uint64_t);
 	buffer = (uint8_t *) malloc(size);
 	buffer[0] = PSLSE_ATTACH;
@@ -980,14 +985,14 @@ static void _pslse_attach(struct cxl_afu_h *afu)
 		close_socket(&(afu->fd));
 		afu->opened = 0;
 		afu->attached = 0;
-		afu->attach.state = LIBCXL_REQ_IDLE;
+		afu->attach.state = LIBOCXL_REQ_IDLE;
 		return;
 	}
 	free(buffer);
-	afu->attach.state = LIBCXL_REQ_PENDING;
+	afu->attach.state = LIBOCXL_REQ_PENDING;
 }
 
-static void _mmio_map(struct cxl_afu_h *afu)
+static void _mmio_map(struct ocxl_afu_h *afu)
 {
 	uint8_t *buffer;
 	uint32_t *flags_ptr;
@@ -995,7 +1000,7 @@ static void _mmio_map(struct cxl_afu_h *afu)
 	int size;
 
 	if (!afu)
-		fatal_msg("NULL afu passed to libcxl.c:_mmio_map");
+		fatal_msg("NULL afu passed to libocxl.c:_mmio_map");
 	size = 1 + sizeof(uint32_t);
 	buffer = (uint8_t *) malloc(size);
 	buffer[0] = PSLSE_MMIO_MAP;
@@ -1007,14 +1012,14 @@ static void _mmio_map(struct cxl_afu_h *afu)
 		close_socket(&(afu->fd));
 		afu->opened = 0;
 		afu->attached = 0;
-		afu->mmio.state = LIBCXL_REQ_IDLE;
+		afu->mmio.state = LIBOCXL_REQ_IDLE;
 		return;
 	}
 	free(buffer);
-	afu->mmio.state = LIBCXL_REQ_PENDING;
+	afu->mmio.state = LIBOCXL_REQ_PENDING;
 }
 
-static void _mmio_write64(struct cxl_afu_h *afu)
+static void _mmio_write64(struct ocxl_afu_h *afu)
 {
 	uint8_t *buffer;
 	uint64_t data;
@@ -1022,7 +1027,7 @@ static void _mmio_write64(struct cxl_afu_h *afu)
 	int size, offset;
 
 	if (!afu)
-		fatal_msg("NULL afu passed to libcxl.c:_mmio_write64");
+		fatal_msg("NULL afu passed to libocxl.c:_mmio_write64");
 	size = 1 + sizeof(addr) + sizeof(data);
 	buffer = (uint8_t *) malloc(size);
 	buffer[0] = PSLSE_MMIO_WRITE64;
@@ -1037,14 +1042,14 @@ static void _mmio_write64(struct cxl_afu_h *afu)
 		close_socket(&(afu->fd));
 		afu->opened = 0;
 		afu->attached = 0;
-		afu->mmio.state = LIBCXL_REQ_IDLE;
+		afu->mmio.state = LIBOCXL_REQ_IDLE;
 		return;
 	}
 	free(buffer);
-	afu->mmio.state = LIBCXL_REQ_PENDING;
+	afu->mmio.state = LIBOCXL_REQ_PENDING;
 }
 
-static void _mmio_write32(struct cxl_afu_h *afu)
+static void _mmio_write32(struct ocxl_afu_h *afu)
 {
 	uint8_t *buffer;
 	uint32_t data;
@@ -1052,7 +1057,7 @@ static void _mmio_write32(struct cxl_afu_h *afu)
 	int size, offset;
 
 	if (!afu)
-		fatal_msg("NULL afu passed to libcxl.c:_mmio_write32");
+		fatal_msg("NULL afu passed to libocxl.c:_mmio_write32");
 	size = 1 + sizeof(addr) + sizeof(data);
 	buffer = (uint8_t *) malloc(size);
 	buffer[0] = PSLSE_MMIO_WRITE32;
@@ -1067,21 +1072,21 @@ static void _mmio_write32(struct cxl_afu_h *afu)
 		close_socket(&(afu->fd));
 		afu->opened = 0;
 		afu->attached = 0;
-		afu->mmio.state = LIBCXL_REQ_IDLE;
+		afu->mmio.state = LIBOCXL_REQ_IDLE;
 		return;
 	}
 	free(buffer);
-	afu->mmio.state = LIBCXL_REQ_PENDING;
+	afu->mmio.state = LIBOCXL_REQ_PENDING;
 }
 
-static void _mmio_read(struct cxl_afu_h *afu)
+static void _mmio_read(struct ocxl_afu_h *afu)
 {
 	uint8_t *buffer;
 	uint32_t addr;
 	int size, offset;
 
 	if (!afu)
-		fatal_msg("NULL afu passed to libcxl.c:_mmio_read");
+		fatal_msg("NULL afu passed to libocxl.c:_mmio_read");
 	size = 1 + sizeof(addr);
 	buffer = (uint8_t *) malloc(size);
 	buffer[0] = afu->mmio.type;
@@ -1094,17 +1099,17 @@ static void _mmio_read(struct cxl_afu_h *afu)
 		close_socket(&(afu->fd));
 		afu->opened = 0;
 		afu->attached = 0;
-		afu->mmio.state = LIBCXL_REQ_IDLE;
+		afu->mmio.state = LIBOCXL_REQ_IDLE;
 		afu->mmio.data = 0xFEEDB00FFEEDB00FL;
 		return;
 	}
 	free(buffer);
-	afu->mmio.state = LIBCXL_REQ_PENDING;
+	afu->mmio.state = LIBOCXL_REQ_PENDING;
 }
 
 static void *_psl_loop(void *ptr)
 {
-	struct cxl_afu_h *afu = (struct cxl_afu_h *)ptr;
+	struct ocxl_afu_h *afu = (struct ocxl_afu_h *)ptr;
 	uint8_t buffer[MAX_LINE_CHARS];
 	uint8_t op_size, function_code;
 	uint64_t addr;
@@ -1114,16 +1119,16 @@ static void *_psl_loop(void *ptr)
 	int rc;
 
 	if (!afu)
-		fatal_msg("NULL afu passed to libcxl.c:_psl_loop");
+		fatal_msg("NULL afu passed to libocxl.c:_psl_loop");
 	afu->opened = 1;
 	while (afu->opened) {
 		_delay_1ms();
 		// Send any requests to PSLSE over socket
-		if (afu->int_req.state == LIBCXL_REQ_REQUEST)
+		if (afu->int_req.state == LIBOCXL_REQ_REQUEST)
 			_req_max_int(afu);
-		if (afu->attach.state == LIBCXL_REQ_REQUEST)
+		if (afu->attach.state == LIBOCXL_REQ_REQUEST)
 			_pslse_attach(afu);
-		if (afu->mmio.state == LIBCXL_REQ_REQUEST) {
+		if (afu->mmio.state == LIBOCXL_REQ_REQUEST) {
 			switch (afu->mmio.type) {
 			case PSLSE_MMIO_MAP:
 				_mmio_map(afu);
@@ -1166,20 +1171,20 @@ static void *_psl_loop(void *ptr)
 				break;
 			}
 			afu->context = (uint16_t) buffer[0];
-			afu->open.state = LIBCXL_REQ_IDLE;
+			afu->open.state = LIBOCXL_REQ_IDLE;
 			break;
 		case PSLSE_ATTACH:
-			afu->attach.state = LIBCXL_REQ_IDLE;
+			afu->attach.state = LIBOCXL_REQ_IDLE;
 			break;
 		case PSLSE_DETACH:
 		        info_msg("detach response from from pslse");
 			afu->mapped = 0;
 			afu->attached = 0;
 			afu->opened = 0;
-			afu->open.state = LIBCXL_REQ_IDLE;
-			afu->attach.state = LIBCXL_REQ_IDLE;
-			afu->mmio.state = LIBCXL_REQ_IDLE;
-			afu->int_req.state = LIBCXL_REQ_IDLE;
+			afu->open.state = LIBOCXL_REQ_IDLE;
+			afu->attach.state = LIBOCXL_REQ_IDLE;
+			afu->mmio.state = LIBOCXL_REQ_IDLE;
+			afu->int_req.state = LIBOCXL_REQ_IDLE;
 			break;
 		case PSLSE_MAX_INT:
 			size = sizeof(uint16_t);
@@ -1193,7 +1198,7 @@ static void *_psl_loop(void *ptr)
 			memcpy((char *)&value, (char *)buffer,
 			       sizeof(uint16_t));
 			afu->irqs_max = ntohs(value);
-			afu->int_req.state = LIBCXL_REQ_IDLE;
+			afu->int_req.state = LIBOCXL_REQ_IDLE;
 			break;
 		case PSLSE_QUERY: {
 			size = sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint16_t) +
@@ -1224,7 +1229,7 @@ static void *_psl_loop(void *ptr)
                         memcpy((char *)&lvalue, (char *)&(buffer[34]), 4);
 			afu->cr_class = ntohl(lvalue);
 			//no better place to put this right now
-			afu->prefault_mode = CXL_PREFAULT_MODE_NONE;
+			afu->prefault_mode = OCXL_PREFAULT_MODE_NONE;
 			break;
 		}
 		case PSLSE_MEMORY_READ:
@@ -1442,7 +1447,7 @@ static int _pslse_connect(uint16_t * afu_map, int *fd)
 	port_str++;
 	if (!host || !port_str) {
 		warn_msg
-		    ("cxl_afu_open_dev:Invalid format in pslse_server.data");
+		    ("ocxl_afu_open_dev:Invalid format in pslse_server.data");
 		goto connect_fail;
 	}
 	port = atoi(port_str);
@@ -1473,21 +1478,21 @@ static int _pslse_connect(uint16_t * afu_map, int *fd)
 	buffer[5] = (uint8_t) PSLSE_VERSION_MAJOR;
 	buffer[6] = (uint8_t) PSLSE_VERSION_MINOR;
 	if (put_bytes_silent(*fd, 7, buffer) != 7) {
-		warn_msg("cxl_afu_open_dev:Failed to write to socket!");
+		warn_msg("ocxl_afu_open_dev:Failed to write to socket!");
 		goto connect_fail;
 	}
 	if (get_bytes_silent(*fd, 1, buffer, -1, 0) < 0) {
-		warn_msg("cxl_afu_open_dev:Socket failed open acknowledge");
+		warn_msg("ocxl_afu_open_dev:Socket failed open acknowledge");
 		close_socket(fd);
 		goto connect_fail;
 	}
 	if (buffer[0] != (uint8_t) PSLSE_CONNECT) {
-		warn_msg("cxl_afu_open_dev:PSLSE bad acknowledge");
+		warn_msg("ocxl_afu_open_dev:PSLSE bad acknowledge");
 		close_socket(fd);
 		goto connect_fail;
 	}
 	if (get_bytes_silent(*fd, sizeof(uint16_t), buffer, 1000, 0) < 0) {
-		warn_msg("cxl_afu_open_dev:afu_map");
+		warn_msg("ocxl_afu_open_dev:afu_map");
 		close_socket(fd);
 		goto connect_fail;
 	}
@@ -1500,18 +1505,18 @@ static int _pslse_connect(uint16_t * afu_map, int *fd)
 	return -1;
 }
 
-static struct cxl_adapter_h *_new_adapter(uint16_t afu_map, uint16_t position,
+static struct ocxl_adapter_h *_new_adapter(uint16_t afu_map, uint16_t position,
 					  int fd)
 {
-	struct cxl_adapter_h *adapter;
+	struct ocxl_adapter_h *adapter;
 	uint16_t mask = 0xf000;
 	int id_num = 0;
 
 	if (position == 0)
 		return NULL;
 
-	adapter = (struct cxl_adapter_h *)
-	    calloc(1, sizeof(struct cxl_adapter_h));
+	adapter = (struct ocxl_adapter_h *)
+	    calloc(1, sizeof(struct ocxl_adapter_h));
 	while ((position & mask) == 0) {
 		mask >>= 4;
 		++id_num;
@@ -1525,11 +1530,11 @@ static struct cxl_adapter_h *_new_adapter(uint16_t afu_map, uint16_t position,
 	return adapter;
 }
 
-static struct cxl_afu_h *_new_afu(uint16_t afu_map, uint16_t position, int fd)
+static struct ocxl_afu_h *_new_afu(uint16_t afu_map, uint16_t position, int fd)
 {
 	uint8_t *buffer;
 	int size;
-	struct cxl_afu_h *afu;
+	struct ocxl_afu_h *afu;
 	uint16_t adapter_mask = 0xf000;
 	uint16_t afu_mask = 0x8000;
 	int major = 0;
@@ -1548,8 +1553,8 @@ static struct cxl_afu_h *_new_afu(uint16_t afu_map, uint16_t position, int fd)
 		afu_mask >>= 1;
 		++minor;
 	}
-	afu = (struct cxl_afu_h *)
-	    calloc(1, sizeof(struct cxl_afu_h));
+	afu = (struct ocxl_afu_h *)
+	    calloc(1, sizeof(struct ocxl_afu_h));
 	if (afu == NULL) {
 		errno = ENOMEM;
 		return NULL;
@@ -1586,9 +1591,9 @@ static struct cxl_afu_h *_new_afu(uint16_t afu_map, uint16_t position, int fd)
 	return afu;
 }
 
-static void _release_afus(struct cxl_afu_h *afu)
+static void _release_afus(struct ocxl_afu_h *afu)
 {
-	struct cxl_afu_h *current;
+	struct ocxl_afu_h *current;
 	uint8_t rc = PSLSE_DETACH;
 	int adapter;
 
@@ -1615,13 +1620,13 @@ static void _release_afus(struct cxl_afu_h *afu)
 	}
 }
 
-static void _release_adapters(struct cxl_adapter_h *adapter)
+static void _release_adapters(struct ocxl_adapter_h *adapter)
 {
-	struct cxl_adapter_h *current;
+	struct ocxl_adapter_h *current;
 	uint8_t rc = PSLSE_DETACH;
 
 	if (!adapter)
-		fatal_msg("NULL adapter passed to libcxl.c:_release_adapters");
+		fatal_msg("NULL adapter passed to libocxl.c:_release_adapters");
 	_release_afus(adapter->afu_list);
 	current = adapter;
 	while (current != NULL) {
@@ -1637,15 +1642,15 @@ static void _release_adapters(struct cxl_adapter_h *adapter)
 	}
 }
 
-static struct cxl_afu_h *_pslse_open(int *fd, uint16_t afu_map, uint8_t major,
+static struct ocxl_afu_h *_pslse_open(int *fd, uint16_t afu_map, uint8_t major,
 				     uint8_t minor, char afu_type)
 {
-	struct cxl_afu_h *afu;
+	struct ocxl_afu_h *afu;
 	uint8_t *buffer;
 	uint16_t position;
 
 	if (!fd)
-		fatal_msg("NULL fd passed to libcxl.c:_pslse_open");
+		fatal_msg("NULL fd passed to libocxl.c:_pslse_open");
 	position = 0x8000;
 	position >>= 4 * major;
 	position >>= minor;
@@ -1675,7 +1680,7 @@ static struct cxl_afu_h *_pslse_open(int *fd, uint16_t afu_map, uint8_t major,
 	afu->_head = afu;
 	afu->adapter = major;
 	afu->id = (char *)malloc(7);
-	afu->open.state = LIBCXL_REQ_PENDING;
+	afu->open.state = LIBOCXL_REQ_PENDING;
 
 	// Start thread
 	if (pthread_create(&(afu->thread), NULL, _psl_loop, afu)) {
@@ -1684,7 +1689,7 @@ static struct cxl_afu_h *_pslse_open(int *fd, uint16_t afu_map, uint8_t major,
 		goto open_fail;
 	}
 	// Wait for open acknowledgement
-	while (afu->open.state != LIBCXL_REQ_IDLE)	/*infinite loop */
+	while (afu->open.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
 
 	if (!afu->opened) {
@@ -1703,9 +1708,9 @@ static struct cxl_afu_h *_pslse_open(int *fd, uint16_t afu_map, uint8_t major,
 	return NULL;
 }
 
-struct cxl_adapter_h *cxl_adapter_next(struct cxl_adapter_h *adapter)
+struct ocxl_adapter_h *ocxl_adapter_next(struct ocxl_adapter_h *adapter)
 {
-	struct cxl_adapter_h *head;
+	struct ocxl_adapter_h *head;
 	uint16_t afu_map, afu_mask;
 	int fd;
 
@@ -1752,7 +1757,7 @@ struct cxl_adapter_h *cxl_adapter_next(struct cxl_adapter_h *adapter)
 	return adapter->_next;
 }
 
-char *cxl_adapter_dev_name(struct cxl_adapter_h *adapter)
+char *ocxl_adapter_dev_name(struct ocxl_adapter_h *adapter)
 {
 	if (adapter == NULL)
 		return NULL;
@@ -1760,9 +1765,9 @@ char *cxl_adapter_dev_name(struct cxl_adapter_h *adapter)
 	return adapter->id;
 }
 
-void cxl_adapter_free(struct cxl_adapter_h *adapter)
+void ocxl_adapter_free(struct ocxl_adapter_h *adapter)
 {
-	struct cxl_adapter_h *head, *current;
+	struct ocxl_adapter_h *head, *current;
 
 	if (adapter == NULL)
 		return;
@@ -1790,10 +1795,10 @@ void cxl_adapter_free(struct cxl_adapter_h *adapter)
 	free(adapter);
 }
 
-struct cxl_afu_h *cxl_adapter_afu_next(struct cxl_adapter_h *adapter,
-				       struct cxl_afu_h *afu)
+struct ocxl_afu_h *ocxl_adapter_afu_next(struct ocxl_adapter_h *adapter,
+				       struct ocxl_afu_h *afu)
 {
-	struct cxl_afu_h *head;
+	struct ocxl_afu_h *head;
 	uint16_t afu_map, afu_mask;
 	int fd;
 
@@ -1849,9 +1854,9 @@ struct cxl_afu_h *cxl_adapter_afu_next(struct cxl_adapter_h *adapter,
 	return afu->_next;
 }
 
-struct cxl_afu_h *cxl_afu_next(struct cxl_afu_h *afu)
+struct ocxl_afu_h *ocxl_afu_next(struct ocxl_afu_h *afu)
 {
-	struct cxl_afu_h *head;
+	struct ocxl_afu_h *head;
 	uint16_t afu_map, afu_mask;
 	int fd;
 
@@ -1899,7 +1904,7 @@ struct cxl_afu_h *cxl_afu_next(struct cxl_afu_h *afu)
 	return afu->_next;
 }
 
-char *cxl_afu_dev_name(struct cxl_afu_h *afu)
+char *ocxl_afu_dev_name(struct ocxl_afu_h *afu)
 {
 	if (!afu) {
 		errno = EINVAL;
@@ -1908,7 +1913,7 @@ char *cxl_afu_dev_name(struct cxl_afu_h *afu)
 	return afu->id;
 }
 
-struct cxl_afu_h *cxl_afu_open_dev(char *path)
+struct ocxl_afu_h *ocxl_afu_open_dev(char *path)
 {
 	uint16_t afu_map;
 	uint8_t major, minor;
@@ -1941,7 +1946,7 @@ struct cxl_afu_h *cxl_afu_open_dev(char *path)
 	return _pslse_open(&fd, afu_map, major, minor, afu_type);
 }
 
-struct cxl_afu_h *cxl_afu_open_h(struct cxl_afu_h *afu, enum cxl_views view)
+struct ocxl_afu_h *ocxl_afu_open_h(struct ocxl_afu_h *afu, enum ocxl_views view)
 {
 	uint8_t major, minor;
 	uint16_t mask;
@@ -1969,17 +1974,17 @@ struct cxl_afu_h *cxl_afu_open_h(struct cxl_afu_h *afu, enum cxl_views view)
 		minor++;
 	}
 	switch (view) {
-	case CXL_VIEW_DEDICATED:
+	case OCXL_VIEW_DEDICATED:
 		afu_type = 'd';
-		afu->mode = CXL_MODE_DEDICATED;
+		afu->mode = OCXL_MODE_DEDICATED;
 		break;
-	case CXL_VIEW_MASTER:
+	case OCXL_VIEW_MASTER:
 		afu_type = 'm';
-		afu->mode = CXL_MODE_DIRECTED;
+		afu->mode = OCXL_MODE_DIRECTED;
 		break;
-	case CXL_VIEW_SLAVE:
+	case OCXL_VIEW_SLAVE:
 		afu_type = 's';
-		afu->mode = CXL_MODE_DIRECTED;
+		afu->mode = OCXL_MODE_DIRECTED;
 		break;
 	default:
 		errno = ENODEV;
@@ -1988,13 +1993,13 @@ struct cxl_afu_h *cxl_afu_open_h(struct cxl_afu_h *afu, enum cxl_views view)
 	return _pslse_open(&(afu->fd), afu->map, major, minor, afu_type);
 }
 
-void cxl_afu_free(struct cxl_afu_h *afu)
+void ocxl_afu_free(struct ocxl_afu_h *afu)
 {
 	uint8_t buffer;
 	int rc;
 
 	if (!afu) {
-		warn_msg("cxl_afu_free: No AFU given");
+		warn_msg("ocxl_afu_free: No AFU given");
 		goto free_done_no_afu;
 	}
 	if (!afu->opened)
@@ -2021,7 +2026,7 @@ void cxl_afu_free(struct cxl_afu_h *afu)
 	free(afu);
 }
 
-int cxl_afu_opened(struct cxl_afu_h *afu)
+int ocxl_afu_opened(struct ocxl_afu_h *afu)
 {
 	if (!afu) {
 		errno = EINVAL;
@@ -2030,7 +2035,7 @@ int cxl_afu_opened(struct cxl_afu_h *afu)
 	return afu->opened;
 }
 
-int cxl_afu_attach(struct cxl_afu_h *afu, uint64_t wed)
+int ocxl_afu_attach(struct ocxl_afu_h *afu, uint64_t wed)
 {
 	if (!afu) {
 		errno = EINVAL;
@@ -2038,27 +2043,27 @@ int cxl_afu_attach(struct cxl_afu_h *afu, uint64_t wed)
 	}
 	DPRINTF("AFU ATTACH\n");
 	if (!afu->opened) {
-		warn_msg("cxl_afu_attach: Must open AFU first");
+		warn_msg("ocxl_afu_attach: Must open AFU first");
 		errno = ENODEV;
 		return -1;
 	}
 
 	if (afu->attached) {
-		warn_msg("cxl_afu_attach: AFU already attached");
+		warn_msg("ocxl_afu_attach: AFU already attached");
 		errno = ENODEV;
 		return -1;
 	}
 	// Perform PSLSE attach
 	afu->attach.wed = wed;
-	afu->attach.state = LIBCXL_REQ_REQUEST;
-	while (afu->attach.state != LIBCXL_REQ_IDLE)	/*infinite loop */
+	afu->attach.state = LIBOCXL_REQ_REQUEST;
+	while (afu->attach.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
 	afu->attached = 1;
 
 	return 0;
 }
 
-int cxl_afu_attach_full(struct cxl_afu_h *afu, uint64_t wed,
+int ocxl_afu_attach_full(struct ocxl_afu_h *afu, uint64_t wed,
 			uint16_t num_interrupts, uint64_t amr)
 {
 	if (!afu) {
@@ -2068,37 +2073,37 @@ int cxl_afu_attach_full(struct cxl_afu_h *afu, uint64_t wed,
 	// Request maximum interrupts
 	afu->int_req.max = num_interrupts;
 
-	return cxl_afu_attach(afu, wed);
+	return ocxl_afu_attach(afu, wed);
 }
 
-int cxl_afu_get_process_element(struct cxl_afu_h *afu)
+int ocxl_afu_get_process_element(struct ocxl_afu_h *afu)
 {
 	DPRINTF("AFU GET PROCESS ELEMENT\n");
 	if (!afu->opened) {
-		warn_msg("cxl_afu_get_process_element: Must open AFU first");
+		warn_msg("ocxl_afu_get_process_element: Must open AFU first");
 		errno = ENODEV;
 		return -1;
 	}
 
 	if (!afu->attached) {
-		warn_msg("cxl_afu_get_process_element: Must attach AFU first");
+		warn_msg("ocxl_afu_get_process_element: Must attach AFU first");
 		errno = ENODEV;
 		return -1;
 	}
 	return afu->context;
 }
 
-int cxl_afu_fd(struct cxl_afu_h *afu)
+int ocxl_afu_fd(struct ocxl_afu_h *afu)
 {
 	if (!afu) {
-		warn_msg("cxl_afu_attach_full: No AFU given");
+		warn_msg("ocxl_afu_attach_full: No AFU given");
 		errno = ENODEV;
 		return -1;
 	}
 	return afu->pipe[0];
 }
 
-int cxl_get_api_version(struct cxl_afu_h *afu, long *valp)
+int ocxl_get_api_version(struct ocxl_afu_h *afu, long *valp)
 {
 	if ((afu == NULL) || (!afu->opened))
 		return -1;
@@ -2106,7 +2111,7 @@ int cxl_get_api_version(struct cxl_afu_h *afu, long *valp)
 	return 0;
 }
 
-int cxl_get_api_version_compatible(struct cxl_afu_h *afu, long *valp)
+int ocxl_get_api_version_compatible(struct ocxl_afu_h *afu, long *valp)
 {
 	if ((afu == NULL) || (!afu->opened))
 		return -1;
@@ -2114,10 +2119,10 @@ int cxl_get_api_version_compatible(struct cxl_afu_h *afu, long *valp)
 	return 0;
 }
 
-int cxl_get_irqs_max(struct cxl_afu_h *afu, long *valp)
+int ocxl_get_irqs_max(struct ocxl_afu_h *afu, long *valp)
 {
 	if (!afu) {
-		warn_msg("cxl_get_irqs_max: No AFU given");
+		warn_msg("ocxl_get_irqs_max: No AFU given");
 		errno = ENODEV;
 		return -1;
 	}
@@ -2125,10 +2130,10 @@ int cxl_get_irqs_max(struct cxl_afu_h *afu, long *valp)
 	return 0;
 }
 
-int cxl_get_irqs_min(struct cxl_afu_h *afu, long *valp)
+int ocxl_get_irqs_min(struct ocxl_afu_h *afu, long *valp)
 {
 	if (!afu) {
-		warn_msg("cxl_get_irqs_min: No AFU given");
+		warn_msg("ocxl_get_irqs_min: No AFU given");
 		errno = ENODEV;
 		return -1;
 	}
@@ -2136,15 +2141,15 @@ int cxl_get_irqs_min(struct cxl_afu_h *afu, long *valp)
 	return 0;
 }
 
-int cxl_set_irqs_max(struct cxl_afu_h *afu, long value)
+int ocxl_set_irqs_max(struct ocxl_afu_h *afu, long value)
 {
 	if (!afu) {
-		warn_msg("cxl_set_irqs_max: No AFU given");
+		warn_msg("ocxl_set_irqs_max: No AFU given");
 		errno = ENODEV;
 		return -1;
 	}
 	if (value > afu->irqs_max)
-	 	warn_msg("cxl_set_irqs_max: value is greater than limit, ignoring \n");
+	 	warn_msg("ocxl_set_irqs_max: value is greater than limit, ignoring \n");
 	else
 		afu->irqs_max = value;
 	//TODO	 Send the new irqs_max value back to psl's client struct
@@ -2152,7 +2157,7 @@ int cxl_set_irqs_max(struct cxl_afu_h *afu, long value)
 }
 
 
-int cxl_event_pending(struct cxl_afu_h *afu)
+int ocxl_event_pending(struct ocxl_afu_h *afu)
 {
 	if (afu->events[0] != NULL)
 		return 1;
@@ -2160,7 +2165,7 @@ int cxl_event_pending(struct cxl_afu_h *afu)
 	return 0;
 }
 
-int cxl_read_event(struct cxl_afu_h *afu, struct cxl_event *event)
+int ocxl_read_event(struct ocxl_afu_h *afu, struct ocxl_event *event)
 {
 	uint8_t type;
 	int i;
@@ -2190,46 +2195,46 @@ int cxl_read_event(struct cxl_afu_h *afu, struct cxl_event *event)
 	return -1;
 }
 
-int cxl_read_expected_event(struct cxl_afu_h *afu, struct cxl_event *event,
+int ocxl_read_expected_event(struct ocxl_afu_h *afu, struct ocxl_event *event,
 			    uint32_t type, uint16_t irq)
 {
 	if (!afu)
 		return -1;
-	if (cxl_read_event(afu, event) < 0)
+	if (ocxl_read_event(afu, event) < 0)
 		return -1;
 
 	if (event->header.type != type)
 		return -1;
 
-	if ((event->header.type == CXL_EVENT_AFU_INTERRUPT) &&
+	if ((event->header.type == OCXL_EVENT_AFU_INTERRUPT) &&
 	    (event->irq.irq != irq))
 		return -1;
 
 	return 0;
 }
 
-int cxl_mmio_map(struct cxl_afu_h *afu, uint32_t flags)
+int ocxl_mmio_map(struct ocxl_afu_h *afu, uint32_t flags)
 {
 	DPRINTF("MMIO MAP\n");
 	if (!afu->opened) {
-		printf("cxl_mmio_map: Must open first!\n");
+		printf("ocxl_mmio_map: Must open first!\n");
 		goto map_fail;
 	}
 
 	if (!afu->attached) {
-		printf("cxl_mmio_map: Must attach first!\n");
+		printf("ocxl_mmio_map: Must attach first!\n");
 		goto map_fail;
 	}
 
-	if (flags & ~(CXL_MMIO_FLAGS)) {
-		printf("cxl_mmio_map: Invalid flags!\n");
+	if (flags & ~(OCXL_MMIO_FLAGS)) {
+		printf("ocxl_mmio_map: Invalid flags!\n");
 		goto map_fail;
 	}
 	// Send MMIO map to PSLSE
 	afu->mmio.type = PSLSE_MMIO_MAP;
 	afu->mmio.data = (uint64_t) flags;
-	afu->mmio.state = LIBCXL_REQ_REQUEST;
-	while (afu->mmio.state != LIBCXL_REQ_IDLE)	/*infinite loop */
+	afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
 	afu->mapped = 1;
 
@@ -2239,13 +2244,13 @@ int cxl_mmio_map(struct cxl_afu_h *afu, uint32_t flags)
 	return -1;
 }
 
-int cxl_mmio_unmap(struct cxl_afu_h *afu)
+int ocxl_mmio_unmap(struct ocxl_afu_h *afu)
 {
 	afu->mapped = 0;
 	return 0;
 }
 
-int cxl_mmio_write64(struct cxl_afu_h *afu, uint64_t offset, uint64_t data)
+int ocxl_mmio_write64(struct ocxl_afu_h *afu, uint64_t offset, uint64_t data)
 {
 	if (offset & 0x7) {
 		errno = EINVAL;
@@ -2258,8 +2263,8 @@ int cxl_mmio_write64(struct cxl_afu_h *afu, uint64_t offset, uint64_t data)
 	afu->mmio.type = PSLSE_MMIO_WRITE64;
 	afu->mmio.addr = (uint32_t) offset;
 	afu->mmio.data = data;
-	afu->mmio.state = LIBCXL_REQ_REQUEST;
-	while (afu->mmio.state != LIBCXL_REQ_IDLE)	/*infinite loop */
+	afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
 
 	if (!afu->opened)
@@ -2272,7 +2277,7 @@ int cxl_mmio_write64(struct cxl_afu_h *afu, uint64_t offset, uint64_t data)
 	return -1;
 }
 
-int cxl_mmio_read64(struct cxl_afu_h *afu, uint64_t offset, uint64_t * data)
+int ocxl_mmio_read64(struct ocxl_afu_h *afu, uint64_t offset, uint64_t * data)
 {
 	if (offset & 0x7) {
 		errno = EINVAL;
@@ -2284,8 +2289,8 @@ int cxl_mmio_read64(struct cxl_afu_h *afu, uint64_t offset, uint64_t * data)
 	// Send MMIO map to PSLSE
 	afu->mmio.type = PSLSE_MMIO_READ64;
 	afu->mmio.addr = (uint32_t) offset;
-	afu->mmio.state = LIBCXL_REQ_REQUEST;
-	while (afu->mmio.state != LIBCXL_REQ_IDLE)	/*infinite loop */
+	afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
 	*data = afu->mmio.data;
 
@@ -2299,7 +2304,7 @@ int cxl_mmio_read64(struct cxl_afu_h *afu, uint64_t offset, uint64_t * data)
 	return -1;
 }
 
-int cxl_errinfo_read(struct cxl_afu_h *afu, void *dst, off_t off, size_t len)
+int ocxl_errinfo_read(struct ocxl_afu_h *afu, void *dst, off_t off, size_t len)
 {
         off_t aligned_start, last_byte;
 	off_t index1, index2;
@@ -2336,8 +2341,8 @@ int cxl_errinfo_read(struct cxl_afu_h *afu, void *dst, off_t off, size_t len)
 	// Send MMIO request to PSLSE
 		afu->mmio.type = PSLSE_MMIO_EBREAD;
 		afu->mmio.addr = (uint32_t) aligned_start ;
-		afu->mmio.state = LIBCXL_REQ_REQUEST;
-		while (afu->mmio.state != LIBCXL_REQ_IDLE)	/*infinite loop */
+		afu->mmio.state = LIBOCXL_REQ_REQUEST;
+		while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 			_delay_1ms();
 		if (!afu->opened)
 			goto bread64_fail;
@@ -2376,7 +2381,7 @@ int cxl_errinfo_read(struct cxl_afu_h *afu, void *dst, off_t off, size_t len)
 	return -1;
 }
 
-int cxl_mmio_write32(struct cxl_afu_h *afu, uint64_t offset, uint32_t data)
+int ocxl_mmio_write32(struct ocxl_afu_h *afu, uint64_t offset, uint32_t data)
 {
 	if (offset & 0x3) {
 		errno = EINVAL;
@@ -2389,8 +2394,8 @@ int cxl_mmio_write32(struct cxl_afu_h *afu, uint64_t offset, uint32_t data)
 	afu->mmio.type = PSLSE_MMIO_WRITE32;
 	afu->mmio.addr = (uint32_t) offset;
 	afu->mmio.data = (uint64_t) data;
-	afu->mmio.state = LIBCXL_REQ_REQUEST;
-	while (afu->mmio.state != LIBCXL_REQ_IDLE)	/*infinite loop */
+	afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
 
 	if (!afu->opened)
@@ -2403,7 +2408,7 @@ int cxl_mmio_write32(struct cxl_afu_h *afu, uint64_t offset, uint32_t data)
 	return -1;
 }
 
-int cxl_mmio_read32(struct cxl_afu_h *afu, uint64_t offset, uint32_t * data)
+int ocxl_mmio_read32(struct ocxl_afu_h *afu, uint64_t offset, uint32_t * data)
 {
 	if (offset & 0x3) {
 		errno = EINVAL;
@@ -2415,8 +2420,8 @@ int cxl_mmio_read32(struct cxl_afu_h *afu, uint64_t offset, uint32_t * data)
 	// Send MMIO map to PSLSE
 	afu->mmio.type = PSLSE_MMIO_READ32;
 	afu->mmio.addr = (uint32_t) offset;
-	afu->mmio.state = LIBCXL_REQ_REQUEST;
-	while (afu->mmio.state != LIBCXL_REQ_IDLE)	/*infinite loop */
+	afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
 	*data = (uint32_t) afu->mmio.data;
 
@@ -2430,7 +2435,7 @@ int cxl_mmio_read32(struct cxl_afu_h *afu, uint64_t offset, uint32_t * data)
 	return -1;
 }
 
-int cxl_get_cr_device(struct cxl_afu_h *afu, long cr_num, long *valp)
+int ocxl_get_cr_device(struct ocxl_afu_h *afu, long cr_num, long *valp)
 {
 	if (afu == NULL) 
 		return -1;
@@ -2441,7 +2446,7 @@ int cxl_get_cr_device(struct cxl_afu_h *afu, long cr_num, long *valp)
 	return 0;
 }
 
-int cxl_get_cr_vendor(struct cxl_afu_h *afu, long cr_num, long *valp)
+int ocxl_get_cr_vendor(struct ocxl_afu_h *afu, long cr_num, long *valp)
 {
 	if (afu == NULL) 
 		return -1;
@@ -2452,7 +2457,7 @@ int cxl_get_cr_vendor(struct cxl_afu_h *afu, long cr_num, long *valp)
 	return 0;
 }
 
-int cxl_get_cr_class(struct cxl_afu_h *afu, long cr_num, long *valp)
+int ocxl_get_cr_class(struct ocxl_afu_h *afu, long cr_num, long *valp)
 {
 	if (afu == NULL) 
 		return -1;
@@ -2463,7 +2468,7 @@ int cxl_get_cr_class(struct cxl_afu_h *afu, long cr_num, long *valp)
 	return 0;
 }
 
-int cxl_get_mmio_size(struct cxl_afu_h *afu, long *valp)
+int ocxl_get_mmio_size(struct ocxl_afu_h *afu, long *valp)
 {
 	if (afu == NULL)
                    return -1;
@@ -2472,7 +2477,7 @@ int cxl_get_mmio_size(struct cxl_afu_h *afu, long *valp)
         return 0;
 }
 
-int cxl_errinfo_size(struct cxl_afu_h *afu, size_t *valp)
+int ocxl_errinfo_size(struct ocxl_afu_h *afu, size_t *valp)
 {
 	if (afu == NULL) 
 		return -1;
@@ -2480,7 +2485,7 @@ int cxl_errinfo_size(struct cxl_afu_h *afu, size_t *valp)
 	return 0;
 }
 
-int cxl_get_pp_mmio_len(struct cxl_afu_h *afu, long *valp)
+int ocxl_get_pp_mmio_len(struct ocxl_afu_h *afu, long *valp)
 {
 	if (afu == NULL) 
 		return -1;
@@ -2488,7 +2493,7 @@ int cxl_get_pp_mmio_len(struct cxl_afu_h *afu, long *valp)
 	return 0;
 }
 
-int cxl_get_pp_mmio_off(struct cxl_afu_h *afu, long *valp)
+int ocxl_get_pp_mmio_off(struct ocxl_afu_h *afu, long *valp)
 {
 	if (afu == NULL) 
 		return -1;
@@ -2496,7 +2501,7 @@ int cxl_get_pp_mmio_off(struct cxl_afu_h *afu, long *valp)
 	return 0;
 }
 
-int cxl_get_modes_supported(struct cxl_afu_h *afu, long *valp)
+int ocxl_get_modes_supported(struct ocxl_afu_h *afu, long *valp)
 {
 //List of the modes this AFU supports. One per line.
 //Valid entries are: "dedicated_process" and "afu_directed"
@@ -2506,7 +2511,7 @@ int cxl_get_modes_supported(struct cxl_afu_h *afu, long *valp)
 	return 0;
 }
 
-int cxl_get_mode(struct cxl_afu_h *afu, long *valp)
+int ocxl_get_mode(struct ocxl_afu_h *afu, long *valp)
 {
 	if (afu == NULL) 
 		return -1;
@@ -2514,7 +2519,7 @@ int cxl_get_mode(struct cxl_afu_h *afu, long *valp)
 	return 0;
 }
 
-int cxl_set_mode(struct cxl_afu_h *afu, long value)
+int ocxl_set_mode(struct ocxl_afu_h *afu, long value)
 {
 //Writing will change the mode provided that no user contexts are attached.
 	if (afu == NULL) 
@@ -2525,7 +2530,7 @@ int cxl_set_mode(struct cxl_afu_h *afu, long value)
 	return 0;
 }
 
-int cxl_get_prefault_mode(struct cxl_afu_h *afu, enum cxl_prefault_mode *valp)
+int ocxl_get_prefault_mode(struct ocxl_afu_h *afu, enum ocxl_prefault_mode *valp)
 {
 //Get the mode for prefaulting in segments into the segment table
 //when performing the START_WORK ioctl. Possible values:
@@ -2540,7 +2545,7 @@ int cxl_get_prefault_mode(struct cxl_afu_h *afu, enum cxl_prefault_mode *valp)
 	return 0;
 }
 
-int cxl_set_prefault_mode(struct cxl_afu_h *afu, enum cxl_prefault_mode value)
+int ocxl_set_prefault_mode(struct ocxl_afu_h *afu, enum ocxl_prefault_mode value)
 {
 //Set the mode for prefaulting in segments into the segment table
 //when performing the START_WORK ioctl. Possible values:
@@ -2551,15 +2556,15 @@ int cxl_set_prefault_mode(struct cxl_afu_h *afu, enum cxl_prefault_mode value)
 //       all: all segments process calling START_WORK maps.
 	if (afu == NULL) 
 		return -1;
- if ((value == CXL_PREFAULT_MODE_NONE) |
-    (value == CXL_PREFAULT_MODE_WED) |
-    (value == CXL_PREFAULT_MODE_ALL)) 
+ if ((value == OCXL_PREFAULT_MODE_NONE) |
+    (value == OCXL_PREFAULT_MODE_WED) |
+    (value == OCXL_PREFAULT_MODE_ALL)) 
 		afu->prefault_mode = value;
 //Probably should return error msg if value wasn't a "good" value
 	return 0;
 }
 
-int cxl_get_base_image(struct cxl_adapter_h *adapter, long *valp)
+int ocxl_get_base_image(struct ocxl_adapter_h *adapter, long *valp)
 {
 	if (adapter == NULL)
                    return -1;
@@ -2569,7 +2574,7 @@ int cxl_get_base_image(struct cxl_adapter_h *adapter, long *valp)
 }
 
 
-int cxl_get_caia_version(struct cxl_adapter_h *adapter, long *majorp,long *minorp)
+int ocxl_get_caia_version(struct ocxl_adapter_h *adapter, long *majorp,long *minorp)
 {
 	if (adapter == NULL)
                    return -1;
@@ -2579,16 +2584,16 @@ int cxl_get_caia_version(struct cxl_adapter_h *adapter, long *majorp,long *minor
         return 0;
 }
 
-int cxl_get_image_loaded(struct cxl_adapter_h *adapter, enum cxl_image *valp)
+int ocxl_get_image_loaded(struct ocxl_adapter_h *adapter, enum ocxl_image *valp)
 {
 	if (adapter == NULL)
                    return -1;
         // for now just return constant, later will read value from file
-        *valp = CXL_IMAGE_USER;
+        *valp = OCXL_IMAGE_USER;
         return 0;
 }
 
-int cxl_get_psl_revision(struct cxl_adapter_h *adapter, long *valp)
+int ocxl_get_psl_revision(struct ocxl_adapter_h *adapter, long *valp)
 {
 	if (adapter == NULL)
                    return -1;
@@ -2598,8 +2603,8 @@ int cxl_get_psl_revision(struct cxl_adapter_h *adapter, long *valp)
 }
 
 inline
-int cxl_afu_attach_work(struct cxl_afu_h *afu,
-			struct cxl_ioctl_start_work *work)
+int ocxl_afu_attach_work(struct ocxl_afu_h *afu,
+			struct ocxl_ioctl_start_work *work)
 {
 	if (afu == NULL ||  work == NULL) {
 		errno = EINVAL;
@@ -2607,17 +2612,17 @@ int cxl_afu_attach_work(struct cxl_afu_h *afu,
 	}
 	afu->int_req.max = work->num_interrupts;
 ;
-	return cxl_afu_attach(afu, work->work_element_descriptor);
+	return ocxl_afu_attach(afu, work->work_element_descriptor);
 }
 
 inline
-struct cxl_ioctl_start_work *cxl_work_alloc()
+struct ocxl_ioctl_start_work *ocxl_work_alloc()
 {
-	return calloc(1, sizeof(struct cxl_ioctl_start_work));
+	return calloc(1, sizeof(struct ocxl_ioctl_start_work));
 }
 
 inline
-int cxl_work_free(struct cxl_ioctl_start_work *work)
+int ocxl_work_free(struct ocxl_ioctl_start_work *work)
 {
 	if (work == NULL) {
 		errno = EINVAL;
@@ -2628,7 +2633,7 @@ int cxl_work_free(struct cxl_ioctl_start_work *work)
 }
 
 inline
-int cxl_work_get_amr(struct cxl_ioctl_start_work *work, __u64 *valp)
+int ocxl_work_get_amr(struct ocxl_ioctl_start_work *work, __u64 *valp)
 {
 	if (work == NULL) {
 		errno = EINVAL;
@@ -2639,7 +2644,7 @@ int cxl_work_get_amr(struct cxl_ioctl_start_work *work, __u64 *valp)
 }
 
 inline
-int cxl_work_get_num_irqs(struct cxl_ioctl_start_work *work, __s16 *valp)
+int ocxl_work_get_num_irqs(struct ocxl_ioctl_start_work *work, __s16 *valp)
 {
 	if (work == NULL) {
 		errno = EINVAL;
@@ -2650,7 +2655,7 @@ int cxl_work_get_num_irqs(struct cxl_ioctl_start_work *work, __s16 *valp)
 }
 
 inline
-int cxl_work_get_wed(struct cxl_ioctl_start_work *work, __u64 *valp)
+int ocxl_work_get_wed(struct ocxl_ioctl_start_work *work, __u64 *valp)
 {
 	if (work == NULL) {
 		errno = EINVAL;
@@ -2661,7 +2666,7 @@ int cxl_work_get_wed(struct cxl_ioctl_start_work *work, __u64 *valp)
 }
 
 inline
-int cxl_work_set_amr(struct cxl_ioctl_start_work *work, __u64 amr)
+int ocxl_work_set_amr(struct ocxl_ioctl_start_work *work, __u64 amr)
 {
 	if (work == NULL) {
 		errno = EINVAL;
@@ -2669,14 +2674,14 @@ int cxl_work_set_amr(struct cxl_ioctl_start_work *work, __u64 amr)
 	}
 	work->amr = amr;
 	if (amr)
-		work->flags |= CXL_START_WORK_AMR;
+		work->flags |= OCXL_START_WORK_AMR;
 	else
-		work->flags &= ~(CXL_START_WORK_AMR);
+		work->flags &= ~(OCXL_START_WORK_AMR);
 	return 0;
 }
 
 inline
-int cxl_work_set_num_irqs(struct cxl_ioctl_start_work *work, __s16 irqs)
+int ocxl_work_set_num_irqs(struct ocxl_ioctl_start_work *work, __s16 irqs)
 {
 	if (work == NULL) {
 		errno = EINVAL;
@@ -2684,14 +2689,14 @@ int cxl_work_set_num_irqs(struct cxl_ioctl_start_work *work, __s16 irqs)
 	}
 	work->num_interrupts = irqs;
 	if (irqs >= 0)
-		work->flags |= CXL_START_WORK_NUM_IRQS;
+		work->flags |= OCXL_START_WORK_NUM_IRQS;
 	else
-		work->flags &= ~(CXL_START_WORK_NUM_IRQS);
+		work->flags &= ~(OCXL_START_WORK_NUM_IRQS);
 	return 0;
 }
 
 inline
-int cxl_work_set_wed(struct cxl_ioctl_start_work *work, __u64 wed)
+int ocxl_work_set_wed(struct ocxl_ioctl_start_work *work, __u64 wed)
 {
 	if (work == NULL) {
 		errno = EINVAL;
