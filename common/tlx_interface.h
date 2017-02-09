@@ -55,6 +55,17 @@ int tlx_afu_send_resp(struct AFU_EVENT *event,
 		 uint8_t resp_dp, uint32_t resp_addr_tag);
 
 
+// TODO - DON"T CALL THIS YET - IT WON"T WORK
+/* Call this from ocse to send response data to tlx/afu   assume can only send 64B 
+ * @ time to FIFO ?*/
+
+int tlx_afu_send_resp_data(struct AFU_EVENT *event,
+		 uint8_t DATA_RESP_CONTINUATION,
+		 uint8_t resp_data_bdi,uint8_t resp_rd_req,
+		 uint8_t resp_rd_cnt,uint8_t * resp_data);
+
+
+
 /* Call this from ocse to send both response & response data to tlx/afu  */
 
 int tlx_afu_send_resp_and_data(struct AFU_EVENT *event,
@@ -77,6 +88,16 @@ int tlx_afu_send_cmd(struct AFU_EVENT *event,
 		 uint8_t cmd_pl, uint64_t cmd_be
 		 uint8_t cmd_end, uint8_t cmd_t,
 		 uint64_t cmd_pa, uint8_t cmd_flag, uint8_t cmd_os);
+
+
+// TODO - DON"T CALL THIS YET - IT WON"T WORK
+/* Call this from ocse to send command data to tlx/afu   assume can only send 64B 
+ * @ time to FIFO ?*/
+
+int tlx_afu_send_cmd_data(struct AFU_EVENT *event,
+		 uint8_t DATA_CMD_CONTINUATION,
+		 uint8_t cmd_data_bdi,uint8_t cmd_rd_req,
+		 uint8_t cmd_rd_cnt,uint8_t * cmd_data);
 
 
 /* Call this from ocse to send both command & command data to tlx/afu */
@@ -149,6 +170,16 @@ int afu_tlx_send_resp_and_data(struct AFU_EVENT *event,
  		 uint8_t rdata_bad);              
 
 
+// TODO - DON"T CALL THIS YET - IT WON"T WORK
+/* Call this from afu to send command data to ocse   assume can only send 64B 
+ * @ time to FIFO ?*/
+
+int afu_tlx_send_cmd_data(struct AFU_EVENT *event,
+		 uint8_t DATA_CMD_CONTINUATION,
+		 uint8_t cdata_bad,uint8_t cmd_pl,
+		 uint8_t cmd_dl,uint8_t * cdata_bus);
+
+
 /* Call this on the AFU side to send a command and cmd data to ocse */
 
 int afu_tlx_send_cmd_and_data(struct AFU_EVENT *event,
@@ -165,6 +196,16 @@ int afu_tlx_send_cmd_and_data(struct AFU_EVENT *event,
   		 uint8_t * cdata_bus, uint8_t cdata_bad);              
 
 			     
+// TODO - DON"T CALL THIS YET - IT WON"T WORK
+/* Call this from afu to send response data to ocse   assume can only send 64B 
+ * @ time to FIFO ?*/
+
+int afu_tlx_send_resp_data(struct AFU_EVENT *event,
+		 uint8_t DATA_RESP_CONTINUATION,
+		 uint8_t rdata_bad,uint8_t resp_dp,
+		 uint8_t resp_dl,uint8_t * rdata_bus);
+
+
 /* Call this from AFU to read ocse (CAPP/TL) response. This reads both tlx_afu resp AND resp data interfaces */
 
 int tlx_afu_read_resp_and_data(struct AFU_EVENT *event,
@@ -190,7 +231,7 @@ int tlx_afu_read_cmd_and_data(struct AFU_EVENT *event,
 		 uint8_t cmd_data_is_valid, uint8_t cmd_data_bdi,uint8_t cmd_rd_req,
 		 uint8_t cmd_rd_cnt,uint8_t * cmd_data);
 
-// Still to come - credit interfaces.....
+// TODO Still to come - add credits to interfaces.....
   		                 
 
 #endif
