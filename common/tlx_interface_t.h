@@ -224,9 +224,11 @@ struct AFU_EVENT {
   uint8_t tlx_afu_resp_pg_size;           /* 6 bit page size */
   uint8_t tlx_afu_resp_dl;                /* 2 bit encoded data length */
   uint8_t tlx_afu_resp_dp;                /* 2 bit data part - which part of the data is in resp data */
-  // uint32_t tlx_afu_resp_host_tag;            /* TLX4 */
   uint32_t tlx_afu_resp_addr_tag;          /* 18 bit bad address tag from a translate request */
-  // uint8_t tlx_afu_resp_cache_state;          /* TLX4 */
+#ifdef TLX4
+  uint32_t tlx_afu_resp_host_tag;            /* TLX4 */
+  uint8_t tlx_afu_resp_cache_state;          /* TLX4 */
+#endif
   
   // AFU to TLX Response Credit Interface (table 2)
   uint8_t afu_tlx_resp_credit;              /* 1 bit return a credit to tlx */
@@ -243,8 +245,10 @@ struct AFU_EVENT {
   uint8_t tlx_afu_cmd_end;                /* 1 bit command endianness 0=little */
   uint8_t tlx_afu_cmd_t;                  /* 1 bit command type 0=configuration read/write; 1=configuration read/write */
   uint64_t tlx_afu_cmd_pa;                /* 64 bit command phyiscal address */
+#ifdef TLX4
   uint8_t tlx_afu_cmd_flag;               /* 4 bit command flag for atomic memory ops - OCAPI 4 */
   uint8_t tlx_afu_cmd_os;                 /* 1 bit command ordered segment - OCAPI 4 */
+#endif
 
   // TLX Command Credit Interface (table 4)
   uint8_t afu_tlx_cmd_credit;              /* 1 bit return a credit to tlx */
@@ -284,7 +288,9 @@ struct AFU_EVENT {
   uint16_t afu_tlx_cmd_afutag;            /* 16 bit command tag */
   uint8_t afu_tlx_cmd_dl;                 /* 2 bits encoded data length */  /* combine dl and pl ??? */
   uint8_t afu_tlx_cmd_pl;                 /* 3 bits encoded partial data length */
+#ifdef TLX4
   uint8_t afu_tlx_cmd_os;                 /* 1 bit ordered segment CAPI 4 */
+#endif
   uint64_t afu_tlx_cmd_be;                /* 64 bit byte enable */
   uint8_t afu_tlx_cmd_flag;               /* 4 bit command flag for atomic opcodes */
   uint8_t afu_tlx_cmd_endian;             /* 1 bit endianness 0=little endian; 1=big endian */
