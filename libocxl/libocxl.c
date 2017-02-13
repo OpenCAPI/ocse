@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// first implement ocxl_afu_open_dev and required stack
+// first implement ocxl_afu_open_dev and required stack - check
 // next implement ocxl_afu_attach and required stack
 // then mmio helpers
 // then lpc helpers
@@ -1121,6 +1121,7 @@ static void *_psl_loop(void *ptr)
 	if (!afu)
 		fatal_msg("NULL afu passed to libocxl.c:_psl_loop");
 	afu->opened = 1;
+
 	while (afu->opened) {
 		_delay_1ms();
 		// Send any requests to PSLSE over socket
@@ -1148,6 +1149,7 @@ static void *_psl_loop(void *ptr)
 				break;
 			}
 		}
+
 		// Process socket input from PSLSE
 		rc = bytes_ready(afu->fd, 1000, 0);
 		if (rc == 0)
@@ -1162,6 +1164,7 @@ static void *_psl_loop(void *ptr)
 			_all_idle(afu);
 			break;
 		}
+
 		DPRINTF("PSL EVENT\n");
 		switch (buffer[0]) {
 		case PSLSE_OPEN:
@@ -1413,9 +1416,9 @@ static void *_psl_loop(void *ptr)
 	pthread_exit(NULL);
 }
 
-static int _pslse_connect(uint16_t * afu_map, int *fd)
+static int _ocse_connect(uint16_t * afu_map, int *fd)
 {
-	char *pslse_server_dat_path;
+	char *ocse_server_dat_path;
 	FILE *fp;
 	uint8_t buffer[MAX_LINE_CHARS];
 	struct sockaddr_in ssadr;
@@ -1423,18 +1426,18 @@ static int _pslse_connect(uint16_t * afu_map, int *fd)
 	char *host, *port_str;
 	int port;
 
-	// Get hostname and port of PSLSE server
+	// Get hostname and port of OCSE server
 	DPRINTF("AFU CONNECT\n");
-	pslse_server_dat_path = getenv("PSLSE_SERVER_DAT");
-	if (!pslse_server_dat_path) pslse_server_dat_path = "pslse_server.dat";
-	fp = fopen(pslse_server_dat_path, "r");
+	ocse_server_dat_path = getenv("OCSE_SERVER_DAT");
+	if (!ocse_server_dat_path) ocse_server_dat_path = "ocse_server.dat";
+	fp = fopen(ocse_server_dat_path, "r");
 	if (!fp) {
-		perror("fopen:pslse_server.dat");
+		perror("fopen:ocse_server.dat");
 		goto connect_fail;
 	}
 	do {
 		if (fgets((char *)buffer, MAX_LINE_CHARS - 1, fp) == NULL) {
-			perror("fgets:pslse_server.dat");
+			perror("fgets:ocse_server.dat");
 			fclose(fp);
 			goto connect_fail;
 		}
@@ -1447,14 +1450,14 @@ static int _pslse_connect(uint16_t * afu_map, int *fd)
 	port_str++;
 	if (!host || !port_str) {
 		warn_msg
-		    ("ocxl_afu_open_dev:Invalid format in pslse_server.data");
+		    ("ocxl_afu_open_dev:Invalid format in ocse_server.data");
 		goto connect_fail;
 	}
 	port = atoi(port_str);
 
 	info_msg("Connecting to host '%s' port %d", host, port);
 
-	// Connect to PSLSE server
+	// Connect to OCSE server
 	if ((he = gethostbyname(host)) == NULL) {
 		herror("gethostbyname");
 		puts(host);
@@ -1474,9 +1477,9 @@ static int _pslse_connect(uint16_t * afu_map, int *fd)
 		perror("connect");
 		goto connect_fail;
 	}
-	strcpy((char *)buffer, "PSLSE");
-	buffer[5] = (uint8_t) PSLSE_VERSION_MAJOR;
-	buffer[6] = (uint8_t) PSLSE_VERSION_MINOR;
+	strcpy((char *)buffer, "OCSE");
+	buffer[5] = (uint8_t) OCSE_VERSION_MAJOR;
+	buffer[6] = (uint8_t) OCSE_VERSION_MINOR;
 	if (put_bytes_silent(*fd, 7, buffer) != 7) {
 		warn_msg("ocxl_afu_open_dev:Failed to write to socket!");
 		goto connect_fail;
@@ -1486,8 +1489,8 @@ static int _pslse_connect(uint16_t * afu_map, int *fd)
 		close_socket(fd);
 		goto connect_fail;
 	}
-	if (buffer[0] != (uint8_t) PSLSE_CONNECT) {
-		warn_msg("ocxl_afu_open_dev:PSLSE bad acknowledge");
+	if (buffer[0] != (uint8_t) OCSE_CONNECT) {
+		warn_msg("ocxl_afu_open_dev:OCSE bad acknowledge");
 		close_socket(fd);
 		goto connect_fail;
 	}
@@ -1569,10 +1572,10 @@ static struct ocxl_afu_h *_new_afu(uint16_t afu_map, uint16_t position, int fd)
 	afu->dbg_id = (major << 4) | minor;
 	debug_msg("opened host-side socket %d", afu->fd);
 
-	// Send PSLSE query
+	// Send OCSE query
 	size = 1 + sizeof(uint8_t);
 	buffer = (uint8_t *) malloc(size);
-	buffer[0] = PSLSE_QUERY;
+	buffer[0] = OCSE_QUERY;
 	buffer[1] = afu->dbg_id;
 	if (put_bytes_silent(afu->fd, size, buffer) != size) {
 		free(buffer);
@@ -1594,7 +1597,7 @@ static struct ocxl_afu_h *_new_afu(uint16_t afu_map, uint16_t position, int fd)
 static void _release_afus(struct ocxl_afu_h *afu)
 {
 	struct ocxl_afu_h *current;
-	uint8_t rc = PSLSE_DETACH;
+	uint8_t rc = OCSE_DETACH;
 	int adapter;
 
 	if (afu == NULL)
@@ -1623,7 +1626,7 @@ static void _release_afus(struct ocxl_afu_h *afu)
 static void _release_adapters(struct ocxl_adapter_h *adapter)
 {
 	struct ocxl_adapter_h *current;
-	uint8_t rc = PSLSE_DETACH;
+	uint8_t rc = OCSE_DETACH;
 
 	if (!adapter)
 		fatal_msg("NULL adapter passed to libocxl.c:_release_adapters");
@@ -1632,7 +1635,7 @@ static void _release_adapters(struct ocxl_adapter_h *adapter)
 	while (current != NULL) {
 		adapter = current;
 		current = current->_next;
-		// Disconnect from PSLSE
+		// Disconnect from OCSE
 		if (adapter->fd) {
 			put_bytes_silent(adapter->fd, 1, &rc);
 			close_socket(&(adapter->fd));
@@ -1642,31 +1645,32 @@ static void _release_adapters(struct ocxl_adapter_h *adapter)
 	}
 }
 
-static struct ocxl_afu_h *_pslse_open(int *fd, uint16_t afu_map, uint8_t major,
+static struct ocxl_afu_h *_ocse_open(int *fd, uint16_t afu_map, uint8_t major,
 				     uint8_t minor, char afu_type)
 {
 	struct ocxl_afu_h *afu;
 	uint8_t *buffer;
 	uint16_t position;
 
-	if (!fd)
-		fatal_msg("NULL fd passed to libocxl.c:_pslse_open");
+	if ( !fd )
+		fatal_msg( "NULL fd passed to libocxl.c:_ocse_open" );
 	position = 0x8000;
 	position >>= 4 * major;
 	position >>= minor;
 	if ((afu_map & position) != position) {
-		warn_msg("open:AFU not in system");
+		warn_msg("open: AFU not in system");
 		close_socket(fd);
 		errno = ENODEV;
 		return NULL;
 	}
+
 	// Create struct for AFU
 	afu = _new_afu(afu_map, position, *fd);
 	if (afu == NULL)
 		return NULL;
 
 	buffer = (uint8_t *) calloc(1, MAX_LINE_CHARS);
-	buffer[0] = (uint8_t) PSLSE_OPEN;
+	buffer[0] = (uint8_t) OCSE_OPEN;
 	buffer[1] = afu->dbg_id;
 	buffer[2] = afu_type;
 	afu->fd = *fd;
@@ -1688,6 +1692,7 @@ static struct ocxl_afu_h *_pslse_open(int *fd, uint16_t afu_map, uint8_t major,
 		close_socket(&(afu->fd));
 		goto open_fail;
 	}
+
 	// Wait for open acknowledgement
 	while (afu->open.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
@@ -1716,8 +1721,8 @@ struct ocxl_adapter_h *ocxl_adapter_next(struct ocxl_adapter_h *adapter)
 
 	// First adapter
 	if (adapter == NULL) {
-		// Query PSLSE
-		if (_pslse_connect(&afu_map, &fd) < 0)
+		// Query OCSE
+		if (_ocse_connect(&afu_map, &fd) < 0)
 			return NULL;
 		// No devices?
 		assert(afu_map != 0);
@@ -1807,9 +1812,9 @@ struct ocxl_afu_h *ocxl_adapter_afu_next(struct ocxl_adapter_h *adapter,
 
 	afu_mask = adapter->position;
 
-	// Query PSLSE
+	// Query OCSE
 	if (adapter->fd == 0) {
-		if (_pslse_connect(&afu_map, &fd) < 0)
+		if (_ocse_connect(&afu_map, &fd) < 0)
 			return NULL;
 	} else {
 		afu_map = adapter->map;
@@ -1861,8 +1866,8 @@ struct ocxl_afu_h *ocxl_afu_next(struct ocxl_afu_h *afu)
 	int fd;
 
 	if ((afu == NULL) || (afu->fd == 0)) {
-		// Query PSLSE
-		if (_pslse_connect(&afu_map, &fd) < 0)
+		// Query OCSE
+		if (_ocse_connect(&afu_map, &fd) < 0)
 			return NULL;
 	} else {
 		afu_map = afu->map;
@@ -1921,9 +1926,9 @@ struct ocxl_afu_h *ocxl_afu_open_dev(char *path)
 	char afu_type;
 	int fd;
 
-	if (!path)
+	if ( !path )
 		return NULL;
-	if (_pslse_connect(&afu_map, &fd) < 0)
+	if ( _ocse_connect(&afu_map, &fd) < 0 )
 		return NULL;
 
 	// Discover AFU position
@@ -1943,7 +1948,7 @@ struct ocxl_afu_h *ocxl_afu_open_dev(char *path)
 	minor = afu_id[5] - '0';
 	afu_type = afu_id[6];
 
-	return _pslse_open(&fd, afu_map, major, minor, afu_type);
+	return _ocse_open(&fd, afu_map, major, minor, afu_type);
 }
 
 struct ocxl_afu_h *ocxl_afu_open_h(struct ocxl_afu_h *afu, enum ocxl_views view)
@@ -1956,9 +1961,9 @@ struct ocxl_afu_h *ocxl_afu_open_h(struct ocxl_afu_h *afu, enum ocxl_views view)
 		errno = EINVAL;
 		return NULL;
 	}
-	// Query PSLSE
+	// Query OCSE
 	if (afu->fd == 0) {
-		if (_pslse_connect(&(afu->map), &afu->fd) < 0)
+		if (_ocse_connect(&(afu->map), &afu->fd) < 0)
 			return NULL;
 	}
 
@@ -1990,7 +1995,7 @@ struct ocxl_afu_h *ocxl_afu_open_h(struct ocxl_afu_h *afu, enum ocxl_views view)
 		errno = ENODEV;
 		return NULL;
 	}
-	return _pslse_open(&(afu->fd), afu->map, major, minor, afu_type);
+	return _ocse_open(&(afu->fd), afu->map, major, minor, afu_type);
 }
 
 void ocxl_afu_free(struct ocxl_afu_h *afu)
@@ -2006,7 +2011,7 @@ void ocxl_afu_free(struct ocxl_afu_h *afu)
 		goto free_done;
 
 	DPRINTF("AFU FREE\n");
-	buffer = PSLSE_DETACH;
+	buffer = OCSE_DETACH;
 	rc = put_bytes_silent(afu->fd, 1, &buffer);
 	if (rc == 1) {
 	        debug_msg("detach request sent from from host on socket %d", afu->fd);
@@ -2053,7 +2058,7 @@ int ocxl_afu_attach(struct ocxl_afu_h *afu, uint64_t wed)
 		errno = ENODEV;
 		return -1;
 	}
-	// Perform PSLSE attach
+	// Perform OCSE attach
 	afu->attach.wed = wed;
 	afu->attach.state = LIBOCXL_REQ_REQUEST;
 	while (afu->attach.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
@@ -2230,8 +2235,8 @@ int ocxl_mmio_map(struct ocxl_afu_h *afu, uint32_t flags)
 		printf("ocxl_mmio_map: Invalid flags!\n");
 		goto map_fail;
 	}
-	// Send MMIO map to PSLSE
-	afu->mmio.type = PSLSE_MMIO_MAP;
+	// Send MMIO map to OCSE
+	afu->mmio.type = OCSE_MMIO_MAP;
 	afu->mmio.data = (uint64_t) flags;
 	afu->mmio.state = LIBOCXL_REQ_REQUEST;
 	while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
@@ -2259,8 +2264,8 @@ int ocxl_mmio_write64(struct ocxl_afu_h *afu, uint64_t offset, uint64_t data)
 	if ((afu == NULL) || !afu->mapped)
 		goto write64_fail;
 
-	// Send MMIO map to PSLSE
-	afu->mmio.type = PSLSE_MMIO_WRITE64;
+	// Send MMIO map to OCSE
+	afu->mmio.type = OCSE_MMIO_WRITE64;
 	afu->mmio.addr = (uint32_t) offset;
 	afu->mmio.data = data;
 	afu->mmio.state = LIBOCXL_REQ_REQUEST;
@@ -2286,8 +2291,8 @@ int ocxl_mmio_read64(struct ocxl_afu_h *afu, uint64_t offset, uint64_t * data)
 	if ((afu == NULL) || !afu->mapped)
 		goto read64_fail;
 
-	// Send MMIO map to PSLSE
-	afu->mmio.type = PSLSE_MMIO_READ64;
+	// Send MMIO map to OCSE
+	afu->mmio.type = OCSE_MMIO_READ64;
 	afu->mmio.addr = (uint32_t) offset;
 	afu->mmio.state = LIBOCXL_REQ_REQUEST;
 	while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
@@ -2338,8 +2343,8 @@ int ocxl_errinfo_read(struct ocxl_afu_h *afu, void *dst, off_t off, size_t len)
 	/* perform aligned read from the mmio region */
         index1 = 0;
 	while (aligned_start <= last_byte)  {
-	// Send MMIO request to PSLSE
-		afu->mmio.type = PSLSE_MMIO_EBREAD;
+	// Send MMIO request to OCSE
+		afu->mmio.type = OCSE_MMIO_EBREAD;
 		afu->mmio.addr = (uint32_t) aligned_start ;
 		afu->mmio.state = LIBOCXL_REQ_REQUEST;
 		while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
@@ -2390,8 +2395,8 @@ int ocxl_mmio_write32(struct ocxl_afu_h *afu, uint64_t offset, uint32_t data)
 	if ((afu == NULL) || !afu->mapped)
 		goto write32_fail;
 
-	// Send MMIO map to PSLSE
-	afu->mmio.type = PSLSE_MMIO_WRITE32;
+	// Send MMIO map to OCSE
+	afu->mmio.type = OCSE_MMIO_WRITE32;
 	afu->mmio.addr = (uint32_t) offset;
 	afu->mmio.data = (uint64_t) data;
 	afu->mmio.state = LIBOCXL_REQ_REQUEST;
@@ -2417,8 +2422,8 @@ int ocxl_mmio_read32(struct ocxl_afu_h *afu, uint64_t offset, uint32_t * data)
 	if ((afu == NULL) || !afu->mapped)
 		goto read32_fail;
 
-	// Send MMIO map to PSLSE
-	afu->mmio.type = PSLSE_MMIO_READ32;
+	// Send MMIO map to OCSE
+	afu->mmio.type = OCSE_MMIO_READ32;
 	afu->mmio.addr = (uint32_t) offset;
 	afu->mmio.state = LIBOCXL_REQ_REQUEST;
 	while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
