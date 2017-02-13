@@ -298,7 +298,7 @@ int tlx_afu_send_resp(struct AFU_EVENT *event,
 #ifdef TLX4
 		 uint32_t resp_host_tag, uint8_t resp_cache_state,
 #endif
-		 uint8_t resp_dp, uint32_t resp_addr_tag);
+		 uint8_t resp_dp, uint32_t resp_addr_tag)
 
 {
 	if (event->tlx_afu_send_resp) {
@@ -323,7 +323,7 @@ int tlx_afu_send_resp(struct AFU_EVENT *event,
 
 int tlx_afu_send_resp_data(struct AFU_EVENT *event,
 		 uint8_t DATA_RESP_CONTINUATION,
-		 uint8_t resp_data_bdi,uint8_t * resp_data);
+		 uint8_t resp_data_bdi,uint8_t * resp_data)
 
 {
 	printf("THIS FUNCTION ISN'T SUPPORTED YET \n");
@@ -344,7 +344,7 @@ int tlx_afu_send_resp_and_data(struct AFU_EVENT *event,
 		 uint32_t resp_host_tag, uint8_t resp_cache_state,
 #endif
 		 uint8_t resp_dp, uint32_t resp_addr_tag,
-		 uint8_t resp_data_bdi,uint8_t * resp_data);
+		 uint8_t resp_data_bdi,uint8_t * resp_data)
 
 {
 	if ((event->tlx_afu_send_resp ==1) || (event->tlx_afu_send_resp_data == 1)) {
@@ -382,7 +382,7 @@ int tlx_afu_send_cmd(struct AFU_EVENT *event,
 #ifdef TLX4
 		 uint8_t cmd_os,
 #endif
-		 uint64_t cmd_pa, uint8_t cmd_flag, uint8_t);
+		 uint64_t cmd_pa, uint8_t cmd_flag)
 
 {
 	if (event->tlx_afu_send_cmd) {
@@ -407,7 +407,7 @@ int tlx_afu_send_cmd(struct AFU_EVENT *event,
 
 int tlx_afu_send_cmd_data(struct AFU_EVENT *event,
 		 uint8_t DATA_RESP_CONTINUATION,
-		 uint8_t cmd_data_bdi,uint8_t * cmd_data);
+		 uint8_t cmd_data_bdi,uint8_t * cmd_data)
 
 {
 	printf("THIS FUNCTION ISN'T SUPPORTED YET \n");
@@ -429,7 +429,7 @@ int tlx_afu_send_cmd_and_data(struct AFU_EVENT *event,
 #ifdef TLX4
 		 uint8_t cmd_os,
 #endif
-		 uint8_t cmd_data_bdi,uint8_t * cmd_data);
+		 uint8_t cmd_data_bdi,uint8_t * cmd_data)
 {
 	if ((event->tlx_afu_send_cmd ==1) || (event->tlx_afu_send_cmd_data == 1)) {
 		return TLX_AFU_DOUBLE_CMD_AND_DATA;
@@ -461,7 +461,7 @@ int tlx_afu_send_cmd_and_data(struct AFU_EVENT *event,
 int afu_tlx_read_resp_and_data(struct AFU_EVENT *event,
 		    uint8_t afu_resp_opcode, uint8_t resp_dl,
 		    uint16_t resp_capptag, uint8_t resp_dp,
-		    uint8_t resp_data_is_valid, uint8_t resp_code, uint8_t * rdata_bus, uint8_t rdata_bad);
+		    uint8_t resp_data_is_valid, uint8_t resp_code, uint8_t * rdata_bus, uint8_t rdata_bad)
 
 {
 	if (!event->afu_tlx_resp_valid) {
@@ -506,7 +506,7 @@ int afu_tlx_read_cmd_and_data(struct AFU_EVENT *event,
 		    uint64_t cmd_be, uint8_t cmd_flag,               
  		    uint8_t cmd_endian, uint16_t cmd_bdf,               
   	  	    uint32_t cmd_pasid, uint8_t cmd_pg_size, uint8_t cmd_data_is_valid,           
- 		    uint8_t * cdata_bus, uint8_t cdata_bad);              
+ 		    uint8_t * cdata_bus, uint8_t cdata_bad)
 
 {
 	if (!event->afu_tlx_cmd_valid) {
@@ -994,7 +994,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 int afu_tlx_send_resp(struct AFU_EVENT *event,
  		 uint8_t afu_resp_opcode,            
  		 uint8_t resp_dl, uint16_t resp_capptag,          
- 		 uint8_t resp_dp, uint8_t resp_code);              
+ 		 uint8_t resp_dp, uint8_t resp_code)
 {
 	if (event->afu_tlx_send_resp) {
 		return AFU_TLX_DOUBLE_RESP;
@@ -1017,7 +1017,7 @@ int afu_tlx_send_resp(struct AFU_EVENT *event,
 int afu_tlx_send_resp_data(struct AFU_EVENT *event,
 		 uint8_t DATA_RESP_CONTINUATION,
 		 uint8_t rdata_bad,uint8_t resp_dp,
-		 uint8_t resp_dl,uint8_t * rdata_bus);
+		 uint8_t resp_dl,uint8_t * rdata_bus)
 
 {
 	printf("THIS FUNCTION ISN'T SUPPORTED YET \n");
@@ -1034,7 +1034,7 @@ int afu_tlx_send_resp_and_data(struct AFU_EVENT *event,
  		 uint8_t resp_dl, uint16_t resp_capptag,          
  		 uint8_t resp_dp, uint8_t resp_code,              
   		 uint8_t rdata_valid, uint8_t * rdata_bus,    
- 		 uint8_t rdata_bad);              
+ 		 uint8_t rdata_bad)
 
 {
 	if ((event->afu_tlx_afu_send_resp ==1) || (event->afu_tlx_send_resp_data == 1)) {
@@ -1068,7 +1068,7 @@ int afu_tlx_send_cmd(struct AFU_EVENT *event,
 #endif
   	 	 uint64_t cmd_be,uint8_t cmd_flag,               
 		 uint8_t cmd_endian, uint16_t cmd_bdf,               
- 		 uint32_t cmd_pasid, uint8_t cmd_pg_size);            
+ 		 uint32_t cmd_pasid, uint8_t cmd_pg_size)
 
 {
 	if (event->afu_tlx_send_cmd) {
@@ -1103,7 +1103,7 @@ int afu_tlx_send_cmd(struct AFU_EVENT *event,
 int afu_tlx_send_cmd_data(struct AFU_EVENT *event,
 		 uint8_t DATA_CMD_CONTINUATION,
 		 uint8_t cdata_bad,uint8_t cmd_pl,
-		 uint8_t cmd_dl,uint8_t * cdata_bus);
+		 uint8_t cmd_dl,uint8_t * cdata_bus)
 {
 	printf("THIS FUNCTION ISN'T SUPPORTED YET \n");
 	return AFU_TLX_CMD_DATA_NOT_VALID;
@@ -1123,7 +1123,7 @@ int afu_tlx_send_cmd_and_data(struct AFU_EVENT *event,
   	 	 uint64_t cmd_be,uint8_t cmd_flag,               
 		 uint8_t cmd_endian, uint16_t cmd_bdf,               
  		 uint32_t cmd_pasid, uint8_t cmd_pg_size,            
-  		 uint8_t * cdata_bus, uint8_t cdata_bad);              
+  		 uint8_t * cdata_bus, uint8_t cdata_bad)
 
 {
 	if ((event->afu_tlx_send_cmd == 1) || (event->afu_tlx_send_cmd_data == 1)) {
@@ -1165,7 +1165,7 @@ int tlx_afu_read_resp_and_data(struct AFU_EVENT *event,
 		 uint32_t resp_host_tag, uint8_t resp_cache_state,
 #endif
 		 uint8_t resp_dp, uint32_t resp_addr_tag,
-		 uint8_t resp_data_is_valid, uint8_t resp_data_bdi,uint8_t * resp_data);
+		 uint8_t resp_data_is_valid, uint8_t resp_data_bdi,uint8_t * resp_data)
 
 {
 	if (!event->tlx_afu_resp_valid) {
@@ -1214,7 +1214,7 @@ int tlx_afu_read_cmd_and_data(struct AFU_EVENT *event,
 #ifdef TLX4
   		 uint8_t cmd_os,     /* 1 bit ordered segment CAPI 4 */
 #endif
-		 uint8_t cmd_data_is_valid, uint8_t cmd_data_bdi,uint8_t * cmd_data);
+		 uint8_t cmd_data_is_valid, uint8_t cmd_data_bdi,uint8_t * cmd_data)
 
 {
 	if (!event->tlx_afu_cmd_valid) {
