@@ -173,7 +173,7 @@ void tlx_event_reset(struct AFU_EVENT *event)
 int tlx_init_afu_event(struct AFU_EVENT *event, char *server_host, int port)
 {
 	tlx_event_reset(event);
-	event->room = 64;
+	//event->room = 64;
 	event->rbp = 0;
 	struct hostent *he;
 	if ((he = gethostbyname(server_host)) == NULL) {
@@ -301,14 +301,14 @@ int tlx_afu_send_resp(struct AFU_EVENT *event,
 		 uint8_t resp_dp, uint32_t resp_addr_tag)
 
 {
-	if (event->tlx_afu_send_resp) {
+	if (event->tlx_afu_resp_valid) {
 		return TLX_AFU_DOUBLE_RESP;
 	} else {
-		event->tlx_afu_send_resp = 1;
+		event->tlx_afu_resp_valid = 1;
 		event->tlx_afu_resp_opcode = tlx_resp_opcode;
 		event->tlx_afu_resp_afutag = resp_afutag;
 		event->tlx_afu_resp_code = resp_code;
-		event->tlx_afu_resp_pg_size = resp_pg_siz;
+		event->tlx_afu_resp_pg_size = resp_pg_size;
 		event->tlx_afu_resp_dl = resp_dl;
 		event->tlx_afu_resp_dp = resp_dp;
 		event->tlx_afu_resp_addr_tag = resp_addr_tag;
@@ -347,15 +347,15 @@ int tlx_afu_send_resp_and_data(struct AFU_EVENT *event,
 		 uint8_t resp_data_bdi,uint8_t * resp_data)
 
 {
-	if ((event->tlx_afu_send_resp ==1) || (event->tlx_afu_send_resp_data == 1)) {
+	if ((event->tlx_afu_resp_valid ==1) || (event->tlx_afu_resp_data_valid == 1)) {
 		return TLX_AFU_DOUBLE_RESP_AND_DATA;
 	} else {
-		event->tlx_afu_send_resp = 1;
-		event->tlx_afu_send_resp_data = 1;
+		event->tlx_afu_resp_valid = 1;
+		event->tlx_afu_resp_data_valid = 1;
 		event->tlx_afu_resp_opcode = tlx_resp_opcode;
 		event->tlx_afu_resp_afutag = resp_afutag;
 		event->tlx_afu_resp_code = resp_code;
-		event->tlx_afu_resp_pg_size = resp_pg_siz;
+		event->tlx_afu_resp_pg_size = resp_pg_size;
 		event->tlx_afu_resp_dl = resp_dl;
 		event->tlx_afu_resp_dp = resp_dp;
 		event->tlx_afu_resp_addr_tag = resp_addr_tag;
@@ -385,10 +385,10 @@ int tlx_afu_send_cmd(struct AFU_EVENT *event,
 		 uint64_t cmd_pa, uint8_t cmd_flag)
 
 { 
-	if (event->tlx_afu_send_cmd) {
+	if (event->tlx_afu_cmd_valid) {
 		return TLX_AFU_DOUBLE_COMMAND;
 	} else {
-		event->tlx_afu_send_resp = 1;
+		event->tlx_afu_cmd_valid = 1;
 		event->tlx_afu_cmd_opcode = tlx_cmd_opcode;
 		event->tlx_afu_cmd_capptag = cmd_capptag;
 		event->tlx_afu_cmd_dl = cmd_dl;
@@ -431,10 +431,11 @@ int tlx_afu_send_cmd_and_data(struct AFU_EVENT *event,
 #endif
 		 uint8_t cmd_data_bdi,uint8_t * cmd_data)
 {
-	if ((event->tlx_afu_send_cmd ==1) || (event->tlx_afu_send_cmd_data == 1)) {
+	if ((event->tlx_afu_cmd_valid ==1) || (event->tlx_afu_cmd_data_valid == 1)) {
 		return TLX_AFU_DOUBLE_CMD_AND_DATA;
 	} else {
-		event->tlx_afu_send_resp = 1;
+		event->tlx_afu_cmd_valid = 1;
+		event->tlx_afu_cmd_data_valid = 1;
 		event->tlx_afu_cmd_opcode = tlx_cmd_opcode;
 		event->tlx_afu_cmd_capptag = cmd_capptag;
 		event->tlx_afu_cmd_dl = cmd_dl;
@@ -993,10 +994,10 @@ int afu_tlx_send_resp(struct AFU_EVENT *event,
  		 uint8_t resp_dl, uint16_t resp_capptag,          
  		 uint8_t resp_dp, uint8_t resp_code)
 {
-	if (event->afu_tlx_send_resp) {
+	if (event->afu_tlx_resp_valid) {
 		return AFU_TLX_DOUBLE_RESP;
 	} else {
-		event->afu_tlx_send_resp = 1;
+		event->afu_tlx_resp_valid = 1;
 		event->afu_tlx_resp_opcode = afu_resp_opcode;
 		event->afu_tlx_resp_capptag = resp_capptag;
 		event->afu_tlx_resp_code = resp_code;
@@ -1034,11 +1035,11 @@ int afu_tlx_send_resp_and_data(struct AFU_EVENT *event,
  		 uint8_t rdata_bad)
 
 {
-	if ((event->afu_tlx_afu_send_resp ==1) || (event->afu_tlx_send_resp_data == 1)) {
+	if ((event->afu_tlx_afu_resp_valid ==1) || (event->afu_tlx_resp_data_valid == 1)) {
 		return AFU_TLX_DOUBLE_RESP_AND_DATA;
 	} else {
-		event->afu_tlx_send_resp = 1;
-		event->afu_tlx_send_resp_data = 1;
+		event->afu_tlx_resp_valid = 1;
+		event->afu_tlx_resp_data_valid = 1;
 		event->afu_tlx_resp_opcode = afu_resp_opcode;
 		event->afu_tlx_resp_capptag = resp_capptag;
 		event->afu_tlx_resp_code = resp_code;
@@ -1068,10 +1069,10 @@ int afu_tlx_send_cmd(struct AFU_EVENT *event,
  		 uint32_t cmd_pasid, uint8_t cmd_pg_size)
 
 {
-	if (event->afu_tlx_send_cmd) {
+	if (event->afu_tlx_cmd_valid) {
 		return AFU_TLX_DOUBLE_CMD;
 	} else {
-		event->afu_tlx_send_cmd = 1;
+		event->afu_tlx_cmd_valid = 1;
 		event->afu_tlx_cmd_opcode = afu_cmd_opcode;
 		event->afu_tlx_cmd_actag = cmd_actag;
 		event->afu_tlx_cmd_stream_id = cmd_stream_id;
@@ -1123,10 +1124,11 @@ int afu_tlx_send_cmd_and_data(struct AFU_EVENT *event,
   		 uint8_t * cdata_bus, uint8_t cdata_bad)
 
 {
-	if ((event->afu_tlx_send_cmd == 1) || (event->afu_tlx_send_cmd_data == 1)) {
+	if ((event->afu_tlx_cmd_valid == 1) || (event->afu_tlx_cmd_data_valid == 1)) {
 		return AFU_TLX_DOUBLE_CMD_AND_DATA;
 	} else {
-		event->afu_tlx_send_cmd = 1;
+		event->afu_tlx_cmd_valid = 1;
+		event->afu_tlx_cmd_data_valid = 1;
 		event->afu_tlx_cmd_opcode = afu_cmd_opcode;
 		event->afu_tlx_cmd_actag = cmd_actag;
 		event->afu_tlx_cmd_stream_id = cmd_stream_id;
