@@ -49,9 +49,16 @@ struct ocxl_ioctl_start_work;
  * ocxl_adapter_next() will implicitly free used buffers if it is called on the
  * last adapter, or ocxl_adapter_free() can be called explicitly.
  */
+// return the next opencapi adapter in the system - null if the are no more
 struct ocxl_adapter_h *ocxl_adapter_next(struct ocxl_adapter_h *adapter);
+
+// return the device path name of the adapter at this adapter handle
 char *ocxl_adapter_dev_name(struct ocxl_adapter_h *adapter);
+
+// free the adapter?  
 void ocxl_adapter_free(struct ocxl_adapter_h *adapter);
+
+// a loop that will allow you to visit each adapter in the system - the user must program the body of the for loop including the enclosing {}'s
 #define ocxl_for_each_adapter(adapter) \
 	for (adapter = ocxl_adapter_next(NULL); adapter; adapter = ocxl_adapter_next(adapter))
 
@@ -70,15 +77,26 @@ void ocxl_adapter_free(struct ocxl_adapter_h *adapter);
  * ocxl_[adapter]_afu_next() will implicitly free used buffers if it is called
  * on the last AFU, or ocxl_afu_free() can be called explicitly.
  */
+
+// given an adapter, return the next accelerator on that adapater - null if the are no more
 struct ocxl_afu_h *ocxl_adapter_afu_next(struct ocxl_adapter_h *adapter,
 				       struct ocxl_afu_h *afu);
+
+// return the next opencapi afu in the system - null if the are no more
 struct ocxl_afu_h *ocxl_afu_next(struct ocxl_afu_h *afu);
+
+// return the device path name of the opencapi afu at this afu handle
 char *ocxl_afu_dev_name(struct ocxl_afu_h *afu);
+
+// a loop that will allow you to visit each afu on a given adapter in the system - the user must program the body of the for loop including the enclosing {}'s
 #define ocxl_for_each_adapter_afu(adapter, afu) \
 	for (afu = ocxl_adapter_afu_next(adapter, NULL); afu; afu = ocxl_adapter_afu_next(adapter, afu))
+
+// a loop that will allow you to visit each afu in the system - the user must program the body of the for loop including the enclosing {}'s
 #define ocxl_for_each_afu(afu) \
 	for (afu = ocxl_afu_next(NULL); afu; afu = ocxl_afu_next(afu))
 
+// do we still have the notion of master and slave modes of the afu?  We do not have dedicated anymore.
 enum ocxl_views {
 	OCXL_VIEW_DEDICATED = 0,
 	OCXL_VIEW_MASTER,
@@ -159,6 +177,7 @@ enum ocxl_image {
  * Get/set attribute values.
  * Return 0 on success, -1 on error.
  */
+// this list will change based on the definitions in the pcie 0 header and vsec's supported for opencapi
 int ocxl_get_api_version(struct ocxl_afu_h *afu, long *valp);
 int ocxl_get_api_version_compatible(struct ocxl_afu_h *afu, long *valp);
 int ocxl_get_irqs_max(struct ocxl_afu_h *afu, long *valp);
@@ -180,7 +199,7 @@ int ocxl_get_image_loaded(struct ocxl_adapter_h *adapter, enum ocxl_image *valp)
 int ocxl_get_psl_revision(struct ocxl_adapter_h *adapter, long *valp);
 
 /*
- * Events
+ * Events (interrupts)
  */
 int ocxl_event_pending(struct ocxl_afu_h *afu);
 int ocxl_read_event(struct ocxl_afu_h *afu, struct ocxl_event *event);
@@ -235,11 +254,19 @@ static inline int ocxl_mmio_install_sigbus_handler(void)
 /* nothing to be done yet */
 return 0;
 }
+
+// these probably access vsec information, so the names will likely change
 int ocxl_get_cr_device(struct ocxl_afu_h *afu, long cr_num, long *valp);
 int ocxl_get_cr_vendor(struct ocxl_afu_h *afu, long cr_num, long *valp);
 int ocxl_get_cr_class(struct ocxl_afu_h *afu, long cr_num, long *valp);
 int ocxl_errinfo_size(struct ocxl_afu_h *afu, size_t *valp);
 int ocxl_errinfo_read(struct ocxl_afu_h *afu, void *dst, off_t off, size_t len);
+
+// think about an lpc or "host agent memory" set of helper functions
+// maybe a map function
+// read functions
+// write functions
+// and an unmap
 
 #ifdef __cplusplus
 }
