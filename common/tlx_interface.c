@@ -173,7 +173,7 @@ void tlx_event_reset(struct AFU_EVENT *event)
 int tlx_init_afu_event(struct AFU_EVENT *event, char *server_host, int port)
 {
 	tlx_event_reset(event);
-	event->room = 64;
+// U	event->room = 64;
 	event->rbp = 0;
 	struct hostent *he;
 	if ((he = gethostbyname(server_host)) == NULL) {
@@ -301,6 +301,7 @@ int tlx_afu_send_resp(struct AFU_EVENT *event,
 		 uint8_t resp_dp, uint32_t resp_addr_tag)
 
 {
+/* U
 	if (event->tlx_afu_send_resp) {
 		return TLX_AFU_DOUBLE_RESP;
 	} else {
@@ -318,6 +319,8 @@ int tlx_afu_send_resp(struct AFU_EVENT *event,
 #endif
 		return TLX_SUCCESS;
 	}
+U */ 
+		return TLX_SUCCESS;
 }
 
 
@@ -347,6 +350,7 @@ int tlx_afu_send_resp_and_data(struct AFU_EVENT *event,
 		 uint8_t resp_data_bdi,uint8_t * resp_data)
 
 {
+/* U
 	if ((event->tlx_afu_send_resp ==1) || (event->tlx_afu_send_resp_data == 1)) {
 		return TLX_AFU_DOUBLE_RESP_AND_DATA;
 	} else {
@@ -368,7 +372,8 @@ int tlx_afu_send_resp_and_data(struct AFU_EVENT *event,
 		// SENDS 8 BYTES 
 		memcpy(event->resp_rdata, resp_data, 8);
 		return TLX_SUCCESS;
-	}
+	} U */
+		return TLX_SUCCESS;
 }
 
 
@@ -384,7 +389,7 @@ int tlx_afu_send_cmd(struct AFU_EVENT *event,
 #endif
 		 uint64_t cmd_pa, uint8_t cmd_flag)
 
-{
+{ /* U 
 	if (event->tlx_afu_send_cmd) {
 		return TLX_AFU_DOUBLE_COMMAND;
 	} else {
@@ -402,7 +407,8 @@ int tlx_afu_send_cmd(struct AFU_EVENT *event,
 		event->tlx_afu_cmd_os = cmd_os;
 #endif
 		return TLX_SUCCESS;
-	}
+	} U */
+		return TLX_SUCCESS;
 }
 
 int tlx_afu_send_cmd_data(struct AFU_EVENT *event,
@@ -430,7 +436,7 @@ int tlx_afu_send_cmd_and_data(struct AFU_EVENT *event,
 		 uint8_t cmd_os,
 #endif
 		 uint8_t cmd_data_bdi,uint8_t * cmd_data)
-{
+{/* U
 	if ((event->tlx_afu_send_cmd ==1) || (event->tlx_afu_send_cmd_data == 1)) {
 		return TLX_AFU_DOUBLE_CMD_AND_DATA;
 	} else {
@@ -452,7 +458,8 @@ int tlx_afu_send_cmd_and_data(struct AFU_EVENT *event,
 		// SENDS 8 BYTES 
 		memcpy(event->cmd_rdata, cmd_data, 8);
 		return TLX_SUCCESS;
-	}
+	} U */
+		return TLX_SUCCESS;
 }
 
 
@@ -463,7 +470,7 @@ int afu_tlx_read_resp_and_data(struct AFU_EVENT *event,
 		    uint16_t resp_capptag, uint8_t resp_dp,
 		    uint8_t resp_data_is_valid, uint8_t resp_code, uint8_t * rdata_bus, uint8_t rdata_bad)
 
-{
+{ /* U 
 	if (!event->afu_tlx_resp_valid) {
 		return AFU_TLX_RESP_NOT_VALID;
 	} else {
@@ -489,7 +496,8 @@ int afu_tlx_read_resp_and_data(struct AFU_EVENT *event,
 		}
 	//	return AFU_TLX_RESP_NO_DATA;
 		return TLX_SUCCESS;
-	}
+	} U */
+		return TLX_SUCCESS;
 }
 
 
@@ -508,7 +516,7 @@ int afu_tlx_read_cmd_and_data(struct AFU_EVENT *event,
   	  	    uint32_t cmd_pasid, uint8_t cmd_pg_size, uint8_t cmd_data_is_valid,           
  		    uint8_t * cdata_bus, uint8_t cdata_bad)
 
-{
+{/* U
 	if (!event->afu_tlx_cmd_valid) {
 		return AFU_TLX_CMD_NOT_VALID;
 	} else {
@@ -546,7 +554,8 @@ int afu_tlx_read_cmd_and_data(struct AFU_EVENT *event,
 		}
 		//return AFU_TLX_CMD_NO_DATA;
 		return TLX_SUCCESS;
-	}
+	} U */
+		return TLX_SUCCESS;
 }
 
 
@@ -555,7 +564,7 @@ int afu_tlx_read_cmd_and_data(struct AFU_EVENT *event,
  * tlx_send_cmd, tlx_send_resp, tlx_send_cmd_and_data, tlx_send_resp_and_data */
 
 int tlx_signal_afu_model(struct AFU_EVENT *event)
-{
+{ /* U
 	int i, bc, bl;
 	int bp = 1;
 	if (event->clock != 0)
@@ -634,7 +643,7 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 		if (bc < 0)
 			return TLX_TRANSMISSION_ERROR;
 		bp += bc;
-	}
+	}  U */
 	return TLX_SUCCESS;
 }
 
@@ -642,7 +651,7 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 /* Now static as it's called in tlx_get_tlx_events() */
 
 static int tlx_signal_tlx_model(struct AFU_EVENT *event)
-{
+{/* U
 	int i, bc, bl;
 	int bp = 1;
 	if (event->clock != 1)
@@ -724,7 +733,7 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		bp += bc;
 //if ((event->tbuf[0] & 0x20) != 0)
 //printf("sent ok on afu side \n");
-	}
+	} U */
 	return TLX_SUCCESS;
 }
 
@@ -739,12 +748,11 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
  */
 
 int tlx_get_afu_events(struct AFU_EVENT *event)
-{
+{/* U
 	int i = 0;
 	int bc = 0;
 	uint32_t rbc = 1;
-	fd_set watchset;	/* fds to read from */
-	/* initialize watchset */
+	fd_set watchset;	
 	FD_ZERO(&watchset);
 	FD_SET(event->sockfd, &watchset);
 	select(event->sockfd + 1, &watchset, NULL, NULL, NULL);
@@ -861,7 +869,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		event->afu_tlx_resp_data_valid = 0;
 	}
 
-	event->rbp = 0;
+	event->rbp = 0; U */
 	return 1;
 }
 
@@ -871,7 +879,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
  * if there are new events to process. */
 
 int tlx_get_tlx_events(struct AFU_EVENT *event)
-{
+{/* U
         int bc, i, ex;
 	uint32_t rbc = 1;
 	if (event->rbp == 0) {
@@ -982,7 +990,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 	} else {
 		event->tlx_afu_resp_data_valid = 0;
 	}
-	event->rbp = 0;
+	event->rbp = 0; U */
 	return 1;
 }
 
@@ -995,7 +1003,7 @@ int afu_tlx_send_resp(struct AFU_EVENT *event,
  		 uint8_t afu_resp_opcode,            
  		 uint8_t resp_dl, uint16_t resp_capptag,          
  		 uint8_t resp_dp, uint8_t resp_code)
-{
+{/* U
 	if (event->afu_tlx_send_resp) {
 		return AFU_TLX_DOUBLE_RESP;
 	} else {
@@ -1006,7 +1014,8 @@ int afu_tlx_send_resp(struct AFU_EVENT *event,
 		event->afu_tlx_resp_dl = resp_dl;
 		event->afu_tlx_resp_dp = resp_dp;
 		return TLX_SUCCESS;
-	}
+	} U */
+		return TLX_SUCCESS;
 }
 
 
@@ -1036,7 +1045,7 @@ int afu_tlx_send_resp_and_data(struct AFU_EVENT *event,
   		 uint8_t rdata_valid, uint8_t * rdata_bus,    
  		 uint8_t rdata_bad)
 
-{
+{/* U
 	if ((event->afu_tlx_afu_send_resp ==1) || (event->afu_tlx_send_resp_data == 1)) {
 		return AFU_TLX_DOUBLE_RESP_AND_DATA;
 	} else {
@@ -1052,7 +1061,8 @@ int afu_tlx_send_resp_and_data(struct AFU_EVENT *event,
 		// SENDS 8 BYTES 
 		memcpy(event->resp_rdata_bus, resp_data, 8);
 		return TLX_SUCCESS;
-	}
+	} U */
+		return TLX_SUCCESS;
 }
 
 
@@ -1070,7 +1080,7 @@ int afu_tlx_send_cmd(struct AFU_EVENT *event,
 		 uint8_t cmd_endian, uint16_t cmd_bdf,               
  		 uint32_t cmd_pasid, uint8_t cmd_pg_size)
 
-{
+{/* U
 	if (event->afu_tlx_send_cmd) {
 		return AFU_TLX_DOUBLE_CMD;
 	} else {
@@ -1092,7 +1102,8 @@ int afu_tlx_send_cmd(struct AFU_EVENT *event,
 		event->afu_tlx_cmd_pasid = cmd_pasid;
 		event->afu_tlx_cmd_pg_size = cmd_pg_size;
 		return TLX_SUCCESS;
-	}
+	} U */
+		return TLX_SUCCESS;
 }
 
 
@@ -1125,7 +1136,7 @@ int afu_tlx_send_cmd_and_data(struct AFU_EVENT *event,
  		 uint32_t cmd_pasid, uint8_t cmd_pg_size,            
   		 uint8_t * cdata_bus, uint8_t cdata_bad)
 
-{
+{/* U
 	if ((event->afu_tlx_send_cmd == 1) || (event->afu_tlx_send_cmd_data == 1)) {
 		return AFU_TLX_DOUBLE_CMD_AND_DATA;
 	} else {
@@ -1151,7 +1162,8 @@ int afu_tlx_send_cmd_and_data(struct AFU_EVENT *event,
 		// SENDS 8 BYTES 
 		memcpy(event->cmd_cdata_bus, cdata_bus, 8);
 		return TLX_SUCCESS;
-	}
+	} U */
+		return TLX_SUCCESS;
 }
 
 
@@ -1167,7 +1179,7 @@ int tlx_afu_read_resp_and_data(struct AFU_EVENT *event,
 		 uint8_t resp_dp, uint32_t resp_addr_tag,
 		 uint8_t resp_data_is_valid, uint8_t resp_data_bdi,uint8_t * resp_data)
 
-{
+{/* U
 	if (!event->tlx_afu_resp_valid) {
 		return TLX_AFU_RESP_NOT_VALID;
 	} else {
@@ -1199,7 +1211,8 @@ int tlx_afu_read_resp_and_data(struct AFU_EVENT *event,
 		}
 	//	return TLX_AFU_RESP_NO_DATA;
 		return TLX_SUCCESS;
-	}
+	} U */
+		return TLX_SUCCESS;
 }
 
 
@@ -1216,7 +1229,7 @@ int tlx_afu_read_cmd_and_data(struct AFU_EVENT *event,
 #endif
 		 uint8_t cmd_data_is_valid, uint8_t cmd_data_bdi,uint8_t * cmd_data)
 
-{
+{/* U
 	if (!event->tlx_afu_cmd_valid) {
 		return TLX_AFU_CMD_NOT_VALID;
 	} else {
@@ -1249,7 +1262,8 @@ int tlx_afu_read_cmd_and_data(struct AFU_EVENT *event,
 		}
 		//return TLX_AFU_CMD_NO_DATA;
 		return TLX_SUCCESS;
-	}
+	} U */
+		return TLX_SUCCESS;
 }
 
 
