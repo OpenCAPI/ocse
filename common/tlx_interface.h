@@ -86,9 +86,9 @@ int tlx_afu_send_cmd(struct AFU_EVENT *event,
 		 uint8_t cmd_pl, uint64_t cmd_be,
 		 uint8_t cmd_end, uint8_t cmd_t,
 #ifdef TLX4
-		 uint8_t cmd_os,
+		 uint8_t cmd_os, uint8_t cmd_flag,
 #endif
-		 uint64_t cmd_pa, uint8_t cmd_flag);
+		 uint64_t cmd_pa);
 
 
 // TODO - DON"T CALL THIS YET - IT WON"T WORK
@@ -107,9 +107,9 @@ int tlx_afu_send_cmd_and_data(struct AFU_EVENT *event,
 		 uint16_t cmd_capptag, uint8_t cmd_dl, 
 		 uint8_t cmd_pl, uint64_t cmd_be,
 		 uint8_t cmd_end, uint8_t cmd_t,
-		 uint64_t cmd_pa, uint8_t cmd_flag, 
+		 uint64_t cmd_pa,  
 #ifdef TLX4
-		 uint8_t cmd_os,
+		 uint8_t cmd_os, uint8_t cmd_flag,
 #endif
 		 uint8_t cmd_data_bdi, uint8_t * cmd_data);
 
@@ -134,7 +134,7 @@ int afu_tlx_read_cmd_and_data(struct AFU_EVENT *event,
 #endif          
 		    uint64_t cmd_be, uint8_t cmd_flag,               
  		    uint8_t cmd_endian, uint16_t cmd_bdf,               
-  	  	    uint32_t cmd_pasid, uint8_t cmd_pg_size,uint8_t cmd_data_is_valid,             
+  	  	    uint32_t cmd_pasid, uint8_t cmd_pg_size, uint8_t cmd_data_is_valid,             
  		    uint8_t * cdata_bus, uint8_t cdata_bad);              
 
 
@@ -214,8 +214,8 @@ int afu_tlx_send_cmd(struct AFU_EVENT *event,
 
 int afu_tlx_send_cmd_data(struct AFU_EVENT *event,
 		 uint8_t DATA_CMD_CONTINUATION,
-		 uint8_t cdata_bad,uint8_t cmd_pl,
-		 uint8_t cmd_dl,uint8_t * cdata_bus);
+		 uint8_t cdata_bad, uint8_t cmd_pl,
+		 uint8_t cmd_dl, uint8_t * cdata_bus);
 
 
 /* Call this on the AFU side to send a command and cmd data to ocse */
@@ -228,7 +228,7 @@ int afu_tlx_send_cmd_and_data(struct AFU_EVENT *event,
 #ifdef TLX4
   		 uint8_t cmd_os,     /* 1 bit ordered segment CAPI 4 */
 #endif
-  	 	 uint64_t cmd_be,uint8_t cmd_flag,               
+  	 	 uint64_t cmd_be, uint8_t cmd_flag,               
 		 uint8_t cmd_endian, uint16_t cmd_bdf,               
  		 uint32_t cmd_pasid, uint8_t cmd_pg_size,            
   		 uint8_t * cdata_bus, uint8_t cdata_bad);              
@@ -245,7 +245,7 @@ int tlx_afu_read_resp_and_data(struct AFU_EVENT *event,
 		 uint32_t resp_host_tag, uint8_t resp_cache_state,
 #endif
 		 uint8_t resp_dp, uint32_t resp_addr_tag,
-		 uint8_t resp_data_is_valid, uint8_t resp_data_bdi,uint8_t * resp_data);
+		 uint8_t resp_data_is_valid, uint8_t resp_data_bdi, uint8_t * resp_data);
 
 
 /* Call this from AFU to read ocse (CAPP/TL) command. This reads both tlx_afu cmd AND cmd data interfaces */
