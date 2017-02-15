@@ -374,7 +374,7 @@ static int _client_associate(struct client *client, uint8_t id, char afu_type)
 	case 'd':
 	        // send a reset
 	        debug_msg( "_client_associate: adding reset for open of dedicated device", afu_type );
-		add_job(ocl->job, TLX_JOB_RESET, 0L);
+		//add_job(ocl->job, TLX_JOB_RESET, 0L);
 		// ignores ocl->has_been_reset
 		break;
 	case 'm':
@@ -382,7 +382,7 @@ static int _client_associate(struct client *client, uint8_t id, char afu_type)
 	        // send a reset the very first time we associate a client
 	        if ( ocl->has_been_reset == 0 ) {
 		  debug_msg( "_client_associate: adding reset for first open of afu-directed device", afu_type );
-		  add_job(ocl->job, TLX_JOB_RESET, 0L);
+		  //add_job(ocl->job, TLX_JOB_RESET, 0L);
 		  ocl->has_been_reset = 1;
 		}
 	        break;

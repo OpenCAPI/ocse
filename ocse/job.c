@@ -136,7 +136,7 @@ void send_pe(struct job *job)
 	   case OCSE_IDLE:
 	      // is event idle? send it and return
 	      // is tlx_job_control the right routine to use?
-	      if (tlx_job_control(job->afu_event, event->code, event->addr) == TLX_SUCCESS) {
+	      /* if (tlx_job_control(job->afu_event, event->code, event->addr) == TLX_SUCCESS) {
 	         event->state = OCSE_PENDING;
 	         debug_msg("%s:LLCMD sent code=0x%02x ea=0x%016" PRIx64, job->afu_name,
 		          event->code, event->addr);
@@ -144,7 +144,7 @@ void send_pe(struct job *job)
 	         // DEBUG
 	         //debug_job_send(job->dbg_fp, job->dbg_id, event->code);
 	         debug_pe_send(job->dbg_fp, job->dbg_id, event->code, event->addr);
-	      }
+	      } */
 	      return;
 	   default:
 	      // error?
@@ -162,12 +162,12 @@ struct job_event *add_job(struct job *job, uint32_t code, uint64_t addr)
 	struct job_event *event;
 
 	// For resets, dump previous job if not reset
-	while ((code == TLX_JOB_RESET) && (job->job != NULL) &&
+	/* while ((code == TLX_JOB_RESET) && (job->job != NULL) &&
 	       (job->job->code != TLX_JOB_RESET)) {
 		event = job->job;
 		job->job = event->_next;
 		free(event);
-	}
+	} */
 
 	// Find the end of the list
 	tail = &(job->job);
@@ -210,7 +210,7 @@ void send_job(struct job *job)
 		return;
 
 	// Attempt to send job to AFU
-	if (tlx_job_control(job->afu_event, event->code, event->addr) ==
+	/* if (tlx_job_control(job->afu_event, event->code, event->addr) ==
 	    TLX_SUCCESS) {
 		event->state = OCSE_PENDING;
 		debug_msg("%s:JOB code=0x%02x ea=0x%016" PRIx64, job->afu_name,
@@ -221,7 +221,7 @@ void send_job(struct job *job)
 
 		// DEBUG
 		debug_job_send(job->dbg_fp, job->dbg_id, event->code);
-	}
+	} */
 }
 
 // handle_aux2 was renamed to _handle_aux2 and moved to ocl.c because we needed the ocl struct to 

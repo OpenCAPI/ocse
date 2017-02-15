@@ -104,24 +104,24 @@ static void _attach(struct ocl *ocl, struct client *client)
 	switch (client->type) {
 	case 'd':
 	  if (ocl->attached_clients == 0) {
-	    if (add_job(ocl->job, TLX_JOB_START, client->wed) != NULL) {
+	  /*  if (add_job(ocl->job, TLX_JOB_START, client->wed) != NULL) {
 	      // if dedicated, we can ack OCSE_ATTACH
 	      // if master, we might want to wait until after the llcmd add is complete
 	      // can I wait here for the START to finish?
 	      ocl->idle_cycles = TLX_IDLE_CYCLES;
 	      ack = OCSE_ATTACH;
-	    }
-	  }
+	    } */
+	  } 
 	  break;
 	case 'm':
 	case 's':
 	  if (ocl->attached_clients < ocl->max_clients) {
 	    if (ocl->attached_clients == 0) {
-	      if (add_job(ocl->job, TLX_JOB_START, 0L) != NULL) {
+	      /*if (add_job(ocl->job, TLX_JOB_START, 0L) != NULL) {
 		// if master, we might want to wait until after the llcmd add is complete
 		// can I wait here for the START to finish?
-	      }
-	    }
+	      } */
+	    } 
 	    ocl->idle_cycles = TLX_IDLE_CYCLES;
 	    ack = OCSE_ATTACH;
 	  }
@@ -143,11 +143,11 @@ static void _attach(struct ocl *ocl, struct client *client)
 	// new routine to job.c?  add_cmd?
 	// should a slave know their master?
 	if (client->type == 'm' || client->type == 's') {
-	        wed = TLX_LLCMD_ADD;
-		wed = wed | (uint64_t)client->context;
+	        //wed = TLX_LLCMD_ADD;
+	//	wed = wed | (uint64_t)client->context;
 		// add_pe adds to the client
-	        if (add_pe(ocl->job, TLX_JOB_LLCMD, wed) != NULL) {
-		}
+	    //    if (add_pe(ocl->job, TLX_JOB_LLCMD, wed) != NULL) {
+	//	}
 	}
 
  attach_done:
@@ -169,24 +169,24 @@ static void _detach(struct ocl *ocl, struct client *client)
 	//   add llcmd remove to ocl->job->pe
 	// comment - check to see if send pe is called if the client state is CLIENT_NONE
 	// allow the socket to close and the client struct to be freed.
-	if (client->type == 'm' || client->type == 's') {
-	        wed = TLX_LLCMD_TERMINATE;
-		wed = wed | (uint64_t)client->context;
-	        if (add_pe(ocl->job, TLX_JOB_LLCMD, wed) == NULL) {
+	//if (client->type == 'm' || client->type == 's') {
+	       // wed = TLX_LLCMD_TERMINATE;
+	//	wed = wed | (uint64_t)client->context;
+	     //   if (add_pe(ocl->job, TLX_JOB_LLCMD, wed) == NULL) {
 		  // error
 		  error_msg( "%s:_detach failed to add llcmd terminate for context=%d"PRIx64, ocl->name, client->context );
-		}
-	        wed = TLX_LLCMD_REMOVE;
-		wed = wed | (uint64_t)client->context;
-	        if (add_pe(ocl->job, TLX_JOB_LLCMD, wed) == NULL) {
+	//	}
+	   //     wed = TLX_LLCMD_REMOVE;
+	//	wed = wed | (uint64_t)client->context;
+	      //  if (add_pe(ocl->job, TLX_JOB_LLCMD, wed) == NULL) {
 		  // error
-		  error_msg( "%s:_detach failed to add llcmd remove for context=%d"PRIx64, ocl->name, client->context );
-		}
-	} else {
-	  if (client->type == 'd' ) {
+	//	  error_msg( "%s:_detach failed to add llcmd remove for context=%d"PRIx64, ocl->name, client->context );
+	//	}
+//	} else {
+//	  if (client->type == 'd' ) {
 	    client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
-	  }
-	}
+//	  }
+//	}
 
 	// we will let _ocl_loop call send_pe to issue the llcmds
 	// when the jcack's come back, we will 
@@ -213,7 +213,7 @@ static void _free(struct ocl *ocl, struct client *client)
 	mem_access = (struct cmd_event *)client->mem_access;
 	if (mem_access != NULL) {
 		if (mem_access->state != MEM_DONE) {
-			mem_access->resp = TLX_RESPONSE_FAILED;
+		//	mem_access->resp = TLX_RESPONSE_FAILED;
 			mem_access->state = MEM_DONE;
 		}
 	}
@@ -256,7 +256,7 @@ int _handle_aux2(struct ocl *ocl, uint32_t * parity, uint32_t * latency,
 
 	// See if AFU is driving AUX2 signal changes
 	dbg_aux2 = reset = reset_complete = *error = 0;
-	if (tlx_get_aux2_change(job->afu_event, &job_running, &job_done,
+	/* if (tlx_get_aux2_change(job->afu_event, &job_running, &job_done,
 				&job_cack_llcmd, &job_error, &job_yield,
 				&tb_request, &par_enable, &read_latency) == TLX_SUCCESS) {
 		// Handle job_done
@@ -382,10 +382,10 @@ int _handle_aux2(struct ocl *ocl, uint32_t * parity, uint32_t * latency,
 
 		// DEBUG
 		debug_job_aux2(job->dbg_fp, job->dbg_id, dbg_aux2);
-	}
+	} 
 
 	if (reset)
-		add_job(job, TLX_JOB_RESET, 0L);
+		add_job(job, TLX_JOB_RESET, 0L); */
 
 	return reset_complete;
 }
@@ -430,21 +430,12 @@ static void _handle_afu(struct ocl *ocl)
 		}
 	  }
 	}
-	handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
+	 handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
 	if (ocl->cmd != NULL) {
 		if (reset_done)
 			ocl->cmd->credits = ocl->cmd->parms->credits;
-		handle_caia2_cmds(ocl->cmd);
-		handle_dma0_write(ocl->cmd);
-		handle_dma0_sent_sts(ocl->cmd);
-		handle_dma0_read(ocl->cmd);
 		handle_response(ocl->cmd);
-		handle_buffer_write(ocl->cmd);
-		handle_buffer_read(ocl->cmd);
-		handle_buffer_data(ocl->cmd, ocl->parity_enabled);
-		handle_mem_write(ocl->cmd);
-		handle_touch(ocl->cmd);
-		handle_cmd(ocl->cmd, ocl->parity_enabled, ocl->latency);
+		//handle_cmd(ocl->cmd, ocl->parity_enabled, ocl->latency);
 		handle_interrupt(ocl->cmd);
 
 	}
@@ -459,10 +450,10 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 	int eb_rd = 0;
 
 	// Handle MMIO done
-	if (client->mmio_access != NULL) {
+	/* if (client->mmio_access != NULL) {
 		client->idle_cycles = TLX_IDLE_CYCLES;
 		client->mmio_access = handle_mmio_done(ocl->mmio, client);
-	}
+	} */
 	// Client disconnected
 	if (client->state == CLIENT_NONE)
 		return;
@@ -566,8 +557,8 @@ static void *_ocl_loop(void *ptr)
 				_handle_afu(ocl);
 
 			// Drive events to AFU
-			send_job(ocl->job);
-			send_pe(ocl->job);
+			//send_job(ocl->job);
+			//send_pe(ocl->job);
 			send_mmio(ocl->mmio);
 
 			if (ocl->mmio->list == NULL)
@@ -647,7 +638,7 @@ static void *_ocl_loop(void *ptr)
 			}
 			ocl->cmd->list = NULL;
 			info_msg("Sending reset to AFU");
-			add_job(ocl->job, TLX_JOB_RESET, 0L);
+			//add_job(ocl->job, TLX_JOB_RESET, 0L);
 		}
 
 		lock_delay(ocl->lock);
@@ -772,11 +763,11 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 
 	// Initialize job handler
 	debug_msg("%s @ %s:%d: job_init", ocl->name, ocl->host, ocl->port);
-	if ((ocl->job = job_init(ocl->afu_event, &(ocl->state), ocl->name,
+	/* if ((ocl->job = job_init(ocl->afu_event, &(ocl->state), ocl->name,
 				 ocl->dbg_fp, ocl->dbg_id)) == NULL) {
 		perror("job_init");
 		goto init_fail;
-	}
+	} */
 	// Initialize mmio handler
 	debug_msg("%s @ %s:%d: mmio_init", ocl->name, ocl->host, ocl->port);
 	if ((ocl->mmio = mmio_init(ocl->afu_event, ocl->timeout, ocl->name,
@@ -799,10 +790,10 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 	ocl->vsec_image_loaded= parms->image_loaded;
 	ocl->vsec_base_image= parms->base_image;
 	// Set credits for AFU
-	if (tlx_aux1_change(ocl->afu_event, ocl->cmd->credits) != TLX_SUCCESS) {
+	/* if (tlx_aux1_change(ocl->afu_event, ocl->cmd->credits) != TLX_SUCCESS) {
 		warn_msg("Unable to set credits");
 		goto init_fail;
-	}
+	} */
 	// Start ocl loop thread
 	if (pthread_create(&(ocl->thread), NULL, _ocl_loop, ocl)) {
 		perror("pthread_create");
@@ -823,10 +814,10 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 
 	// Send reset to AFU
 	debug_msg("%s @ %s:%d: Sending reset job.", ocl->name, ocl->host, ocl->port);
-	reset = add_job(ocl->job, TLX_JOB_RESET, 0L);
-	while (ocl->job->job == reset) {	/*infinite loop */
+	/* reset = add_job(ocl->job, TLX_JOB_RESET, 0L);
+	while (ocl->job->job == reset) {	//infinite loop 
 		lock_delay(ocl->lock);
-	}
+	}  */
 
 	// Read AFU descriptor
 	debug_msg("%s @ %s:%d: Reading AFU descriptor.", ocl->name, ocl->host,

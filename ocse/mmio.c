@@ -148,7 +148,8 @@ static void _wait_for_done(enum ocse_state *state, pthread_mutex_t * lock)
 // Read the entire AFU descriptor and keep a copy
 int read_descriptor(struct mmio *mmio, pthread_mutex_t * lock)
 {
-	struct mmio_event *event00, *event20, *event28, *event30, *event38,
+/*	NO need to do this anymore.......
+ * 	struct mmio_event *event00, *event20, *event28, *event30, *event38,
 	    *event40, *event48;
 
 	// Queue mmio reads
@@ -208,6 +209,14 @@ int read_descriptor(struct mmio *mmio, pthread_mutex_t * lock)
 		errno = ENODEV;
 		return -1;
 	}
+*/
+	// TODO _HACK need to set mmio->desc.req_prog_model & mmio->desc.num_of_processes & 
+	// mmio->desc.num_of_afu_CRs & mmio->desc.AFU_CR_OFFSET for now
+	
+	mmio->desc.req_prog_model = 4;
+	mmio->desc.num_of_processes = 4;
+	mmio->desc.num_of_afu_CRs = 1;
+	mmio->desc.AFU_CR_offset = 0x0;
 
         // NEW BLOCK add code to check for CRs and read them in if available
         struct mmio_event *eventdevven, *eventclass;
@@ -221,10 +230,12 @@ int read_descriptor(struct mmio *mmio, pthread_mutex_t * lock)
         mmio->desc.crptr = cr_array;
 	// Queue mmio reads
 	// Only do 32-bit mmio for config record data
-	//eventdevven = _add_desc(mmio, 1, 1,crstart >> 2, 0L);
-	eventdevven = _add_desc(mmio, 1, 0,crstart >> 2, 0L);
+	// NO LONGER NEED TO ADJUST CONFIG ADDR SPACE BY 2 ???
+	//Need to first send a config_write to set BDF to something
+	_add_event(mmio, NULL, 0, 0, crstart, 1, 0x505);
+	eventdevven = _add_desc(mmio, 1, 0,crstart, 0L);
 	//eventclass = _add_desc(mmio, 1, 1, (crstart+8) >> 2, 0L);
-	eventclass = _add_desc(mmio, 1, 0, (crstart+8) >> 2, 0L);
+	eventclass = _add_desc(mmio, 1, 0, crstart+8, 0L);
 	
 	// Store data from reads
 	_wait_for_done(&(eventdevven->state), lock);
@@ -251,12 +262,20 @@ int read_descriptor(struct mmio *mmio, pthread_mutex_t * lock)
 	return 0;
 }
 
-// Send pending MMIO event to AFU
+// Send pending MMIO event to AFU; use config_read or config_write for descriptor
+// for MMIO use cmd_pr_rd_mem or cmd_pr_wr_mem
 void send_mmio(struct mmio *mmio)
 {
 	struct mmio_event *event;
 	char type[5];
 	char data[17];
+	uint8_t tlx_cmd_opcode, cmd_dl, cmd_pl, cmd_end, cmd_t, cmd_flag, cmd_data_bdi;
+	uint16_t cmd_capptag;
+	uint64_t cmd_be, cmd_pa;
+#ifdef TLX4
+	 uint8_t cmd_os,
+#endif
+	 uint8_t * cmd_data;
 
 	event = mmio->list;
 
@@ -264,23 +283,23 @@ void send_mmio(struct mmio *mmio)
 	if ((event == NULL) || (event->state == OCSE_PENDING))
 		return;
 
-	if (event->desc)
+	if (event->desc) {
 		sprintf(type, "DESC");
-	else
-		sprintf(type, "MMIO");
-
-	// Attempt to send mmio to AFU
-	if (event->rnw && tlx_mmio_read(mmio->afu_event, event->dw, event->addr,
-					event->desc) == TLX_SUCCESS) {
+	// Attempt to send config_re or config_wr to AFU
+	// TODO need to get addreess correct eventually - no need to lop off last 2 bits?
+	cmd_pa = 0x100;
+	if (event->rnw && tlx_afu_send_cmd(mmio->afu_event, 
+		TLX_CMD_CONFIG_READ, 0xdead,4, 0, 0, 0, 1, cmd_pa) == TLX_SUCCESS) {
 		debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type,
 			  event->dw ? 64 : 32, event->addr);
 		debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->desc,
 				event->rnw, event->dw, event->addr);
 		event->state = OCSE_PENDING;
 	}
-	if (!event->rnw && tlx_mmio_write(mmio->afu_event, event->dw,
-					  event->addr, event->data, event->desc)
-	    == TLX_SUCCESS) {
+	//special case for now, only config_wr is with T=0 to send BDF
+	cmd_pa = 0x505;
+	if (!event->rnw && tlx_afu_send_cmd(mmio->afu_event, 
+		TLX_CMD_CONFIG_WRITE, 0xbeef,4, 0, 0, 0, 0, cmd_pa) == TLX_SUCCESS) {
 		if (event->dw)
 			sprintf(data, "%016" PRIx64, event->data);
 		else
@@ -292,20 +311,56 @@ void send_mmio(struct mmio *mmio)
 				event->rnw, event->dw, event->addr);
 		event->state = OCSE_PENDING;
 	}
+
+
+	}
+	else   {
+		sprintf(type, "MMIO");
+
+	// Attempt to send mmio to AFU
+	if (event->rnw && tlx_afu_send_cmd(mmio->afu_event, 
+		TLX_CMD_PR_RD_MEM, 0xcafe,4, 0, 0, 0, 0, 0x200) == TLX_SUCCESS) {
+		debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type,
+			  event->dw ? 64 : 32, event->addr);
+		debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->desc,
+				event->rnw, event->dw, event->addr);
+		event->state = OCSE_PENDING;
+	}
+	//NEED TO MAKE SOME DATA STRING TO SEND HERE !!
+/*	if (!event->rnw && tlx_afu_send_cmd_and_data(mmio->afu_event, 
+		TLX_CMD_PR_WR_MEM, 0xbeef,4, 0, 0, 0, 0, 0x505, 0, 0, somedata ) == TLX_SUCCESS) {
+		if (event->dw)
+			sprintf(data, "%016" PRIx64, event->data);
+		else
+			sprintf(data, "%08" PRIx32, (uint32_t) event->data);
+		debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s",
+			  mmio->afu_name, type, event->dw ? 64 : 32,
+			  event->addr, data);
+		debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->desc,
+				event->rnw, event->dw, event->addr);
+		event->state = OCSE_PENDING;
+	} */
+	}
 }
 
 // Handle MMIO ack if returned by AFU
 void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 {
 	uint64_t read_data;
-	uint32_t read_data_parity;
-	uint8_t parity;
 	int rc;
 	char data[17];
 	char type[5];
+	uint8_t afu_resp_opcode, resp_dl,resp_dp, resp_data_is_valid, resp_code, rdata_bad;
+	uint16_t resp_capptag;
+	uint8_t *  rdata_bus;
 
-	rc = tlx_get_mmio_acknowledge(mmio->afu_event, &read_data,
-				      &read_data_parity);
+	//rc = tlx_get_mmio_acknowledge(mmio->afu_event, &read_data,
+	rc = afu_tlx_read_resp_and_data(mmio->afu_event, 
+		    &afu_resp_opcode, &resp_dl,
+		    &resp_capptag, &resp_dp,
+		    &resp_data_is_valid, &resp_code, rdata_bus, &rdata_bad);
+
+		
 	if (rc == TLX_SUCCESS) {
 		debug_mmio_ack(mmio->dbg_fp, mmio->dbg_id);
 		if (!mmio->list || (mmio->list->state != OCSE_PENDING)) {
@@ -316,7 +371,8 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 			sprintf(type, "DESC");
 		else
 			sprintf(type, "MMIO");
-		if (mmio->list->rnw) {
+		debug_msg("IN handle_mmio_ack and  MMIO RESP! ");
+	/*	if (mmio->list->rnw) {
 			if (mmio->list->dw) {
 				sprintf(data, "%016" PRIx64, read_data);
 			} else {
@@ -327,18 +383,11 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 				  data);
 		} else {
 			debug_msg("%s:%s ACK", mmio->afu_name, type);
-		}
+		} */
 
 		// Keep data for MMIO reads
-		if (mmio->list->rnw) {
-			if (parity_enabled) {
-				parity = generate_parity(read_data, ODD_PARITY);
-				if (read_data_parity != parity)
-					error_msg
-					    ("Parity error on MMIO read data");
-			}
-			mmio->list->data = read_data;
-		}
+		if (mmio->list->rnw) 
+				mmio->list->data = read_data;
 		mmio->list->state = OCSE_DONE;
 		mmio->list = mmio->list->_next;
 	}
