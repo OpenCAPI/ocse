@@ -117,25 +117,25 @@ int tlx_afu_send_cmd_and_data(struct AFU_EVENT *event,
 /* Call this from ocse to read AFU response. This reads both afu_tlx resp AND resp data interfaces */
 
 int afu_tlx_read_resp_and_data(struct AFU_EVENT *event,
-		    uint8_t afu_resp_opcode, uint8_t resp_dl,
-		    uint16_t resp_capptag, uint8_t resp_dp,
-		    uint8_t resp_data_is_valid, uint8_t resp_code, uint8_t * rdata_bus, uint8_t rdata_bad);
+		    uint8_t * afu_resp_opcode, uint8_t * resp_dl,
+		    uint16_t * resp_capptag, uint8_t * resp_dp,
+		    uint8_t * resp_data_is_valid, uint8_t * resp_code, uint8_t * rdata_bus, uint8_t * rdata_bad);
 
 
 /* Call this from ocse to read AFU command. This reads both afu_tlx cmd AND cmd data interfaces */
 
 int afu_tlx_read_cmd_and_data(struct AFU_EVENT *event,
-  		    uint8_t afu_cmd_opcode, uint16_t cmd_actag,             
-  		    uint8_t cmd_stream_id, uint8_t * cmd_ea_or_obj,  
- 		    uint16_t cmd_afutag, uint8_t cmd_dl,                 
-  		    uint8_t cmd_pl, 
+  		    uint8_t * afu_cmd_opcode, uint16_t * cmd_actag,             
+  		    uint8_t * cmd_stream_id, uint8_t * cmd_ea_or_obj,  
+ 		    uint16_t * cmd_afutag, uint8_t * cmd_dl,                 
+  		    uint8_t * cmd_pl, 
 #ifdef TLX4
-		    uint8_t cmd_os,       
+		    uint8_t * cmd_os,       
 #endif          
-		    uint64_t cmd_be, uint8_t cmd_flag,               
- 		    uint8_t cmd_endian, uint16_t cmd_bdf,               
-  	  	    uint32_t cmd_pasid, uint8_t cmd_pg_size, uint8_t cmd_data_is_valid,             
- 		    uint8_t * cdata_bus, uint8_t cdata_bad);              
+		    uint64_t * cmd_be, uint8_t * cmd_flag,               
+ 		    uint8_t * cmd_endian, uint16_t * cmd_bdf,               
+  	  	    uint32_t * cmd_pasid, uint8_t * cmd_pg_size, uint8_t * cmd_data_is_valid,             
+ 		    uint8_t * cdata_bus, uint8_t * cdata_bad);              
 
 
 /* Call this periodically to send events and clocking synchronization to AFU */

@@ -49,6 +49,7 @@
 /* Return codes for TLX interface functions */
 
 #define TLX_SUCCESS 0
+#define TLX_RESPONSE_DONE 0
 #define TLX_AFU_DOUBLE_COMMAND 1
 #define TLX_AFU_CMD_NOT_VALID 2
 #define TLX_AFU_DOUBLE_CMD_AND_DATA 3
@@ -67,6 +68,8 @@
 #define AFU_TLX_DOUBLE_RESP_AND_DATA 33
 #define AFU_TLX_RESP_DATA_NOT_VALID 34
 #define AFU_TLX_RESP_NO_DATA 35
+#define TLX_RESPONSE_FAILED 15
+#define TLX_RESPONSE_CONTEXT 17
 #define TLX_BAD_SOCKET 16	/* The socket connection could not be established */
 #define TLX_VERSION_ERROR 48	/* The TLX versions in use on local & remote do not match */
 #define TLX_TRANSMISSION_ERROR 64	/* There was an error sending data across the socket
