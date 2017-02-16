@@ -255,8 +255,9 @@ int tlx_afu_read_cmd_and_data(struct AFU_EVENT *event,
 		 uint16_t cmd_capptag, uint8_t cmd_dl, 
 		 uint8_t cmd_pl, uint64_t cmd_be,
 		 uint8_t cmd_end, uint8_t cmd_t,
-		 uint64_t cmd_pa, uint8_t cmd_flag, 
+		 uint64_t cmd_pa, 
 #ifdef TLX4
+		 uint8_t cmd_flag,  /* used for atomics from host CAPI 4 */
   		 uint8_t cmd_os,     /* 1 bit ordered segment CAPI 4 */
 #endif
 		 uint8_t cmd_data_is_valid, uint8_t cmd_data_bdi,uint8_t * cmd_data);
