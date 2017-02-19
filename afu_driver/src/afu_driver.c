@@ -84,145 +84,145 @@ static void tlx_control(void);
 void tlx_bfm(
               const svLogic       ha_pclock,
 				// Table 1: TLX to AFU Response Interface
-			svLogic		*tlx_afu_resp_valid,
-			svLogicVecVal	*tlx_afu_resp_opcode,
-			svLogicVecVal	*tlx_afu_resp_afutag,
-			svLogicVecVal	*tlx_afu_resp_code,
-			svLogicVecVal	*tlx_afu_resp_pg_size,
-			svLogicVecVal	*tlx_afu_resp_dl,
-			svLogicVecVal	*tlx_afu_resp_dp,
-			svLogicVecVal	*tlx_afu_resp_host_tag,
-			svLogicVecVal	*tlx_afu_resp_addr_tag,
-			svLogicVecVal	*tlx_afu_resp_cache_state,
+			svLogic		*tlx_afu_resp_valid_top,
+			svLogicVecVal	*tlx_afu_resp_opcode_top,
+			svLogicVecVal	*tlx_afu_resp_afutag_top,
+			svLogicVecVal	*tlx_afu_resp_code_top,
+			svLogicVecVal	*tlx_afu_resp_pg_size_top,
+			svLogicVecVal	*tlx_afu_resp_dl_top,
+			svLogicVecVal	*tlx_afu_resp_dp_top,
+			svLogicVecVal	*tlx_afu_resp_host_tag_top,
+			svLogicVecVal	*tlx_afu_resp_addr_tag_top,
+			svLogicVecVal	*tlx_afu_resp_cache_state_top,
 
 				//	Table 2: TLX Response Credit Interface
-			const svLogic	afu_tlx_resp_credit,
-		const svLogicVecVal	*afu_tlx_resp_initial_credit,
+			const svLogic	afu_tlx_resp_credit_top,
+		const svLogicVecVal	*afu_tlx_resp_initial_credit_top,
 
 				//	Table 3: TLX to AFU Command Interface
-			svLogic		*tlx_afu_cmd_valid,
-			svLogicVecVal	*tlx_afu_cmd_opcode,
-			svLogicVecVal	*tlx_afu_cmd_capptag,
-			svLogicVecVal	*tlx_afu_cmd_dl,
-			svLogicVecVal	*tlx_afu_cmd_pl,
-			svLogicVecVal	*tlx_afu_cmd_be,
-			svLogic		*tlx_afu_cmd_end,
-			svLogic		*tlx_afu_cmd_t,
-			svLogicVecVal	*tlx_afu_cmd_pa,
-			svLogicVecVal	*tlx_afu_cmd_flag,
-			svLogic		*tlx_afu_cmd_os,
+			svLogic		*tlx_afu_cmd_valid_top,
+			svLogicVecVal	*tlx_afu_cmd_opcode_top,
+			svLogicVecVal	*tlx_afu_cmd_capptag_top,
+			svLogicVecVal	*tlx_afu_cmd_dl_top,
+			svLogicVecVal	*tlx_afu_cmd_pl_top,
+			svLogicVecVal	*tlx_afu_cmd_be_top,
+			svLogic		*tlx_afu_cmd_end_top,
+			svLogic		*tlx_afu_cmd_t_top,
+			svLogicVecVal	*tlx_afu_cmd_pa_top,
+			svLogicVecVal	*tlx_afu_cmd_flag_top,
+			svLogic		*tlx_afu_cmd_os_top,
 
 				//	Table 4: TLX Command Credit Interface
-			const svLogic	afu_tlx_cmd_credit,
-		const svLogicVecVal	*afu_tlx_cmd_initial_credit,
+			const svLogic	afu_tlx_cmd_credit_top,
+		const svLogicVecVal	*afu_tlx_cmd_initial_credit_top,
 
 				//	Table 5: TLX to AFU Response Data Interface
-			svLogic		*tlx_afu_resp_data_valid,
-			svLogicVecVal	*tlx_afu_resp_data_bus,
-			svLogic		*tlx_afu_resp_data_bdi,
-			const svLogic	afu_tlx_resp_rd_req,
-		const svLogicVecVal	*afu_tlx_resp_rd_cnt,
+			svLogic		*tlx_afu_resp_data_valid_top,
+			svLogicVecVal	*tlx_afu_resp_data_bus_top,
+			svLogic		*tlx_afu_resp_data_bdi_top,
+			const svLogic	afu_tlx_resp_rd_req_top,
+		const svLogicVecVal	*afu_tlx_resp_rd_cnt_top,
 
 				//	Table 6: TLX to AFU Command Data Interface
-			svLogic		*tlx_afu_cmd_data_valid,
-			svLogicVecVal	*tlx_afu_cmd_data_bus,
-			svLogic		*tlx_afu_cmd_data_bdi,
-			const svLogic	afu_tlx_cmd_rd_req,
-		const svLogicVecVal	*afu_tlx_cmd_rd_cnt,
+			svLogic		*tlx_afu_cmd_data_valid_top,
+			svLogicVecVal	*tlx_afu_cmd_data_bus_top,
+			svLogic		*tlx_afu_cmd_data_bdi_top,
+			const svLogic	afu_tlx_cmd_rd_req_top,
+		const svLogicVecVal	*afu_tlx_cmd_rd_cnt_top,
 
 				//	Table 7: TLX Framer credit interface
-			svLogic		*tlx_afu_resp_credit,
-			svLogic		*tlx_afu_resp_data_credit,
-			svLogic		*tlx_afu_cmd_credit,
-			svLogic		*tlx_afu_cmd_data_credit,
-			svLogicVecVal	*tlx_afu_cmd_resp_initial_credit,
-			svLogicVecVal	*tlx_afu_data_initial_credit,
+			svLogic		*tlx_afu_resp_credit_top,
+			svLogic		*tlx_afu_resp_data_credit_top,
+			svLogic		*tlx_afu_cmd_credit_top,
+			svLogic		*tlx_afu_cmd_data_credit_top,
+			svLogicVecVal	*tlx_afu_cmd_resp_initial_credit_top,
+			svLogicVecVal	*tlx_afu_data_initial_credit_top,
 
 				//	Table 8: TLX Framer Command Interface
-			const svLogic	afu_tlx_cmd_valid,
-		const svLogicVecVal	*afu_tlx_cmd_opcode,
-		const svLogicVecVal	*afu_tlx_cmd_actag,
-		const svLogicVecVal	*afu_tlx_cmd_stream_id,
-		const svLogicVecVal	*afu_tlx_cmd_ea_or_obj,
-		const svLogicVecVal	*afu_tlx_cmd_afutag,
-		const svLogicVecVal	*afu_tlx_cmd_dl,
-		const svLogicVecVal	*afu_tlx_cmd_pl,
-			const svLogic	afu_tlx_cmd_os,
-		const svLogicVecVal	*afu_tlx_cmd_be,
-		const svLogicVecVal	*afu_tlx_cmd_flag,
-			const svLogic	afu_tlx_cmd_endian,
-		const svLogicVecVal	*afu_tlx_cmd_bdf,
-		const svLogicVecVal	*afu_tlx_cmd_pasid,
-		const svLogicVecVal	*afu_tlx_cmd_pg_size,
-		const svLogicVecVal	*afu_tlx_cdata_bus,
-			const svLogic	afu_tlx_cdata_bdi,// TODO: TLX Ref Design doc lists this as afu_tlx_cdata_bad
-			const svLogic	afu_tlx_cdata_valid,
+			const svLogic	afu_tlx_cmd_valid_top,
+		const svLogicVecVal	*afu_tlx_cmd_opcode_top,
+		const svLogicVecVal	*afu_tlx_cmd_actag_top,
+		const svLogicVecVal	*afu_tlx_cmd_stream_id_top,
+		const svLogicVecVal	*afu_tlx_cmd_ea_or_obj_top,
+		const svLogicVecVal	*afu_tlx_cmd_afutag_top,
+		const svLogicVecVal	*afu_tlx_cmd_dl_top,
+		const svLogicVecVal	*afu_tlx_cmd_pl_top,
+			const svLogic	afu_tlx_cmd_os_top,
+		const svLogicVecVal	*afu_tlx_cmd_be_top,
+		const svLogicVecVal	*afu_tlx_cmd_flag_top,
+			const svLogic	afu_tlx_cmd_endian_top,
+		const svLogicVecVal	*afu_tlx_cmd_bdf_top,
+		const svLogicVecVal	*afu_tlx_cmd_pasid_top,
+		const svLogicVecVal	*afu_tlx_cmd_pg_size_top,
+		const svLogicVecVal	*afu_tlx_cdata_bus_top,
+			const svLogic	afu_tlx_cdata_bdi_top,// TODO: TLX Ref Design doc lists this as afu_tlx_cdata_bad
+			const svLogic	afu_tlx_cdata_valid_top,
 
 				//	Table 9: TLX Framer Response Interface
-			const svLogic	afu_tlx_resp_valid,
-		const svLogicVecVal	*afu_tlx_resp_opcode,
-		const svLogicVecVal	*afu_tlx_resp_dl,
-		const svLogicVecVal	*afu_tlx_resp_capptag,
-		const svLogicVecVal	*afu_tlx_resp_dp,
-		const svLogicVecVal	*afu_tlx_resp_code,
-			const svLogic	afu_tlx_rdata_valid,
-		const svLogicVecVal	*afu_tlx_rdata_bus,
-			const svLogic	afu_tlx_rdata_bdi,
+			const svLogic	afu_tlx_resp_valid_top,
+		const svLogicVecVal	*afu_tlx_resp_opcode_top,
+		const svLogicVecVal	*afu_tlx_resp_dl_top,
+		const svLogicVecVal	*afu_tlx_resp_capptag_top,
+		const svLogicVecVal	*afu_tlx_resp_dp_top,
+		const svLogicVecVal	*afu_tlx_resp_code_top,
+			const svLogic	afu_tlx_rdata_valid_top,
+		const svLogicVecVal	*afu_tlx_rdata_bus_top,
+			const svLogic	afu_tlx_rdata_bdi_top,
 
 // These signals do not appear on the RefDesign Doc. However it is present on the TLX spec
-			svLogic		*afu_cfg_in_rcv_tmpl_capability_0,
-			svLogic		*afu_cfg_in_rcv_tmpl_capability_1,
-			svLogic		*afu_cfg_in_rcv_tmpl_capability_2,
-			svLogic		*afu_cfg_in_rcv_tmpl_capability_3,
-			svLogicVecVal	*afu_cfg_in_rcv_rate_capability_0,
-			svLogicVecVal	*afu_cfg_in_rcv_rate_capability_1,
-			svLogicVecVal	*afu_cfg_in_rcv_rate_capability_2,
-			svLogicVecVal	*afu_cfg_in_rcv_rate_capability_3,
-			svLogic		*tlx_afu_ready
+			svLogic		*afu_cfg_in_rcv_tmpl_capability_0_top,
+			svLogic		*afu_cfg_in_rcv_tmpl_capability_1_top,
+			svLogic		*afu_cfg_in_rcv_tmpl_capability_2_top,
+			svLogic		*afu_cfg_in_rcv_tmpl_capability_3_top,
+			svLogicVecVal	*afu_cfg_in_rcv_rate_capability_0_top,
+			svLogicVecVal	*afu_cfg_in_rcv_rate_capability_1_top,
+			svLogicVecVal	*afu_cfg_in_rcv_rate_capability_2_top,
+			svLogicVecVal	*afu_cfg_in_rcv_rate_capability_3_top,
+			svLogic		*tlx_afu_ready_top
             )
 {
 //  int change = 0;
   int invalidVal = 0;
   if ( ha_pclock == sv_0 ) {
 	//	Accessing inputs from the AFX
-    c_afu_tlx_cmd_valid  	= (afu_tlx_cmd_valid & 0x2) ? 0 : (afu_tlx_cmd_valid & 0x1);
-    invalidVal			+= afu_tlx_cmd_valid & 0x2;
-    c_afu_tlx_cdata_valid  	= (afu_tlx_cdata_valid & 0x2) ? 0 : (afu_tlx_cdata_valid & 0x1);
-    invalidVal			+= afu_tlx_cdata_valid & 0x2;
+    c_afu_tlx_cmd_valid  	= (afu_tlx_cmd_valid_top & 0x2) ? 0 : (afu_tlx_cmd_valid_top & 0x1);
+    invalidVal			+= afu_tlx_cmd_valid_top & 0x2;
+    c_afu_tlx_cdata_valid  	= (afu_tlx_cdata_valid_top & 0x2) ? 0 : (afu_tlx_cdata_valid_top & 0x1);
+    invalidVal			+= afu_tlx_cdata_valid_top & 0x2;
     if(c_afu_tlx_cmd_valid)
     {
-      c_afu_tlx_cmd_opcode	= (afu_tlx_cmd_opcode->aval) & 0xFF;
-      invalidVal		= (afu_tlx_cmd_opcode->bval) & 0xFF;
-      c_afu_tlx_cmd_actag	= (afu_tlx_cmd_actag->aval) & 0xFFF;
-      invalidVal		+= (afu_tlx_cmd_actag->bval) & 0xFFF;
-      c_afu_tlx_cmd_stream_id	= (afu_tlx_cmd_stream_id->aval) & 0xF;
-      invalidVal		+= (afu_tlx_cmd_stream_id->bval) & 0xF;
-      invalidVal		+= getMyByteArray(afu_tlx_cmd_ea_or_obj, 9, c_afu_tlx_cmd_ea_or_obj);
-      c_afu_tlx_cmd_afutag	= (afu_tlx_cmd_afutag->aval) & 0xFFFF;
-      invalidVal		+= (afu_tlx_cmd_afutag->bval) & 0xFFFF;
-      c_afu_tlx_cmd_dl		= (afu_tlx_cmd_dl->aval) & 0x3;
-      invalidVal		+= (afu_tlx_cmd_dl->bval) & 0x3;
-      c_afu_tlx_cmd_pl		= (afu_tlx_cmd_pl->aval) & 0x7;
-      invalidVal		+= (afu_tlx_cmd_pl->bval) & 0x7;
-      c_afu_tlx_cmd_os		= (afu_tlx_cmd_os & 0x2) ? 0 : (afu_tlx_cmd_os & 0x1);
-      invalidVal		+= afu_tlx_cmd_os & 0x2;
-      invalidVal		+= getMy64Bit(afu_tlx_cmd_be, &c_afu_tlx_cmd_be);
-      c_afu_tlx_cmd_flag	= (afu_tlx_cmd_flag->aval) & 0xF;
-      invalidVal		+= (afu_tlx_cmd_flag->bval) & 0xF;
-      c_afu_tlx_cmd_endian	= (afu_tlx_cmd_endian & 0x2) ? 0 : (afu_tlx_cmd_endian & 0x1);
-      invalidVal		+= afu_tlx_cmd_endian & 0x2;
-      c_afu_tlx_cmd_bdf		= (afu_tlx_cmd_bdf->aval) & 0xFFFF;
-      invalidVal		+= (afu_tlx_cmd_bdf->bval) & 0xFFFF;
-      c_afu_tlx_cmd_pasid	= (afu_tlx_cmd_pasid->aval) & 0xFFFFF;
-      invalidVal		+= (afu_tlx_cmd_pasid->bval) & 0xFFFFF;
-      c_afu_tlx_cmd_pg_size	= (afu_tlx_cmd_pg_size->aval) & 0x3F;
-      invalidVal		+= (afu_tlx_cmd_pg_size->bval) & 0x3F;
+      c_afu_tlx_cmd_opcode	= (afu_tlx_cmd_opcode_top->aval) & 0xFF;
+      invalidVal		= (afu_tlx_cmd_opcode_top->bval) & 0xFF;
+      c_afu_tlx_cmd_actag	= (afu_tlx_cmd_actag_top->aval) & 0xFFF;
+      invalidVal		+= (afu_tlx_cmd_actag_top->bval) & 0xFFF;
+      c_afu_tlx_cmd_stream_id	= (afu_tlx_cmd_stream_id_top->aval) & 0xF;
+      invalidVal		+= (afu_tlx_cmd_stream_id_top->bval) & 0xF;
+      invalidVal		+= getMyByteArray(afu_tlx_cmd_ea_or_obj_top, 9, c_afu_tlx_cmd_ea_or_obj);
+      c_afu_tlx_cmd_afutag	= (afu_tlx_cmd_afutag_top->aval) & 0xFFFF;
+      invalidVal		+= (afu_tlx_cmd_afutag_top->bval) & 0xFFFF;
+      c_afu_tlx_cmd_dl		= (afu_tlx_cmd_dl_top->aval) & 0x3;
+      invalidVal		+= (afu_tlx_cmd_dl_top->bval) & 0x3;
+      c_afu_tlx_cmd_pl		= (afu_tlx_cmd_pl_top->aval) & 0x7;
+      invalidVal		+= (afu_tlx_cmd_pl_top->bval) & 0x7;
+      c_afu_tlx_cmd_os		= (afu_tlx_cmd_os_top & 0x2) ? 0 : (afu_tlx_cmd_os_top & 0x1);
+      invalidVal		+= afu_tlx_cmd_os_top & 0x2;
+      invalidVal		+= getMy64Bit(afu_tlx_cmd_be_top, &c_afu_tlx_cmd_be);
+      c_afu_tlx_cmd_flag	= (afu_tlx_cmd_flag_top->aval) & 0xF;
+      invalidVal		+= (afu_tlx_cmd_flag_top->bval) & 0xF;
+      c_afu_tlx_cmd_endian	= (afu_tlx_cmd_endian_top & 0x2) ? 0 : (afu_tlx_cmd_endian_top & 0x1);
+      invalidVal		+= afu_tlx_cmd_endian_top & 0x2;
+      c_afu_tlx_cmd_bdf		= (afu_tlx_cmd_bdf_top->aval) & 0xFFFF;
+      invalidVal		+= (afu_tlx_cmd_bdf_top->bval) & 0xFFFF;
+      c_afu_tlx_cmd_pasid	= (afu_tlx_cmd_pasid_top->aval) & 0xFFFFF;
+      invalidVal		+= (afu_tlx_cmd_pasid_top->bval) & 0xFFFFF;
+      c_afu_tlx_cmd_pg_size	= (afu_tlx_cmd_pg_size_top->aval) & 0x3F;
+      invalidVal		+= (afu_tlx_cmd_pg_size_top->bval) & 0x3F;
     }
     if(c_afu_tlx_cdata_valid)
     {
-      c_afu_tlx_cdata_bdi  	= (afu_tlx_cdata_bdi & 0x2) ? 0 : (afu_tlx_cdata_bdi & 0x1);
-      invalidVal		+= afu_tlx_cdata_bdi & 0x2;
-      invalidVal		+= getMyCacheLine(afu_tlx_cdata_bus, c_afu_tlx_cdata_bus);
+      c_afu_tlx_cdata_bdi  	= (afu_tlx_cdata_bdi_top & 0x2) ? 0 : (afu_tlx_cdata_bdi_top & 0x1);
+      invalidVal		+= afu_tlx_cdata_bdi_top & 0x2;
+      invalidVal		+= getMyCacheLine(afu_tlx_cdata_bus_top, c_afu_tlx_cdata_bus);
     }
     if(invalidVal != 0)
     {
@@ -242,7 +242,7 @@ void tlx_bfm(
 		c_afu_tlx_cmd_bdf, c_afu_tlx_cmd_pasid, c_afu_tlx_cmd_pg_size
       );
     }
-    else if(c_afu_tlx_cmd_valid & c_afu_tlx_cdata_valid)
+    else if(c_afu_tlx_cdata_valid)
     {
       afu_tlx_send_cmd_and_data(&event,
       		c_afu_tlx_cmd_opcode, c_afu_tlx_cmd_actag, c_afu_tlx_cmd_stream_id, 
@@ -257,28 +257,28 @@ void tlx_bfm(
       );
     }
     invalidVal = 0;
-    c_afu_tlx_resp_valid  	= (afu_tlx_resp_valid & 0x2) ? 0 : (afu_tlx_resp_valid & 0x1);
-    invalidVal			= afu_tlx_resp_valid & 0x2;
-    c_afu_tlx_rdata_valid  	= (afu_tlx_rdata_valid & 0x2) ? 0 : (afu_tlx_rdata_valid & 0x1);
-    invalidVal			+= afu_tlx_rdata_valid & 0x2;
+    c_afu_tlx_resp_valid  	= (afu_tlx_resp_valid_top & 0x2) ? 0 : (afu_tlx_resp_valid_top & 0x1);
+    invalidVal			= afu_tlx_resp_valid_top & 0x2;
+    c_afu_tlx_rdata_valid  	= (afu_tlx_rdata_valid_top & 0x2) ? 0 : (afu_tlx_rdata_valid_top & 0x1);
+    invalidVal			+= afu_tlx_rdata_valid_top & 0x2;
     if(c_afu_tlx_resp_valid)
     {
-      c_afu_tlx_resp_opcode	= (afu_tlx_resp_opcode->aval) & 0xFF;
-      invalidVal		+= (afu_tlx_resp_opcode->bval) & 0xFF;
-      c_afu_tlx_resp_dl		= (afu_tlx_resp_dl->aval) & 0x3;
-      invalidVal		+= (afu_tlx_resp_dl->bval) & 0x3;
-      c_afu_tlx_resp_capptag	= (afu_tlx_resp_capptag->aval) & 0xFFFF;
-      invalidVal		+= (afu_tlx_resp_capptag->bval) & 0xFFFF;
-      c_afu_tlx_resp_dp		= (afu_tlx_resp_dp->aval) & 0x3;
-      invalidVal		+= (afu_tlx_resp_dp->bval) & 0x3;
-      c_afu_tlx_resp_code	= (afu_tlx_resp_code->aval) & 0xF;
-      invalidVal		+= (afu_tlx_resp_code->bval) & 0xF;
+      c_afu_tlx_resp_opcode	= (afu_tlx_resp_opcode_top->aval) & 0xFF;
+      invalidVal		+= (afu_tlx_resp_opcode_top->bval) & 0xFF;
+      c_afu_tlx_resp_dl		= (afu_tlx_resp_dl_top->aval) & 0x3;
+      invalidVal		+= (afu_tlx_resp_dl_top->bval) & 0x3;
+      c_afu_tlx_resp_capptag	= (afu_tlx_resp_capptag_top->aval) & 0xFFFF;
+      invalidVal		+= (afu_tlx_resp_capptag_top->bval) & 0xFFFF;
+      c_afu_tlx_resp_dp		= (afu_tlx_resp_dp_top->aval) & 0x3;
+      invalidVal		+= (afu_tlx_resp_dp_top->bval) & 0x3;
+      c_afu_tlx_resp_code	= (afu_tlx_resp_code_top->aval) & 0xF;
+      invalidVal		+= (afu_tlx_resp_code_top->bval) & 0xF;
     }
     if(c_afu_tlx_rdata_valid)
     {
-      c_afu_tlx_rdata_bdi  	= (afu_tlx_rdata_bdi & 0x2) ? 0 : (afu_tlx_rdata_bdi & 0x1);
-      invalidVal		+= afu_tlx_rdata_bdi & 0x2;
-      invalidVal		+= getMyCacheLine(afu_tlx_rdata_bus, c_afu_tlx_rdata_bus);
+      c_afu_tlx_rdata_bdi  	= (afu_tlx_rdata_bdi_top & 0x2) ? 0 : (afu_tlx_rdata_bdi_top & 0x1);
+      invalidVal		+= afu_tlx_rdata_bdi_top & 0x2;
+      invalidVal		+= getMyCacheLine(afu_tlx_rdata_bus_top, c_afu_tlx_rdata_bus);
     }
     if(invalidVal != 0)
     {
@@ -292,7 +292,7 @@ void tlx_bfm(
       		c_afu_tlx_resp_dp, c_afu_tlx_resp_code
       );
     }
-    else if(c_afu_tlx_resp_valid && c_afu_tlx_rdata_valid)
+    else if(c_afu_tlx_rdata_valid)
     {
       afu_tlx_send_resp_and_data(&event,
       		c_afu_tlx_resp_opcode, c_afu_tlx_resp_dl, c_afu_tlx_resp_capptag, 
@@ -305,70 +305,70 @@ void tlx_bfm(
     tlx_control();
     if(event.tlx_afu_resp_valid)
     {
-      setDpiSignal32(tlx_afu_resp_opcode, event.tlx_afu_resp_opcode, 8);
-      setDpiSignal32(tlx_afu_resp_afutag, event.tlx_afu_resp_afutag, 16);
-      setDpiSignal32(tlx_afu_resp_code, event.tlx_afu_resp_code, 4);
-      setDpiSignal32(tlx_afu_resp_pg_size, event.tlx_afu_resp_pg_size, 6);
-      setDpiSignal32(tlx_afu_resp_dl, event.tlx_afu_resp_dl, 2);
-      setDpiSignal32(tlx_afu_resp_dp, event.tlx_afu_resp_dp, 2);
-      setDpiSignal32(tlx_afu_resp_addr_tag, event.tlx_afu_resp_addr_tag, 18);
+      setDpiSignal32(tlx_afu_resp_opcode_top, event.tlx_afu_resp_opcode, 8);
+      setDpiSignal32(tlx_afu_resp_afutag_top, event.tlx_afu_resp_afutag, 16);
+      setDpiSignal32(tlx_afu_resp_code_top, event.tlx_afu_resp_code, 4);
+      setDpiSignal32(tlx_afu_resp_pg_size_top, event.tlx_afu_resp_pg_size, 6);
+      setDpiSignal32(tlx_afu_resp_dl_top, event.tlx_afu_resp_dl, 2);
+      setDpiSignal32(tlx_afu_resp_dp_top, event.tlx_afu_resp_dp, 2);
+      setDpiSignal32(tlx_afu_resp_addr_tag_top, event.tlx_afu_resp_addr_tag, 18);
 #ifdef TLX4
-      setDpiSignal32(tlx_afu_resp_host_tag, event.tlx_afu_resp_host_tag, 24);
-      setDpiSignal32(tlx_afu_resp_cache_state, event.tlx_afu_resp_cache_state, 4);
+      setDpiSignal32(tlx_afu_resp_host_tag_top, event.tlx_afu_resp_host_tag, 24);
+      setDpiSignal32(tlx_afu_resp_cache_state_top, event.tlx_afu_resp_cache_state, 4);
 #endif
-      *tlx_afu_resp_valid = 1;
+      *tlx_afu_resp_valid_top = 1;
       clk_afu_resp_val = CLOCK_EDGE_DELAY;
     }
     if (clk_afu_resp_val) {
     	--clk_afu_resp_val;
     	if (!clk_afu_resp_val)
-    		*tlx_afu_resp_valid = 0;
+    		*tlx_afu_resp_valid_top = 0;
     }
     if(event.tlx_afu_cmd_valid)
     {
-      setDpiSignal32(tlx_afu_cmd_opcode, event.tlx_afu_cmd_opcode, 8);
-      setDpiSignal32(tlx_afu_cmd_capptag, event.tlx_afu_cmd_capptag, 16);
-      setDpiSignal32(tlx_afu_cmd_dl, event.tlx_afu_cmd_dl, 2);
-      setDpiSignal32(tlx_afu_cmd_pl, event.tlx_afu_cmd_pl, 3);
-      setDpiSignal64(tlx_afu_cmd_be, event.tlx_afu_cmd_be);
-      *tlx_afu_cmd_end = (event.tlx_afu_cmd_end) & 0x1;
-      *tlx_afu_cmd_t = (event.tlx_afu_cmd_t) & 0x1;
-      setDpiSignal64(tlx_afu_cmd_pa, event.tlx_afu_cmd_pa);
+      setDpiSignal32(tlx_afu_cmd_opcode_top, event.tlx_afu_cmd_opcode, 8);
+      setDpiSignal32(tlx_afu_cmd_capptag_top, event.tlx_afu_cmd_capptag, 16);
+      setDpiSignal32(tlx_afu_cmd_dl_top, event.tlx_afu_cmd_dl, 2);
+      setDpiSignal32(tlx_afu_cmd_pl_top, event.tlx_afu_cmd_pl, 3);
+      setDpiSignal64(tlx_afu_cmd_be_top, event.tlx_afu_cmd_be);
+      *tlx_afu_cmd_end_top = (event.tlx_afu_cmd_end) & 0x1;
+      *tlx_afu_cmd_t_top = (event.tlx_afu_cmd_t) & 0x1;
+      setDpiSignal64(tlx_afu_cmd_pa_top, event.tlx_afu_cmd_pa);
 #ifdef TLX4
-      setDpiSignal32(tlx_afu_cmd_flag, event.tlx_afu_cmd_flag, 4);
-      *tlx_afu_cmd_os = (event.tlx_afu_cmd_os) & 0x1;
+      setDpiSignal32(tlx_afu_cmd_flag_top, event.tlx_afu_cmd_flag, 4);
+      *tlx_afu_cmd_os_top = (event.tlx_afu_cmd_os) & 0x1;
 #endif
-      *tlx_afu_cmd_valid = 1;
+      *tlx_afu_cmd_valid_top = 1;
       clk_afu_cmd_val = CLOCK_EDGE_DELAY;
     }
     if (clk_afu_cmd_val) {
     	--clk_afu_cmd_val;
     	if (!clk_afu_cmd_val)
-    		*tlx_afu_cmd_valid = 0;
+    		*tlx_afu_cmd_valid_top = 0;
     }
     if(event.tlx_afu_resp_data_valid)
     {
-      *tlx_afu_resp_data_bdi = (event.tlx_afu_resp_data_bdi) & 0x1;
-      setMyCacheLine(tlx_afu_resp_data_bus, event.tlx_afu_resp_data);
-      *tlx_afu_resp_data_valid = 1;
+      *tlx_afu_resp_data_bdi_top = (event.tlx_afu_resp_data_bdi) & 0x1;
+      setMyCacheLine(tlx_afu_resp_data_bus_top, event.tlx_afu_resp_data);
+      *tlx_afu_resp_data_valid_top = 1;
       clk_afu_resp_dat_val = CLOCK_EDGE_DELAY;
     }
     if (clk_afu_resp_dat_val) {
     	--clk_afu_resp_dat_val;
     	if (!clk_afu_resp_dat_val)
-    		*tlx_afu_resp_data_valid = 0;
+    		*tlx_afu_resp_data_valid_top = 0;
     }
     if(event.tlx_afu_cmd_data_valid)
     {
-      *tlx_afu_cmd_data_bdi = (event.tlx_afu_cmd_data_bdi) & 0x1;
-      setMyCacheLine(tlx_afu_cmd_data_bus, event.tlx_afu_cmd_data_bus);
-      *tlx_afu_cmd_data_valid = 1;
+      *tlx_afu_cmd_data_bdi_top = (event.tlx_afu_cmd_data_bdi) & 0x1;
+      setMyCacheLine(tlx_afu_cmd_data_bus_top, event.tlx_afu_cmd_data_bus);
+      *tlx_afu_cmd_data_valid_top = 1;
       clk_afu_cmd_dat_val = CLOCK_EDGE_DELAY;
     }
     if (clk_afu_cmd_dat_val) {
     	--clk_afu_cmd_dat_val;
     	if (!clk_afu_cmd_dat_val)
-    		*tlx_afu_cmd_data_valid = 0;
+    		*tlx_afu_cmd_data_valid_top = 0;
     }
   }
 }
