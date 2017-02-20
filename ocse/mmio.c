@@ -231,8 +231,6 @@ int read_descriptor(struct mmio *mmio, pthread_mutex_t * lock)
 	// Queue mmio reads
 	// Only do 32-bit mmio for config record data
 	// NO LONGER NEED TO ADJUST CONFIG ADDR SPACE BY 2 ???
-	//Need to first send a config_write to set BDF to something
-	_add_event(mmio, NULL, 0, 0, crstart, 1, 0x505);
 	eventdevven = _add_desc(mmio, 1, 0,crstart, 0L);
 	//eventclass = _add_desc(mmio, 1, 1, (crstart+8) >> 2, 0L);
 	eventclass = _add_desc(mmio, 1, 0, crstart+8, 0L);
@@ -250,6 +248,11 @@ int read_descriptor(struct mmio *mmio, pthread_mutex_t * lock)
         _wait_for_done(&(eventclass->state), lock);
 	cr_array->cr_class = (uint32_t) (eventclass->data >> 32) & 0xffffffffl;
         free(eventclass);
+	//Need to first send a config_write to set BDF to something
+	_add_event(mmio, NULL, 0, 0, crstart, 1, 0x505);
+	printf("Just sent BDF value, will wait for done then read VSECs \n");
+        _wait_for_done(&(eventclass->state), lock);
+	// TODO ADD CONFIG READS FOR VSEC ONCE I LEARN WHAT VALUES?FIELDS TO READ
         }
 	else { /* always make a fake cr */
 	struct config_record *cr_array = malloc(sizeof(struct config_record *));
