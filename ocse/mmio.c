@@ -272,13 +272,14 @@ void send_mmio(struct mmio *mmio)
 	struct mmio_event *event;
 	char type[5];
 	char data[17];
-	uint8_t tlx_cmd_opcode, cmd_dl, cmd_pl, cmd_end, cmd_t, cmd_flag, cmd_data_bdi;
-	uint16_t cmd_capptag;
-	uint64_t cmd_be, cmd_pa;
+//	uint8_t tlx_cmd_opcode, cmd_dl, cmd_pl, cmd_end, cmd_t, cmd_flag, cmd_data_bdi;
+//	uint16_t cmd_capptag;
+//	uint64_t cmd_be, 
+	uint64_t cmd_pa;
 #ifdef TLX4
 	 uint8_t cmd_os,
 #endif
-	 uint8_t * cmd_data;
+//	 uint8_t * cmd_data;
 
 	event = mmio->list;
 
@@ -351,7 +352,7 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 {
 	uint64_t read_data;
 	int rc;
-	char data[17];
+//	char data[17];
 	char type[5];
 	uint8_t afu_resp_opcode, resp_dl,resp_dp, resp_data_is_valid, resp_code, rdata_bad;
 	uint16_t resp_capptag;

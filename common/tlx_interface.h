@@ -235,34 +235,51 @@ int afu_tlx_send_cmd_and_data(struct AFU_EVENT *event,
 
 			     
 
-/* Call this from AFU to read ocse (CAPP/TL) response. This reads both tlx_afu resp AND resp data interfaces */
+/* Call this from AFU to read ocse (CAPP/TL) response. This reads just tlx_afu resp interface */
 
-int tlx_afu_read_resp_and_data(struct AFU_EVENT *event,
+int tlx_afu_read_resp(struct AFU_EVENT *event,
 		 uint8_t tlx_resp_opcode,
 		 uint16_t resp_afutag, uint8_t resp_code, 
 		 uint8_t resp_pg_size, uint8_t resp_resp_dl,
 #ifdef TLX4
 		 uint32_t resp_host_tag, uint8_t resp_cache_state,
 #endif
-		 uint8_t resp_dp, uint32_t resp_addr_tag,
-		 uint8_t resp_data_is_valid, uint8_t resp_data_bdi, uint8_t * resp_data);
+		 uint8_t resp_dp, uint32_t resp_addr_tag);
 
 
-/* Call this from AFU to read ocse (CAPP/TL) command. This reads both tlx_afu cmd AND cmd data interfaces */
+/* Call this from AFU to request data on the response data interface */
+int afu_tlx_resp_data_read_req(struct AFU_EVENT *event,
+		 uint8_t resp_rd_req, uint8_t resp_rd_cnt);
 
-int tlx_afu_read_cmd_and_data(struct AFU_EVENT *event,
+
+/* Call this from AFU to read data on the response data interface */
+int tlx_adu_read_resp_data(struct AFU_EVENT *event,
+		 uint8_t resp_data_bdi,uint8_t * resp_data);
+
+
+/* Call this from AFU to read ocse (CAPP/TL) command.This reads tlx_afu cmd interface */
+
+int tlx_afu_read_cmd(struct AFU_EVENT *event,
 		 uint8_t tlx_cmd_opcode,
 		 uint16_t cmd_capptag, uint8_t cmd_dl, 
 		 uint8_t cmd_pl, uint64_t cmd_be,
 		 uint8_t cmd_end, uint8_t cmd_t,
-		 uint64_t cmd_pa, 
 #ifdef TLX4
 		 uint8_t cmd_flag,  /* used for atomics from host CAPI 4 */
   		 uint8_t cmd_os,     /* 1 bit ordered segment CAPI 4 */
 #endif
-		 uint8_t cmd_data_is_valid, uint8_t cmd_data_bdi,uint8_t * cmd_data);
+		 uint64_t cmd_pa); 
 
-// TODO Still to come - add credits to interfaces.....
-  		                 
+
+/* Call this from AFU to request data on the command data interface */
+int afu_tlx_cmd_data_read_req(struct AFU_EVENT *event,
+		 uint8_t cmd_rd_req, uint8_t cmd_rd_cnt);
+
+
+/* Call this from AFU to read data on the command data interface */
+int tlx_afu_read_cmd_data(struct AFU_EVENT *event,
+		 uint8_t cmd_data_bdi,uint8_t * cmd_data);
+
+
 
 #endif

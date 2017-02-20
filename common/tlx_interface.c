@@ -27,23 +27,6 @@
 #include <unistd.h>
 
 
-/* static void set_protocol_level(struct AFU_EVENT *event, uint32_t primary,
-			       uint32_t secondary, uint32_t tertiary)
-{
-		printf("TLX_SOCKET:\tEntering set_protocol_level.\n");
-	if ((event->proto_primary != primary) ||
-	    (event->proto_secondary != secondary) ||
-	    (event->proto_tertiary != tertiary)) {
-		printf( "TLX_SOCKET:WARNING: Adjusting TLX interface protocol level!\n");
-		printf( "TLX_SOCKET:\tPlease review changes between levels.\n");
-		printf( "TLX_SOCKET:\tSupported TLX protocol level: %d.%d.%d\n",
-		       event->proto_primary, event->proto_secondary,
-		       event->proto_tertiary);
-	}
-	event->proto_primary = primary;
-	event->proto_secondary = secondary;
-	event->proto_tertiary = tertiary;
-} */
 
 static int establish_protocol(struct AFU_EVENT *event)
 {
@@ -173,7 +156,11 @@ void tlx_event_reset(struct AFU_EVENT *event)
 int tlx_init_afu_event(struct AFU_EVENT *event, char *server_host, int port)
 {
 	tlx_event_reset(event);
-	//event->room = 64;
+	//set initial credit values - just make something up?
+	event->tlx_afu_cmd_resp_initial_credit = MAX_TLX_AFU_CMD_RESP_CREDITS;
+	event->tlx_afu_data_initial_credit = MAX_TLX_AFU_DATA_CREDITS;
+	event->tlx_afu_credit_valid = 1;
+
 	event->rbp = 0;
 	struct hostent *he;
 	if ((he = gethostbyname(server_host)) == NULL) {
@@ -236,8 +223,9 @@ int tlx_serv_afu_event(struct AFU_EVENT *event, int port)
 	int cs = -1;
 	tlx_event_reset(event);
 	event->rbp = 0;
-	event->tlx_afu_cmd_resp_initial_credit = MAX_CMD_RESP_CREDITS; //TODO what should this really be?
-	event->tlx_afu_data_initial_credit = MAX_DATA_CREDITS; //TODO what should this really be?
+	event->afu_tlx_resp_initial_credit = MAX_AFU_TLX_RESP_CREDITS; //TODO what should this really be and should the AFU be setting this?
+	event->afu_tlx_cmd_initial_credit = MAX_AFU_TLX_CMD_CREDITS; //TODO what should this really be and should the AFU be setting this??	
+	event->afu_tlx_credit_req_valid = 1;
 	struct sockaddr_in ssadr, csadr;
 	unsigned int csalen = sizeof(csadr);
 	memset(&ssadr, 0, sizeof(ssadr));
@@ -622,6 +610,22 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 		}
 		event->tlx_afu_resp_data_valid = 0;
 	}
+	//Not sure what qualifies the read requests, rd counts so let's always send these, along with credit signals
+	if (event->tlx_afu_credit_valid != 0) { // There are 6 bytes to xfer 
+		event->tbuf[0] = event->tbuf[0] | 0x01;
+		event->tbuf[bp++] = event->tlx_afu_cmd_resp_initial_credit;
+		event->tbuf[bp++] = event->tlx_afu_data_initial_credit;
+		event->tbuf[bp++] = event->tlx_afu_resp_credit;
+		event->tbuf[bp++] = event->tlx_afu_cmd_credit;
+		event->tbuf[bp++] = event->tlx_afu_resp_data_credit;
+		event->tbuf[bp++] = event->tlx_afu_cmd_data_credit;
+		event->tlx_afu_credit_valid = 0;
+		event->tlx_afu_cmd_credit = 0;
+		event->tlx_afu_cmd_data_credit = 0;
+		event->tlx_afu_resp_credit = 0;
+		event->tlx_afu_resp_data_credit = 0;
+	}
+
 
 	// dump tbuf
 	if ( bp > 1 ) {
@@ -718,6 +722,22 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		}
 		event->afu_tlx_rdata_valid = 0;
 	}
+	//Not sure what qualifies the read requests, rd counts so let's always send these, along with credit signals
+	if (event->afu_tlx_credit_req_valid != 0) { // There are 8 bytes to xfer 
+		event->tbuf[0] = event->tbuf[0] | 0x01;
+		event->tbuf[bp++] = event->afu_tlx_resp_initial_credit;
+		event->tbuf[bp++] = event->afu_tlx_cmd_initial_credit;
+		event->tbuf[bp++] = event->afu_tlx_resp_credit;
+		event->tbuf[bp++] = event->afu_tlx_cmd_credit;
+		event->tbuf[bp++] = event->afu_tlx_resp_rd_req;
+		event->tbuf[bp++] = event->afu_tlx_resp_rd_cnt;
+		event->tbuf[bp++] = event->afu_tlx_cmd_rd_req;
+		event->tbuf[bp++] = event->afu_tlx_cmd_rd_cnt;
+		event->afu_tlx_credit_req_valid = 0;
+		event->afu_tlx_cmd_credit = 0;
+		event->afu_tlx_resp_credit = 0;
+	}
+
 
 
 
@@ -789,9 +809,11 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 			rbc += 9; //TODO for now, cmd data always 9B total
 		if ((event->rbuf[0] & 0x02) != 0)
 			rbc += 34; // for TLX4 cmds, value will increase by 1
+		if ((event->rbuf[0] & 0x01) != 0)
+			rbc += 8; // for now, always copy over everything
 
 //printf("TLX_GET_AFU_EVENT-2 - rbuf[0] is 0x%02x and rbc is %2d \n", event->rbuf[0], rbc);
-	}
+	}  
 	if ((bc =
 	     recv(event->sockfd, event->rbuf + event->rbp, rbc - event->rbp,
 		  0)) == -1) {
@@ -816,6 +838,8 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 	if ((event->rbuf[0] & 0x02) != 0) {
 		event->afu_tlx_cmd_valid = 1;
 //printf("event->afu_tlx_cmd_valid is 1  and rbc is 0x%2x \n", rbc);
+		event->tlx_afu_cmd_credit = 1;
+		event->tlx_afu_credit_valid = 1;
 		
 		event->afu_tlx_cmd_opcode = event->rbuf[rbc++];;
 		event->afu_tlx_cmd_actag = event->rbuf[rbc++]; 
@@ -852,10 +876,13 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		
 	} else {
 		event->afu_tlx_cmd_valid = 0;
+		event->tlx_afu_cmd_credit = 0;
 	}
 
 	if ((event->rbuf[0] & 0x04) != 0) {
 		event->afu_tlx_cdata_valid = 1;
+		event->tlx_afu_cmd_data_credit = 1;
+		event->tlx_afu_credit_valid = 1;
 		event->afu_tlx_cdata_bad = event->rbuf[rbc++] ;
 		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
 		for (i = 0; i < 8; i++) {
@@ -863,9 +890,12 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		}
 	} else {
 		event->afu_tlx_cdata_valid = 0;
+		event->tlx_afu_cmd_data_credit = 0;
 	}
 	if ((event->rbuf[0] & 0x08) != 0) {
 		event->afu_tlx_resp_valid = 1;
+		event->tlx_afu_resp_credit = 1;
+		event->tlx_afu_credit_valid = 1;
 		event->afu_tlx_resp_opcode = event->rbuf[rbc++];
 		event->afu_tlx_resp_dl = event->rbuf[rbc++];
 		event->afu_tlx_resp_capptag = event->rbuf[rbc++];
@@ -875,9 +905,12 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		event->afu_tlx_resp_code = event->rbuf[rbc++];
 	} else {
 		event->afu_tlx_resp_valid = 0;
+		event->tlx_afu_resp_credit = 0;
 	}
 	if ((event->rbuf[0] & 0x20) != 0) {
 		event->afu_tlx_rdata_valid = 1;
+		event->tlx_afu_resp_data_credit = 1;
+		event->tlx_afu_credit_valid = 1;
 		event->afu_tlx_rdata_bad= event->rbuf[rbc++];
 		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
 		for (i = 0; i < 4; i++) {
@@ -886,7 +919,20 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		
 	} else {
 		event->afu_tlx_rdata_valid = 0;
+		event->tlx_afu_resp_data_credit = 0;
 	}
+	if ((event->rbuf[0] & 0x01) != 0) {
+		event->afu_tlx_credit_req_valid = 1;
+		event->afu_tlx_resp_initial_credit = event->rbuf[rbc++];
+		event->afu_tlx_cmd_initial_credit = event->rbuf[rbc++];
+		event->afu_tlx_resp_credit = event->rbuf[rbc++];
+		event->afu_tlx_cmd_credit = event->rbuf[rbc++];
+		event->afu_tlx_resp_rd_req = event->rbuf[rbc++];
+		event->afu_tlx_resp_rd_cnt = event->rbuf[rbc++];
+		event->afu_tlx_cmd_rd_req = event->rbuf[rbc++];
+		event->afu_tlx_cmd_rd_cnt = event->rbuf[rbc++];
+	} else 
+		event->afu_tlx_credit_req_valid = 0;
 
 	event->rbp = 0;
 	return 1;
@@ -930,6 +976,8 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 			rbc += 11; // for TLX4 resp, will increase by 5B
 		if ((event->rbuf[0] & 0x02) != 0)
 			rbc += 9; //TODO for now, resp data always 9B total
+		if ((event->rbuf[0] & 0x01) != 0)
+			rbc += 6; //TODO for now, send all credits
 		if ((bc =
 		     recv(event->sockfd, event->rbuf + event->rbp,
 			  rbc - event->rbp, 0)) == -1) {
@@ -955,6 +1003,8 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 //printf("TLX_GET_TLX_EVENTS event->rbuf[0] is 0x%2x and event->rbuf[1] is 0x%2x \n", event->rbuf[0], event->rbuf[1]);
 	if (event->rbuf[0] & 0x10) {
 		event->tlx_afu_cmd_valid = 1;
+		event->afu_tlx_cmd_credit = 1;
+		event->afu_tlx_credit_req_valid = 1;
 		event->tlx_afu_cmd_opcode = event->rbuf[rbc++];
 		event->tlx_afu_cmd_capptag = event->rbuf[rbc++];
 		event->tlx_afu_cmd_capptag = ((event->tlx_afu_cmd_capptag << 8) || event->rbuf[rbc++]);;
@@ -980,6 +1030,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 #endif
 	} else {
 		event->tlx_afu_cmd_valid = 0;
+		event->afu_tlx_cmd_credit = 0; // TODO do we want to always xmit this as 0?
 	}
 	if (event->rbuf[0] & 0x08) {
 		event->tlx_afu_cmd_data_valid = 1;
@@ -994,6 +1045,8 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 	}
 	if (event->rbuf[0] & 0x04) {
 		event->tlx_afu_resp_valid = 1;
+		event->afu_tlx_resp_credit = 1;
+		event->afu_tlx_credit_req_valid = 1;
 		event->tlx_afu_resp_opcode = event->rbuf[rbc++];
 		event->tlx_afu_resp_afutag = event->rbuf[rbc++];
 		event->tlx_afu_resp_afutag = ((event->tlx_afu_resp_afutag << 8) || event->rbuf[rbc++]);;
@@ -1003,6 +1056,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 		event->tlx_afu_resp_dp = event->rbuf[rbc++];
 	} else {
 		event->tlx_afu_resp_valid = 0;
+		event->afu_tlx_resp_credit = 0;
 	}
 	if (event->rbuf[0] & 0x02) {
 		event->tlx_afu_resp_data_valid = 1;
@@ -1014,6 +1068,17 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 	} else {
 		event->tlx_afu_resp_data_valid = 0;
 	}
+	if (event->rbuf[0] & 0x01) {
+		event->tlx_afu_credit_valid = 1;
+		event->tlx_afu_cmd_resp_initial_credit = event->rbuf[rbc++];
+		event->tlx_afu_data_initial_credit = event->rbuf[rbc++];
+		event->tlx_afu_resp_credit = event->rbuf[rbc++];
+		event->tlx_afu_cmd_credit = event->rbuf[rbc++];
+		event->tlx_afu_resp_data_credit = event->rbuf[rbc++];
+		event->tlx_afu_cmd_data_credit = event->rbuf[rbc++];
+	} else
+		event->tlx_afu_credit_valid = 0;
+
 	event->rbp = 0;
 	return 1;
 }
@@ -1188,17 +1253,16 @@ int afu_tlx_send_cmd_and_data(struct AFU_EVENT *event,
 }
 
 
-/* Call this from AFU to read ocse (CAPP/TL) response. This reads both tlx_afu resp AND resp data interfaces */
+/* Call this from AFU to read ocse (CAPP/TL) response. This reads just tlx_afu resp interface */
 
-int tlx_afu_read_resp_and_data(struct AFU_EVENT *event,
+int tlx_afu_read_resp(struct AFU_EVENT *event,
 		 uint8_t tlx_resp_opcode,
 		 uint16_t resp_afutag, uint8_t resp_code, 
 		 uint8_t resp_pg_size, uint8_t resp_dl,
 #ifdef TLX4
 		 uint32_t resp_host_tag, uint8_t resp_cache_state,
 #endif
-		 uint8_t resp_dp, uint32_t resp_addr_tag,
-		 uint8_t resp_data_is_valid, uint8_t resp_data_bdi,uint8_t * resp_data)
+		 uint8_t resp_dp, uint32_t resp_addr_tag)
 
 {
 	if (!event->tlx_afu_resp_valid) {
@@ -1216,39 +1280,55 @@ int tlx_afu_read_resp_and_data(struct AFU_EVENT *event,
 #endif
 		resp_dp = event->tlx_afu_resp_dp;
 		resp_addr_tag = event->tlx_afu_resp_addr_tag;
-		resp_data_is_valid = 0;
-		if (event->tlx_afu_resp_data_valid) {
-	// should we return some sort of RC other than 0 if there is no data? Should calling function be 
-	// smart enough to know if data is expected? Or should we set a bit to indicate that there is data 
-	// on the data bus? Call it data valid, BUT caller still has to check bdi? Or does bdi kill interface
-	// at the TLX level??
-			event->tlx_afu_resp_data_valid = 0;
-			resp_data_is_valid = 1;
-			resp_data_bdi = event->tlx_afu_resp_data_bdi;
-			// TODO FOR NOW WE ALWAYS COPY 8 BYTES of DATA -OCSE 
-			// SENDS 8 BYTES 
-			memcpy(resp_data, event->tlx_afu_resp_data, 8);
-			//return TLX_SUCCESS;
 		}
-	//	return TLX_AFU_RESP_NO_DATA;
 		return TLX_SUCCESS;
-	}
 }
 
 
-/* Call this from AFU to read ocse (CAPP/TL) command. This reads both tlx_afu cmd AND cmd data interfaces */
+/* Call this from AFU to request data on the response data interface  ALSO, AFU calls w/0 values to reset*/
+int afu_tlx_resp_data_read_req(struct AFU_EVENT *event,
+		 uint8_t afu_tlx_resp_rd_req, uint8_t afu_tlx_resp_rd_cnt)
+{
+	event->afu_tlx_resp_rd_req = afu_tlx_resp_rd_req;
+	event->afu_tlx_resp_rd_cnt = afu_tlx_resp_rd_cnt;
+	event->afu_tlx_credit_req_valid = 1;
+// WE rely on AFU to reset these values when data has all be read, ie, call this 
+// again with 0 values
+		return TLX_SUCCESS;
+}
 
-int tlx_afu_read_cmd_and_data(struct AFU_EVENT *event,
+
+/* Call this from AFU to read ocse (CAPP/TL) response data. This reads just tlx_afu resp data interface */
+
+int tlx_afu_read_resp_data(struct AFU_EVENT *event,
+		  uint8_t resp_data_bdi,uint8_t * resp_data)
+{
+	if (!event->tlx_afu_resp_data_valid) {
+		return TLX_AFU_RESP_DATA_NOT_VALID;
+	} else {
+		event->tlx_afu_resp_data_valid = 0;
+		resp_data_bdi = event->tlx_afu_resp_data_bdi;
+		// TODO FOR NOW WE ALWAYS COPY 8 BYTES of DATA -OCSE 
+		// SENDS 8 BYTES 
+		memcpy(resp_data, event->tlx_afu_resp_data, 8);
+		return TLX_SUCCESS;
+		}
+}
+
+
+
+/* Call this from AFU to read ocse (CAPP/TL) command. This reads just tlx_afu cmd interfaces  */
+
+int tlx_afu_read_cmd(struct AFU_EVENT *event,
 		 uint8_t tlx_cmd_opcode,
 		 uint16_t cmd_capptag, uint8_t cmd_dl, 
 		 uint8_t cmd_pl, uint64_t cmd_be,
 		 uint8_t cmd_end, uint8_t cmd_t,
-		 uint64_t cmd_pa,  
 #ifdef TLX4
 		 uint8_t cmd_flag,    /* used for atomics from host CAPI 4 */
   		 uint8_t cmd_os,     /* 1 bit ordered segment CAPI 4 */
 #endif
-		 uint8_t cmd_data_is_valid, uint8_t cmd_data_bdi,uint8_t * cmd_data)
+		 uint64_t cmd_pa)  
 
 {
 	if (!event->tlx_afu_cmd_valid) {
@@ -1267,27 +1347,42 @@ int tlx_afu_read_cmd_and_data(struct AFU_EVENT *event,
 		cmd_flag = event->tlx_afu_cmd_flag;
 		cmd_os = event->tlx_afu_cmd_os;
 #endif
-		cmd_data_is_valid = 0;
-		if (event->tlx_afu_cmd_data_valid) {
-	// should we return some sort of RC other than 0 if there is no data? Should calling function be 
-	// smart enough to know if data is expected? Or should we set a bit to indicate that there is data 
-	// on the data bus? Call it data valid, BUT caller still has to check bdi? Or does bdi kill interface
-	// at the TLX level??
-			event->tlx_afu_cmd_data_valid = 0;
-			cmd_data_is_valid = 1;
-			cmd_data_bdi = event->tlx_afu_cmd_data_bdi;
-			// TODO FOR NOW WE ALWAYS COPY 4 BYTES of DATA - OCSE
-			// SENDS 4 BYTES 
-			memcpy(cmd_data, event->tlx_afu_cmd_data_bus, 4);
-			//return TLX_SUCCESS;
-		}
-		//return TLX_AFU_CMD_NO_DATA;
 		return TLX_SUCCESS;
 	}
 }
 
 
-// TODO Still to come - add credits to interfaces.....
+/* Call this from AFU to request data on the command interface  ALSO, AFU calls w/0 values to reset*/
+int afu_tlx_cmd_data_read_req(struct AFU_EVENT *event,
+		 uint8_t afu_tlx_cmd_rd_req, uint8_t afu_tlx_cmd_rd_cnt)
+{
+	event->afu_tlx_cmd_rd_req = afu_tlx_cmd_rd_req;
+	event->afu_tlx_cmd_rd_cnt = afu_tlx_cmd_rd_cnt;
+	event->afu_tlx_credit_req_valid = 1;
+// WE rely on AFU to reset these values when data has all be read, ie, call this 
+// again with 0 values
+		return TLX_SUCCESS;
+}
+
+
+/* Call this from AFU to read ocse (CAPP/TL) command data. This reads just tlx_afu cmd data interface */
+
+int tlx_afu_read_cmd_data(struct AFU_EVENT *event,
+		  uint8_t cmd_data_bdi, uint8_t * cmd_data_bus)
+{
+	if (!event->tlx_afu_cmd_data_valid) {
+		return TLX_AFU_CMD_DATA_NOT_VALID;
+	} else {
+
+		event->tlx_afu_cmd_data_valid = 0;
+		cmd_data_bdi = event->tlx_afu_cmd_data_bdi;
+		// TODO FOR NOW WE ALWAYS COPY 4 BYTES of DATA - OCSE
+		// SENDS 4 BYTES 
+		memcpy(cmd_data_bus, event->tlx_afu_cmd_data_bus, 4);
+		return TLX_SUCCESS;
+	}
+}
+
 
 
 

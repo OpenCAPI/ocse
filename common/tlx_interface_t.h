@@ -43,8 +43,11 @@
 #endif /* TLX3 */
 
 /* Select the initial value for credits??  */
-#define MAX_CMD_RESP_CREDITS 7
-#define MAX_DATA_CREDITS 31
+#define MAX_AFU_TLX_CMD_CREDITS 5
+#define MAX_AFU_TLX_RESP_CREDITS 10
+#define MAX_TLX_AFU_CMD_RESP_CREDITS 5
+#define MAX_TLX_AFU_DATA_CREDITS 10
+
 
 /* Return codes for TLX interface functions */
 
@@ -217,7 +220,8 @@ struct AFU_EVENT {
   unsigned char rbuf[TLX_BUFFER_SIZE];    /* receive buffer for socket communications */
   uint32_t rbp;                           /* receive buffer position */
   // Config and Credits
-
+  uint8_t  afu_tlx_credit_req_valid;		  /* TODO TEMP for now, needed for xfer of credit & req changes */
+  uint8_t  tlx_afu_credit_valid;		  /* TODO TEMP for now, needed for xfer of credits */
   // TLX to AFU Repsonse Interface (table 1)
   // CAPP to AP (host to afu) responses (generally to ap/capp commands and data)
   uint8_t tlx_afu_resp_valid;             /* 1 bit valid respoonse from tlx */

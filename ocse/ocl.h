@@ -36,7 +36,7 @@ struct ocl {
 	FILE *dbg_fp;
 	struct client **client;
 	struct cmd *cmd;
-	struct job *job;
+	struct job *job; // NEED TO REMOVE THIS OR REWORK IT?
 	struct mmio *mmio;
 	struct ocl **head;
 	struct ocl *_prev;

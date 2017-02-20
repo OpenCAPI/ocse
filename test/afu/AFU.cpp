@@ -179,15 +179,14 @@ AFU::resolve_tlx_afu_cmd()
 {
     uint8_t cmd_data;
     
-    tlx_afu_read_cmd_and_data(&afu_event, afu_event.tlx_afu_cmd_opcode, 
+    tlx_afu_read_cmd(&afu_event, afu_event.tlx_afu_cmd_opcode, 
 		afu_event.tlx_afu_cmd_capptag, afu_event.tlx_afu_cmd_dl,
 		afu_event.tlx_afu_cmd_pl, afu_event.tlx_afu_cmd_be, 
 		afu_event.tlx_afu_cmd_end, afu_event.tlx_afu_cmd_t, 
-		afu_event.tlx_afu_cmd_pa,
 #ifdef	TLX4
 	afu_event.tlx_afu_cmd_os, afu_event.tlx_afu_cmd_flag,
 #endif
-		afu_event.tlx_afu_cmd_data_valid, afu_event.tlx_afu_cmd_data_bdi, &cmd_data);
+		afu_event.tlx_afu_cmd_pa);
     switch (afu_event.tlx_afu_cmd_opcode) {
 	case TLX_CMD_NOP:
 	case TLX_CMD_XLATE_DONE:
@@ -238,14 +237,13 @@ AFU::resolve_tlx_afu_resp()
 {
     uint8_t resp_data;
 
-    tlx_afu_read_resp_and_data(&afu_event, afu_event.tlx_afu_resp_opcode, 
+    tlx_afu_read_resp(&afu_event, afu_event.tlx_afu_resp_opcode, 
 		afu_event.tlx_afu_resp_afutag, afu_event.tlx_afu_resp_code,
 		afu_event.tlx_afu_resp_pg_size, afu_event.tlx_afu_resp_dl,
 #ifdef	TLX4
 		afu_event.tlx_afu_resp_host_tag, afu_event.tlx_afu_resp_cache_state,
 #endif
-		afu_event.tlx_afu_resp_dp, afu_event.tlx_afu_resp_addr_tag, 
-		afu_event.tlx_afu_resp_data_valid, afu_event.tlx_afu_resp_data_bdi, &resp_data);
+		afu_event.tlx_afu_resp_dp, afu_event.tlx_afu_resp_addr_tag); 
 
     switch (afu_event.tlx_afu_resp_opcode) {
 	case TLX_RSP_NOP:
