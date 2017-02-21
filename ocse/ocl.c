@@ -637,7 +637,7 @@ static void *_ocl_loop(void *ptr)
 				free(temp);
 			}
 			ocl->cmd->list = NULL;
-			info_msg("Sending reset to AFU");
+			info_msg("No longer sending reset to AFU");
 			//add_job(ocl->job, TLX_JOB_RESET, 0L);
 		}
 
@@ -680,11 +680,15 @@ static void *_ocl_loop(void *ptr)
 		tlx_close_afu_event(ocl->afu_event);
 		free(ocl->afu_event);
 	}
+	printf("ocl->name is %s \n", ocl->name);
 	if (ocl->name)
 		free(ocl->name);
+	printf("ocl->head move is next \n");
 	if (*(ocl->head) == ocl)
 		*(ocl->head) = ocl->_next;
+	printf("pthread_mutex_unlock is next \n");
 	pthread_mutex_unlock(ocl->lock);
+	printf("ocl is next \n");
 	free(ocl);
 	pthread_exit(NULL);
 }
@@ -813,14 +817,14 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 	*head = ocl;
 
 	// Send reset to AFU
-	debug_msg("%s @ %s:%d: Sending reset job.", ocl->name, ocl->host, ocl->port);
+	debug_msg("%s @ %s:%d: No need to send reset job.", ocl->name, ocl->host, ocl->port);
 	/* reset = add_job(ocl->job, TLX_JOB_RESET, 0L);
 	while (ocl->job->job == reset) {	//infinite loop 
 		lock_delay(ocl->lock);
 	}  */
 
 	// Read AFU descriptor
-	debug_msg("%s @ %s:%d: Reading AFU descriptor.", ocl->name, ocl->host,
+	debug_msg("%s @ %s:%d: Reading AFU config record and VSEC.", ocl->name, ocl->host,
 	          ocl->port);
 	ocl->state = OCSE_DESC;
 	read_descriptor(ocl->mmio, ocl->lock);

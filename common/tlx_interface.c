@@ -555,7 +555,7 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 		event->tbuf[0] = event->tbuf[0] | 0x10;
 		printf("event->tbuf[0] is 0x%2x \n", event->tbuf[0]);
 		event->tbuf[bp++] = event->tlx_afu_cmd_opcode;
-		event->tbuf[bp++] = ((event->tlx_afu_cmd_capptag) >> 8) & 0x0F;
+		event->tbuf[bp++] = ((event->tlx_afu_cmd_capptag) >> 8) & 0xFF;
 		event->tbuf[bp++] = (event->tlx_afu_cmd_capptag & 0xFF);
 		//printf("event->tbuf[%x] is 0x%2x \n", bp-1, event->tbuf[bp-1]);
 		event->tbuf[bp++] = (event->tlx_afu_cmd_dl & 0x03);
@@ -566,7 +566,7 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 		}
 		event->tbuf[bp++] = (event->tlx_afu_cmd_end & 0x01);
 		event->tbuf[bp++] = (event->tlx_afu_cmd_t & 0x01);
-		for (i = 0; i < 8; i++) { // And what, exactly, do I do with this?
+		for (i = 0; i < 8; i++) {  
 			event->tbuf[bp++] =
 			    ((event->tlx_afu_cmd_pa) >> ((7 - i) * 8)) & 0xFF;
 		}
@@ -660,14 +660,14 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		event->tbuf[0] = event->tbuf[0] | 0x02;
 		// printf("event->tbuf[0] is 0x%2x \n", event->tbuf[0]);
 		event->tbuf[bp++] = event->afu_tlx_cmd_opcode;
-		event->tbuf[bp++] = ((event->afu_tlx_cmd_actag) >> 8) & 0x0F;
+		event->tbuf[bp++] = ((event->afu_tlx_cmd_actag) >> 8) & 0xFF;
 		event->tbuf[bp++] = (event->afu_tlx_cmd_actag & 0xFF);
 		//printf("event->tbuf[%x] is 0x%2x \n", bp-1, event->tbuf[bp-1]);
 		event->tbuf[bp++] = (event->afu_tlx_cmd_stream_id & 0x0f);
 		for (i = 0; i < 9; i++) {
 			event->tbuf[bp++] = event->afu_tlx_cmd_ea_or_obj[i];
 		}
-		event->tbuf[bp++] = ((event->afu_tlx_cmd_afutag) >> 8) & 0x0F;
+		event->tbuf[bp++] = ((event->afu_tlx_cmd_afutag) >> 8) & 0xFF;
 		event->tbuf[bp++] = (event->afu_tlx_cmd_afutag & 0xFF);
 		event->tbuf[bp++] = (event->afu_tlx_cmd_dl & 0x03);
 		event->tbuf[bp++] = (event->afu_tlx_cmd_pl & 0x03);
@@ -680,7 +680,7 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		}
 		event->tbuf[bp++] = (event->afu_tlx_cmd_flag & 0x0f);
 		event->tbuf[bp++] = (event->afu_tlx_cmd_endian & 0x01);
-		event->tbuf[bp++] = ((event->afu_tlx_cmd_bdf) >> 8) & 0x0F;
+		event->tbuf[bp++] = ((event->afu_tlx_cmd_bdf) >> 8) & 0xFF;
 		event->tbuf[bp++] = (event->afu_tlx_cmd_bdf & 0xFF);
 		for (i = 0; i < 4; i++) { // And what, exactly, do I do with this?
 			event->tbuf[bp++] = 
@@ -705,7 +705,7 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		event->tbuf[0] = event->tbuf[0] | 0x08;
 		event->tbuf[bp++] = event->afu_tlx_resp_opcode;
 		event->tbuf[bp++] = (event->afu_tlx_resp_dl & 0x03);
-		event->tbuf[bp++] = ((event->afu_tlx_resp_capptag) >> 8) & 0x0F;
+		event->tbuf[bp++] = ((event->afu_tlx_resp_capptag) >> 8) & 0xFF;
 		event->tbuf[bp++] = (event->afu_tlx_resp_capptag & 0xFF);
 		event->tbuf[bp++] = (event->afu_tlx_resp_dp & 0x03);
 		//printf("event->tbuf[%x] is 0x%2x \n", bp-1, event->tbuf[bp-1]);

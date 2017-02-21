@@ -25,10 +25,10 @@
  *  are received from clients they are added to the list and handled in FIFO
  *  order.  The _add_event() function places each new MMIO event on the list
  *  as they are received from a client.  The ocl code will periodically call
- *  send_mmio() which will drive the oldest pending MMIO event to the AFU.
+ *  send_mmio() which will drive the oldest pending MMIO command event to the AFU.
  *  That event is put in PENDING state which blocks the OCL from sending any
  *  further MMIO until this MMIO event completes.  When the ocl code detects
- *  the MMIO acknowledge it will call handle_mmio_ack().  This function moves
+ *  the MMIO response it will call handle_mmio_ack().  This function moves
  *  the list head to the next event so that the next MMIO request can be sent.
  *  However, the event still lives and the client will still point to it.  When
  *  the ocl code next calls handle_mmio_done for that client it will return the
@@ -79,20 +79,20 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 	  // don't try to recalculate the address
 	  event->addr = addr;
 	} else {
-	  // adjust addr (aka offset) depending on type of device (client)
-	  // type master/dedicated needs no adjustment - the address is the actual offset into the psa
-	  // type slave needs to bump up to the per process problem state area and into the handles offset
-	  // maybe I should put this up in add_mmio so the address calc is done and then shifted before callin _add_event...
+	  // FOR OpenCAPI, NO MORE NEED TO adjust addr (aka offset) depending on type of device (client)
+	  // type master/dedicated needs no adjustment 	  
+	  //  type slave needs NO ADJUSTMENT NOW
 	  switch (client->type) {
 	  case 'd':
 	  case 'm':
+	  case 's':
 	    // addr has already been right shifted 2 bits.
 	    event->addr = addr;
 	    break;
-	  case 's':
+	  //case 's':
 	    // the addr has already been shifted right 2 bits, need to also shift the mmio offset for this slave.
-	    event->addr = (client->mmio_offset / 4) + addr;
-	    break;
+	   // event->addr = (client->mmio_offset / 4) + addr;
+	   // break;
 	  default:
 	    // error
 	    break;
@@ -230,7 +230,7 @@ int read_descriptor(struct mmio *mmio, pthread_mutex_t * lock)
         mmio->desc.crptr = cr_array;
 	// Queue mmio reads
 	// Only do 32-bit mmio for config record data
-	// NO LONGER NEED TO ADJUST CONFIG ADDR SPACE BY 2 ???
+	// NO LONGER NEED TO ADJUST CONFIG ADDR SPACE BY 2 
 	eventdevven = _add_desc(mmio, 1, 0,crstart, 0L);
 	//eventclass = _add_desc(mmio, 1, 1, (crstart+8) >> 2, 0L);
 	eventclass = _add_desc(mmio, 1, 0, crstart+8, 0L);
@@ -249,7 +249,7 @@ int read_descriptor(struct mmio *mmio, pthread_mutex_t * lock)
 	cr_array->cr_class = (uint32_t) (eventclass->data >> 32) & 0xffffffffl;
         free(eventclass);
 	//Need to first send a config_write to set BDF to something
-	_add_event(mmio, NULL, 0, 0, crstart, 1, 0x505);
+	_add_event(mmio, NULL, 0, 0, crstart, 1, 0x00000000cdef0000);
 	printf("Just sent BDF value, will wait for done then read VSECs \n");
         _wait_for_done(&(eventclass->state), lock);
 	// TODO ADD CONFIG READS FOR VSEC ONCE I LEARN WHAT VALUES?FIELDS TO READ
@@ -290,20 +290,20 @@ void send_mmio(struct mmio *mmio)
 	if (event->desc) {
 		sprintf(type, "DESC");
 	// Attempt to send config_re or config_wr to AFU
-	// TODO need to get addreess correct eventually - no need to lop off last 2 bits?
-	cmd_pa = 0x100;
+	//special case for now, always use same cmd_pa for config cmds and T= 0
+	cmd_pa = 0x00000000cdef0000;
 	if (event->rnw && tlx_afu_send_cmd(mmio->afu_event, 
-		TLX_CMD_CONFIG_READ, 0xdead,4, 0, 0, 0, 1, cmd_pa) == TLX_SUCCESS) {
+		TLX_CMD_CONFIG_READ, 0xdead,0, 2, 0, 0, 0, cmd_pa) == TLX_SUCCESS) {
 		debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type,
 			  event->dw ? 64 : 32, event->addr);
 		debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->desc,
 				event->rnw, event->dw, event->addr);
 		event->state = OCSE_PENDING;
 	}
-	//special case for now, only config_wr is with T=0 to send BDF
-	cmd_pa = 0x505;
+	//special case for now, always use same cmd_pa for config cmds and T= 0
+	cmd_pa = 0x00000000cdef0000;
 	if (!event->rnw && tlx_afu_send_cmd(mmio->afu_event, 
-		TLX_CMD_CONFIG_WRITE, 0xbeef,4, 0, 0, 0, 0, cmd_pa) == TLX_SUCCESS) {
+		TLX_CMD_CONFIG_WRITE, 0xbeef,0, 2, 0, 0, 0, cmd_pa) == TLX_SUCCESS) {
 		if (event->dw)
 			sprintf(data, "%016" PRIx64, event->data);
 		else
@@ -375,7 +375,8 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 			sprintf(type, "DESC");
 		else
 			sprintf(type, "MMIO");
-		debug_msg("IN handle_mmio_ack and  MMIO RESP! ");
+		debug_msg("IN handle_mmio_ack and resp_capptag = %x and resp_code = %x! ",
+			resp_capptag, resp_code);
 	/*	if (mmio->list->rnw) {
 			if (mmio->list->dw) {
 				sprintf(data, "%016" PRIx64, read_data);
