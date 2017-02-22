@@ -14,6 +14,30 @@ extern "C" {
 
 #define DESCRIPTOR_NUM_REGS 10
 
+// VSEC OFFSET
+#define DEVICE_VENDOR_ID	0x000
+#define AFU_ENABLE		0x004
+#define MMIO_BAR0L		0x010
+#define MMIO_BAR0H		0x014
+#define SUBSYSTEM_VENDOR_ID	0x02C
+#define CAP_POINTER		0x034
+#define CAP_POINTER_F000	0x100
+#define REV_LENGTH_F000		0x104
+#define CAP_POINTER_F001	0x190
+#define REV_LENGTH_F001		0x194
+#define PASID_LENGTH		0x198
+#define PASID_BASE		0x19C
+#define PASID_MASK		0x1A0
+#define CAP_POINTER_F002	0x1B0
+#define REV_LENGTH_F002		0x1B4
+#define CAP_POINTER_F003	0x1D0
+#define REV_LENGTH_F003		0x1D4
+#define AFU_DESC_OFFSET		0x1E0
+#define AFU_DESC_DATA		0x1E4
+#define CAP_POINTER_F0F0	0x1F0
+#define REV_LENGTH_F0F0		0x1F4
+#define VENDOR_ID_F0F0		0x1F8
+
 class Descriptor
 {
 private:
@@ -81,6 +105,8 @@ public:
 
     // reg0x48
     uint64_t get_AFU_EB_offset () const;
+    // vsec registers
+    uint32_t get_VSEC_reg(uint32_t);
 
 };
 

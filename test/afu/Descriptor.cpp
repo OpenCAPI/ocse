@@ -129,9 +129,10 @@ Descriptor::parse_descriptor_file (string filename)
 		s_value.erase(0,2); 	// get vsec data
 		vsec_offset = strtoul(field.c_str(), NULL, 16);
 		vsec_data   = strtoul(s_value.c_str(), NULL, 16);
-		printf("vsec offset = 0x%03x \n", vsec_offset);
-		printf("vsec data = 0x%08x \n", vsec_data);
+		//printf("vsec offset = 0x%03x \n", vsec_offset);
+		//printf("vsec data = 0x%08x \n", vsec_data);
 		vsec[vsec_offset] = vsec_data;
+		printf("vsec offset = 0x%x vsec data = 0x%08x\n", vsec_offset, vsec[vsec_offset]);
 	    }
 	}
 	else
@@ -243,4 +244,27 @@ uint64_t
 Descriptor::get_AFU_EB_offset () const
 {
     return regs[to_vector_index (0x48)];
+}
+
+// vsec registers
+uint32_t
+Descriptor::get_VSEC_reg(uint32_t vsec_offset)
+{
+    uint32_t vsec_data, offset;
+    uint8_t byte_offset;
+
+    offset = vsec_offset & 0x00000FFC;
+    byte_offset = vsec_offset & 0x00000003;
+    switch(offset) {
+    case DEVICE_VENDOR_ID:
+	vsec_data = vsec[offset];
+	break;
+    case AFU_ENABLE:
+	vsec_data = vsec[offset];
+	break;
+    default:
+	break;
+     }
+
+    return vsec_data;
 }
