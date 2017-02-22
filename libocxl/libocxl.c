@@ -966,20 +966,21 @@ static void _req_max_int(struct ocxl_afu_h *afu)
 	afu->int_req.state = LIBOCXL_REQ_PENDING;
 }
 
-static void _pslse_attach(struct ocxl_afu_h *afu)
+static void _ocse_attach(struct ocxl_afu_h *afu)
 {
 	uint8_t *buffer;
-	uint64_t *wed_ptr;
-	int size, offset;
+	// uint64_t *wed_ptr;
+	int size;
+	// int offset;
 
 	if (!afu)
-		fatal_msg("NULL afu passed to libocxl.c:_pslse_attach");
-	size = 1 + sizeof(uint64_t);
+		fatal_msg("NULL afu passed to libocxl.c:_ocse_attach");
+	size = 1; // + sizeof(uint64_t);
 	buffer = (uint8_t *) malloc(size);
-	buffer[0] = PSLSE_ATTACH;
+	buffer[0] = OCSE_ATTACH;
 	offset = 1;
-	wed_ptr = (uint64_t *) & (buffer[offset]);
-	*wed_ptr = htonll(afu->attach.wed);
+	// lgt - remove - wed_ptr = (uint64_t *) & (buffer[offset]);
+	// lgt - remove - *wed_ptr = htonll(afu->attach.wed);
 	if (put_bytes_silent(afu->fd, size, buffer) != size) {
 		free(buffer);
 		close_socket(&(afu->fd));
@@ -1124,11 +1125,11 @@ static void *_psl_loop(void *ptr)
 
 	while (afu->opened) {
 		_delay_1ms();
-		// Send any requests to PSLSE over socket
+		// Send any requests to OCSE over socket
 		if (afu->int_req.state == LIBOCXL_REQ_REQUEST)
 			_req_max_int(afu);
 		if (afu->attach.state == LIBOCXL_REQ_REQUEST)
-			_pslse_attach(afu);
+			_ocse_attach(afu);
 		if (afu->mmio.state == LIBOCXL_REQ_REQUEST) {
 			switch (afu->mmio.type) {
 			case PSLSE_MMIO_MAP:
@@ -1150,7 +1151,7 @@ static void *_psl_loop(void *ptr)
 			}
 		}
 
-		// Process socket input from PSLSE
+		// Process socket input from OCSE
 		rc = bytes_ready(afu->fd, 1000, 0);
 		if (rc == 0)
 			continue;
@@ -1160,14 +1161,14 @@ static void *_psl_loop(void *ptr)
 			break;
 		}
 		if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
-			warn_msg("Socket failure getting PSL event");
+			warn_msg("Socket failure getting OCL event");
 			_all_idle(afu);
 			break;
 		}
 
 		DPRINTF("PSL EVENT\n");
 		switch (buffer[0]) {
-		case PSLSE_OPEN:
+		case OCSE_OPEN:
 			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
 				warn_msg("Socket failure getting OPEN context");
 				_all_idle(afu);
@@ -1176,7 +1177,7 @@ static void *_psl_loop(void *ptr)
 			afu->context = (uint16_t) buffer[0];
 			afu->open.state = LIBOCXL_REQ_IDLE;
 			break;
-		case PSLSE_ATTACH:
+		case OCSE_ATTACH:
 			afu->attach.state = LIBOCXL_REQ_IDLE;
 			break;
 		case PSLSE_DETACH:
@@ -1203,16 +1204,29 @@ static void *_psl_loop(void *ptr)
 			afu->irqs_max = ntohs(value);
 			afu->int_req.state = LIBOCXL_REQ_IDLE;
 			break;
-		case PSLSE_QUERY: {
+		case OCSE_QUERY: {
 			size = sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint16_t) +
 			    sizeof(uint64_t) + sizeof(uint64_t) + sizeof(uint64_t) +  
                             sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint32_t);
 			if (get_bytes_silent(afu->fd, size, buffer, 1000, 0) <
 			    0) {
-				warn_msg("Socket failure getting PSLSE query");
+				warn_msg("Socket failure getting OCSE query");
 				_all_idle(afu);
 				break;
 			}
+			// from pcie 0 header
+			// device id
+			// vendor id
+			// revision id
+			// maybe subsystem id and subsystem vendor id
+			// from vsec's
+			// tl version capability and configuration 
+			// lpc size = lpc memory always starts at 0
+			// there is a bit of cleverness in the mmio space...  need to think more about this.
+			// from afu_descriptor vsec
+			// mmio offset, stride
+			// number of pasid s and offset
+			// and stuff
 			memcpy((char *)&value, (char *)&(buffer[0]), 2);
 			afu->irqs_min = (long)(value);
 			memcpy((char *)&value, (char *)&(buffer[2]), 2);
@@ -1932,6 +1946,9 @@ struct ocxl_afu_h *ocxl_afu_open_dev(char *path)
 		return NULL;
 
 	// Discover AFU position
+        // lgt - this part will change for opencapi, but is ok for now.
+	//       afu_type will always be directed, may not have a master/slave distinction
+	//       major and minor are yet to be defined.
 	afu_id = strrchr(path, '/');
 	afu_id++;
 	if ((afu_id[3] < '0') || (afu_id[3] > '3')) {
@@ -2059,7 +2076,8 @@ int ocxl_afu_attach(struct ocxl_afu_h *afu, uint64_t wed)
 		return -1;
 	}
 	// Perform OCSE attach
-	afu->attach.wed = wed;
+	// lgt - dont need to send wed remove this later
+	// afu->attach.wed = wed;
 	afu->attach.state = LIBOCXL_REQ_REQUEST;
 	while (afu->attach.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
