@@ -1256,30 +1256,30 @@ int afu_tlx_send_cmd_and_data(struct AFU_EVENT *event,
 /* Call this from AFU to read ocse (CAPP/TL) response. This reads just tlx_afu resp interface */
 
 int tlx_afu_read_resp(struct AFU_EVENT *event,
-		 uint8_t tlx_resp_opcode,
-		 uint16_t resp_afutag, uint8_t resp_code, 
-		 uint8_t resp_pg_size, uint8_t resp_dl,
+		 uint8_t * tlx_resp_opcode,
+		 uint16_t * resp_afutag, uint8_t * resp_code, 
+		 uint8_t * resp_pg_size, uint8_t * resp_dl,
 #ifdef TLX4
-		 uint32_t resp_host_tag, uint8_t resp_cache_state,
+		 uint32_t * resp_host_tag, uint8_t * resp_cache_state,
 #endif
-		 uint8_t resp_dp, uint32_t resp_addr_tag)
+		 uint8_t * resp_dp, uint32_t * resp_addr_tag)
 
 {
 	if (!event->tlx_afu_resp_valid) {
 		return TLX_AFU_RESP_NOT_VALID;
 	} else {
 		event->tlx_afu_resp_valid = 0;
-		tlx_resp_opcode = event->tlx_afu_resp_opcode;
-		resp_afutag = event->tlx_afu_resp_afutag;
-		resp_code = event->tlx_afu_resp_code;
-		resp_pg_size = event->tlx_afu_resp_pg_size;
-		resp_dl = event->tlx_afu_resp_dl;
+		* tlx_resp_opcode = event->tlx_afu_resp_opcode;
+		* resp_afutag = event->tlx_afu_resp_afutag;
+		* resp_code = event->tlx_afu_resp_code;
+		* resp_pg_size = event->tlx_afu_resp_pg_size;
+		* resp_dl = event->tlx_afu_resp_dl;
 #ifdef TLX4
-		resp_host_tag = event->tlx_afu_host_tag;
-		resp_cache_state = event->tlx_afu_resp_cache_state;
+		* resp_host_tag = event->tlx_afu_host_tag;
+		* resp_cache_state = event->tlx_afu_resp_cache_state;
 #endif
-		resp_dp = event->tlx_afu_resp_dp;
-		resp_addr_tag = event->tlx_afu_resp_addr_tag;
+		* resp_dp = event->tlx_afu_resp_dp;
+		* resp_addr_tag = event->tlx_afu_resp_addr_tag;
 		}
 		return TLX_SUCCESS;
 }
@@ -1287,7 +1287,7 @@ int tlx_afu_read_resp(struct AFU_EVENT *event,
 
 /* Call this from AFU to request data on the response data interface  ALSO, AFU calls w/0 values to reset*/
 int afu_tlx_resp_data_read_req(struct AFU_EVENT *event,
-		 uint8_t afu_tlx_resp_rd_req, uint8_t afu_tlx_resp_rd_cnt)
+		 uint8_t  afu_tlx_resp_rd_req, uint8_t  afu_tlx_resp_rd_cnt)
 {
 	event->afu_tlx_resp_rd_req = afu_tlx_resp_rd_req;
 	event->afu_tlx_resp_rd_cnt = afu_tlx_resp_rd_cnt;
@@ -1301,13 +1301,13 @@ int afu_tlx_resp_data_read_req(struct AFU_EVENT *event,
 /* Call this from AFU to read ocse (CAPP/TL) response data. This reads just tlx_afu resp data interface */
 
 int tlx_afu_read_resp_data(struct AFU_EVENT *event,
-		  uint8_t resp_data_bdi,uint8_t * resp_data)
+		  uint8_t * resp_data_bdi,uint8_t * resp_data)
 {
 	if (!event->tlx_afu_resp_data_valid) {
 		return TLX_AFU_RESP_DATA_NOT_VALID;
 	} else {
 		event->tlx_afu_resp_data_valid = 0;
-		resp_data_bdi = event->tlx_afu_resp_data_bdi;
+		* resp_data_bdi = event->tlx_afu_resp_data_bdi;
 		// TODO FOR NOW WE ALWAYS COPY 8 BYTES of DATA -OCSE 
 		// SENDS 8 BYTES 
 		memcpy(resp_data, event->tlx_afu_resp_data, 8);
@@ -1320,32 +1320,32 @@ int tlx_afu_read_resp_data(struct AFU_EVENT *event,
 /* Call this from AFU to read ocse (CAPP/TL) command. This reads just tlx_afu cmd interfaces  */
 
 int tlx_afu_read_cmd(struct AFU_EVENT *event,
-		 uint8_t tlx_cmd_opcode,
-		 uint16_t cmd_capptag, uint8_t cmd_dl, 
-		 uint8_t cmd_pl, uint64_t cmd_be,
-		 uint8_t cmd_end, uint8_t cmd_t,
+		  uint8_t * tlx_cmd_opcode,
+		 uint16_t * cmd_capptag, uint8_t * cmd_dl, 
+		 uint8_t * cmd_pl, uint64_t * cmd_be,
+		 uint8_t * cmd_end, uint8_t * cmd_t,
 #ifdef TLX4
-		 uint8_t cmd_flag,    /* used for atomics from host CAPI 4 */
-  		 uint8_t cmd_os,     /* 1 bit ordered segment CAPI 4 */
+		 uint8_t * cmd_flag,    /* used for atomics from host CAPI 4 */
+  		 uint8_t * cmd_os,     /* 1 bit ordered segment CAPI 4 */
 #endif
-		 uint64_t cmd_pa)  
+		 uint64_t * cmd_pa)  
 
 {
 	if (!event->tlx_afu_cmd_valid) {
 		return TLX_AFU_CMD_NOT_VALID;
 	} else {
 		event->tlx_afu_cmd_valid = 0;
-		tlx_cmd_opcode = event->tlx_afu_cmd_opcode;
-		cmd_capptag = event->tlx_afu_cmd_capptag;
-		cmd_dl = event->tlx_afu_cmd_dl;
-		cmd_pl = event->tlx_afu_cmd_pl;
-		cmd_be = event->tlx_afu_cmd_be;
-		cmd_end = event->tlx_afu_cmd_end;
-		cmd_t = event->tlx_afu_cmd_t;
-		cmd_pa = event->tlx_afu_cmd_pa;
+		* tlx_cmd_opcode = event->tlx_afu_cmd_opcode;
+		* cmd_capptag = event->tlx_afu_cmd_capptag;
+		* cmd_dl = event->tlx_afu_cmd_dl;
+		* cmd_pl = event->tlx_afu_cmd_pl;
+		* cmd_be = event->tlx_afu_cmd_be;
+		* cmd_end = event->tlx_afu_cmd_end;
+		* cmd_t = event->tlx_afu_cmd_t;
+		* cmd_pa = event->tlx_afu_cmd_pa;
 #ifdef TLX4
-		cmd_flag = event->tlx_afu_cmd_flag;
-		cmd_os = event->tlx_afu_cmd_os;
+		* cmd_flag = event->tlx_afu_cmd_flag;
+		* cmd_os = event->tlx_afu_cmd_os;
 #endif
 		return TLX_SUCCESS;
 	}
@@ -1368,14 +1368,14 @@ int afu_tlx_cmd_data_read_req(struct AFU_EVENT *event,
 /* Call this from AFU to read ocse (CAPP/TL) command data. This reads just tlx_afu cmd data interface */
 
 int tlx_afu_read_cmd_data(struct AFU_EVENT *event,
-		  uint8_t cmd_data_bdi, uint8_t * cmd_data_bus)
+		  uint8_t * cmd_data_bdi, uint8_t * cmd_data_bus)
 {
 	if (!event->tlx_afu_cmd_data_valid) {
 		return TLX_AFU_CMD_DATA_NOT_VALID;
 	} else {
 
 		event->tlx_afu_cmd_data_valid = 0;
-		cmd_data_bdi = event->tlx_afu_cmd_data_bdi;
+		* cmd_data_bdi = event->tlx_afu_cmd_data_bdi;
 		// TODO FOR NOW WE ALWAYS COPY 4 BYTES of DATA - OCSE
 		// SENDS 4 BYTES 
 		memcpy(cmd_data_bus, event->tlx_afu_cmd_data_bus, 4);
