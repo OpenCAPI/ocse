@@ -69,6 +69,12 @@ uint8_t		c_afu_tlx_resp_code;
 uint8_t		c_afu_tlx_rdata_valid;
 uint8_t		c_afu_tlx_rdata_bus[CACHELINE_BYTES];
 uint8_t		c_afu_tlx_rdata_bdi;
+
+uint8_t		c_afu_tlx_cmd_rd_req_top;
+uint8_t		c_afu_tlx_cmd_rd_cnt_top;
+
+uint8_t		c_afu_tlx_resp_rd_req_top;
+uint8_t		c_afu_tlx_resp_rd_cnt_top;
 //
 //
 // Local Methods
@@ -185,6 +191,7 @@ void tlx_bfm(
   int invalidVal = 0;
   if ( ha_pclock == sv_0 ) {
 	//	Accessing inputs from the AFX
+	//	Code to access the AFU->TLX command interface
     c_afu_tlx_cmd_valid  	= (afu_tlx_cmd_valid_top & 0x2) ? 0 : (afu_tlx_cmd_valid_top & 0x1);
     invalidVal			+= afu_tlx_cmd_valid_top & 0x2;
     c_afu_tlx_cdata_valid  	= (afu_tlx_cdata_valid_top & 0x2) ? 0 : (afu_tlx_cdata_valid_top & 0x1);
@@ -299,6 +306,38 @@ void tlx_bfm(
       		c_afu_tlx_resp_dp, c_afu_tlx_resp_code, c_afu_tlx_rdata_valid,
       		c_afu_tlx_rdata_bus, c_afu_tlx_rdata_bdi
       );
+    }
+    invalidVal = 0;
+    c_afu_tlx_cmd_rd_req_top  	= (afu_tlx_cmd_rd_req_top & 0x2) ? 0 : (afu_tlx_cmd_rd_req_top & 0x1);
+    invalidVal			= afu_tlx_cmd_rd_req_top & 0x2;
+    if(c_afu_tlx_cmd_rd_req_top)
+    {
+      c_afu_tlx_cmd_rd_cnt_top 	 = (afu_tlx_cmd_rd_cnt_top->aval) & 0x7;
+      invalidVal		+= (afu_tlx_cmd_rd_cnt_top->bval) & 0x7;
+      afu_tlx_cmd_data_read_req(&event,
+      		c_afu_tlx_cmd_rd_req_top, c_afu_tlx_cmd_rd_cnt_top
+      );
+    }
+    if(invalidVal != 0)
+    {
+      printf("%08lld: ", (long long) c_sim_time);
+      printf(" The AFU-TLX Response Cmd Data Request Interface has either X or Z value \n" );
+    }
+    invalidVal = 0;
+    c_afu_tlx_resp_rd_req_top  	= (afu_tlx_resp_rd_req_top & 0x2) ? 0 : (afu_tlx_resp_rd_req_top & 0x1);
+    invalidVal			= afu_tlx_resp_rd_req_top & 0x2;
+    if(c_afu_tlx_resp_rd_req_top)
+    {
+      c_afu_tlx_resp_rd_cnt_top 	 = (afu_tlx_resp_rd_cnt_top->aval) & 0x7;
+      invalidVal		+= (afu_tlx_resp_rd_cnt_top->bval) & 0x7;
+      afu_tlx_resp_data_read_req(&event,
+      		c_afu_tlx_resp_rd_req_top, c_afu_tlx_resp_rd_cnt_top
+      );
+    }
+    if(invalidVal != 0)
+    {
+      printf("%08lld: ", (long long) c_sim_time);
+      printf(" The AFU-TLX Response Data Interface has either X or Z value \n" );
     }
   } else {
     c_sim_error = 0;
