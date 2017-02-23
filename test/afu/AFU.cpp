@@ -234,7 +234,8 @@ AFU::resolve_tlx_afu_cmd()
 	case TLX_CMD_CONFIG_WRITE:
 	    info_msg("AFU::resolve_tlx_afu_cmd: tlx cmd config write");
 	    if(afu_event.tlx_afu_cmd_t == 0) {
-		info_msg("AFU::resolve_tlx_afu_cmd: BDF = ");
+		info_msg("AFU::resolve_tlx_afu_cmd: calling tlx_afu_config_write");
+		tlx_afu_config_write();
 		// get BDF
 		
 	    }
@@ -333,7 +334,18 @@ AFU::tlx_afu_config_read()
 void
 AFU::tlx_afu_config_write()
 {
-    debug_msg("tlx_afu_config_write");
+    uint8_t  afu_resp_opcode;
+    uint8_t  resp_dl;
+    uint16_t resp_capptag;
+    uint8_t  resp_dp;
+    uint8_t  resp_code;
+
+    debug_msg("AFU::tlx_afu_config_write");
+    resp_capptag = afu_event.tlx_afu_cmd_capptag;
+    afu_resp_opcode = 0x01;	// mem read resp
+    resp_code = 0x0;
+    afu_tlx_send_resp(&afu_event, afu_resp_opcode, resp_dl, resp_capptag,
+			resp_dp, resp_code);
 }
 
 
