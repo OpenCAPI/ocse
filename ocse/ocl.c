@@ -228,167 +228,6 @@ static void _free(struct ocl *ocl, struct client *client)
 	
 }
 
-// See if AFU changed any of the aux2 signals and handle accordingly
-int _handle_aux2(struct ocl *ocl, uint32_t * parity, uint32_t * latency,
-		uint64_t * error)
-{
-        struct job *job;
-	struct job_event *_prev;
-	struct job_event *cacked_pe;
-	struct job_event *event;
-	uint32_t job_running;
-	uint32_t job_done;
-	uint32_t job_cack_llcmd;
-	uint64_t job_error;
-	uint32_t job_yield;
-	uint32_t tb_request;
-	uint32_t par_enable;
-	uint32_t read_latency;
-	uint8_t dbg_aux2;
-	int reset, reset_complete;
-	uint64_t llcmd;
-	uint64_t context;
-	uint8_t ack = OCSE_DETACH;
-
-	job = ocl->job;
-	if (job == NULL)
-		return 0;
-
-	// See if AFU is driving AUX2 signal changes
-	dbg_aux2 = reset = reset_complete = *error = 0;
-	/* if (tlx_get_aux2_change(job->afu_event, &job_running, &job_done,
-				&job_cack_llcmd, &job_error, &job_yield,
-				&tb_request, &par_enable, &read_latency) == TLX_SUCCESS) {
-		// Handle job_done
-		if (job_done) {
-			debug_msg("%s:_handle_aux2: JOB done", job->afu_name);
-			dbg_aux2 |= DBG_AUX2_DONE;
-			*error = job_error;
-		        //debug_msg("%s,%d:_handle_aux2, jerror is %x ", 
-			//	  job->afu_name, job->dbg_id, job_error );
-			if (job->job != NULL) {
-				event = job->job;
-				// Is job_done for reset or start?
-				if (event->code == TLX_JOB_RESET)
-					reset_complete = 1;
-				else
-					reset = 1;
-				job->job = event->_next;
-				free(event);
-				if (job->job != NULL)
-					assert(job->job->_next != job->job);
-			}
-			if (*(job->ocl_state) == OCSE_RESET) {
-				*(job->ocl_state) = OCSE_IDLE;
-			}
-		}
-		// Handle job_running
-		if (job_running) {
-			debug_msg("%s:_handle_aux2: JOB running", job->afu_name);
-			*(job->ocl_state) = OCSE_RUNNING;
-			dbg_aux2 |= DBG_AUX2_RUNNING;
-		}
-		// Handle job cack llcmd
-		if (job_cack_llcmd) {
-		        // remove the current pending pe from the list
-		        // loop through the pe's for the current pending one;
-		        // copy its _next to _prev's _next
-		        // remove the current pe
-		        debug_msg("%s,%d:_handle_aux2, jcack, complete llcmd and remove pe", 
-				  job->afu_name, job->dbg_id );
-			cacked_pe = NULL;
-			if (job->pe != NULL) {		  
-			  if (job->pe->state == OCSE_PENDING) {
-			    // remove the first entry in the list
-			    debug_msg("%s,%d:_handle_aux2, jcack, first pe is pending, job=0x%016"PRIx64", pe=0x%016"PRIx64, 
-				      job->afu_name, job->dbg_id, job, job->pe );
-			    cacked_pe = job->pe;
-			    job->pe = job->pe->_next;
-			  } else {
-			    _prev = job->pe;
-			    while (_prev->_next != NULL) {
-			      debug_msg("%s,%d:_handle_aux2, jcack, looking for pending pe, _prev=0x%016"PRIx64", _next=0x%016"PRIx64, 
-					job->afu_name, job->dbg_id, _prev, _prev->_next );
-			      if (_prev->_next->state == OCSE_PENDING) {
-				// remove this entry in the list
-				debug_msg("%s,%d:_handle_aux2, jcack, found pending pe, _next=0x%016"PRIx64, 
-					job->afu_name, job->dbg_id, _prev->_next );
-				cacked_pe = _prev->_next;
-				_prev->_next = _prev->_next->_next;
-			      } else {
-				_prev = _prev->_next;
-			      }
-			    }
-			  }
-			}
-			if (cacked_pe != NULL) {
-			  // this is the pe that I want to "finish" processing
-			  // get just the llcmd part of the addr
-			  llcmd = cacked_pe->addr & TLX_LLCMD_MASK;
-			  context = cacked_pe->addr & TLX_LLCMD_CONTEXT_MASK;
-			  debug_msg("%s,%d:_handle_aux2: llcmd addr = 0x%016"PRIx64"; llcmd = 0x%016"PRIx64"; context = 0x%016"PRIx64, 
-				    job->afu_name, job->dbg_id, cacked_pe->addr, llcmd, context);
-			  switch ( llcmd ) {
-			  case TLX_LLCMD_ADD:
-			    // if it is a start, just keep going, print a message
-			    debug_msg("%s,%d:_handle_aux2: LLCMD ADD acked", job->afu_name, job->dbg_id );
-			    break;
-			  case TLX_LLCMD_TERMINATE:
-			    // if it is a terminate, make sure the cmd list is empty, warn if not empty
-			    debug_msg("%s,%d:_handle_aux2: LLCMD TERMINATE acked", job->afu_name, job->dbg_id );
-			    if ( _is_cmd_pending(ocl, context) ) {
-			      warn_msg( "%s,%d:AFU command for context %d still pending when LLCMD TERMINATE acked", 
-					job->afu_name, job->dbg_id, context);
-			    }
-			    break;
-			  case TLX_LLCMD_REMOVE:
-			    // if it is a remove, send the detach response to the client and close up the client
-			    debug_msg("%s,%d:_handle_aux2: LLCMD REMOVE acked", job->afu_name, job->dbg_id );
-			    debug_msg("%s,%d:_handle_aux2: detach response sent to host on socket %d", 
-				      job->afu_name, job->dbg_id, ocl->client[context]->fd);
-			    put_bytes(ocl->client[context]->fd, 1, &ack,
-			    	      ocl->dbg_fp, ocl->dbg_id,
-			    	      ocl->client[context]->context);
-			    _free( ocl, ocl->client[context] );
-			    ocl->client[context] = NULL;  // I don't like this part...
-			    break;
-			  default:
-			    debug_msg("%s,%d:_handle_aux2: acked llcmd %d did not match an LLCMD pe", 
-				      job->afu_name, job->dbg_id, llcmd );
-			    break;
-			  }
-			  debug_msg("%s,%d:_handle_aux2, jcack, free pe, addr=0x%016"PRIx64, 
-				      job->afu_name, job->dbg_id, cacked_pe );
-			  free( cacked_pe );
-			} else {
-			  debug_msg("%s,%d:_handle_aux2, jcack, no pe's to remove - why???", 
-				    job->afu_name, job->dbg_id );	  
-			}
-			dbg_aux2 |= DBG_AUX2_LLCACK;
-		}
-		if (tb_request) {
-			dbg_aux2 |= DBG_AUX2_TBREQ;
-		}
-		if (par_enable) {
-			dbg_aux2 |= DBG_AUX2_PAREN;
-		}
-		dbg_aux2 |= read_latency & DBG_AUX2_LAT_MASK;
-		if (job_done && job_running)
-			error_msg("_handle_aux2: ah_jdone & ah_jrunning asserted together");
-		if ((read_latency != 0) && (read_latency != 1) && (read_latency != 2))
-			warn_msg("_handle_aux2: ah_brlat must be either 0, 1 or 2");
-		*parity = par_enable;
-		*latency = read_latency;
-
-		// DEBUG
-		debug_job_aux2(job->dbg_fp, job->dbg_id, dbg_aux2);
-	} 
-
-	if (reset)
-		add_job(job, TLX_JOB_RESET, 0L); */
-
-	return reset_complete;
-}
 
 // Handle events from AFU
 static void _handle_afu(struct ocl *ocl)
@@ -400,36 +239,6 @@ static void _handle_afu(struct ocl *ocl)
 	int i;
 	size_t size;
 
-	reset_done = _handle_aux2(ocl, &(ocl->parity_enabled),
-				 &(ocl->latency), &error);
-//printf("after reset_done in handle_afu \n");
-	if (error) {
-	  if (dedicated_mode_support(ocl->mmio)) {
-		client = ocl->client[0];
-		size = 1 + sizeof(uint64_t);
-		buffer = (uint8_t *) malloc(size);
-		buffer[0] = OCSE_AFU_ERROR;
-		error = htonll(error);
-		memcpy((char *)&(buffer[1]), (char *)&error, sizeof(error));
-	        warn_msg("%s: Received JERROR: 0x%016"PRIx64" in afu-dedicated mode", ocl->name, error);
-		if (put_bytes
-		    (client->fd, size, buffer, ocl->dbg_fp, ocl->dbg_id,
-		     0) < 0) {
-			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
-		}
-	  }
-	  if (directed_mode_support(ocl->mmio)) {
-	        // afu error gets logged by OS. - print warning message
-                // no interrupt/event is sent up to the application - don't "put_bytes" back to client(s)
-	        // all clients lose connection to afu but how is this observered by the client?
-	        warn_msg("%s: Received JERROR: 0x%016"PRIx64" in afu-directed mode", ocl->name, error);
-		for (i = 0; i < ocl->max_clients; i++) {
-			if (ocl->client[i] == NULL)
-				continue;
-			client_drop(ocl->client[i], TLX_IDLE_CYCLES, CLIENT_NONE);
-		}
-	  }
-	}
 	 handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
 	if (ocl->cmd != NULL) {
 		if (reset_done)
@@ -686,6 +495,7 @@ static void *_ocl_loop(void *ptr)
 	printf("ocl->head move is next \n");
 	if (*(ocl->head) == ocl)
 		*(ocl->head) = ocl->_next;
+	
 	printf("pthread_mutex_unlock is next \n");
 	pthread_mutex_unlock(ocl->lock);
 	printf("ocl is next \n");

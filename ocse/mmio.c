@@ -252,6 +252,7 @@ int read_descriptor(struct mmio *mmio, pthread_mutex_t * lock)
 	_add_event(mmio, NULL, 0, 0, crstart, 1, 0x00000000cdef0000);
 	printf("Just sent BDF value, will wait for done then read VSECs \n");
         _wait_for_done(&(eventclass->state), lock);
+	printf("not going to call  _wait_for_done after config_wr \n");
 	// TODO ADD CONFIG READS FOR VSEC ONCE I LEARN WHAT VALUES?FIELDS TO READ
         }
 	else { /* always make a fake cr */
@@ -356,9 +357,9 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 	char type[5];
 	uint8_t afu_resp_opcode, resp_dl,resp_dp, resp_data_is_valid, resp_code, rdata_bad;
 	uint16_t resp_capptag;
-	uint8_t *  rdata_bus;
-
-	//rc = tlx_get_mmio_acknowledge(mmio->afu_event, &read_data,
+	uint8_t *  rdata;
+	unsigned char   rdata_bus[64];
+	rdata = rdata_bus;
 	rc = afu_tlx_read_resp_and_data(mmio->afu_event, 
 		    &afu_resp_opcode, &resp_dl,
 		    &resp_capptag, &resp_dp,
