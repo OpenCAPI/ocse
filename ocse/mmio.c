@@ -252,7 +252,6 @@ int read_descriptor(struct mmio *mmio, pthread_mutex_t * lock)
 	_add_event(mmio, NULL, 0, 0, crstart, 1, 0x00000000cdef0000);
 	printf("Just sent BDF value, will wait for done then read VSECs \n");
         _wait_for_done(&(eventclass->state), lock);
-	printf("not going to call  _wait_for_done after config_wr \n");
 	// TODO ADD CONFIG READS FOR VSEC ONCE I LEARN WHAT VALUES?FIELDS TO READ
         }
 	else { /* always make a fake cr */
@@ -378,6 +377,12 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 			sprintf(type, "MMIO");
 		debug_msg("IN handle_mmio_ack and resp_capptag = %x and resp_code = %x! ",
 			resp_capptag, resp_code);
+		if (resp_data_is_valid) {
+			debug_msg("%s:%s CMD RESP data=0x%s code=0x%x", mmio->afu_name, type,
+				 rdata_bus, resp_code );
+		} else {
+			debug_msg("%s:%s CMD RESP code=0x%x", mmio->afu_name, type, resp_code);
+			}
 	/*	if (mmio->list->rnw) {
 			if (mmio->list->dw) {
 				sprintf(data, "%016" PRIx64, read_data);
@@ -393,7 +398,7 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 
 		// Keep data for MMIO reads
 		if (mmio->list->rnw) 
-				mmio->list->data = read_data;
+				mmio->list->data = rdata_bus[0];
 		mmio->list->state = OCSE_DONE;
 		mmio->list = mmio->list->_next;
 	}

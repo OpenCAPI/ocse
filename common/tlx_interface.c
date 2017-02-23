@@ -560,7 +560,7 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 		//printf("event->tbuf[%x] is 0x%2x \n", bp-1, event->tbuf[bp-1]);
 		event->tbuf[bp++] = (event->tlx_afu_cmd_dl & 0x03);
 		event->tbuf[bp++] = (event->tlx_afu_cmd_pl & 0x03);
-		for (i = 0; i < 8; i++) { // And what, exactly, do I do with this?
+		for (i = 0; i < 8; i++) { 
 			event->tbuf[bp++] =
 			    ((event->tlx_afu_cmd_be) >> ((7 - i) * 8)) & 0xFF;
 		}
@@ -682,7 +682,7 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		event->tbuf[bp++] = (event->afu_tlx_cmd_endian & 0x01);
 		event->tbuf[bp++] = ((event->afu_tlx_cmd_bdf) >> 8) & 0xFF;
 		event->tbuf[bp++] = (event->afu_tlx_cmd_bdf & 0xFF);
-		for (i = 0; i < 4; i++) { // And what, exactly, do I do with this?
+		for (i = 0; i < 4; i++) { 
 			event->tbuf[bp++] = 
 			    ((event->afu_tlx_cmd_pasid) >> ((3 - i) * 4)) & 0xFF;
 		}
@@ -843,13 +843,13 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		
 		event->afu_tlx_cmd_opcode = event->rbuf[rbc++];;
 		event->afu_tlx_cmd_actag = event->rbuf[rbc++]; 
-		event->afu_tlx_cmd_actag = ((event->afu_tlx_cmd_actag << 8) || event->rbuf[rbc++]);;
+		event->afu_tlx_cmd_actag = ((event->afu_tlx_cmd_actag << 8) | event->rbuf[rbc++]);;
 		event->afu_tlx_cmd_stream_id = event->rbuf[rbc++]; 
 		for (i = 0; i < 9; i++) {
 			event->afu_tlx_cmd_ea_or_obj[i] = event->rbuf[rbc++] ;
 		}
 		event->afu_tlx_cmd_afutag = event->rbuf[rbc++]; 
-		event->afu_tlx_cmd_afutag = ((event->afu_tlx_cmd_afutag << 8) || event->rbuf[rbc++]);;
+		event->afu_tlx_cmd_afutag = ((event->afu_tlx_cmd_afutag << 8) | event->rbuf[rbc++]);;
 		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
 		event->afu_tlx_cmd_dl = event->rbuf[rbc++];
 		event->afu_tlx_cmd_pl = event->rbuf[rbc++];
@@ -865,7 +865,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		event->afu_tlx_cmd_flag = event->rbuf[rbc++];
 		event->afu_tlx_cmd_endian = event->rbuf[rbc++];
 		event->afu_tlx_cmd_bdf = event->rbuf[rbc++];
-		event->afu_tlx_cmd_bdf = ((event->afu_tlx_cmd_bdf << 8) || event->rbuf[rbc++]);;
+		event->afu_tlx_cmd_bdf = ((event->afu_tlx_cmd_bdf << 8) | event->rbuf[rbc++]);;
 		event->afu_tlx_cmd_pasid = 0;
 		for (bc = 0; bc < 4; bc++) {
 			event->afu_tlx_cmd_pasid  =
@@ -899,7 +899,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		event->afu_tlx_resp_opcode = event->rbuf[rbc++];
 		event->afu_tlx_resp_dl = event->rbuf[rbc++];
 		event->afu_tlx_resp_capptag = event->rbuf[rbc++];
-		event->afu_tlx_resp_capptag = ((event->afu_tlx_resp_capptag << 8) || event->rbuf[rbc++]);;
+		event->afu_tlx_resp_capptag = ((event->afu_tlx_resp_capptag << 8) | event->rbuf[rbc++]);;
 		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
 		event->afu_tlx_resp_dp = event->rbuf[rbc++];
 		event->afu_tlx_resp_code = event->rbuf[rbc++];
@@ -1006,8 +1006,10 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 		event->afu_tlx_cmd_credit = 1;
 		event->afu_tlx_credit_req_valid = 1;
 		event->tlx_afu_cmd_opcode = event->rbuf[rbc++];
+		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
 		event->tlx_afu_cmd_capptag = event->rbuf[rbc++];
-		event->tlx_afu_cmd_capptag = ((event->tlx_afu_cmd_capptag << 8) || event->rbuf[rbc++]);;
+		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
+		event->tlx_afu_cmd_capptag = ((event->tlx_afu_cmd_capptag << 8) | event->rbuf[rbc++]);;
 		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
 		event->tlx_afu_cmd_dl = event->rbuf[rbc++];
 		event->tlx_afu_cmd_pl = event->rbuf[rbc++];
@@ -1019,6 +1021,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 		}
 		event->tlx_afu_cmd_end = event->rbuf[rbc++];
 		event->tlx_afu_cmd_t = event->rbuf[rbc++];
+		event->tlx_afu_cmd_pa = 0;
 		for (bc = 0; bc < 8; bc++) {
 			event->tlx_afu_cmd_pa  =
 			    ((event->tlx_afu_cmd_pa) << 8) |
@@ -1049,7 +1052,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 		event->afu_tlx_credit_req_valid = 1;
 		event->tlx_afu_resp_opcode = event->rbuf[rbc++];
 		event->tlx_afu_resp_afutag = event->rbuf[rbc++];
-		event->tlx_afu_resp_afutag = ((event->tlx_afu_resp_afutag << 8) || event->rbuf[rbc++]);;
+		event->tlx_afu_resp_afutag = ((event->tlx_afu_resp_afutag << 8) | event->rbuf[rbc++]);;
 		event->tlx_afu_resp_code = event->rbuf[rbc++];
 		event->tlx_afu_resp_pg_size = event->rbuf[rbc++];
 		event->tlx_afu_resp_dl = event->rbuf[rbc++];

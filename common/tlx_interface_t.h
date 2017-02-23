@@ -92,13 +92,13 @@
 #define TLX_CMD_AMO_W      	0x40	// TLX4 only
 #define TLX_CMD_WRITE_MEM  	0x81
 #define TLX_CMD_WRITE_MEM_BE	0x82
-#define TLX_CMD_WRITE_META	0x83	// OMI ?
+#define TLX_CMD_WRITE_META	0x83	// OMI 
 #define TLX_CMD_PR_WR_MEM	0x86
 #define TLX_CMD_FORCE_EVICT	0xd0	// TLX4 only
 #define TLX_CMD_FORCE_UR	0xd2	// TLX4 only
 #define TLX_CMD_WAKE_AFU_THREAD	0xdf	// TLX4 only
-#define TLX_CMD_CONFIG_READ	0xc0
-#define TLX_CMD_CONFIG_WRITE	0xc1
+#define TLX_CMD_CONFIG_READ	0xe0
+#define TLX_CMD_CONFIG_WRITE	0xe1
 
 
 /* TLX AP Command opcodes (from AFU to host) */
@@ -163,16 +163,62 @@
 #define AFU_CMD_INTRP_REQ_D_S	0x5b	// TLX4 only	
 #define AFU_CMD_WAKE_HOST_THRD	0x5c	
 #define AFU_CMD_WAKE_HOST_THRD_S	0x5d // TLX4 only	
-#define AFU_CMD_UPGRADE_STATE	0x60 	// TLX4 only	
-#define AFU_CMD_READ_EXCLUSIVE	0x68 	// TLX4 only	
-#define AFU_CMD_READ_SHARED	0x69 	// TLX4 only	
-#define AFU_CMD_XLATE_TOUCH	0x78 	
-#define AFU_CMD_XLATE_TOUCH_N	0x7c	
-#define AFU_CMD_RD_WNITC_T	0x90 	// TLX4 only	
-#define AFU_CMD_RD_WNITC_T_S	0x91 	// TLX4 only	
-#define AFU_CMD_RD_WNITC_T_N	0x94 	// TLX4 only	
-#define AFU_CMD_RD_WNITC_T_N_S	0x95 	// TLX4 only	
-// there are 20+ more TLX4 only commands; add them later
+#define AFU_CMD_UPGRADE_STATE		0x60 	// TLX4 only	
+#define AFU_CMD_READ_EXCLUSIVE		0x68 	// TLX4 only	
+#define AFU_CMD_READ_SHARED		0x69 	// TLX4 only	
+#define AFU_CMD_XLATE_TOUCH		0x78 	
+#define AFU_CMD_XLATE_TOUCH_N		0x7c	
+#define AFU_CMD_RD_WNITC_T		0x90 	// TLX4 only	
+#define AFU_CMD_RD_WNITC_T_S		0x91 	// TLX4 only	
+#define AFU_CMD_RD_WNITC_T_N		0x94 	// TLX4 only	
+#define AFU_CMD_RD_WNITC_T_N_S		0x95 	// TLX4 only	
+#define AFU_CMD_PR_RD_WNITC_T		0x92 	// TLX4 only	
+#define AFU_CMD_PR_RD_WNITC_T_S		0x93 	// TLX4 only	
+#define AFU_CMD_PR_RD_WNITC_T_N		0x96 	// TLX4 only	
+#define AFU_CMD_PR_RD_WNITC_T_N_S	0x97 	// TLX4 only	
+#define AFU_CMD_DMA_W_T  		0xa0    // TLX4 only
+#define AFU_CMD_DMA_W_T_S  		0xa1	// TLX4 only 
+#define AFU_CMD_DMA_W_T_P	  	0xa2	// TLX4 only
+#define AFU_CMD_DMA_W_T_P_S		0xa3	// TLX4 only
+#define AFU_CMD_DMA_W_T_N	  	0xa4    // TLX4 only
+#define AFU_CMD_DMA_W_T_N_S  		0xa5	// TLX4 only
+#define AFU_CMD_DMA_W_T_N_P 		0xa6	// TLX4 only
+#define AFU_CMD_DMA_W_T_N_P_S    	0xa7	// TLX4 only
+#define AFU_CMD_DMA_W_BE_T  		0xa8	// TLX4 only
+#define AFU_CMD_DMA_W_BE_T_S     	0xa9	// TLX4 only
+#define AFU_CMD_DMA_W_BE_T_P     	0xaa	// TLX4 only
+#define AFU_CMD_DMA_W_BE_T_P_S   	0xab	// TLX4 only
+#define AFU_CMD_DMA_W_BE_T_N  		0xac	// TLX4 only
+#define AFU_CMD_DMA_W_BE_T_N_S		0xad	// TLX4 only
+#define AFU_CMD_DMA_W_BE_T_N_P		0xae	// TLX4 only
+#define AFU_CMD_DMA_W_BE_T_N_P_S	0xaf	// TLX4 only
+#define AFU_CMD_DMA_PR_W_T  		0xb0	// TLX4 only
+#define AFU_CMD_DMA_PR_W_T_S  		0xb1	// TLX4 only 
+#define AFU_CMD_DMA_PR_W_T_P  		0xb2	// TLX4 only
+#define AFU_CMD_DMA_PR_W_T_P_S		0xb3	// TLX4 only
+#define AFU_CMD_DMA_PR_W_T_N  		0xb4	// TLX4 only
+#define AFU_CMD_DMA_PR_W_T_N_S  	0xb5	// TLX4 only
+#define AFU_CMD_DMA_PR_W_T_N_P 		0xb6	// TLX4 only
+#define AFU_CMD_DMA_PR_W_T_N_P_S  	0xb7	// TLX4 only
+#define AFU_CMD_AMO_RD_T  		0xb8	// TLX4 only
+#define AFU_CMD_AMO_RD_T_S  		0xb9	// TLX4 only	
+#define AFU_CMD_AMO_RD_T_N  		0xbc	// TLX4 only	
+#define AFU_CMD_AMO_RD_T_N_S  		0xbd	// TLX4 only	
+#define AFU_CMD_AMO_RW_T  		0xc0	// TLX4 only
+#define AFU_CMD_AMO_RW_T_S  		0xc1	// TLX4 only	
+#define AFU_CMD_AMO_RW_T_N  		0xc4	// TLX4 only
+#define AFU_CMD_AMO_RW_T_N_S  		0xc5	// TLX4 only	
+#define AFU_CMD_AMO_W_T  		0xc8	// TLX4 only
+#define AFU_CMD_AMO_W_T_S  		0xc9	// TLX4 only 
+#define AFU_CMD_AMO_W_T_P  		0xca	// TLX4 only
+#define AFU_CMD_AMO_W_T_P_S		0xcb	// TLX4 only
+#define AFU_CMD_AMO_W_T_N  		0xcc	// TLX4 only
+#define AFU_CMD_AMO_W_T_N_S  		0xcd	// TLX4 only
+#define AFU_CMD_AMO_W_T_N_P 		0xce	// TLX4 only
+#define AFU_CMD_AMO_W_T_N_P_S  		0xcf	// TLX4 only
+#define AFU_CMD_UPGRADE_STATE_T		0xe0 	// TLX4 only	
+#define AFU_CMD_READ_EXCLUSIVE_T	0xe8 	// TLX4 only	
+#define AFU_CMD_READ_SHARED_T		0xe9 	// TLX4 only	
 
 
 /* TL CAPP responses (from host to AFU)  */
@@ -187,8 +233,8 @@
 #define TLX_RSP_WRITE_FAILED	0x09
 #define TLX_RSP_MEM_FLUSH_DONE	0x0a 	// TLX4 only
 #define TLX_RSP_INTRP_RESP	0x0c
-#define TLX_RSP_READ_RESP_OW	0x0d 	// OMI ?
-#define TLX_RSP_READ_RESP_XW	0x0e 	// OMI ?
+#define TLX_RSP_READ_RESP_OW	0x0d 	// OMI 
+#define TLX_RSP_READ_RESP_XW	0x0e 	// OMI 
 #define TLX_RSP_WAKE_HOST_RESP	0x10
 #define TLX_RSP_CL_RD_RESP_OW	0x16 	// TLX4 only
 
@@ -197,11 +243,11 @@
 #define AFU_RSP_NOP  0
 #define AFU_RSP_MEM_RD_RESP	0x01
 #define AFU_RSP_MEM_RD_FAIL	0x02
-#define AFU_RSP_MEM_RD_RESP_OW	0x03 	// OMI ?
+#define AFU_RSP_MEM_RD_RESP_OW	0x03 	// OMI 
 #define AFU_RSP_MEM_WR_RESP	0x04
 #define AFU_RSP_MEM_WR_FAIL	0x05
-#define AFU_RSP_MEM_RD_RESP_XW	0x07 	// OMI ?
-#define AFU_RSP_RET_TL_CREDITS	0x08 	// OMI ?
+#define AFU_RSP_MEM_RD_RESP_XW	0x07 	// OMI 
+#define AFU_RSP_RET_TL_CREDITS	0x08 	// OMI 
 #define AFU_RSP_WAKE_AFU_RESP	0x0a 	// TLX4 only
 #define AFU_RSP_FORCE_UR_DONE	0x0c 	// TLX4 only
 
