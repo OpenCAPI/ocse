@@ -1006,6 +1006,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 //printf("TLX_GET_TLX_EVENTS event->rbuf[0] is 0x%2x and event->rbuf[1] is 0x%2x \n", event->rbuf[0], event->rbuf[1]);
 	if (event->rbuf[0] & 0x10) {
 		event->tlx_afu_cmd_valid = 1;
+		printf("in tlx_get_tlx_events and just set tlx_afu_cmd_valid = %d \n", event->tlx_afu_cmd_valid);
 		event->afu_tlx_cmd_credit = 1;
 		event->afu_tlx_credit_req_valid = 1;
 		event->tlx_afu_cmd_opcode = event->rbuf[rbc++];
@@ -1346,6 +1347,7 @@ int tlx_afu_read_cmd(struct AFU_EVENT *event,
 		return TLX_AFU_CMD_NOT_VALID;
 	} else {
 		event->tlx_afu_cmd_valid = 0;
+		printf("in tlx_afu_read_cmd and just set tlx_afu_cmd_valid = %d \n", event->tlx_afu_cmd_valid);
 		* tlx_cmd_opcode = event->tlx_afu_cmd_opcode;
 		* cmd_capptag = event->tlx_afu_cmd_capptag;
 		* cmd_dl = event->tlx_afu_cmd_dl;
