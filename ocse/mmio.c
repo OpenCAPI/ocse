@@ -220,6 +220,7 @@ int read_descriptor(struct mmio *mmio, pthread_mutex_t * lock)
 
         // NEW BLOCK add code to check for CRs and read them in if available
         struct mmio_event *eventdevven, *eventclass;
+	uint64_t cmd_pa;
         uint32_t crstart;
         uint16_t crnum = mmio->desc.num_of_afu_CRs;
         if ( crnum > 0) {
@@ -231,9 +232,10 @@ int read_descriptor(struct mmio *mmio, pthread_mutex_t * lock)
 	// Queue mmio reads
 	// Only do 32-bit mmio for config record data
 	// NO LONGER NEED TO ADJUST CONFIG ADDR SPACE BY 2 
-	eventdevven = _add_desc(mmio, 1, 0,crstart, 0L);
+	cmd_pa = 0x00000000cdef0000;
+	eventdevven = _add_desc(mmio, 1, 0,cmd_pa, 0L);
 	//eventclass = _add_desc(mmio, 1, 1, (crstart+8) >> 2, 0L);
-	eventclass = _add_desc(mmio, 1, 0, crstart+0x100, 0L);
+	eventclass = _add_desc(mmio, 1, 0, cmd_pa+0x100, 0L);
 	
 	// Store data from reads
 	_wait_for_done(&(eventdevven->state), lock);
@@ -248,11 +250,10 @@ int read_descriptor(struct mmio *mmio, pthread_mutex_t * lock)
         _wait_for_done(&(eventclass->state), lock);
 	cr_array->cr_class = (uint32_t) (eventclass->data >> 32) & 0xffffffffl;
         free(eventclass);
-	//Need to first send a config_write to set BDF to something
-	_add_event(mmio, NULL, 0, 0, crstart, 1, 0x00000000cdef0000);
+	//Need to send a config_write to make sure it works
+	_add_event(mmio, NULL, 0, 0, 1, cmd_pa+0x1f0, 0x01020304);
 	printf("Just sent BDF value, will wait for done then read VSECs \n");
         _wait_for_done(&(eventclass->state), lock);
-	// TODO ADD CONFIG READS FOR VSEC ONCE I LEARN WHAT VALUES?FIELDS TO READ
         }
 	else { /* always make a fake cr */
 	struct config_record *cr_array = malloc(sizeof(struct config_record *));
@@ -271,11 +272,12 @@ void send_mmio(struct mmio *mmio)
 {
 	struct mmio_event *event;
 	char type[5];
+	unsigned char ddata[17];
 	char data[17];
 //	uint8_t tlx_cmd_opcode, cmd_dl, cmd_pl, cmd_end, cmd_t, cmd_flag, cmd_data_bdi;
 //	uint16_t cmd_capptag;
 //	uint64_t cmd_be, 
-	uint64_t cmd_pa;
+//	uint64_t cmd_pa;
 #ifdef TLX4
 	 uint8_t cmd_os,
 #endif
@@ -291,9 +293,9 @@ void send_mmio(struct mmio *mmio)
 		sprintf(type, "DESC");
 	// Attempt to send config_re or config_wr to AFU
 	//special case for now, always use same cmd_pa for config cmds and T= 0
-	cmd_pa = 0x00000000cdef0000;
+	//cmd_pa = 0x00000000cdef0000;
 	if (event->rnw && tlx_afu_send_cmd(mmio->afu_event, 
-		TLX_CMD_CONFIG_READ, 0xdead,0, 2, 0, 0, 0, cmd_pa) == TLX_SUCCESS) {
+		TLX_CMD_CONFIG_READ, 0xdead,0, 2, 0, 0, 0, event->addr) == TLX_SUCCESS) {
 		debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type,
 			  event->dw ? 64 : 32, event->addr);
 		debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->desc,
@@ -301,9 +303,11 @@ void send_mmio(struct mmio *mmio)
 		event->state = OCSE_PENDING;
 	}
 	//special case for now, always use same cmd_pa for config cmds and T= 0
-	cmd_pa = 0x00000000cdef0000;
-	if (!event->rnw && tlx_afu_send_cmd(mmio->afu_event, 
-		TLX_CMD_CONFIG_WRITE, 0xbeef,0, 2, 0, 0, 0, cmd_pa) == TLX_SUCCESS) {
+	uint8_t * dptr = ddata;
+	memcpy(ddata, &(event->data), 4);
+	
+	if (!event->rnw && tlx_afu_send_cmd_and_data(mmio->afu_event, 
+		TLX_CMD_CONFIG_WRITE, 0xbeef,0, 2, 0, 0, 0, event->addr, 0, dptr) == TLX_SUCCESS) {
 		if (event->dw)
 			sprintf(data, "%016" PRIx64, event->data);
 		else
@@ -357,7 +361,7 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 	uint8_t afu_resp_opcode, resp_dl,resp_dp, resp_data_is_valid, resp_code, rdata_bad;
 	uint16_t resp_capptag;
 	uint8_t *  rdata;
-	unsigned char   rdata_bus[64];
+	unsigned char   rdata_bus[4];
 	rdata = rdata_bus;
 	rc = afu_tlx_read_resp_and_data(mmio->afu_event, 
 		    &afu_resp_opcode, &resp_dl,
