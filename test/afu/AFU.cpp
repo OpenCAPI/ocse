@@ -303,20 +303,62 @@ AFU::tlx_afu_config_read()
     uint8_t afu_tlx_resp_code;
     uint8_t afu_tlx_rdata_valid;
     uint16_t afu_tlx_resp_capptag;
-    
+    uint8_t  cmd_pl, data_size;
+ 
     afu_tlx_resp_opcode = 0x01;	// mem rd response
     afu_tlx_resp_dl = 0x01;	// length 64 byte
     afu_tlx_resp_code = 0x0;	
     afu_tlx_rdata_valid = 0x0;
     afu_tlx_resp_capptag = afu_event.tlx_afu_cmd_capptag;
+    cmd_pl = afu_event.tlx_afu_cmd_pl;
+    vsec_offset = 0x0000FFFC & afu_event.tlx_afu_cmd_pa;
+    vsec_data  = descriptor.get_VSEC_reg(vsec_offset);
+    if(cmd_pl == 0x00) {
+	data_size = 1;
+	switch(vsec_offset) {
+	    case 0:
+		vsec_data = 0x000000FF & vsec_data;
+		break;
+	    case 1:
+		vsec_data = 0x0000FF00 & vsec_data;
+		vsec_data = vsec_data >> 8;
+		break;
+	    case 2:
+		vsec_data = 0x00FF0000 & vsec_data;
+		vsec_data = vsec_data >> 16;
+		break;
+	    case 3:
+		vsec_data = 0xFF000000 & vsec_data;
+		vsec_data = vsec_data >> 24;
+		break;
+	    default:
+		error_msg("Configuration read offset is not supported 0x%x", vsec_offset);
+		break;
+	}
+    }
+    else if(cmd_pl == 0x01) {
+	data_size = 2;
+	switch(vsec_offset) {
+	    case 0:
+		vsec_data = vsec_data & 0x0000FFFF;
+		break;
+	    case 2:
+		vsec_data = vsec_data & 0xFFFF0000;
+		vsec_data = vsec_data >> 16;
+		break;
+	    default:
+		error_msg("Configuration read offset is not supported 0x%x", vsec_offset);
+		break;
+	}
+    }
+    else if(cmd_pl == 0x02) {
+	data_size = 4;
+    }
 
     bdf = (0xFFFF0000 & afu_event.tlx_afu_cmd_pa) >> 16;
     info_msg("AFU: BDF = 0x%x", bdf);
     info_msg("AFU: resp_capptag = 0x%x", afu_tlx_resp_capptag);
-    vsec_offset = 0x0000FFFC & afu_event.tlx_afu_cmd_pa;
-    vsec_data = descriptor.get_VSEC_reg(vsec_offset);
-    memcpy(&afu_event.afu_tlx_rdata_bus, &vsec_data, 4);   
-    
+    memcpy(&afu_event.afu_tlx_rdata_bus, &vsec_data, data_size);   
     info_msg("AFU: vsec_offset = 0x%x vsec_data = 0x%x", vsec_offset, vsec_data);
     if(afu_tlx_send_resp_and_data(&afu_event, afu_tlx_resp_opcode, afu_tlx_resp_dl, 
 		afu_tlx_resp_capptag, afu_event.afu_tlx_resp_dp, 
