@@ -71,6 +71,7 @@ AFU::start ()
 	// process tlx commands
 	if (afu_event.tlx_afu_cmd_valid) {
 	    debug_msg("AFU: Process TLX commands 0x%x", afu_event.tlx_afu_cmd_opcode);
+	    debug_msg("AFU: calling resolve_tlx_afu_cmd");
 	    resolve_tlx_afu_cmd();
 	}
 	// process tlx response
@@ -200,9 +201,9 @@ AFU::resolve_tlx_afu_cmd()
     }
     
     afu_event.afu_tlx_resp_capptag = cmd_capptag;
-    printf("AFU::resolve_tlx_afu_cmd: cmd_pa = 0x%lx\n", cmd_pa);
-    printf("AFU::resolve_tlx_afu_cmd: cmd_opcode = 0x%x\n", tlx_cmd_opcode);
-    printf("AFU::resolve_tlx_afu_cmd: cmd_capptag = 0x%x\n", cmd_capptag);
+    info_msg("AFU: cmd_opcode = 0x%x", tlx_cmd_opcode);
+    info_msg("AFU: cmd_pa = 0x%08lx", cmd_pa);
+    info_msg("AFU: cmd_capptag = 0x%x", cmd_capptag);
 
     switch (tlx_cmd_opcode) {
 	case TLX_CMD_NOP:
@@ -222,9 +223,9 @@ AFU::resolve_tlx_afu_cmd()
 	case TLX_CMD_FORCE_UR:
 	case TLX_CMD_WAKE_AFU_THREAD:
 	case TLX_CMD_CONFIG_READ:
-	    info_msg("AFU::resolve_tlx_afu_cmd: tlx cmd config read");
+	    info_msg("AFU: Configuration Read");
 	    if(afu_event.tlx_afu_cmd_t == 0) {
-		// tlx afu config read
+		info_msg("AFU: calling tlx_afu_config_read");
 		tlx_afu_config_read();
 	    }
 	    else if(afu_event.tlx_afu_cmd_t == 1) {
@@ -241,7 +242,6 @@ AFU::resolve_tlx_afu_cmd()
 	    }
 	    else {
 		// do configuration write
-		tlx_afu_config_write();
 	    }
 	    break;
 	default:
@@ -297,9 +297,8 @@ void
 AFU::tlx_afu_config_read()
 {
     uint32_t vsec_offset, vsec_data;
-    uint32_t bdf;
+    uint16_t bdf;
     uint8_t afu_tlx_resp_dl;
-    uint8_t *resp_data;
     uint8_t afu_tlx_resp_opcode;
     uint8_t afu_tlx_resp_code;
     uint8_t afu_tlx_rdata_valid;
@@ -311,24 +310,20 @@ AFU::tlx_afu_config_read()
     afu_tlx_rdata_valid = 0x0;
     afu_tlx_resp_capptag = afu_event.tlx_afu_cmd_capptag;
 
-    debug_msg("AFU::tlx_afu_config_read");
-    debug_msg("AFU::tlx_afu_config_read: resp_valid = 0x%x", afu_event.afu_tlx_resp_valid);
-    bdf = 0xFFFF0000 & afu_event.tlx_afu_cmd_pa;
-    debug_msg("AFU::tlx_afu_config_read: bdf = 0x%x", bdf);
-    debug_msg("AFU::tlx_afu_config_read: cmd_pa = 0x%x", afu_event.tlx_afu_cmd_pa);
-    debug_msg("AFU::tlx_afu_config_read: resp_capptag = 0x%x", afu_tlx_resp_capptag);
-    vsec_offset = 0x0FFC0000 & afu_event.tlx_afu_cmd_pa;
+    bdf = (0xFFFF0000 & afu_event.tlx_afu_cmd_pa) >> 16;
+    info_msg("AFU: BDF = 0x%x", bdf);
+    info_msg("AFU: resp_capptag = 0x%x", afu_tlx_resp_capptag);
+    vsec_offset = 0x0000FFFC & afu_event.tlx_afu_cmd_pa;
     vsec_data = descriptor.get_VSEC_reg(vsec_offset);
     memcpy(&afu_event.afu_tlx_rdata_bus, &vsec_data, 4);   
     
-    debug_msg("AFU::tlx_afu_config_read: vsec_offset = 0x%x vsec_data = 0x%x", vsec_offset, vsec_data);
+    info_msg("AFU: vsec_offset = 0x%x vsec_data = 0x%x", vsec_offset, vsec_data);
     if(afu_tlx_send_resp_and_data(&afu_event, afu_tlx_resp_opcode, afu_tlx_resp_dl, 
 		afu_tlx_resp_capptag, afu_event.afu_tlx_resp_dp, 
 		afu_tlx_resp_code, afu_tlx_rdata_valid, 
 		afu_event.afu_tlx_rdata_bus, afu_event.afu_tlx_rdata_bad) == TLX_SUCCESS) {
-	printf("afu_tlx_send_resp_and_data calll success\n");
+	info_msg("afu_tlx_send_resp_and_data SUCCESS");
     }
-    debug_msg("AFU::tlx_afu_config_read: done calling afu_tlx_send_resp_and_data");
 }
 
 void
