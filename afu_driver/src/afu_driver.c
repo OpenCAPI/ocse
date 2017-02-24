@@ -101,7 +101,7 @@ void tlx_bfm(
 			svLogicVecVal	*tlx_afu_resp_addr_tag_top,
 			svLogicVecVal	*tlx_afu_resp_cache_state_top,
 
-				//	Table 2: TLX Response Credit Interface
+				//	Table 2: TLX Response Credit Interface	// TODO: Process Credit interface
 			const svLogic	afu_tlx_resp_credit_top,
 		const svLogicVecVal	*afu_tlx_resp_initial_credit_top,
 
@@ -118,7 +118,7 @@ void tlx_bfm(
 			svLogicVecVal	*tlx_afu_cmd_flag_top,
 			svLogic		*tlx_afu_cmd_os_top,
 
-				//	Table 4: TLX Command Credit Interface
+				//	Table 4: TLX Command Credit Interface	// TODO: Process Credit interface
 			const svLogic	afu_tlx_cmd_credit_top,
 		const svLogicVecVal	*afu_tlx_cmd_initial_credit_top,
 
@@ -136,7 +136,7 @@ void tlx_bfm(
 			const svLogic	afu_tlx_cmd_rd_req_top,
 		const svLogicVecVal	*afu_tlx_cmd_rd_cnt_top,
 
-				//	Table 7: TLX Framer credit interface
+				//	Table 7: TLX Framer credit interface	// TODO: Process Credit interface
 			svLogic		*tlx_afu_resp_credit_top,
 			svLogic		*tlx_afu_resp_data_credit_top,
 			svLogic		*tlx_afu_cmd_credit_top,
@@ -224,18 +224,24 @@ void tlx_bfm(
       invalidVal		+= (afu_tlx_cmd_pasid_top->bval) & 0xFFFFF;
       c_afu_tlx_cmd_pg_size	= (afu_tlx_cmd_pg_size_top->aval) & 0x3F;
       invalidVal		+= (afu_tlx_cmd_pg_size_top->bval) & 0x3F;
+      printf("%08lld: ", (long long) c_sim_time);
+      printf(" The AFU-TLX Command Valid, with opcode: 0x%x \n",  c_afu_tlx_cmd_opcode);
     }
     if(c_afu_tlx_cdata_valid)
     {
       c_afu_tlx_cdata_bdi  	= (afu_tlx_cdata_bdi_top & 0x2) ? 0 : (afu_tlx_cdata_bdi_top & 0x1);
       invalidVal		+= afu_tlx_cdata_bdi_top & 0x2;
       invalidVal		+= getMyCacheLine(afu_tlx_cdata_bus_top, c_afu_tlx_cdata_bus);
+      printf("%08lld: ", (long long) c_sim_time);
+      printf(" The AFU-TLX Command Data Valid, with opcode: 0x%x \n",  c_afu_tlx_cmd_opcode);
     }
+#ifdef DEBUG1
     if(invalidVal != 0)
     {
       printf("%08lld: ", (long long) c_sim_time);
       printf(" The AFU-TLX Command Interface has either X or Z value \n" );
     }
+#endif
     if(c_afu_tlx_cmd_valid & (!c_afu_tlx_cdata_valid))
     {
       afu_tlx_send_cmd(&event,
@@ -280,18 +286,24 @@ void tlx_bfm(
       invalidVal		+= (afu_tlx_resp_dp_top->bval) & 0x3;
       c_afu_tlx_resp_code	= (afu_tlx_resp_code_top->aval) & 0xF;
       invalidVal		+= (afu_tlx_resp_code_top->bval) & 0xF;
+      printf("%08lld: ", (long long) c_sim_time);
+      printf(" The AFU-TLX Response Valid, with opcode: 0x%x \n",  c_afu_tlx_resp_opcode);
     }
     if(c_afu_tlx_rdata_valid)
     {
       c_afu_tlx_rdata_bdi  	= (afu_tlx_rdata_bdi_top & 0x2) ? 0 : (afu_tlx_rdata_bdi_top & 0x1);
       invalidVal		+= afu_tlx_rdata_bdi_top & 0x2;
       invalidVal		+= getMyCacheLine(afu_tlx_rdata_bus_top, c_afu_tlx_rdata_bus);
+      printf("%08lld: ", (long long) c_sim_time);
+      printf(" The AFU-TLX Response Data Valid, with opcode: 0x%x \n",  c_afu_tlx_resp_opcode);
     }
+#ifdef DEBUG1
     if(invalidVal != 0)
     {
       printf("%08lld: ", (long long) c_sim_time);
       printf(" The AFU-TLX Response Interface has either X or Z value \n" );
     }
+#endif
     if(c_afu_tlx_resp_valid && !c_afu_tlx_rdata_valid)
     {
       afu_tlx_send_resp(&event,
@@ -317,12 +329,16 @@ void tlx_bfm(
       afu_tlx_cmd_data_read_req(&event,
       		c_afu_tlx_cmd_rd_req_top, c_afu_tlx_cmd_rd_cnt_top
       );
+      printf("%08lld: ", (long long) c_sim_time);
+      printf(" The AFU-TLX Cmd Read Request for Cnt: %d \n", c_afu_tlx_cmd_rd_cnt_top );
     }
+#ifdef DEBUG1
     if(invalidVal != 0)
     {
       printf("%08lld: ", (long long) c_sim_time);
       printf(" The AFU-TLX Response Cmd Data Request Interface has either X or Z value \n" );
     }
+#endif
     invalidVal = 0;
     c_afu_tlx_resp_rd_req_top  	= (afu_tlx_resp_rd_req_top & 0x2) ? 0 : (afu_tlx_resp_rd_req_top & 0x1);
     invalidVal			= afu_tlx_resp_rd_req_top & 0x2;
@@ -333,12 +349,16 @@ void tlx_bfm(
       afu_tlx_resp_data_read_req(&event,
       		c_afu_tlx_resp_rd_req_top, c_afu_tlx_resp_rd_cnt_top
       );
+      printf("%08lld: ", (long long) c_sim_time);
+      printf(" The AFU-TLX Response Read Request for Cnt: %d \n", c_afu_tlx_resp_rd_cnt_top );
     }
+#ifdef DEBUG1
     if(invalidVal != 0)
     {
       printf("%08lld: ", (long long) c_sim_time);
       printf(" The AFU-TLX Response Data Interface has either X or Z value \n" );
     }
+#endif
   } else {
     c_sim_error = 0;
     tlx_control();
@@ -357,6 +377,8 @@ void tlx_bfm(
 #endif
       *tlx_afu_resp_valid_top = 1;
       clk_afu_resp_val = CLOCK_EDGE_DELAY;
+      printf("%08lld: ", (long long) c_sim_time);
+      printf(" The TLX-AFU Response with OPCODE=0x%x \n",  event.tlx_afu_resp_opcode);
     }
     if (clk_afu_resp_val) {
     	--clk_afu_resp_val;
@@ -379,6 +401,8 @@ void tlx_bfm(
 #endif
       *tlx_afu_cmd_valid_top = 1;
       clk_afu_cmd_val = CLOCK_EDGE_DELAY;
+      printf("%08lld: ", (long long) c_sim_time);
+      printf(" The TLX-AFU Cmd with OPCODE=0x%x \n",  event.tlx_afu_cmd_opcode);
     }
     if (clk_afu_cmd_val) {
     	--clk_afu_cmd_val;
@@ -391,6 +415,8 @@ void tlx_bfm(
       setMyCacheLine(tlx_afu_resp_data_bus_top, event.tlx_afu_resp_data);
       *tlx_afu_resp_data_valid_top = 1;
       clk_afu_resp_dat_val = CLOCK_EDGE_DELAY;
+      printf("%08lld: ", (long long) c_sim_time);
+      printf(" The TLX-AFU Response with Data Available \n");
     }
     if (clk_afu_resp_dat_val) {
     	--clk_afu_resp_dat_val;
@@ -403,6 +429,8 @@ void tlx_bfm(
       setMyCacheLine(tlx_afu_cmd_data_bus_top, event.tlx_afu_cmd_data_bus);
       *tlx_afu_cmd_data_valid_top = 1;
       clk_afu_cmd_dat_val = CLOCK_EDGE_DELAY;
+      printf("%08lld: ", (long long) c_sim_time);
+      printf(" The TLX-AFU Command with Data Available \n");
     }
     if (clk_afu_cmd_dat_val) {
     	--clk_afu_cmd_dat_val;
