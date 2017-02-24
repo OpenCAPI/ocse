@@ -714,11 +714,12 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 	}
 	if (event->afu_tlx_rdata_valid != 0) { // There are 5 bytes to xfer TODO ONLY SEND 4B now
 		event->tbuf[0] = event->tbuf[0] | 0x20;
-		//printf("event->tbuf[0] is 0x%2x \n", event->tbuf[0]);
+		printf("event->tbuf[0] is 0x%2x \n", event->tbuf[0]);
 		event->tbuf[bp++] = (event->afu_tlx_rdata_bad  & 0x01 );
-		//printf("event->tbuf[bp] is 0x%2x and bp is 0x%2x \n", event->tbuf[bp], bp);
+		printf("event->tbuf[%x] is 0x%2x \n", bp-1, event->tbuf[bp-1]);
 		for (i = 0; i < 4; i++) {
 			event->tbuf[bp++] = event->afu_tlx_rdata_bus[i];
+		printf("event->tbuf[%x] is 0x%2x \n", bp-1, event->tbuf[bp-1]);
 		}
 		event->afu_tlx_rdata_valid = 0;
 	}
@@ -915,6 +916,8 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
 		for (i = 0; i < 4; i++) {
 			event->afu_tlx_rdata_bus[i]= event->rbuf[rbc++];
+		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
+		printf("event->afu_tlx_rdata_bus[%x] is 0x%2x \n", i, event->afu_tlx_rdata_bus[i]);
 		}
 		
 	} else {
@@ -1137,6 +1140,7 @@ int afu_tlx_send_resp_and_data(struct AFU_EVENT *event,
  		 uint8_t rdata_bad)
 
 {
+	int i;
 	if ((event->afu_tlx_resp_valid ==1) || (event->afu_tlx_rdata_valid == 1)) {
 		return AFU_TLX_DOUBLE_RESP_AND_DATA;
 	} else {
@@ -1151,6 +1155,10 @@ int afu_tlx_send_resp_and_data(struct AFU_EVENT *event,
 		// TODO FOR NOW WE ALWAYS COPY 4 BYTES of DATA - AFU ALWAYS
 		// SENDS 4 BYTES 
 		memcpy(event->afu_tlx_rdata_bus, rdata_bus, 4);
+	//	for (i = 0; i <5 ; i++) {
+	//		printf("Send data is %02x"  , rdata_bus[i]);
+	//	}
+	//	printf("\n");
 		return TLX_SUCCESS;
 	}
 }

@@ -492,13 +492,10 @@ static void *_ocl_loop(void *ptr)
 	printf("ocl->name is %s \n", ocl->name);
 	if (ocl->name)
 		free(ocl->name);
-	printf("ocl->head move is next \n");
 	if (*(ocl->head) == ocl)
 		*(ocl->head) = ocl->_next;
 	
-	printf("pthread_mutex_unlock is next \n");
 	pthread_mutex_unlock(ocl->lock);
-	printf("ocl is next \n");
 	free(ocl);
 	pthread_exit(NULL);
 }

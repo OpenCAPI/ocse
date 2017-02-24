@@ -233,7 +233,7 @@ int read_descriptor(struct mmio *mmio, pthread_mutex_t * lock)
 	// NO LONGER NEED TO ADJUST CONFIG ADDR SPACE BY 2 
 	eventdevven = _add_desc(mmio, 1, 0,crstart, 0L);
 	//eventclass = _add_desc(mmio, 1, 1, (crstart+8) >> 2, 0L);
-	eventclass = _add_desc(mmio, 1, 0, crstart+8, 0L);
+	eventclass = _add_desc(mmio, 1, 0, crstart+0x100, 0L);
 	
 	// Store data from reads
 	_wait_for_done(&(eventdevven->state), lock);
@@ -378,8 +378,9 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 		debug_msg("IN handle_mmio_ack and resp_capptag = %x and resp_code = %x! ",
 			resp_capptag, resp_code);
 		if (resp_data_is_valid) {
-			debug_msg("%s:%s CMD RESP data=0x%s code=0x%x", mmio->afu_name, type,
-				 rdata_bus, resp_code );
+			memcpy(&read_data, rdata_bus, 4);
+			debug_msg("%s:%s CMD RESP data=0x%x code=0x%x", mmio->afu_name, type,
+				  read_data, resp_code );
 		} else {
 			debug_msg("%s:%s CMD RESP code=0x%x", mmio->afu_name, type, resp_code);
 			}
@@ -398,7 +399,8 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 
 		// Keep data for MMIO reads
 		if (mmio->list->rnw) 
-				mmio->list->data = rdata_bus[0];
+				mmio->list->data = read_data;
+		
 		mmio->list->state = OCSE_DONE;
 		mmio->list = mmio->list->_next;
 	}
