@@ -251,20 +251,10 @@ uint32_t
 Descriptor::get_VSEC_reg(uint32_t vsec_offset)
 {
     uint32_t vsec_data, offset;
-    uint8_t byte_offset;
+    //uint8_t byte_offset;
 
     offset = vsec_offset & 0x00000FFC;
-    byte_offset = vsec_offset & 0x00000003;
-    switch(offset) {
-    case DEVICE_VENDOR_ID:
-	vsec_data = vsec[offset];
-	break;
-    case AFU_ENABLE:
-	vsec_data = vsec[offset];
-	break;
-    default:
-	break;
-     }
+    vsec_data = vsec[offset];
 
     return vsec_data;
 }
