@@ -24,7 +24,8 @@ module top (
    import "DPI-C" function void set_simulation_time(input [0:63] simulationTime);
    import "DPI-C" function void get_simuation_error(inout simulationError);
    import "DPI-C" function void tlx_bfm(
-                                input afx_clock,
+                                input tlx_clock,
+                                input afu_clock,
 				// Table 1: TLX to AFU Response Interface
 				inout             tlx_afu_resp_valid_top,
 				inout [7:0]       tlx_afu_resp_opcode_top,
@@ -124,7 +125,8 @@ module top (
 				inout             tlx_afu_ready_top
                                        );
   
-   reg             afx_clock;
+   reg             tlx_clock;
+   reg             afu_clock;
    reg             reset;
   // Table 1: TLX to AFU Response Interface
    reg             tlx_afu_resp_valid_top;
@@ -359,7 +361,8 @@ module top (
   
 initial begin
     resetCnt = 0;
-    afx_clock				<= 0;
+    tlx_clock				<= 0;
+    afu_clock				<= 0;
     reset   				<= 1;
 
   // Table 1: TLX to AFU Response Interface
@@ -423,22 +426,26 @@ end
   // Clock generation
 
   always begin
-    #2 afx_clock = !afx_clock;
+    #2 tlx_clock = !tlx_clock;
   end
 
-  always @ ( afx_clock ) begin
+  always @ (posedge tlx_clock) begin
+    afu_clock = !afu_clock;
+  end
+
+  always @ ( tlx_clock ) begin
     if(resetCnt < 10)
       resetCnt = resetCnt + 1;
   end
 
-  always @ ( afx_clock ) begin
-    if(resetCnt < 3)
+  always @ ( tlx_clock ) begin
+    if(resetCnt < 6)
       reset = 1'b1;
     else
       reset = 1'b0;
   end
 
-  always @ (posedge afx_clock) begin
+  always @ (posedge tlx_clock) begin
    afu_tlx_resp_credit_top               <= afu_tlx_resp_credit;
    afu_tlx_resp_initial_credit_top       <= afu_tlx_resp_initial_credit;	
    afu_tlx_cmd_credit_top                <= afu_tlx_cmd_credit;
@@ -540,10 +547,11 @@ end
     assign	afu_cfg_in_rcv_rate_capability_3	= afu_cfg_in_rcv_rate_capability_3_top;
     assign	tlx_afu_ready			= tlx_afu_ready_top;
 
-  always @ ( afx_clock ) begin
+  always @ ( tlx_clock ) begin
     simulationTime = $time;
     set_simulation_time(simulationTime);
-    tlx_bfm( afx_clock,
+    tlx_bfm( tlx_clock,
+             afu_clock,
 				// Table 1: TLX to AFU Response Interface
 	tlx_afu_resp_valid_top,
 	tlx_afu_resp_opcode_top,
@@ -643,18 +651,18 @@ end
     );
   end
 
-  always @ (negedge afx_clock) begin
+  always @ (negedge tlx_clock) begin
     get_simuation_error(simulationError);
   end
 
-  always @ (posedge afx_clock) begin
+  always @ (posedge tlx_clock) begin
     if(simulationError)
       $finish;
   end
 
   mcp3_top a0 (
-    .clock_tlx(afx_clock),
-    .clock_afu(afx_clock),
+    .clock_tlx(tlx_clock),
+    .clock_afu(afu_clock),
     .reset(reset),
   // Table 1: TLX to AFU Response Interface
     .tlx_afu_resp_valid               (tlx_afu_resp_valid),

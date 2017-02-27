@@ -88,7 +88,8 @@ static void error_message(const char *str);
 static void tlx_control(void);
 //
 void tlx_bfm(
-              const svLogic       ha_pclock,
+              const svLogic       tlx_clock,
+              const svLogic       afu_clock,
 				// Table 1: TLX to AFU Response Interface
 			svLogic		*tlx_afu_resp_valid_top,
 			svLogicVecVal	*tlx_afu_resp_opcode_top,
@@ -189,7 +190,7 @@ void tlx_bfm(
 {
 //  int change = 0;
   int invalidVal = 0;
-  if ( ha_pclock == sv_0 ) {
+  if ( tlx_clock == sv_0 ) {
 	//	Accessing inputs from the AFX
 	//	Code to access the AFU->TLX command interface
     c_afu_tlx_cmd_valid  	= (afu_tlx_cmd_valid_top & 0x2) ? 0 : (afu_tlx_cmd_valid_top & 0x1);
