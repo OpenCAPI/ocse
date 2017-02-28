@@ -204,6 +204,7 @@ AFU::resolve_tlx_afu_cmd()
     info_msg("AFU: cmd_opcode = 0x%x", tlx_cmd_opcode);
     info_msg("AFU: cmd_pa = 0x%08lx", cmd_pa);
     info_msg("AFU: cmd_capptag = 0x%x", cmd_capptag);
+    info_msg("AFU: cmd_pl = 0x%x", cmd_pl);
 
     switch (tlx_cmd_opcode) {
 	case TLX_CMD_NOP:

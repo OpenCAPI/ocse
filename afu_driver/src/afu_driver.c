@@ -88,7 +88,8 @@ static void error_message(const char *str);
 static void tlx_control(void);
 //
 void tlx_bfm(
-              const svLogic       ha_pclock,
+              const svLogic       tlx_clock,
+              const svLogic       afu_clock,
 				// Table 1: TLX to AFU Response Interface
 			svLogic		*tlx_afu_resp_valid_top,
 			svLogicVecVal	*tlx_afu_resp_opcode_top,
@@ -189,7 +190,7 @@ void tlx_bfm(
 {
 //  int change = 0;
   int invalidVal = 0;
-  if ( ha_pclock == sv_0 ) {
+  if ( tlx_clock == sv_0 ) {
 	//	Accessing inputs from the AFX
 	//	Code to access the AFU->TLX command interface
     c_afu_tlx_cmd_valid  	= (afu_tlx_cmd_valid_top & 0x2) ? 0 : (afu_tlx_cmd_valid_top & 0x1);
@@ -377,6 +378,7 @@ void tlx_bfm(
 #endif
       *tlx_afu_resp_valid_top = 1;
       clk_afu_resp_val = CLOCK_EDGE_DELAY;
+      event.tlx_afu_resp_valid = 0;
       printf("%08lld: ", (long long) c_sim_time);
       printf(" The TLX-AFU Response with OPCODE=0x%x \n",  event.tlx_afu_resp_opcode);
     }
@@ -403,6 +405,7 @@ void tlx_bfm(
       clk_afu_cmd_val = CLOCK_EDGE_DELAY;
       printf("%08lld: ", (long long) c_sim_time);
       printf(" The TLX-AFU Cmd with OPCODE=0x%x \n",  event.tlx_afu_cmd_opcode);
+      event.tlx_afu_cmd_valid = 0;
     }
     if (clk_afu_cmd_val) {
     	--clk_afu_cmd_val;
@@ -415,6 +418,7 @@ void tlx_bfm(
       setMyCacheLine(tlx_afu_resp_data_bus_top, event.tlx_afu_resp_data);
       *tlx_afu_resp_data_valid_top = 1;
       clk_afu_resp_dat_val = CLOCK_EDGE_DELAY;
+      event.tlx_afu_resp_data_valid = 0;
       printf("%08lld: ", (long long) c_sim_time);
       printf(" The TLX-AFU Response with Data Available \n");
     }
@@ -429,6 +433,7 @@ void tlx_bfm(
       setMyCacheLine(tlx_afu_cmd_data_bus_top, event.tlx_afu_cmd_data_bus);
       *tlx_afu_cmd_data_valid_top = 1;
       clk_afu_cmd_dat_val = CLOCK_EDGE_DELAY;
+      event.tlx_afu_cmd_data_valid = 0;
       printf("%08lld: ", (long long) c_sim_time);
       printf(" The TLX-AFU Command with Data Available \n");
     }
