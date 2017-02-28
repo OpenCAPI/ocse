@@ -32,7 +32,8 @@ AFU::AFU (int port, string filename, bool parity, bool jerror):
     set_seed ();
 
     state = IDLE;
-    debug_msg("AFU: state = IDLE");
+    config_state = IDLE;
+    debug_msg("AFU: AFU and CONFIG state = IDLE");
     reset ();
 }
 
@@ -78,6 +79,12 @@ AFU::start ()
 	if (afu_event.tlx_afu_resp_valid) {
 	    debug_msg("AFU: Process TLX response 0x%x", afu_event.tlx_afu_resp_opcode);
 	    resolve_tlx_afu_resp();
+	}
+
+	// configuration write response
+	if (afu_event.tlx_afu_cmd_data_valid && config_state == READY) {
+	    info_msg("AFU: calling tlx_afu_config_write");
+	    tlx_afu_config_write();
 	}
 
         // generate commands
@@ -234,9 +241,8 @@ AFU::resolve_tlx_afu_cmd()
 	    }
 	    break;
 	case TLX_CMD_CONFIG_WRITE:
-	    info_msg("AFU::resolve_tlx_afu_cmd: tlx cmd config write");
 	    if(afu_event.tlx_afu_cmd_t == 0) {
-		info_msg("AFU::resolve_tlx_afu_cmd: calling tlx_afu_config_write");
+		info_msg("AFU: calling tlx_afu_config_write");
 		tlx_afu_config_write();
 		// get BDF
 		
@@ -372,18 +378,40 @@ AFU::tlx_afu_config_read()
 void
 AFU::tlx_afu_config_write()
 {
+    uint8_t  afu_tlx_resp_rd_req;
+    uint8_t  afu_tlx_resp_rd_cnt;
     uint8_t  afu_resp_opcode;
     uint8_t  resp_dl;
     uint16_t resp_capptag;
     uint8_t  resp_dp;
     uint8_t  resp_code;
+    uint8_t  cmd_data_bdi;
 
     debug_msg("AFU::tlx_afu_config_write");
     resp_capptag = afu_event.tlx_afu_cmd_capptag;
-    afu_resp_opcode = 0x01;	// mem read resp
-    resp_code = 0x0;
-    afu_tlx_send_resp(&afu_event, afu_resp_opcode, resp_dl, resp_capptag,
-			resp_dp, resp_code);
+    
+    if(config_state == IDLE) {
+	afu_tlx_resp_rd_req = 0x1;
+	afu_tlx_resp_rd_cnt = 0x1;
+	if( afu_tlx_resp_data_read_req(&afu_event, afu_tlx_resp_rd_req, afu_tlx_resp_rd_cnt) !=
+	    TLX_SUCCESS) {
+	    printf("AFU: Failed afu_tlx_resp_data_read_req\n");
+	}
+    	config_state = READY;
+    }
+    else if(config_state == READY) {
+	tlx_afu_read_cmd_data(&afu_event, &cmd_data_bdi, afu_event.afu_tlx_cdata_bus);
+	afu_resp_opcode = 0x04;		// mem write resp
+	resp_code = 0x0;
+        if(afu_tlx_send_resp(&afu_event, afu_resp_opcode, resp_dl, resp_capptag,
+			resp_dp, resp_code) != TLX_SUCCESS) {
+	    printf("AFU: Failed afu_tlx_send_resp\n");
+	}
+	config_state = IDLE;
+	for(int i=0; i<4; i++)
+	    printf("%02x", afu_event.afu_tlx_cdata_bus[i]);
+	printf("\nafu_tlx_cdata_bus\n");
+    }
 }
 
 

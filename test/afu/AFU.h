@@ -29,6 +29,7 @@ private:
     MachineController *machine_controller;
 
     AFU_State state;
+    AFU_State config_state;
 
     uint64_t global_configs[3];	// stores MMIO registers for global configurations
 
