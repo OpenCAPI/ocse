@@ -439,7 +439,7 @@ end
   end
 
   always @ ( tlx_clock ) begin
-    if(resetCnt < 6)
+    if(resetCnt < 5)
       reset = 1'b1;
     else
       reset = 1'b0;

@@ -41,6 +41,11 @@ static int clk_afu_resp_dat_val;
 static int clk_afu_cmd_dat_val;
 
 // inputs from AFX
+uint8_t		c_afu_tlx_cmd_credit;
+uint8_t		c_afu_tlx_cmd_initial_credit;
+uint8_t		c_afu_tlx_resp_credit;
+uint8_t		c_afu_tlx_resp_initial_credit;
+
 uint8_t		c_afu_tlx_cmd_valid;
 uint8_t		c_afu_tlx_cmd_opcode;
 uint16_t	c_afu_tlx_cmd_actag;
@@ -88,8 +93,8 @@ static void error_message(const char *str);
 static void tlx_control(void);
 //
 void tlx_bfm(
-              const svLogic       tlx_clock,
-              const svLogic       afu_clock,
+	            const svLogic       tlx_clock,
+		    const svLogic       afu_clock,
 				// Table 1: TLX to AFU Response Interface
 			svLogic		*tlx_afu_resp_valid_top,
 			svLogicVecVal	*tlx_afu_resp_opcode_top,
@@ -192,6 +197,34 @@ void tlx_bfm(
   int invalidVal = 0;
   if ( tlx_clock == sv_0 ) {
 	//	Accessing inputs from the AFX
+    c_afu_tlx_cmd_initial_credit  	= (afu_tlx_cmd_initial_credit_top->aval) & 0x1F;
+    invalidVal			+= (afu_tlx_cmd_initial_credit_top->bval) & 0x1F;
+    c_afu_tlx_resp_initial_credit  	= (afu_tlx_resp_initial_credit_top->aval) & 0x1F;
+    invalidVal			+= (afu_tlx_resp_initial_credit_top->bval) & 0x1F;
+    afu_tlx_send_initial_credits (&event, c_afu_tlx_cmd_initial_credit, c_afu_tlx_resp_initial_credit);
+#ifdef DEBUG1
+    if(invalidVal != 0)
+    {
+      printf("%08lld: ", (long long) c_sim_time);
+      printf(" The AFU-TLX Cmd Credit Interface has either X or Z value \n" );
+    }
+#endif
+/*
+    invalidVal = 0;
+    c_afu_tlx_resp_credit  	= (afu_tlx_resp_credit_top & 0x2) ? 0 : (afu_tlx_resp_credit_top & 0x1);
+    invalidVal			+= afu_tlx_resp_credit_top & 0x2;
+    c_afu_tlx_cmd_credit  	= (afu_tlx_cmd_credit_top & 0x2) ? 0 : (afu_tlx_cmd_credit_top & 0x1);
+    invalidVal			+= afu_tlx_cmd_credit_top & 0x2;
+    afu_tlx_read_initial_credits (&event, &c_afu_tlx_resp_credit, &c_afu_tlx_resp_initial_credit);
+#ifdef DEBUG1
+    if(invalidVal != 0)
+    {
+      printf("%08lld: ", (long long) c_sim_time);
+      printf(" The AFU-TLX Resp Credit Interface has either X or Z value \n" );
+    }
+#endif
+*/
+    invalidVal = 0;
 	//	Code to access the AFU->TLX command interface
     c_afu_tlx_cmd_valid  	= (afu_tlx_cmd_valid_top & 0x2) ? 0 : (afu_tlx_cmd_valid_top & 0x1);
     invalidVal			+= afu_tlx_cmd_valid_top & 0x2;
@@ -442,6 +475,13 @@ void tlx_bfm(
     	if (!clk_afu_cmd_dat_val)
     		*tlx_afu_cmd_data_valid_top = 0;
     }
+    *tlx_afu_resp_credit_top 		= (event.tlx_afu_resp_credit) & 0x1;
+    *tlx_afu_resp_data_credit_top 	= (event.tlx_afu_resp_data_credit) & 0x1;
+    *tlx_afu_cmd_credit_top	 	= (event.tlx_afu_cmd_credit) & 0x1;
+    *tlx_afu_cmd_data_credit_top	= (event.tlx_afu_cmd_data_credit) & 0x1;
+    setDpiSignal32(tlx_afu_cmd_resp_initial_credit_top, event.tlx_afu_cmd_resp_initial_credit, 3);
+    setDpiSignal32(tlx_afu_data_initial_credit_top, event.tlx_afu_data_initial_credit, 4);
+    *tlx_afu_ready_top			= 1;	// TODO: need to check this
   }
 }
 
