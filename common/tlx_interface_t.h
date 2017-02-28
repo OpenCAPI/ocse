@@ -61,6 +61,7 @@
 #define TLX_AFU_RESP_NOT_VALID 6
 #define TLX_AFU_DOUBLE_RESP_AND_DATA 7
 #define TLX_AFU_RESP_DATA_NOT_VALID 8
+#define TLX_AFU_NO_CREDITS 10
 #define AFU_TLX_DOUBLE_COMMAND 21
 #define AFU_TLX_CMD_NOT_VALID 22
 #define AFU_TLX_DOUBLE_CMD_AND_DATA 23
@@ -71,6 +72,7 @@
 #define AFU_TLX_DOUBLE_RESP_AND_DATA 33
 #define AFU_TLX_RESP_DATA_NOT_VALID 34
 #define AFU_TLX_RESP_NO_DATA 35
+#define AFU_TLX_NO_CREDITS 40
 #define TLX_RESPONSE_FAILED 15
 #define TLX_RESPONSE_CONTEXT 17
 #define TLX_BAD_SOCKET 16	/* The socket connection could not be established */
@@ -268,6 +270,10 @@ struct AFU_EVENT {
   // Config and Credits
   uint8_t  afu_tlx_credit_req_valid;		  /* TODO TEMP for now, needed for xfer of credit & req changes */
   uint8_t  tlx_afu_credit_valid;		  /* TODO TEMP for now, needed for xfer of credits */
+  uint8_t  afu_tlx_cmd_credits_available;
+  uint8_t  afu_tlx_resp_credits_available;
+  uint8_t  tlx_afu_cmd_resp_credits_available;
+  uint8_t  tlx_afu_data_credits_available;
   // TLX to AFU Repsonse Interface (table 1)
   // CAPP to AP (host to afu) responses (generally to ap/capp commands and data)
   uint8_t tlx_afu_resp_valid;             /* 1 bit valid respoonse from tlx */

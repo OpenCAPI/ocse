@@ -42,6 +42,19 @@ int tlx_close_afu_event(struct AFU_EVENT *event);
 int tlx_serv_afu_event(struct AFU_EVENT *event, int port);
 
 
+/* Call this from ocse to set the initial tlx_afu credit values */
+
+int tlx_afu_send_initial_credits(struct AFU_EVENT *event,
+		uint8_t  tlx_afu_cmd_resp_initial_credit,
+		uint8_t  tlx_afu_data_initial_credit);
+
+
+/* Call this from ocse to read the initial afu_tlx credit values */
+
+int afu_tlx_read_initial_credits(struct AFU_EVENT *event,
+		uint8_t * afu_tlx_cmd_initial_credit,
+		uint8_t * afu_tlx_resp_initial_credit);
+
 
 /* Call this from ocse to send a  response  to tlx/afu*/
 
@@ -163,6 +176,20 @@ int tlx_get_afu_events(struct AFU_EVENT *event);
  * if there are new events to process */
 
 int tlx_get_tlx_events(struct AFU_EVENT *event);
+
+
+/* Call this from AFU to set the initial afu tlx_credit values */
+
+int afu_tlx_send_initial_credits(struct AFU_EVENT *event,
+		uint8_t afu_tlx_cmd_initial_credit,
+		uint8_t afu_tlx_resp_initial_credit);
+
+
+/* Call this from AFU to read the initial tlx_afu credit values */
+
+int tlx_afu_read_initial_credits(struct AFU_EVENT *event,
+		uint8_t * tlx_afu_cmd_resp_initial_credit,
+		uint8_t * tlx_afu_data_initial_credit);
 
 
 /* Call this on the AFU side to send a response to ocse.  */

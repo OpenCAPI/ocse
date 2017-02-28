@@ -341,7 +341,8 @@ static void *_ocl_loop(void *ptr)
 		if (ocl->state != OCSE_IDLE) {
 		  // if we have clients or we are in the reset state, refresh idle_cycles 
 		  // so that the afu clock will not be allowed to stop to save afu event simulator cycles
-		  if ((ocl->attached_clients > 0) || (ocl->state == OCSE_RESET)) {
+		  if ((ocl->attached_clients > 0) || (ocl->state == OCSE_RESET) ||
+			(ocl->state == OCSE_DESC)) {
 			ocl->idle_cycles = TLX_IDLE_CYCLES;
 			if (stopped)
 				info_msg("Clocking %s", ocl->name);
@@ -572,21 +573,21 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 	// DEBUG
 	debug_afu_connect(ocl->dbg_fp, ocl->dbg_id);
 
-	// Initialize job handler
+	// Initialize credit handler ?
 	debug_msg("%s @ %s:%d: job_init", ocl->name, ocl->host, ocl->port);
 	/* if ((ocl->job = job_init(ocl->afu_event, &(ocl->state), ocl->name,
 				 ocl->dbg_fp, ocl->dbg_id)) == NULL) {
 		perror("job_init");
 		goto init_fail;
 	} */
-	// Initialize mmio handler
+	// Initialize mmio and TL cnd handler
 	debug_msg("%s @ %s:%d: mmio_init", ocl->name, ocl->host, ocl->port);
 	if ((ocl->mmio = mmio_init(ocl->afu_event, ocl->timeout, ocl->name,
 				   ocl->dbg_fp, ocl->dbg_id)) == NULL) {
 		perror("mmio_init");
 		goto init_fail;
 	}
-	// Initialize cmd handler
+	// Initialize TLX cmd (response) handler
 	debug_msg("%s @ %s:%d: cmd_init", ocl->name, ocl->host, ocl->port);
 	if ((ocl->cmd = cmd_init(ocl->afu_event, parms, ocl->mmio,
 				 &(ocl->state), ocl->name, ocl->dbg_fp,
@@ -600,11 +601,14 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 	ocl->vsec_tlx_rev_level= parms->tlx_rev_level;
 	ocl->vsec_image_loaded= parms->image_loaded;
 	ocl->vsec_base_image= parms->base_image;
-	// Set credits for AFU
-	/* if (tlx_aux1_change(ocl->afu_event, ocl->cmd->credits) != TLX_SUCCESS) {
-		warn_msg("Unable to set credits");
+	// Set credits for TLX interface
+	ocl->state = OCSE_DESC;
+	if (tlx_afu_send_initial_credits(ocl->afu_event,2,2) != TLX_SUCCESS) {
+		warn_msg("Unable to set initial credits");
 		goto init_fail;
-	} */
+	} 
+	printf("sent out initial TLX_AFU credits \n");
+			tlx_signal_afu_model(ocl->afu_event);
 	// Start ocl loop thread
 	if (pthread_create(&(ocl->thread), NULL, _ocl_loop, ocl)) {
 		perror("pthread_create");
@@ -629,6 +633,24 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 	while (ocl->job->job == reset) {	//infinite loop 
 		lock_delay(ocl->lock);
 	}  */
+	// Read AFU initial credit values
+	int event;
+	uint8_t   afu_tlx_cmd_credits_available;
+	uint8_t   afu_tlx_resp_credits_available;
+	event = tlx_get_afu_events(ocl->afu_event);
+	printf("after tlx_get_afu_events, event is 0x%3x \n", event);
+	// Error on socket
+	if (event < 0) {
+		warn_msg("Lost connection with AFU");
+		}
+	// Handle events from AFU
+	if (event > 0)
+		_handle_afu(ocl);
+	if (afu_tlx_read_initial_credits(ocl->afu_event, &afu_tlx_cmd_credits_available,
+	 &afu_tlx_resp_credits_available) != TLX_SUCCESS)
+		printf("NO CREDITS FROM AFU!!\n");
+	printf("afu_tlx_cmd_credits_available is %d, afu_tlx_resp_credits_available is %d \n",
+		afu_tlx_cmd_credits_available, afu_tlx_resp_credits_available);
 
 	// Read AFU descriptor
 	debug_msg("%s @ %s:%d: Reading AFU config record and VSEC.", ocl->name, ocl->host,

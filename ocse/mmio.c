@@ -233,6 +233,15 @@ int read_descriptor(struct mmio *mmio, pthread_mutex_t * lock)
 	// Only do 32-bit mmio for config record data
 	// NO LONGER NEED TO ADJUST CONFIG ADDR SPACE BY 2 
 	cmd_pa = 0x00000000cdef0000;
+	printf("In read_descriptor and WON'T BE ABLE TO SEND CMD UNTIL AFU GIVES US INITIAL CREDIT!!\n");
+	uint8_t   afu_tlx_cmd_credits_available;
+	uint8_t   afu_tlx_resp_credits_available;
+	if (afu_tlx_read_initial_credits(mmio->afu_event, &afu_tlx_cmd_credits_available,
+	 &afu_tlx_resp_credits_available) != TLX_SUCCESS)
+		printf("NO CREDITS FROM AFU!!\n");
+	printf("afu_tlx_cmd_credits_available is %d, afu_tlx_resp_credits_available is %d \n",
+		afu_tlx_cmd_credits_available, afu_tlx_resp_credits_available);
+
 	eventdevven = _add_desc(mmio, 1, 0,cmd_pa, 0L);
 	//eventclass = _add_desc(mmio, 1, 1, (crstart+8) >> 2, 0L);
 	eventclass = _add_desc(mmio, 1, 0, cmd_pa+0x100, 0L);
@@ -294,14 +303,14 @@ void send_mmio(struct mmio *mmio)
 	// Attempt to send config_re or config_wr to AFU
 	//special case for now, always use same cmd_pa for config cmds and T= 0
 	//cmd_pa = 0x00000000cdef0000;
-	if (event->rnw && tlx_afu_send_cmd(mmio->afu_event, 
+		if (event->rnw && tlx_afu_send_cmd(mmio->afu_event, 
 		TLX_CMD_CONFIG_READ, 0xdead,0, 2, 0, 0, 0, event->addr) == TLX_SUCCESS) {
 		debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type,
 			  event->dw ? 64 : 32, event->addr);
 		debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->desc,
 				event->rnw, event->dw, event->addr);
 		event->state = OCSE_PENDING;
-	}
+	} 
 	//special case for now, always use same cmd_pa for config cmds and T= 0
 	uint8_t * dptr = ddata;
 	memcpy(ddata, &(event->data), 4);

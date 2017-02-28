@@ -156,9 +156,14 @@ void tlx_event_reset(struct AFU_EVENT *event)
 int tlx_init_afu_event(struct AFU_EVENT *event, char *server_host, int port)
 {
 	tlx_event_reset(event);
-	//set initial credit values - just make something up?
-	event->tlx_afu_cmd_resp_initial_credit = MAX_TLX_AFU_CMD_RESP_CREDITS;
-	event->tlx_afu_data_initial_credit = MAX_TLX_AFU_DATA_CREDITS;
+	//DO NOT set initial credit values to anything other than 0
+	// AFU & ccse have to set them to valid values.
+	// ocse has to WAIT until AFU sets initial value before sending first
+	// config_read cmd.
+	event->tlx_afu_cmd_resp_initial_credit = 0;
+	event->tlx_afu_data_initial_credit = 0;
+	event->afu_tlx_cmd_credits_available = 0;
+	event->afu_tlx_resp_credits_available = 0;
 	event->tlx_afu_credit_valid = 1;
 
 	event->rbp = 0;
@@ -223,8 +228,14 @@ int tlx_serv_afu_event(struct AFU_EVENT *event, int port)
 	int cs = -1;
 	tlx_event_reset(event);
 	event->rbp = 0;
-	event->afu_tlx_resp_initial_credit = MAX_AFU_TLX_RESP_CREDITS; //TODO what should this really be and should the AFU be setting this?
-	event->afu_tlx_cmd_initial_credit = MAX_AFU_TLX_CMD_CREDITS; //TODO what should this really be and should the AFU be setting this??	
+	//DO NOT set initial credit values to anything other than 0
+	// AFU & ccse have to set them to valid values.
+	// ocse has to WAIT until AFU sets initial value before sending first
+	// config_read cmd.
+	event->afu_tlx_resp_initial_credit = 0; 
+	event->afu_tlx_cmd_initial_credit = 0; 	
+	event->tlx_afu_cmd_resp_credits_available = 0;
+	event->tlx_afu_data_credits_available = 0;
 	event->afu_tlx_credit_req_valid = 1;
 	struct sockaddr_in ssadr, csadr;
 	unsigned int csalen = sizeof(csadr);
@@ -277,6 +288,39 @@ int tlx_serv_afu_event(struct AFU_EVENT *event, int port)
 	return rc;
 }
 
+/* Call this from ocse to set the initial tlx_afu credit values */
+
+int tlx_afu_send_initial_credits(struct AFU_EVENT *event,
+		uint8_t tlx_afu_cmd_resp_initial_credit,
+		uint8_t tlx_afu_data_initial_credit)
+
+{
+	event->tlx_afu_cmd_resp_initial_credit = tlx_afu_cmd_resp_initial_credit;
+	event->tlx_afu_data_initial_credit = tlx_afu_data_initial_credit;
+	event->tlx_afu_credit_valid = 1;
+	return TLX_SUCCESS;
+}
+
+
+/* Call this from ocse to read the initial afu_tlx credit values */
+
+int afu_tlx_read_initial_credits(struct AFU_EVENT *event,
+		uint8_t * afu_tlx_cmd_initial_credit,
+		uint8_t * afu_tlx_resp_initial_credit)
+{
+	* afu_tlx_cmd_initial_credit = event->afu_tlx_cmd_initial_credit;
+	event->afu_tlx_cmd_credits_available = event->afu_tlx_cmd_initial_credit;
+	* afu_tlx_resp_initial_credit = event->afu_tlx_resp_initial_credit;
+	event->afu_tlx_resp_credits_available = event->afu_tlx_resp_initial_credit;
+	event->afu_tlx_credit_req_valid = 0;
+	return TLX_SUCCESS;
+
+
+}
+
+
+
+
 /* Call this from ocse to send a  response  to tlx/afu*/
 
 int tlx_afu_send_resp(struct AFU_EVENT *event,
@@ -289,6 +333,8 @@ int tlx_afu_send_resp(struct AFU_EVENT *event,
 		 uint8_t resp_dp, uint32_t resp_addr_tag)
 
 {
+	if (event->afu_tlx_resp_credits_available == 0)
+		return AFU_TLX_NO_CREDITS;
 	if (event->tlx_afu_resp_valid) {
 		return TLX_AFU_DOUBLE_RESP;
 	} else {
@@ -314,8 +360,14 @@ int tlx_afu_send_resp_data(struct AFU_EVENT *event,
 		 uint8_t resp_data_bdi,uint8_t * resp_data)
 
 {
-	printf("THIS FUNCTION ISN'T SUPPORTED YET \n");
-	return TLX_AFU_RESP_DATA_NOT_VALID;
+	if (event->afu_tlx_resp_rd_req == 0)
+		return AFU_TLX_NO_CREDITS;
+	//TODO will need to READ and USE afu_tlx_resp_rd_cnt soon
+	event->tlx_afu_resp_data_bdi = resp_data_bdi;
+	// TODO FOR NOW WE ALWAYS COPY 8 BYTES of DATA - OCSE ALWAYS
+	// SENDS 8 BYTES 
+	memcpy(event->tlx_afu_resp_data, resp_data, 8);
+	return TLX_SUCCESS;
 }
 
 
@@ -335,6 +387,9 @@ int tlx_afu_send_resp_and_data(struct AFU_EVENT *event,
 		 uint8_t resp_data_bdi,uint8_t * resp_data)
 
 {
+	
+	if (event->afu_tlx_resp_credits_available == 0)
+		return AFU_TLX_NO_CREDITS;
 	if ((event->tlx_afu_resp_valid ==1) || (event->tlx_afu_resp_data_valid == 1)) {
 		return TLX_AFU_DOUBLE_RESP_AND_DATA;
 	} else {
@@ -373,6 +428,10 @@ int tlx_afu_send_cmd(struct AFU_EVENT *event,
 		 uint64_t cmd_pa)
 
 { 
+	printf("cmd_credits is %d initial credit is %d \n", event->afu_tlx_cmd_credits_available, 
+		event->afu_tlx_cmd_initial_credit);
+	if (event->afu_tlx_cmd_credits_available == 0)
+		return AFU_TLX_NO_CREDITS;
 	if (event->tlx_afu_cmd_valid) {
 		return TLX_AFU_DOUBLE_COMMAND;
 	} else {
@@ -398,8 +457,14 @@ int tlx_afu_send_cmd_data(struct AFU_EVENT *event,
 		 uint8_t cmd_data_bdi,uint8_t * cmd_data)
 
 {
-	printf("THIS FUNCTION ISN'T SUPPORTED YET \n");
-	return TLX_AFU_CMD_DATA_NOT_VALID;
+	if (event->afu_tlx_cmd_rd_req == 0)
+		return AFU_TLX_NO_CREDITS;
+		//TODO will need to read afu_tlx_cmd_rd_cnt soon!
+		event->tlx_afu_cmd_data_bdi = cmd_data_bdi;
+		// TODO FOR NOW WE ALWAYS SEND 4 BYTES of DATA - OCSE ALWAYS
+		// SENDS 4 BYTES 
+		memcpy(event->tlx_afu_cmd_data_bus, cmd_data, 4);
+		return TLX_SUCCESS;
 }
 
 
@@ -419,6 +484,8 @@ int tlx_afu_send_cmd_and_data(struct AFU_EVENT *event,
 #endif
 		 uint8_t cmd_data_bdi,uint8_t * cmd_data)
 {
+	if (event->afu_tlx_cmd_credits_available == 0)
+		return AFU_TLX_NO_CREDITS;
 	if ((event->tlx_afu_cmd_valid ==1) || (event->tlx_afu_cmd_data_valid == 1)) {
 		return TLX_AFU_DOUBLE_CMD_AND_DATA;
 	} else {
@@ -1091,6 +1158,34 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 }
 
 
+/* Call this from AFU to set the initial afu tlx_credit values */
+
+int afu_tlx_send_initial_credits(struct AFU_EVENT *event,
+		uint8_t afu_tlx_cmd_initial_credit,
+		uint8_t afu_tlx_resp_initial_credit)
+
+{
+	event->afu_tlx_cmd_initial_credit = afu_tlx_cmd_initial_credit;
+	event->afu_tlx_resp_initial_credit = afu_tlx_resp_initial_credit;
+	event->afu_tlx_credit_req_valid = 1;
+	return TLX_SUCCESS;
+}
+
+/* Call this from AFU to read the initial tlx_afu credit values */
+
+int tlx_afu_read_initial_credits(struct AFU_EVENT *event,
+		uint8_t * tlx_afu_cmd_resp_initial_credit,
+		uint8_t * tlx_afu_data_initial_credit)
+
+{
+	*tlx_afu_cmd_resp_initial_credit = event->tlx_afu_cmd_resp_initial_credit;
+	event->tlx_afu_cmd_resp_credits_available = event->tlx_afu_cmd_resp_initial_credit;
+	*tlx_afu_data_initial_credit = event->tlx_afu_data_initial_credit;
+	event->tlx_afu_data_credits_available = event->tlx_afu_data_initial_credit;
+	event->tlx_afu_credit_valid = 0;
+	return TLX_SUCCESS;
+}
+
 
 ///
 /* Call this on the AFU side to send a response to ocse.  */
@@ -1100,6 +1195,8 @@ int afu_tlx_send_resp(struct AFU_EVENT *event,
  		 uint8_t resp_dl, uint16_t resp_capptag,          
  		 uint8_t resp_dp, uint8_t resp_code)
 {
+	if (event->tlx_afu_cmd_resp_credits_available == 0)
+		return TLX_AFU_NO_CREDITS;
 	if (event->afu_tlx_resp_valid) {
 		return AFU_TLX_DOUBLE_RESP;
 	} else {
@@ -1141,6 +1238,9 @@ int afu_tlx_send_resp_and_data(struct AFU_EVENT *event,
  		 uint8_t rdata_bad)
 
 {
+	if ((event->tlx_afu_cmd_resp_credits_available == 0) ||
+		(event->tlx_afu_data_credits_available == 0))
+		return TLX_AFU_NO_CREDITS;
 	int i;
 	if ((event->afu_tlx_resp_valid ==1) || (event->afu_tlx_rdata_valid == 1)) {
 		return AFU_TLX_DOUBLE_RESP_AND_DATA;
@@ -1180,6 +1280,8 @@ int afu_tlx_send_cmd(struct AFU_EVENT *event,
  		 uint32_t cmd_pasid, uint8_t cmd_pg_size)
 
 {
+	if (event->tlx_afu_cmd_resp_credits_available == 0)
+		return TLX_AFU_NO_CREDITS;
 	if (event->afu_tlx_cmd_valid) {
 		return AFU_TLX_DOUBLE_COMMAND;
 	} else {
@@ -1235,6 +1337,9 @@ int afu_tlx_send_cmd_and_data(struct AFU_EVENT *event,
   		 uint8_t * cdata_bus, uint8_t cdata_bad)
 
 {
+	if ((event->tlx_afu_cmd_resp_credits_available == 0) || 
+		(event->tlx_afu_data_credits_available == 0))
+		return TLX_AFU_NO_CREDITS;
 	if ((event->afu_tlx_cmd_valid == 1) || (event->afu_tlx_cdata_valid == 1)) {
 		return AFU_TLX_DOUBLE_CMD_AND_DATA;
 	} else {
