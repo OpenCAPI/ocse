@@ -34,6 +34,11 @@ AFU::AFU (int port, string filename, bool parity, bool jerror):
     state = IDLE;
     config_state = IDLE;
     debug_msg("AFU: AFU and CONFIG state = IDLE");
+    afu_event.afu_tlx_resp_initial_credit = MAX_AFU_TLX_RESP_CREDITS;
+    afu_event.afu_tlx_cmd_initial_credit = MAX_AFU_TLX_CMD_CREDITS;
+    afu_tlx_send_initial_credits(&afu_event, MAX_AFU_TLX_CMD_CREDITS,
+		MAX_AFU_TLX_RESP_CREDITS);
+    debug_msg("AFU: initialize afu cmd and resp credits");
     reset ();
 }
 

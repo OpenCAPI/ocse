@@ -43,7 +43,7 @@ class Descriptor
 private:
     // VSEC registers
     std::vector < uint32_t > vsec;
-
+    std::vector < uint32_t > port;
     std::vector < uint64_t > regs;
     /*  reg0x00 : [0:15]  num_ints_per_process
        [16:31] num_of_process

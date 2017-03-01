@@ -11,7 +11,7 @@ using std::string;
 using std::ifstream;
 using std::stringstream;
 
-Descriptor::Descriptor (string filename):vsec(255), regs (DESCRIPTOR_NUM_REGS)
+Descriptor::Descriptor (string filename):vsec(0x300), port(0x1000), regs (DESCRIPTOR_NUM_REGS)
 {
     info_msg ("Descriptor: Reading descriptor %s file", filename.c_str ());
     parse_descriptor_file (filename);
@@ -129,10 +129,14 @@ Descriptor::parse_descriptor_file (string filename)
 		s_value.erase(0,2); 	// get vsec data
 		vsec_offset = strtoul(field.c_str(), NULL, 16);
 		vsec_data   = strtoul(s_value.c_str(), NULL, 16);
-		//printf("vsec offset = 0x%03x \n", vsec_offset);
-		//printf("vsec data = 0x%08x \n", vsec_data);
-		vsec[vsec_offset] = vsec_data;
-		printf("vsec offset = 0x%x vsec data = 0x%08x\n", vsec_offset, vsec[vsec_offset]);
+		if(vsec_offset < 0x300) {
+		    vsec[vsec_offset] = vsec_data;
+		    printf("vsec offset = 0x%x vsec data = 0x%08x\n", vsec_offset, vsec[vsec_offset]);
+		} 
+		else if(vsec_offset >0xFFF) {
+		    port[vsec_offset & 0x00000FFF] = vsec_data;
+		    printf("port offset = 0x%x port data = 0x%08x\n", vsec_offset, vsec_data);
+		}  
 	    }
 	}
 	else
