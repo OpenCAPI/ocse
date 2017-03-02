@@ -33,7 +33,7 @@
  *  However, the event still lives and the client will still point to it.  When
  *  the ocl code next calls handle_mmio_done for that client it will return the
  *  acknowledge as well as any data to the client.  At that point the event
- *  memory will be freed.
+ *  memory will be freeded.
  */
 
 #include <arpa/inet.h>
@@ -63,7 +63,7 @@ struct mmio *mmio_init(struct AFU_EVENT *afu_event, int timeout, char *afu_name,
 // Add new MMIO event
 static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 				     uint32_t rnw, uint32_t dw, uint32_t addr,
-				     uint32_t desc, uint64_t data)
+				     uint32_t cfg, uint64_t data)
 {
 	struct mmio_event *event;
 	struct mmio_event **list;
@@ -99,7 +99,7 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 	  }
 	}
 	// event->addr = addr;
-	event->desc = desc;
+	event->cfg = cfg;
 	event->data = data;
 	event->state = OCSE_IDLE;
 	event->_next = NULL;
@@ -115,7 +115,7 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 	while (*list != NULL)
 		list = &((*list)->_next);
 	*list = event;
-	if (desc)
+	if (cfg)
 		context = -1;
 	else
 		context = client->context;
@@ -125,7 +125,7 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 }
 
 // Add AFU descriptor access event
-static struct mmio_event *_add_desc(struct mmio *mmio, uint32_t rnw,
+static struct mmio_event *_add_cfg(struct mmio *mmio, uint32_t rnw,
 				    uint32_t dw, uint32_t addr, uint64_t data)
 {
 	return _add_event(mmio, NULL, rnw, dw, addr, 1, data);
@@ -145,133 +145,154 @@ static void _wait_for_done(enum ocse_state *state, pthread_mutex_t * lock)
 		lock_delay(lock);
 }
 
-// Read the entire AFU descriptor and keep a copy
-int read_descriptor(struct mmio *mmio, pthread_mutex_t * lock)
+// Read the AFU config_record, extended capabilities (if any), PASID extended capabilities,
+// OpenCAPI TL extended capabilities, AFU info extended capabilites (AFU descriptor)
+// and AFU control information extended capabilities and keep a copy
+int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 {
-/*	NO need to do this anymore.......
- * 	struct mmio_event *event00, *event20, *event28, *event30, *event38,
-	    *event40, *event48;
+//	For know, we "know"where things are, so just queue up reads...
+//	TODO change to read capabilities pointers and use offsets to index  
+//	TODO add code to read AFU descriptor info (indirect regs)
 
-	// Queue mmio reads
-	event00 = _add_desc(mmio, 1, 1, 0x00 >> 2, 0L);
-	event20 = _add_desc(mmio, 1, 1, 0x20 >> 2, 0L);
-	event28 = _add_desc(mmio, 1, 1, 0x28 >> 2, 0L);
-	event30 = _add_desc(mmio, 1, 1, 0x30 >> 2, 0L);
-	event38 = _add_desc(mmio, 1, 1, 0x38 >> 2, 0L);
-	event40 = _add_desc(mmio, 1, 1, 0x40 >> 2, 0L);
-	event48 = _add_desc(mmio, 1, 1, 0x48 >> 2, 0L);
-
-	// Store data from reads
-	_wait_for_done(&(event00->state), lock);
-	mmio->desc.req_prog_model = (uint16_t) event00->data & 0xffffl;
-	mmio->desc.num_of_afu_CRs = (uint16_t) (event00->data >> 16) & 0xffffl;
-	mmio->desc.num_of_processes =
-	    (uint16_t) (event00->data >> 32) & 0xffffl;
-	mmio->desc.num_ints_per_process =
-	    (uint16_t) (event00->data >> 48) & 0xffffl;
-	free(event00);
-
-	_wait_for_done(&(event20->state), lock);
-	mmio->desc.AFU_CR_len = event20->data;
-	free(event20);
-
-	_wait_for_done(&(event28->state), lock);
-	mmio->desc.AFU_CR_offset = event28->data;
-	free(event28);
-
-	_wait_for_done(&(event30->state), lock);
-	mmio->desc.PerProcessPSA = event30->data;
-	free(event30);
-
-	_wait_for_done(&(event38->state), lock);
-	mmio->desc.PerProcessPSA_offset = event38->data;
-	free(event38);
-
-	_wait_for_done(&(event40->state), lock);
-	mmio->desc.AFU_EB_len = event40->data;
-	free(event40);
-
-	_wait_for_done(&(event48->state), lock);
-	mmio->desc.AFU_EB_offset = event48->data;
-	free(event48);
-
-	// Verify num_of_processes
-	if (!mmio->desc.num_of_processes) {
-		error_msg("AFU descriptor num_of_processes=0");
-		errno = ENODEV;
-		return -1;
-	}
-	// Verify req_prog_model
-	if ( ( (mmio->desc.req_prog_model & 0x7fffl) != 0x0010 ) && // dedicated
-	     ( (mmio->desc.req_prog_model & 0x7fffl) != 0x0004 ) && // afu-directed
-	     ( (mmio->desc.req_prog_model & 0x7fffl) != 0x0014 ) ) {// both
-		error_msg("AFU descriptor: Unsupported req_prog_model");
-		errno = ENODEV;
-		return -1;
-	}
-*/
-	// TODO _HACK need to set mmio->desc.req_prog_model & mmio->desc.num_of_processes & 
-	// mmio->desc.num_of_afu_CRs & mmio->desc.AFU_CR_OFFSET for now
-	
-	mmio->desc.req_prog_model = 4;
-	mmio->desc.num_of_processes = 4;
-	mmio->desc.num_of_afu_CRs = 1;
-	mmio->desc.AFU_CR_offset = 0x0;
-
-        // NEW BLOCK add code to check for CRs and read them in if available
-        struct mmio_event *eventdevven, *eventclass;
-	uint64_t cmd_pa;
-        uint32_t crstart;
-        uint16_t crnum = mmio->desc.num_of_afu_CRs;
-        if ( crnum > 0) {
-        crstart = mmio->desc.AFU_CR_offset;
-        // allocate 
-        struct config_record *cr_array = malloc(crnum * sizeof(struct config_record *));
-        //struct config_record *crptr = &cr_array;
-        mmio->desc.crptr = cr_array;
-	// Queue mmio reads
-	// Only do 32-bit mmio for config record data
-	// NO LONGER NEED TO ADJUST CONFIG ADDR SPACE BY 2 
-	cmd_pa = 0x00000000cdef0000;
 	printf("In read_descriptor and WON'T BE ABLE TO SEND CMD UNTIL AFU GIVES US INITIAL CREDIT!!\n");
 	uint8_t   afu_tlx_cmd_credits_available;
 	uint8_t   afu_tlx_resp_credits_available;
+printf("before read initial credits \n");
 	if (afu_tlx_read_initial_credits(mmio->afu_event, &afu_tlx_cmd_credits_available,
 	 &afu_tlx_resp_credits_available) != TLX_SUCCESS)
 		printf("NO CREDITS FROM AFU!!\n");
 	printf("afu_tlx_cmd_credits_available is %d, afu_tlx_resp_credits_available is %d \n",
 		afu_tlx_cmd_credits_available, afu_tlx_resp_credits_available);
 
-	eventdevven = _add_desc(mmio, 1, 0,cmd_pa, 0L);
-	//eventclass = _add_desc(mmio, 1, 1, (crstart+8) >> 2, 0L);
-	eventclass = _add_desc(mmio, 1, 0, cmd_pa+0x100, 0L);
-	
+
+ 	struct mmio_event *event00, *event100, *event104, *event200, *event204,
+	    *event208, *event20c, *event224, *event26c, *event290, *event294, *event298,
+	    *event29c, *event2a0, *event2b0, *event2b4, *event2b8, *event2c0, *event2c4, *event2c8;
+
+	uint64_t cmd_pa;
+	cmd_pa = 0x00000000cdef0000; // TODO add this to some structure...ocl?
+	// Queue mmio reads - these go out in order, gated (eventually) by credits
+	event00 = _add_cfg(mmio, 1, 0, cmd_pa, 0L);
+	event100 = _add_cfg(mmio, 1, 0, cmd_pa + 0x100, 0L);
+	event104 = _add_cfg(mmio, 1, 0, cmd_pa + 0x104, 0L);
+	event200 = _add_cfg(mmio, 1, 0, cmd_pa + 0x200, 0L);
+	event204 = _add_cfg(mmio, 1, 0, cmd_pa + 0x204, 0L);
+	event208 = _add_cfg(mmio, 1, 0, cmd_pa + 0x208, 0L);
+	event20c = _add_cfg(mmio, 1, 0, cmd_pa + 0x20c, 0L);
+	event224 = _add_cfg(mmio, 1, 0, cmd_pa + 0x224, 0L);
+	event26c = _add_cfg(mmio, 1, 0, cmd_pa + 0x26c, 0L);
+	event290 = _add_cfg(mmio, 1, 0, cmd_pa + 0x290, 0L);
+	event294 = _add_cfg(mmio, 1, 0, cmd_pa + 0x294, 0L);
+	event298 = _add_cfg(mmio, 1, 0, cmd_pa + 0x298, 0L);
+	event2b0 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2b0, 0L);
+	event2b4 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2b4, 0L);
+	event2b8 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2b8, 0L);
+	event2c0 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2c0, 0L);
+	event2c4 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2c4, 0L);
+	event2c8 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2c8, 0L);
+
 	// Store data from reads
-	_wait_for_done(&(eventdevven->state), lock);
-	//debug_msg("XXXX: DATA: = %08x\n", eventdevven->data);
-	//cr_array->cr_vendor = (uint16_t) (eventdevven->data >> 48) & 0xffffl;
-	cr_array->cr_vendor = (uint16_t) (eventdevven->data >> 16);
-	//cr_array->cr_device = (uint16_t) (eventdevven->data >> 32) 0xffffl;
-	cr_array->cr_device = (uint16_t) (eventdevven->data );
-        debug_msg("%x:%x CR dev & vendor", cr_array->cr_device, cr_array->cr_vendor);
-        free(eventdevven);
-        	debug_msg("%x:%x CR dev & vendor swapped", ntohs(cr_array->cr_device),ntohs(cr_array->cr_vendor));
-        _wait_for_done(&(eventclass->state), lock);
-	cr_array->cr_class = (uint32_t) (eventclass->data >> 32) & 0xffffffffl;
-        free(eventclass);
-	//Need to send a config_write to make sure it works
-	_add_event(mmio, NULL, 0, 0, 1, cmd_pa+0x1f0, 0x01020304);
-	printf("Just sent BDF value, will wait for done then read VSECs \n");
-        _wait_for_done(&(eventclass->state), lock);
-        }
-	else { /* always make a fake cr */
-	struct config_record *cr_array = malloc(sizeof(struct config_record *));
-	mmio->desc.crptr = cr_array;
-	cr_array->cr_vendor = 0;
-	cr_array->cr_device = 0;
-	cr_array->cr_class = 0;
+
+	_wait_for_done(&(event00->state), lock);
+	mmio->cfg.cr_vendor = (uint16_t) (event00->data >> 16);
+	mmio->cfg.cr_device = (uint16_t) (event00->data );
+        debug_msg("%x:%x CR dev & vendor", mmio->cfg.cr_device, mmio->cfg.cr_vendor);
+        debug_msg("%x:%x CR dev & vendor swapped", ntohs(mmio->cfg.cr_device),ntohs(mmio->cfg.cr_vendor));
+	free(event00);
+
+	_wait_for_done(&(event100->state), lock);
+	mmio->cfg.PASID_CP = event100->data;
+	free(event100);
+
+	_wait_for_done(&(event104->state), lock);
+	mmio->cfg.PASID_CTL_STS = event104->data;
+	free(event104);
+
+	_wait_for_done(&(event200->state), lock);
+	mmio->cfg.OCAPI_TL_CP = event200->data;
+	free(event200);
+
+	_wait_for_done(&(event204->state), lock);
+	mmio->cfg.OCAPI_TL_REVID = event204->data;
+	free(event204);
+
+	_wait_for_done(&(event208->state), lock);
+	mmio->cfg.OCAPI_TL_ACTAG = event208->data;
+	free(event208);
+
+	_wait_for_done(&(event20c->state), lock);
+	mmio->cfg.OCAPI_TL_MAXAFU = event20c->data;
+	free(event20c);
+
+	_wait_for_done(&(event224->state), lock);
+	mmio->cfg.OCAPI_TL_TMP_CFG = event224->data;
+	free(event224);
+
+	_wait_for_done(&(event26c->state), lock);
+	mmio->cfg.OCAPI_TL_TX_RATE = event26c->data;
+	free(event26c);
+
+	_wait_for_done(&(event290->state), lock);
+	mmio->cfg.AFU_INFO_CP = event290->data;
+	free(event290);
+
+	_wait_for_done(&(event294->state), lock);
+	mmio->cfg.AFU_INFO_REVID = event294->data;
+	free(event294);
+
+	_wait_for_done(&(event298->state), lock);
+	mmio->cfg.AFU_INFO_INDEX = event298->data;
+	free(event298);
+
+	// we can't read the AFU descriptor indirect regs like this,
+	// will read them later
+	//
+	_wait_for_done(&(event2b0->state), lock);
+	mmio->cfg.AFU_CTL_CP = event2b0->data;
+	free(event2b0);
+
+	_wait_for_done(&(event2b4->state), lock);
+	mmio->cfg.AFU_CTL_REVID = event2b4->data;
+	free(event2b4);
+
+	_wait_for_done(&(event2b8->state), lock);
+	mmio->cfg.AFU_CTL_EN_RST_INDEX = event2b8->data;
+	free(event2b8);
+
+	_wait_for_done(&(event2c0->state), lock);
+	mmio->cfg.AFU_CTL_PASID_LEN = event2c0->data;
+	free(event2c0);
+
+	_wait_for_done(&(event2c4->state), lock);
+	mmio->cfg.AFU_CTL_PASID_BASE = event2c4->data;
+	free(event2c4);
+
+	_wait_for_done(&(event2c8->state), lock);
+	mmio->cfg.AFU_CTL_INTS_PER_PASID = event2c8->data;
+	free(event2c8);
+
+
+	/* Verify num_of_processes
+	if (!mmio->cfg.num_of_processes) {
+		error_msg("AFU descriptor num_of_processes=0");
+		errno = ENODEV;
+		return -1;
 	}
-        // end of NEW BLOCK`
+	// Verify req_prog_model
+	if ( ( (mmio->cfg.req_prog_model & 0x7fffl) != 0x0010 ) && // dedicated
+	     ( (mmio->cfg.req_prog_model & 0x7fffl) != 0x0004 ) && // afu-directed
+	     ( (mmio->cfg.req_prog_model & 0x7fffl) != 0x0014 ) ) {// both
+		error_msg("AFU descriptor: Unsupported req_prog_model");
+		errno = ENODEV;
+		return -1;
+	} */
+
+		//Need to send a config_write to make sure it works
+	event29c = _add_event(mmio, NULL, 0, 0, 1, cmd_pa+0x29c, 0x01000);
+	printf("Just sent BDF value, will wait for done then read VSECs \n");
+        _wait_for_done(&(event29c->state), lock);
+	free(event29c);
+        
 	return 0;
 }
 
@@ -298,8 +319,8 @@ void send_mmio(struct mmio *mmio)
 	if ((event == NULL) || (event->state == OCSE_PENDING))
 		return;
 
-	if (event->desc) {
-		sprintf(type, "DESC");
+	if (event->cfg) {
+		sprintf(type, "CONFIG");
 	// Attempt to send config_re or config_wr to AFU
 	//special case for now, always use same cmd_pa for config cmds and T= 0
 	//cmd_pa = 0x00000000cdef0000;
@@ -307,7 +328,7 @@ void send_mmio(struct mmio *mmio)
 		TLX_CMD_CONFIG_READ, 0xdead,0, 2, 0, 0, 0, event->addr) == TLX_SUCCESS) {
 		debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type,
 			  event->dw ? 64 : 32, event->addr);
-		debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->desc,
+		debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
 				event->rnw, event->dw, event->addr);
 		event->state = OCSE_PENDING;
 	} 
@@ -315,8 +336,11 @@ void send_mmio(struct mmio *mmio)
 	uint8_t * dptr = ddata;
 	memcpy(ddata, &(event->data), 4);
 	
-	if (!event->rnw && tlx_afu_send_cmd_and_data(mmio->afu_event, 
-		TLX_CMD_CONFIG_WRITE, 0xbeef,0, 2, 0, 0, 0, event->addr, 0, dptr) == TLX_SUCCESS) {
+	//if (!event->rnw && tlx_afu_send_cmd_and_data(mmio->afu_event, 
+	//	TLX_CMD_CONFIG_WRITE, 0xbeef,0, 2, 0, 0, 0, event->addr, 0, dptr) == TLX_SUCCESS) 
+	if (!event->rnw && tlx_afu_send_cmd(mmio->afu_event, 
+		TLX_CMD_CONFIG_WRITE, 0xbeef,0, 2, 0, 0, 0, event->addr) == TLX_SUCCESS) {
+		if (tlx_afu_send_cmd_data(mmio->afu_event, 0, 0, dptr) == TLX_SUCCESS) {
 		if (event->dw)
 			sprintf(data, "%016" PRIx64, event->data);
 		else
@@ -324,14 +348,15 @@ void send_mmio(struct mmio *mmio)
 		debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s",
 			  mmio->afu_name, type, event->dw ? 64 : 32,
 			  event->addr, data);
-		debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->desc,
+		debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
 				event->rnw, event->dw, event->addr);
 		event->state = OCSE_PENDING;
+		
+		}
 	}
 
 
-	}
-	else   {
+	} else   {
 		sprintf(type, "MMIO");
 
 	// Attempt to send mmio to AFU
@@ -339,7 +364,7 @@ void send_mmio(struct mmio *mmio)
 		TLX_CMD_PR_RD_MEM, 0xcafe,4, 0, 0, 0, 0, 0x200) == TLX_SUCCESS) {
 		debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type,
 			  event->dw ? 64 : 32, event->addr);
-		debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->desc,
+		debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
 				event->rnw, event->dw, event->addr);
 		event->state = OCSE_PENDING;
 	}
@@ -353,7 +378,7 @@ void send_mmio(struct mmio *mmio)
 		debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s",
 			  mmio->afu_name, type, event->dw ? 64 : 32,
 			  event->addr, data);
-		debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->desc,
+		debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
 				event->rnw, event->dw, event->addr);
 		event->state = OCSE_PENDING;
 	} */
@@ -373,50 +398,46 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 	unsigned char   rdata_bus[4];
 	rdata = rdata_bus;
 	rc = afu_tlx_read_resp_and_data(mmio->afu_event, 
-		    &afu_resp_opcode, &resp_dl,
-		    &resp_capptag, &resp_dp,
-		    &resp_data_is_valid, &resp_code, rdata_bus, &rdata_bad);
-
+	 	&afu_resp_opcode, &resp_dl,
+	   	&resp_capptag, &resp_dp,
+	    	&resp_data_is_valid, &resp_code, rdata_bus, &rdata_bad);
 		
 	if (rc == TLX_SUCCESS) {
-		debug_mmio_ack(mmio->dbg_fp, mmio->dbg_id);
-		if (!mmio->list || (mmio->list->state != OCSE_PENDING)) {
-			warn_msg("Unexpected MMIO ack from AFU");
-			return;
-		}
-		if (mmio->list->desc)
-			sprintf(type, "DESC");
-		else
-			sprintf(type, "MMIO");
-		debug_msg("IN handle_mmio_ack and resp_capptag = %x and resp_code = %x! ",
-			resp_capptag, resp_code);
-		if (resp_data_is_valid) {
-			memcpy(&read_data, rdata_bus, 4);
-			debug_msg("%s:%s CMD RESP data=0x%x code=0x%x", mmio->afu_name, type,
-				  read_data, resp_code );
-		} else {
-			debug_msg("%s:%s CMD RESP code=0x%x", mmio->afu_name, type, resp_code);
+			debug_mmio_ack(mmio->dbg_fp, mmio->dbg_id);
+			if (!mmio->list || (mmio->list->state != OCSE_PENDING)) {
+				warn_msg("Unexpected MMIO ack from AFU");
+				return;
 			}
-	/*	if (mmio->list->rnw) {
-			if (mmio->list->dw) {
-				sprintf(data, "%016" PRIx64, read_data);
+			if (mmio->list->cfg)
+				sprintf(type, "CONFIG");
+			else
+				sprintf(type, "MMIO");
+			debug_msg("IN handle_mmio_ack and resp_capptag = %x and resp_code = %x! ",
+				resp_capptag, resp_code);
+			if (resp_data_is_valid) {
+				memcpy(&read_data, rdata_bus, 4);
+				debug_msg("%s:%s CMD RESP data=0x%x code=0x%x", mmio->afu_name, type,
+					  read_data, resp_code );
 			} else {
-				sprintf(data, "%08" PRIx32,
-					(uint32_t) read_data);
-			}
-			debug_msg("%s:%s ACK data=0x%s", mmio->afu_name, type,
-				  data);
-		} else {
-			debug_msg("%s:%s ACK", mmio->afu_name, type);
-		} */
+				debug_msg("%s:%s CMD RESP code=0x%x", mmio->afu_name, type, resp_code);
+			
+				}
 
 		// Keep data for MMIO reads
 		if (mmio->list->rnw) 
 				mmio->list->data = read_data;
-		
 		mmio->list->state = OCSE_DONE;
 		mmio->list = mmio->list->_next;
+		}
+		
+	if (mmio->afu_event->afu_tlx_credit_req_valid) {
+		printf ("afu_tlx_cmd_rd_req is 0x%x \n", mmio->afu_event->afu_tlx_cmd_rd_req);
+		printf ("afu_tlx_cmd_rd_cnt is 0x%x \n", mmio->afu_event->afu_tlx_cmd_rd_cnt);
+		printf ("afu_tlx_resp_rd_req is 0x%x \n", mmio->afu_event->afu_tlx_resp_rd_req);
+		printf ("afu_tlx_resp_rd_cnt is 0x%x \n", mmio->afu_event->afu_tlx_resp_rd_cnt);
 	}
+	
+		
 }
 
 // Handle MMIO map request from client
@@ -427,11 +448,11 @@ void handle_mmio_map(struct mmio *mmio, struct client *client)
 	int fd = client->fd;
 
 	// Check for errors
-	if (!(mmio->desc.PerProcessPSA & PSA_REQUIRED)) {
+/*	if (!(mmio->cfg.PerProcessPSA & PSA_REQUIRED)) {
 		warn_msg("Problem State Area Required bit not set");
 		ack = OCSE_MMIO_FAIL;
 		goto map_done;
-	}
+	} */
 	if (get_bytes_silent(fd, 4, (uint8_t *) & flags, mmio->timeout,
 			     &(client->abort)) < 0) {
 	        debug_msg("%s:handle_mmio_map failed context=%d",
@@ -544,10 +565,10 @@ static struct mmio_event *_handle_mmio_read_eb(struct mmio *mmio,
 		goto read_fail;
 	}
 	offset = ntohl(offset);
-        offset = offset + (uint32_t)mmio->desc.AFU_EB_offset;
+        //offset = offset + (uint32_t)mmio->cfg.AFU_EB_offset;
         debug_msg("offset for eb read is %x\n", offset);
 //	event = _add_event(mmio, client, 1, dw, offset>>2, 1, 0);
-	event = _add_desc(mmio, 1, dw, offset>>2, 0);
+	event = _add_cfg(mmio, 1, dw, offset>>2, 0);
 //        _wait_for_done(&(event->state), ocl->lock);
 	return event;
 
@@ -642,14 +663,14 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 	return NULL;
 }
 
-int dedicated_mode_support(struct mmio *mmio)
-{
-	return ((mmio->desc.req_prog_model & PROG_MODEL_MASK) ==
-		PROG_MODEL_DEDICATED);
-}
+//int dedicated_mode_support(struct mmio *mmio)
+//{
+//	return ((mmio->cfg.req_prog_model & PROG_MODEL_MASK) ==
+//		PROG_MODEL_DEDICATED);
+//}
 
-int directed_mode_support(struct mmio *mmio)
-{
-	return ((mmio->desc.req_prog_model & PROG_MODEL_MASK) ==
-		PROG_MODEL_DIRECTED);
-}
+//int directed_mode_support(struct mmio *mmio)
+//{
+//	return ((mmio->cfg.req_prog_model & PROG_MODEL_MASK) ==
+//		PROG_MODEL_DIRECTED);
+//}

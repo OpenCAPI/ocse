@@ -429,13 +429,14 @@ static void _parse_cmd(struct cmd *cmd, uint32_t command, uint32_t tag,
 		       uint64_t addr, uint32_t size, uint32_t abort,
 		       uint32_t handle, uint32_t latency)
 {
-	uint16_t irq = (uint16_t) (addr & IRQ_MASK);
-	uint8_t unlock = 0;
-	if (handle >= cmd->mmio->desc.num_of_processes) {
-		_add_other(cmd, handle, tag, command, abort,
-			   TLX_RESPONSE_CONTEXT);
-		return;
-	}
+	//uint16_t irq = (uint16_t) (addr & IRQ_MASK);
+	//uint8_t unlock = 0;
+	// TODO FIX THIS WHEN WE DETERMINE #OF CONTEXTS
+	//if (handle >= cmd->mmio->cfg.num_of_processes) {
+	//	_add_other(cmd, handle, tag, command, abort,
+	//		   TLX_RESPONSE_CONTEXT);
+	//	return;
+	//}
 /*	switch (command) {
 		// Interrupt
 	case TLX_COMMAND_INTREQ:
@@ -657,7 +658,7 @@ void handle_buffer_write(struct cmd *cmd)
 	struct client *client;
 	uint8_t buffer[10];
 	uint64_t *addr;
-	int quadrant, byte;
+	//int quadrant, byte;
 
 	// Make sure cmd structure is valid
 	if (cmd == NULL)
@@ -996,7 +997,7 @@ void handle_dma0_read(struct cmd *cmd)
 	struct client *client;
 	uint8_t buffer[10];
 	uint64_t *addr;
-	int quadrant, byte;
+	//int quadrant, byte;
 
 	// Make sure cmd structure is valid
 	if (cmd == NULL)
@@ -1577,9 +1578,9 @@ void _handle_op1_op2_load(struct cmd *cmd, struct cmd_event *event)
 
 void _handle_cas_op(struct cmd *cmd, struct cmd_event *event)
 {
-	uint32_t lvalue, op_A, op_1, op_2;
-	uint64_t offset, op_Al;
-	unsigned char op_size;
+	//uint32_t lvalue, op_A, op_1, op_2;
+	//uint64_t offset, op_Al;
+	//unsigned char op_size;
 /*
 	offset = event->addr & ~CACHELINE_MASK;
 	if (event->type == CMD_CAS_4B) {
@@ -1648,7 +1649,7 @@ void handle_caia2_cmds(struct cmd *cmd)
 	struct cmd_event **head;
 	struct cmd_event *event;
 	struct client *client;
-	uint32_t this_itag;
+//	uint32_t this_itag;
 
 
 	// Make sure cmd structure is valid

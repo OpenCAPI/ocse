@@ -308,6 +308,7 @@ int afu_tlx_read_initial_credits(struct AFU_EVENT *event,
 		uint8_t * afu_tlx_cmd_initial_credit,
 		uint8_t * afu_tlx_resp_initial_credit)
 {
+	printf("in afu_tlx_read_initial_credits \n");
 	* afu_tlx_cmd_initial_credit = event->afu_tlx_cmd_initial_credit;
 	event->afu_tlx_cmd_credits_available = event->afu_tlx_cmd_initial_credit;
 	* afu_tlx_resp_initial_credit = event->afu_tlx_resp_initial_credit;
@@ -464,6 +465,10 @@ int tlx_afu_send_cmd_data(struct AFU_EVENT *event,
 		// TODO FOR NOW WE ALWAYS SEND 4 BYTES of DATA - OCSE ALWAYS
 		// SENDS 4 BYTES 
 		memcpy(event->tlx_afu_cmd_data_bus, cmd_data, 4);
+		//may not be best place to do this but it has to be done
+		event->afu_tlx_cmd_rd_cnt -= 1;
+		if (event->afu_tlx_cmd_rd_cnt == 0)
+			event->afu_tlx_cmd_rd_req = 0;
 		return TLX_SUCCESS;
 }
 

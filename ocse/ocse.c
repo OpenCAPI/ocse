@@ -114,50 +114,50 @@ static void _query(struct client *client, uint8_t id)
 	int size, offset;
 
 	ocl = _find_ocl(id, &major, &minor);
-	size = 1 + sizeof(ocl->mmio->desc.num_ints_per_process) + sizeof(client->max_irqs) + 
-	    sizeof(ocl->mmio->desc.req_prog_model) +
-	    sizeof(ocl->mmio->desc.PerProcessPSA) + sizeof(ocl->mmio->desc.PerProcessPSA_offset) +
-	    sizeof(ocl->mmio->desc.AFU_EB_len) + sizeof(ocl->mmio->desc.crptr->cr_device) +
-	    sizeof(ocl->mmio->desc.crptr->cr_vendor) + sizeof(ocl->mmio->desc.crptr->cr_class);
+	size = 1 + sizeof(ocl->mmio->cfg.OCAPI_TL_ACTAG) + sizeof(client->max_irqs) + 
+	    sizeof(ocl->mmio->cfg.OCAPI_TL_MAXAFU) +
+	    sizeof(ocl->mmio->cfg.AFU_INFO_REVID) + sizeof(ocl->mmio->cfg.AFU_CTL_PASID_BASE) +
+	    sizeof(ocl->mmio->cfg.AFU_CTL_INTS_PER_PASID) + sizeof(ocl->mmio->cfg.cr_device) +
+	    sizeof(ocl->mmio->cfg.cr_vendor) + sizeof(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX);
 	buffer = (uint8_t *) malloc(size);
 	buffer[0] = OCSE_QUERY;
 	offset = 1;
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->desc.num_ints_per_process),
-	       sizeof(ocl->mmio->desc.num_ints_per_process));
-	offset += sizeof(ocl->mmio->desc.num_ints_per_process);
+	       (char *)&(ocl->mmio->cfg.OCAPI_TL_ACTAG),
+	       sizeof(ocl->mmio->cfg.OCAPI_TL_ACTAG));
+	offset += sizeof(ocl->mmio->cfg.OCAPI_TL_ACTAG);
 	if (client->max_irqs == 0)
-		client->max_irqs = 2037 / ocl->mmio->desc.num_of_processes;
+		client->max_irqs = 2037; // TODO FIX THIS eventually
 	memcpy(&(buffer[offset]),
 	       (char *)&(client->max_irqs), sizeof(client->max_irqs));
         offset += sizeof(client->max_irqs);
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->desc.req_prog_model),
-	       sizeof(ocl->mmio->desc.req_prog_model));
-        offset += sizeof(ocl->mmio->desc.req_prog_model);
+	       (char *)&(ocl->mmio->cfg.OCAPI_TL_MAXAFU),
+	       sizeof(ocl->mmio->cfg.OCAPI_TL_MAXAFU));
+        offset += sizeof(ocl->mmio->cfg.OCAPI_TL_MAXAFU);
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->desc.PerProcessPSA),
-	       sizeof(ocl->mmio->desc.PerProcessPSA));
-        offset += sizeof(ocl->mmio->desc.PerProcessPSA);
+	       (char *)&(ocl->mmio->cfg.AFU_INFO_REVID),
+	       sizeof(ocl->mmio->cfg.AFU_INFO_REVID));
+        offset += sizeof(ocl->mmio->cfg.AFU_INFO_REVID);
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->desc.PerProcessPSA_offset),
-	       sizeof(ocl->mmio->desc.PerProcessPSA_offset));
-        offset += sizeof(ocl->mmio->desc.PerProcessPSA_offset);
+	       (char *)&(ocl->mmio->cfg.AFU_CTL_PASID_BASE),
+	       sizeof(ocl->mmio->cfg.AFU_CTL_PASID_BASE));
+        offset += sizeof(ocl->mmio->cfg.AFU_CTL_PASID_BASE);
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->desc.AFU_EB_len),
-	       sizeof(ocl->mmio->desc.AFU_EB_len));
-        offset += sizeof(ocl->mmio->desc.AFU_EB_len);
+	       (char *)&(ocl->mmio->cfg.AFU_CTL_INTS_PER_PASID),
+	       sizeof(ocl->mmio->cfg.AFU_CTL_INTS_PER_PASID));
+        offset += sizeof(ocl->mmio->cfg.AFU_CTL_INTS_PER_PASID);
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->desc.crptr->cr_device),
-	       sizeof(ocl->mmio->desc.crptr->cr_device));
-        offset += sizeof(ocl->mmio->desc.crptr->cr_device);
+	       (char *)&(ocl->mmio->cfg.cr_device),
+	       sizeof(ocl->mmio->cfg.cr_device));
+        offset += sizeof(ocl->mmio->cfg.cr_device);
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->desc.crptr->cr_vendor),
-	       sizeof(ocl->mmio->desc.crptr->cr_vendor));
-        offset += sizeof(ocl->mmio->desc.crptr->cr_vendor);
+	       (char *)&(ocl->mmio->cfg.cr_vendor),
+	       sizeof(ocl->mmio->cfg.cr_vendor));
+        offset += sizeof(ocl->mmio->cfg.cr_vendor);
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->desc.crptr->cr_class),
-	       sizeof(ocl->mmio->desc.crptr->cr_class));
+	       (char *)&(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX),
+	       sizeof(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX));
 	if (put_bytes(client->fd, size, buffer, ocl->dbg_fp, ocl->dbg_id,
 		      client->context) < 0) {
 		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
@@ -183,11 +183,12 @@ static void _max_irqs(struct client *client, uint8_t id)
 	memcpy((char *)&client->max_irqs, (char *)buffer, sizeof(uint16_t));
 	client->max_irqs = ntohs(client->max_irqs);
 
-	// Limit to legal value
-	if (client->max_irqs < ocl->mmio->desc.num_ints_per_process)
-		client->max_irqs = ocl->mmio->desc.num_ints_per_process;
-	if (client->max_irqs > 2037 / ocl->mmio->desc.num_of_processes)
-		client->max_irqs = 2037 / ocl->mmio->desc.num_of_processes;
+	// Limit to legal value TODO REMOVE OR FIX
+	//if (client->max_irqs < ocl->mmio->cfg.num_ints_per_process)
+	//	client->max_irqs = ocl->mmio->cfg.num_ints_per_process;
+	//if (client->max_irqs > 2037 / ocl->mmio->cfg.num_of_processes)
+	//	client->max_irqs = 2037 / ocl->mmio->cfg.num_of_processes;
+		client->max_irqs = 2037;
 
 	// Return set value
 	buffer[0] = OCSE_MAX_INT;
@@ -280,7 +281,7 @@ static int _client_associate(struct client *client, uint8_t id, char afu_type)
 	}
 
 	// Check AFU type is valid for connection
-	switch (afu_type) {
+/*	switch (afu_type) {
 	case 'd':
 		if (!dedicated_mode_support(ocl->mmio)) {
 			warn_msg
@@ -306,7 +307,7 @@ static int _client_associate(struct client *client, uint8_t id, char afu_type)
 		put_bytes(client->fd, 1, &(rc[0]), fp, ocl->dbg_id, -1);
 		close_socket(&(client->fd));
 		return -1;
-	}
+	} */
 
 	// check to see if device is already open
 	// lgt - I think I can open any combination of m/s upto max
@@ -351,17 +352,18 @@ static int _client_associate(struct client *client, uint8_t id, char afu_type)
 	rc[0] = OCSE_OPEN;
 	rc[1] = context;
 	mmio_offset = 0;
-	if (ocl->mmio->desc.PerProcessPSA & PROCESS_PSA_REQUIRED) {
-		mmio_size = ocl->mmio->desc.PerProcessPSA & PSA_MASK;
-		mmio_size *= FOUR_K;
-		mmio_offset = ocl->mmio->desc.PerProcessPSA_offset;
-		mmio_offset += mmio_size * i;
-	} else {
+	//if (ocl->mmio->cfg.PerProcessPSA & PROCESS_PSA_REQUIRED) {
+	//	mmio_size = ocl->mmio->cfg.PerProcessPSA & PSA_MASK;
+	//	mmio_size *= FOUR_K;
+	//	mmio_offset = ocl->mmio->cfg.PerProcessPSA_offset;
+	//	mmio_offset += mmio_size * i;
+	//} else { // TODO FIX OR REMOVE
 		mmio_size = MMIO_FULL_RANGE;
-	}
+	//}
 	client->mmio_size = mmio_size;
 	client->mmio_offset = mmio_offset;
-	client->max_irqs = OCL_MAX_IRQS / ocl->mmio->desc.num_of_processes;
+	//client->max_irqs = OCL_MAX_IRQS / ocl->mmio->cfg.num_of_processes;
+	client->max_irqs = OCL_MAX_IRQS; // TODO FIX OR REMOVE
 	client->type = afu_type;
 
 	// Send reset to AFU, if no other clients already connected

@@ -44,39 +44,55 @@ struct mmio_event {
 	uint32_t dw;
 	uint32_t eb_rd;
 	uint32_t addr;
-	uint32_t desc;
+	uint32_t cfg;
 	uint64_t data;
 	uint32_t parity;
 	enum ocse_state state;
 	struct mmio_event *_next;
 };
 
-struct config_record  {
+
+struct afu_cfg_sp {
         uint16_t cr_device;
         uint16_t cr_vendor;
-        uint32_t cr_class;
-};
-
-struct afu_descriptor {
-	uint16_t num_ints_per_process;
-	uint16_t num_of_processes;
-	uint16_t num_of_afu_CRs;
-	uint16_t req_prog_model;
-	uint64_t reserved1;
-	uint64_t reserved2;
-	uint64_t reserved3;
-	uint64_t AFU_CR_len;
-	uint64_t AFU_CR_offset;
-	uint64_t PerProcessPSA;
-	uint64_t PerProcessPSA_offset;
-	uint64_t AFU_EB_len;
-	uint64_t AFU_EB_offset;
-        struct config_record * crptr;
+        uint32_t PASID_CP;
+        uint32_t PASID_CTL_STS;
+        uint32_t OCAPI_TL_CP;
+        uint32_t OCAPI_TL_REVID;
+        uint32_t OCAPI_TL_ACTAG;
+        uint32_t OCAPI_TL_MAXAFU;
+        uint32_t OCAPI_TL_TMP_CFG;
+        uint32_t OCAPI_TL_TX_RATE;
+        uint32_t AFU_INFO_CP;
+        uint32_t AFU_INFO_REVID;
+        uint32_t AFU_INFO_INDEX;
+        uint32_t AFU_CTL_CP;
+        uint32_t AFU_CTL_REVID;
+        uint32_t AFU_CTL_EN_RST_INDEX;
+        uint32_t AFU_CTL_PASID_LEN;
+        uint32_t AFU_CTL_PASID_BASE;
+        uint32_t AFU_CTL_INTS_PER_PASID;
+        uint32_t AFU_DESC_MMIO_SPACE;
+        uint32_t AFU_DESC_MMIO_PP_OFFSET_BAR;
+        uint32_t AFU_DESC_MMIO_PP_STRIDE;
+//	uint16_t num_ints_per_process;
+//	uint16_t num_of_processes;
+//	uint16_t num_of_afu_CRs;
+//	uint16_t req_prog_model;
+//	uint64_t reserved1;
+//	uint64_t reserved2;
+//	uint64_t reserved3;
+//	uint64_t AFU_CR_len;
+//	uint64_t AFU_CR_offset;
+//	uint64_t PerProcessPSA;
+//	uint64_t PerProcessPSA_offset;
+//	uint64_t AFU_EB_len;
+//	uint64_t AFU_EB_offset;
 };
 
 struct mmio {
 	struct AFU_EVENT *afu_event;
-	struct afu_descriptor desc;
+	struct afu_cfg_sp cfg;
 	struct mmio_event *list;
 	char *afu_name;
 	FILE *dbg_fp;
@@ -88,7 +104,7 @@ struct mmio {
 struct mmio *mmio_init(struct AFU_EVENT *afu_event, int timeout, char *afu_name,
 		       FILE * dbg_fp, uint8_t dbg_id);
 
-int read_descriptor(struct mmio *mmio, pthread_mutex_t * lock);
+int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock);
 
 struct mmio_event *add_mmio(struct mmio *mmio, uint32_t rnw, uint32_t dw,
 			    uint32_t addr, uint64_t data);
@@ -104,8 +120,8 @@ struct mmio_event *handle_mmio(struct mmio *mmio, struct client *client,
 
 struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client);
 
-int dedicated_mode_support(struct mmio *mmio);
+//int dedicated_mode_support(struct mmio *mmio);
 
-int directed_mode_support(struct mmio *mmio);
+//int directed_mode_support(struct mmio *mmio);
 
 #endif				/* _MMIO_H_ */

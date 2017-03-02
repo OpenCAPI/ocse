@@ -160,7 +160,7 @@ static void _attach(struct ocl *ocl, struct client *client)
 // Client is detaching from the AFU
 static void _detach(struct ocl *ocl, struct client *client)
 {
-	uint64_t wed;
+	//uint64_t wed;
 
 	debug_msg("DETACH from client context 0x%02x", client->context);
 	// if dedicated mode just drop the client
@@ -232,17 +232,15 @@ static void _free(struct ocl *ocl, struct client *client)
 // Handle events from AFU
 static void _handle_afu(struct ocl *ocl)
 {
-	struct client *client;
-	uint64_t error;
-	uint8_t *buffer;
-	int reset_done;
-	int i;
-	size_t size;
-
+	//struct client *client;
+	//uint64_t error;
+	//uint8_t *buffer;
+	//int i;
+	//size_t size;
+	if (ocl->mmio->list !=NULL) {
 	 handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
+	}
 	if (ocl->cmd != NULL) {
-		if (reset_done)
-			ocl->cmd->credits = ocl->cmd->parms->credits;
 		handle_response(ocl->cmd);
 		//handle_cmd(ocl->cmd, ocl->parity_enabled, ocl->latency);
 		handle_interrupt(ocl->cmd);
@@ -510,7 +508,7 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 		  int port, pthread_mutex_t * lock, FILE * dbg_fp)
 {
 	struct ocl *ocl;
-	struct job_event *reset;
+	struct job_event; // *reset;
 	uint16_t location;
 
 	location = 0x8000;
@@ -646,28 +644,29 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 	// Handle events from AFU
 	if (event > 0)
 		_handle_afu(ocl);
-	if (afu_tlx_read_initial_credits(ocl->afu_event, &afu_tlx_cmd_credits_available,
-	 &afu_tlx_resp_credits_available) != TLX_SUCCESS)
-		printf("NO CREDITS FROM AFU!!\n");
-	printf("afu_tlx_cmd_credits_available is %d, afu_tlx_resp_credits_available is %d \n",
-		afu_tlx_cmd_credits_available, afu_tlx_resp_credits_available);
+	//if (afu_tlx_read_initial_credits(ocl->afu_event, &afu_tlx_cmd_credits_available,
+	// &afu_tlx_resp_credits_available) != TLX_SUCCESS)
+	//	printf("NO CREDITS FROM AFU!!\n");
+	//printf("afu_tlx_cmd_credits_available is %d, afu_tlx_resp_credits_available is %d \n",
+	//	afu_tlx_cmd_credits_available, afu_tlx_resp_credits_available);
 
 	// Read AFU descriptor
 	debug_msg("%s @ %s:%d: Reading AFU config record and VSEC.", ocl->name, ocl->host,
 	          ocl->port);
 	ocl->state = OCSE_DESC;
-	read_descriptor(ocl->mmio, ocl->lock);
+	read_afu_config(ocl->mmio, ocl->lock);
 
 	// Finish TLX configuration
 	ocl->state = OCSE_IDLE;
-	if (dedicated_mode_support(ocl->mmio)) {
+	//if (dedicated_mode_support(ocl->mmio)) {
 		// AFU supports Dedicated Mode
+		// TODO FIX THIS TO USE NEW CFG VALUES!!
 		ocl->max_clients = 1;
-	}
-	if (directed_mode_support(ocl->mmio)) {
+	//}
+	//if (directed_mode_support(ocl->mmio)) {
 		// AFU supports Directed Mode
-		ocl->max_clients = ocl->mmio->desc.num_of_processes;
-	}
+	//	ocl->max_clients = ocl->mmio->cfg.num_of_processes;
+	//}
 	if (ocl->max_clients == 0) {
 		error_msg("AFU programming model is invalid");
 		goto init_fail;
