@@ -26,6 +26,7 @@ module top (
    import "DPI-C" function void tlx_bfm(
                                 input tlx_clock,
                                 input afu_clock,
+                                input reset,
 				// Table 1: TLX to AFU Response Interface
 				inout             tlx_afu_resp_valid_top,
 				inout [7:0]       tlx_afu_resp_opcode_top,
@@ -552,6 +553,7 @@ end
     set_simulation_time(simulationTime);
     tlx_bfm( tlx_clock,
              afu_clock,
+             reset,
 				// Table 1: TLX to AFU Response Interface
 	tlx_afu_resp_valid_top,
 	tlx_afu_resp_opcode_top,

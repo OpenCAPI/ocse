@@ -41,6 +41,7 @@ static int clk_afu_resp_dat_val;
 static int clk_afu_cmd_dat_val;
 
 // inputs from AFX
+uint8_t		c_reset;
 uint8_t		c_afu_tlx_cmd_credit;
 uint8_t		c_afu_tlx_cmd_initial_credit;
 uint8_t		c_afu_tlx_resp_credit;
@@ -95,6 +96,7 @@ static void tlx_control(void);
 void tlx_bfm(
 	            const svLogic       tlx_clock,
 		    const svLogic       afu_clock,
+		    const svLogic       reset,
 				// Table 1: TLX to AFU Response Interface
 			svLogic		*tlx_afu_resp_valid_top,
 			svLogicVecVal	*tlx_afu_resp_opcode_top,
@@ -197,6 +199,7 @@ void tlx_bfm(
   int invalidVal = 0;
   if ( tlx_clock == sv_0 ) {
 	//	Accessing inputs from the AFX
+    c_reset			= reset & 0x1;
     c_afu_tlx_cmd_initial_credit  	= (afu_tlx_cmd_initial_credit_top->aval) & 0x1F;
     invalidVal			+= (afu_tlx_cmd_initial_credit_top->bval) & 0x1F;
     c_afu_tlx_resp_initial_credit  	= (afu_tlx_resp_initial_credit_top->aval) & 0x1F;
