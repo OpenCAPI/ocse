@@ -126,6 +126,7 @@ module top (
 				inout             tlx_afu_ready_top
                                        );
   
+   parameter RESET_CYCLES = 5;
    reg             tlx_clock;
    reg             afu_clock;
    reg             reset;
@@ -362,6 +363,7 @@ module top (
   
 initial begin
     resetCnt = 0;
+    i = 0;
     tlx_clock				<= 0;
     afu_clock				<= 0;
     reset   				<= 1;
@@ -421,7 +423,6 @@ initial begin
     afu_cfg_in_rcv_rate_capability_3_top	<= 4'b0;
     tlx_afu_ready_top			<= 0;
 
-    tlx_bfm_init();
 end
 
   // Clock generation
@@ -435,12 +436,19 @@ end
   end
 
   always @ ( tlx_clock ) begin
-    if(resetCnt < 10)
+    if(resetCnt < 30)
       resetCnt = resetCnt + 1;
+    else
+      i = 1;
   end
 
   always @ ( tlx_clock ) begin
-    if(resetCnt < 5)
+    if(resetCnt == RESET_CYCLES)
+      tlx_bfm_init();
+  end
+
+  always @ ( tlx_clock ) begin
+    if(resetCnt < RESET_CYCLES)
       reset = 1'b1;
     else
       reset = 1'b0;
