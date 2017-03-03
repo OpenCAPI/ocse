@@ -34,7 +34,7 @@ AFU::AFU (int port, string filename, bool parity, bool jerror):
     state = IDLE;
     config_state = IDLE;
     debug_msg("AFU: AFU and CONFIG state = IDLE");
-    afu_event.afu_tlx_resp_initial_credit = MAX_AFU_TLX_RESP_CREDITS;
+    afu_event.afu_tlx_resp_initial_credit = MAX_AFU_TLX_RESP_CREDITS; 
     afu_event.afu_tlx_cmd_initial_credit = MAX_AFU_TLX_CMD_CREDITS;
     afu_tlx_send_initial_credits(&afu_event, MAX_AFU_TLX_CMD_CREDITS,
 		MAX_AFU_TLX_RESP_CREDITS);
@@ -46,6 +46,7 @@ void
 AFU::start ()
 {
     uint32_t cycle = 0;
+    uint8_t  initial_credit_flag = 0;
 
     while (1) {
         fd_set watchset;
@@ -65,6 +66,22 @@ AFU::start ()
             info_msg ("AFU: connection lost");
             break;
         }
+
+	// get TLX initial cmd and data credits
+	if(initial_credit_flag == 0) {
+	    if(tlx_afu_read_initial_credits(&afu_event, &tlx_afu_cmd_max_credit,
+		&tlx_afu_data_max_credit) != TLX_SUCCESS) {
+		error_msg("AFU: Failed tlx_afu_read_initial_credits");
+	    }
+	    info_msg("AFU: Initialize TLX cmd and data credits");
+	    tlx_afu_resp_credit = tlx_afu_cmd_max_credit;
+	    tlx_afu_cmd_credit  = tlx_afu_cmd_max_credit;
+   	    tlx_afu_resp_data_credit = tlx_afu_data_max_credit;
+	    tlx_afu_cmd_data_credit  = tlx_afu_data_max_credit;
+    	    debug_msg("AFU:  tlx_afu_cmd_max_credit = %d", tlx_afu_cmd_max_credit);
+    	    debug_msg("AFU:  tlx_afu_data_max_credit = %d", tlx_afu_data_max_credit);
+	    initial_credit_flag = 1;
+	}
 
 	// no new events to be processed
         if (rc <= 0)		
@@ -383,8 +400,8 @@ AFU::tlx_afu_config_read()
 void
 AFU::tlx_afu_config_write()
 {
-    uint8_t  afu_tlx_resp_rd_req;
-    uint8_t  afu_tlx_resp_rd_cnt;
+    uint8_t  afu_tlx_cmd_rd_req;
+    uint8_t  afu_tlx_cmd_rd_cnt;
     uint8_t  afu_resp_opcode;
     uint8_t  resp_dl;
     uint16_t resp_capptag;
@@ -396,9 +413,9 @@ AFU::tlx_afu_config_write()
     resp_capptag = afu_event.tlx_afu_cmd_capptag;
     
     if(config_state == IDLE) {
-	afu_tlx_resp_rd_req = 0x1;
-	afu_tlx_resp_rd_cnt = 0x1;
-	if( afu_tlx_resp_data_read_req(&afu_event, afu_tlx_resp_rd_req, afu_tlx_resp_rd_cnt) !=
+	afu_tlx_cmd_rd_req = 0x1;
+	afu_tlx_cmd_rd_cnt = 0x1;
+	if( afu_tlx_cmd_data_read_req(&afu_event, afu_tlx_cmd_rd_req, afu_tlx_cmd_rd_cnt) !=
 	    TLX_SUCCESS) {
 	    printf("AFU: Failed afu_tlx_resp_data_read_req\n");
 	}
