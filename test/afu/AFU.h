@@ -32,6 +32,12 @@ private:
     AFU_State config_state;
 
     uint64_t global_configs[3];	// stores MMIO registers for global configurations
+    uint8_t  tlx_afu_cmd_max_credit;
+    uint8_t  tlx_afu_data_max_credit;
+    uint8_t  tlx_afu_resp_credit;
+    uint8_t  tlx_afu_resp_data_credit;
+    uint8_t  tlx_afu_cmd_credit;
+    uint8_t  tlx_afu_cmd_data_credit;
 
     int reset_delay;
 
