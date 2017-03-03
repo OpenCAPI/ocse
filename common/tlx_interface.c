@@ -340,6 +340,7 @@ int tlx_afu_send_resp(struct AFU_EVENT *event,
 		return TLX_AFU_DOUBLE_RESP;
 	} else {
 		event->tlx_afu_resp_valid = 1;
+		event->afu_tlx_resp_credits_available -= 1;
 		event->tlx_afu_resp_opcode = tlx_resp_opcode;
 		event->tlx_afu_resp_afutag = resp_afutag;
 		event->tlx_afu_resp_code = resp_code;
@@ -368,6 +369,11 @@ int tlx_afu_send_resp_data(struct AFU_EVENT *event,
 	// TODO FOR NOW WE ALWAYS COPY 8 BYTES of DATA - OCSE ALWAYS
 	// SENDS 8 BYTES 
 	memcpy(event->tlx_afu_resp_data, resp_data, 8);
+	event->tlx_afu_resp_data_valid = 1;
+	//may not be best place to do this but it has to be done
+	event->afu_tlx_resp_rd_cnt -= 1;
+	if (event->afu_tlx_resp_rd_cnt == 0)
+		event->afu_tlx_resp_rd_req = 0;
 	return TLX_SUCCESS;
 }
 
@@ -437,6 +443,8 @@ int tlx_afu_send_cmd(struct AFU_EVENT *event,
 		return TLX_AFU_DOUBLE_COMMAND;
 	} else {
 		event->tlx_afu_cmd_valid = 1;
+		event->afu_tlx_cmd_credits_available -= 1;
+	printf("cmd_credits available is %d  \n", event->afu_tlx_cmd_credits_available); 
 		event->tlx_afu_cmd_opcode = tlx_cmd_opcode;
 		event->tlx_afu_cmd_capptag = cmd_capptag;
 		event->tlx_afu_cmd_dl = cmd_dl;
@@ -465,6 +473,7 @@ int tlx_afu_send_cmd_data(struct AFU_EVENT *event,
 		// TODO FOR NOW WE ALWAYS SEND 4 BYTES of DATA - OCSE ALWAYS
 		// SENDS 4 BYTES 
 		memcpy(event->tlx_afu_cmd_data_bus, cmd_data, 4);
+		event->tlx_afu_cmd_data_valid = 1;
 		//may not be best place to do this but it has to be done
 		event->afu_tlx_cmd_rd_cnt -= 1;
 		if (event->afu_tlx_cmd_rd_cnt == 0)
@@ -989,7 +998,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		for (i = 0; i < 4; i++) {
 			event->afu_tlx_rdata_bus[i]= event->rbuf[rbc++];
 		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
-		printf("event->afu_tlx_rdata_bus[%x] is 0x%2x \n", i, event->afu_tlx_rdata_bus[i]);
+		//printf("event->afu_tlx_rdata_bus[%x] is 0x%2x \n", i, event->afu_tlx_rdata_bus[i]);
 		}
 		
 	} else {
@@ -1006,6 +1015,14 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		event->afu_tlx_resp_rd_cnt = event->rbuf[rbc++];
 		event->afu_tlx_cmd_rd_req = event->rbuf[rbc++];
 		event->afu_tlx_cmd_rd_cnt = event->rbuf[rbc++];
+		if (event->afu_tlx_cmd_credit == 1) {
+			event->afu_tlx_cmd_credits_available += 1;
+			event->afu_tlx_cmd_credit = 0;
+		}
+		if (event->afu_tlx_resp_credit == 1) {
+			event->afu_tlx_resp_credits_available += 1;
+			event->afu_tlx_resp_credit = 0;
+		}
 	} else 
 		event->afu_tlx_credit_req_valid = 0;
 

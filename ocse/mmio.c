@@ -332,31 +332,34 @@ void send_mmio(struct mmio *mmio)
 				event->rnw, event->dw, event->addr);
 		event->state = OCSE_PENDING;
 	} 
-	//special case for now, always use same cmd_pa for config cmds and T= 0
-	uint8_t * dptr = ddata;
-	memcpy(ddata, &(event->data), 4);
 	
 	//if (!event->rnw && tlx_afu_send_cmd_and_data(mmio->afu_event, 
 	//	TLX_CMD_CONFIG_WRITE, 0xbeef,0, 2, 0, 0, 0, event->addr, 0, dptr) == TLX_SUCCESS) 
-	if (!event->rnw && tlx_afu_send_cmd(mmio->afu_event, 
-		TLX_CMD_CONFIG_WRITE, 0xbeef,0, 2, 0, 0, 0, event->addr) == TLX_SUCCESS) {
-		if (tlx_afu_send_cmd_data(mmio->afu_event, 0, 0, dptr) == TLX_SUCCESS) {
-		if (event->dw)
-			sprintf(data, "%016" PRIx64, event->data);
-		else
-			sprintf(data, "%08" PRIx32, (uint32_t) event->data);
-		debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s",
-			  mmio->afu_name, type, event->dw ? 64 : 32,
-			  event->addr, data);
-		debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
-				event->rnw, event->dw, event->addr);
-		event->state = OCSE_PENDING;
-		
-		}
-	}
 
-
-	} else   {
+	if (!event->rnw) { // CONFIG write - two part operation
+		if (event->state == OCSE_RD_RQ_PENDING) {
+			//special case for now, always use same cmd_pa for config cmds and T= 0
+			uint8_t * dptr = ddata;
+			memcpy(ddata, &(event->data), 4);
+			if (tlx_afu_send_cmd_data(mmio->afu_event, 0, 0, dptr) == TLX_SUCCESS) {
+			if (event->dw)
+				sprintf(data, "%016" PRIx64, event->data);
+			else
+				sprintf(data, "%08" PRIx32, (uint32_t) event->data);
+			debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s",
+				  mmio->afu_name, type, event->dw ? 64 : 32,
+			  	event->addr, data);
+			debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
+					event->rnw, event->dw, event->addr);
+			event->state = OCSE_PENDING;
+			printf("got rd_req and sent data, now wait for cmd resp from AFU \n");
+			}
+       	 	} else if ( tlx_afu_send_cmd(mmio->afu_event, 
+			TLX_CMD_CONFIG_WRITE, 0xbeef,0, 2, 0, 0, 0, event->addr) == TLX_SUCCESS) { 
+				event->state = OCSE_RD_RQ_PENDING;
+				printf("sent wr cmd, now wait for rd_req from AFU \n"); }
+			}
+        }  else   {  // if not a CONFIG, then must be MMIO rd/wr
 		sprintf(type, "MMIO");
 
 	// Attempt to send mmio to AFU
@@ -430,12 +433,12 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 		mmio->list = mmio->list->_next;
 		}
 		
-	if (mmio->afu_event->afu_tlx_credit_req_valid) {
+	/*if (mmio->afu_event->afu_tlx_credit_req_valid) {
 		printf ("afu_tlx_cmd_rd_req is 0x%x \n", mmio->afu_event->afu_tlx_cmd_rd_req);
 		printf ("afu_tlx_cmd_rd_cnt is 0x%x \n", mmio->afu_event->afu_tlx_cmd_rd_cnt);
 		printf ("afu_tlx_resp_rd_req is 0x%x \n", mmio->afu_event->afu_tlx_resp_rd_req);
 		printf ("afu_tlx_resp_rd_cnt is 0x%x \n", mmio->afu_event->afu_tlx_resp_rd_cnt);
-	}
+	} */
 	
 		
 }
