@@ -158,9 +158,14 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	uint8_t   afu_tlx_cmd_credits_available;
 	uint8_t   afu_tlx_resp_credits_available;
 printf("before read initial credits \n");
-	if (afu_tlx_read_initial_credits(mmio->afu_event, &afu_tlx_cmd_credits_available,
-	 &afu_tlx_resp_credits_available) != TLX_SUCCESS)
-		printf("NO CREDITS FROM AFU!!\n");
+	//if (afu_tlx_read_initial_credits(mmio->afu_event, &afu_tlx_cmd_credits_available,
+	 //&afu_tlx_resp_credits_available) != TLX_SUCCESS)
+	//	printf("NO CREDITS FROM AFU!!\n");
+	while (afu_tlx_read_initial_credits(mmio->afu_event, &afu_tlx_cmd_credits_available,
+	 &afu_tlx_resp_credits_available) != TLX_SUCCESS){
+	//infinite loop
+	sleep(1);
+	}
 	printf("afu_tlx_cmd_credits_available is %d, afu_tlx_resp_credits_available is %d \n",
 		afu_tlx_cmd_credits_available, afu_tlx_resp_credits_available);
 

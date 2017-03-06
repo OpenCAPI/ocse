@@ -329,6 +329,7 @@ static void *_ocl_loop(void *ptr)
 	int events, i, stopped, reset;
 	uint8_t ack = OCSE_DETACH;
 
+
 	stopped = 1;
 	pthread_mutex_lock(ocl->lock);
 	while (ocl->state != OCSE_DONE) {
@@ -600,8 +601,10 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 	ocl->vsec_image_loaded= parms->image_loaded;
 	ocl->vsec_base_image= parms->base_image;
 	// Set credits for TLX interface
-	ocl->state = OCSE_DESC;
-	if (tlx_afu_send_initial_credits(ocl->afu_event,2,2) != TLX_SUCCESS) {
+	ocl->state = OCSE_DESC	
+;
+	if (tlx_afu_send_initial_credits(ocl->afu_event,MAX_TLX_AFU_CMD_RESP_CREDITS,
+		MAX_TLX_AFU_DATA_CREDITS) != TLX_SUCCESS) {
 		warn_msg("Unable to set initial credits");
 		goto init_fail;
 	} 
@@ -633,8 +636,8 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 	}  */
 	// Read AFU initial credit values
 	int event;
-	uint8_t   afu_tlx_cmd_credits_available;
-	uint8_t   afu_tlx_resp_credits_available;
+	//uint8_t   afu_tlx_cmd_credits_available;
+	//uint8_t   afu_tlx_resp_credits_available;
 	event = tlx_get_afu_events(ocl->afu_event);
 	printf("after tlx_get_afu_events, event is 0x%3x \n", event);
 	// Error on socket
