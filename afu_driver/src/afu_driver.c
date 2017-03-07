@@ -41,7 +41,9 @@ static int clk_afu_resp_dat_val;
 static int clk_afu_cmd_dat_val;
 
 // inputs from AFX
-uint8_t		c_reset;
+uint8_t		c_reset = 1;
+uint8_t		c_reset_d1 = 1;
+uint8_t		c_reset_d2 = 1;
 uint8_t		c_afu_tlx_cmd_credit;
 uint8_t		c_afu_tlx_cmd_initial_credit;
 uint8_t		c_afu_tlx_resp_credit;
@@ -198,7 +200,7 @@ void tlx_bfm(
 //  int change = 0;
   int invalidVal = 0;
   c_reset			= reset & 0x1;
-  if(!c_reset)
+  if(!c_reset_d2)
   {
     if ( tlx_clock == sv_0 ) {
 	//	Accessing inputs from the AFX
@@ -492,6 +494,8 @@ void tlx_bfm(
       *tlx_afu_ready_top			= 1;	// TODO: need to check this
     }
   }
+  c_reset_d2 = c_reset_d1;
+  c_reset_d1 = c_reset;
 }
 
 void tlx_bfm_init()

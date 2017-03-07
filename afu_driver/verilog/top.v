@@ -421,7 +421,7 @@ initial begin
     afu_cfg_in_rcv_rate_capability_1_top	<= 4'b0;
     afu_cfg_in_rcv_rate_capability_2_top	<= 4'b0;
     afu_cfg_in_rcv_rate_capability_3_top	<= 4'b0;
-    tlx_afu_ready_top			<= 0;
+    tlx_afu_ready_top			<= 1;
 
 end
 
@@ -443,7 +443,7 @@ end
   end
 
   always @ ( tlx_clock ) begin
-    if(resetCnt == RESET_CYCLES)
+    if(resetCnt == RESET_CYCLES + 1)
       tlx_bfm_init();
   end
 
