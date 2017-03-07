@@ -408,8 +408,8 @@ initial begin
     tlx_afu_resp_data_credit_top		<= 0;
     tlx_afu_cmd_credit_top			<= 0;
     tlx_afu_cmd_data_credit_top		<= 0;
-    tlx_afu_cmd_resp_initial_credit_top	<= 3'b0;
-    tlx_afu_data_initial_credit_top		<= 5'b0;
+    tlx_afu_cmd_resp_initial_credit_top	<= 3'b101;
+    tlx_afu_data_initial_credit_top		<= 5'b01010;
 
   // These signals do not appear on the RefDesign Doc. However it is present
   // on the TLX spec
