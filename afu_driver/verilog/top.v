@@ -126,7 +126,7 @@ module top (
 				inout             tlx_afu_ready_top
                                        );
   
-   parameter RESET_CYCLES = 5;
+   parameter RESET_CYCLES = 9;
    reg             tlx_clock;
    reg             afu_clock;
    reg             reset;
@@ -443,7 +443,7 @@ end
   end
 
   always @ ( tlx_clock ) begin
-    if(resetCnt == RESET_CYCLES + 1)
+    if(resetCnt == RESET_CYCLES + 2)
       tlx_bfm_init();
   end
 
