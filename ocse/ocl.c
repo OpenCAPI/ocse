@@ -111,7 +111,7 @@ static void _attach(struct ocl *ocl, struct client *client)
 	      ocl->idle_cycles = TLX_IDLE_CYCLES;
 	      ack = OCSE_ATTACH;
 	    } */
-	  } 
+	  }
 	  break;
 	case 'm':
 	case 's':
@@ -121,7 +121,7 @@ static void _attach(struct ocl *ocl, struct client *client)
 		// if master, we might want to wait until after the llcmd add is complete
 		// can I wait here for the START to finish?
 	      } */
-	    } 
+	    }
 	    ocl->idle_cycles = TLX_IDLE_CYCLES;
 	    ack = OCSE_ATTACH;
 	  }
@@ -134,7 +134,7 @@ static void _attach(struct ocl *ocl, struct client *client)
 
 	ocl->attached_clients++;
 	info_msg( "Attached client context %d: current attached clients = %d: client type = %c\n", client->context, ocl->attached_clients, client->type );
-	
+
 	// for master and slave send llcmd add
         // master "wed" is 0x0005000000000000 can actually use client->context here as well since context = 0
 	// slave "wed" is 0x000500000000hhhh where hhhh is the "handle" from client->context
@@ -189,11 +189,11 @@ static void _detach(struct ocl *ocl, struct client *client)
 //	}
 
 	// we will let _ocl_loop call send_pe to issue the llcmds
-	// when the jcack's come back, we will 
-	//   send the detach response to the client and 
+	// when the jcack's come back, we will
+	//   send the detach response to the client and
 	//   free the client structure
 
-	
+
 }
 
 // Client release from AFU
@@ -225,7 +225,7 @@ static void _free(struct ocl *ocl, struct client *client)
 	info_msg( "Detatched a client: current attached clients = %d\n", ocl->attached_clients );
 
 	// where do we *really* free the client struct and it's contents???
-	
+
 }
 
 
@@ -338,7 +338,7 @@ static void *_ocl_loop(void *ptr)
 		// not be presented to an idle AFU to keep simulation
 		// waveforms from getting huge with no activity cycles.
 		if (ocl->state != OCSE_IDLE) {
-		  // if we have clients or we are in the reset state, refresh idle_cycles 
+		  // if we have clients or we are in the reset state, refresh idle_cycles
 		  // so that the afu clock will not be allowed to stop to save afu event simulator cycles
 		  if ((ocl->attached_clients > 0) || (ocl->state == OCSE_RESET) ||
 			(ocl->state == OCSE_DESC)) {
@@ -389,7 +389,7 @@ static void *_ocl_loop(void *ptr)
 		for (i = 0; i < ocl->max_clients; i++) {
 			if (ocl->client[i] == NULL)
 				continue;
-			if ((ocl->client[i]->type == 'd') && 
+			if ((ocl->client[i]->type == 'd') &&
 			    (ocl->client[i]->state == CLIENT_NONE) &&
 			    (ocl->client[i]->idle_cycles == 0)) {
 			        // this was the old way of detaching a dedicated process app/afu pair
@@ -494,7 +494,7 @@ static void *_ocl_loop(void *ptr)
 		free(ocl->name);
 	if (*(ocl->head) == ocl)
 		*(ocl->head) = ocl->_next;
-	
+
 	pthread_mutex_unlock(ocl->lock);
 	free(ocl);
 	pthread_exit(NULL);
@@ -601,13 +601,13 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 	ocl->vsec_image_loaded= parms->image_loaded;
 	ocl->vsec_base_image= parms->base_image;
 	// Set credits for TLX interface
-	ocl->state = OCSE_DESC	
+	ocl->state = OCSE_DESC
 ;
 	if (tlx_afu_send_initial_credits(ocl->afu_event,MAX_TLX_AFU_CMD_RESP_CREDITS,
 		MAX_TLX_AFU_DATA_CREDITS) != TLX_SUCCESS) {
 		warn_msg("Unable to set initial credits");
 		goto init_fail;
-	} 
+	}
 	printf("sent out initial TLX_AFU credits \n");
 			tlx_signal_afu_model(ocl->afu_event);
 	// Start ocl loop thread
@@ -631,7 +631,7 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 	// Send reset to AFU
 	debug_msg("%s @ %s:%d: No need to send reset job.", ocl->name, ocl->host, ocl->port);
 	/* reset = add_job(ocl->job, TLX_JOB_RESET, 0L);
-	while (ocl->job->job == reset) {	//infinite loop 
+	while (ocl->job->job == reset) {	//infinite loop
 		lock_delay(ocl->lock);
 	}  */
 	// Read AFU initial credit values
@@ -664,7 +664,7 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 	//if (dedicated_mode_support(ocl->mmio)) {
 		// AFU supports Dedicated Mode
 		// TODO FIX THIS TO USE NEW CFG VALUES!!
-		ocl->max_clients = 1;
+		ocl->max_clients = 4;
 	//}
 	//if (directed_mode_support(ocl->mmio)) {
 		// AFU supports Directed Mode

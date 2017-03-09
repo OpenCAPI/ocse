@@ -86,9 +86,9 @@ struct job_event *add_pe(struct job *job, uint32_t code, uint64_t addr)
 	event->_next = NULL;
 	*tail = event;
 
-	debug_msg( "%s,%d:add_pe: created pe:0x%016"PRIx64", stored pointer at=0x%016"PRIx64, 
+	debug_msg( "%s,%d:add_pe: created pe:0x%016"PRIx64", stored pointer at=0x%016"PRIx64,
 		   job->afu_name, job->dbg_id, event, tail );
-	
+
 	// DEBUG
 	//debug_job_add(job->dbg_fp, job->dbg_id, event->code);
 	debug_pe_add(job->dbg_fp, job->dbg_id, event->code, addr);
@@ -100,7 +100,7 @@ void send_pe(struct job *job)
 {
 	struct job_event *event;
 
-	// this needs to block the send of the "next" pe until 
+	// this needs to block the send of the "next" pe until
 	// the job is running
 	// and the previous pe is running
 
@@ -150,7 +150,7 @@ void send_pe(struct job *job)
 	      // error?
 	      return;
 	      break;
-           }  
+           }
 	}
 	return;
 }
@@ -224,5 +224,5 @@ void send_job(struct job *job)
 	} */
 }
 
-// handle_aux2 was renamed to _handle_aux2 and moved to ocl.c because we needed the ocl struct to 
+// handle_aux2 was renamed to _handle_aux2 and moved to ocl.c because we needed the ocl struct to
 // send the detach ack back to the client

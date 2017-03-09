@@ -55,7 +55,7 @@
 #include "../common/debug.h"
 #include "../common/utils.h"
 
-#define OCL_MAX_IRQS 2037 
+#define OCL_MAX_IRQS 2037
 
 struct ocl *ocl_list;
 struct client *client_list;

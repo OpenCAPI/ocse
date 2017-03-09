@@ -1,12 +1,12 @@
 /*
  * Copyright 2014,2017 International Business Machines
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -73,6 +73,7 @@
 #define AFU_TLX_RESP_DATA_NOT_VALID 34
 #define AFU_TLX_RESP_NO_DATA 35
 #define AFU_TLX_NO_CREDITS 40
+#define AFU_TLX_RD_CNT_WRONG 41
 #define TLX_RESPONSE_FAILED 15
 #define TLX_RESPONSE_CONTEXT 17
 #define TLX_BAD_SOCKET 16	/* The socket connection could not be established */
@@ -86,7 +87,7 @@
 #define TLX_CMD_NOP 0
 #define TLX_CMD_XLATE_DONE 	0x18
 #define TLX_CMD_RETURN_ADR_TAG  0x19	// TLX4 only
-#define TLX_CMD_INTRP_RDY  	0x1a 
+#define TLX_CMD_INTRP_RDY  	0x1a
 #define TLX_CMD_RD_MEM	  	 0x20
 #define TLX_CMD_PR_RD_MEM  	0x28
 #define TLX_CMD_AMO_RD     	0x30	// TLX4 only
@@ -94,7 +95,7 @@
 #define TLX_CMD_AMO_W      	0x40	// TLX4 only
 #define TLX_CMD_WRITE_MEM  	0x81
 #define TLX_CMD_WRITE_MEM_BE	0x82
-#define TLX_CMD_WRITE_META	0x83	// OMI 
+#define TLX_CMD_WRITE_META	0x83	// OMI
 #define TLX_CMD_PR_WR_MEM	0x86
 #define TLX_CMD_FORCE_EVICT	0xd0	// TLX4 only
 #define TLX_CMD_FORCE_UR	0xd2	// TLX4 only
@@ -108,14 +109,14 @@
 #define AFU_CMD_NOP 0
 #define AFU_CMD_RD_WNITC 	0x10
 #define AFU_CMD_RD_WNITC_S 	0x11 	//TLX4 only
-#define AFU_CMD_RD_WNITC_N 	0x14 	
+#define AFU_CMD_RD_WNITC_N 	0x14
 #define AFU_CMD_RD_WNITC_N_S 	0x15 	//TLX4 only
 #define AFU_CMD_PR_RD_WNITC 	0x12
 #define AFU_CMD_PR_RD_WNITC_S 	0x13 	//TLX4 only
-#define AFU_CMD_PR_RD_WNITC_N 	0x16 	
+#define AFU_CMD_PR_RD_WNITC_N 	0x16
 #define AFU_CMD_PR_RD_WNITC_N_S	0x17 	//TLX4 only
-#define AFU_CMD_DMA_W  		0x20	
-#define AFU_CMD_DMA_W_S  	0x21	// TLX4 only 
+#define AFU_CMD_DMA_W  		0x20
+#define AFU_CMD_DMA_W_S  	0x21	// TLX4 only
 #define AFU_CMD_DMA_W_P	  	0x22	// TLX4 only
 #define AFU_CMD_DMA_W_P_S	0x23	// TLX4 only
 #define AFU_CMD_DMA_W_N	  	0x24
@@ -130,56 +131,56 @@
 #define AFU_CMD_DMA_W_BE_N_S	0x2d	// TLX4 only
 #define AFU_CMD_DMA_W_BE_N_P	0x2e	// TLX4 only
 #define AFU_CMD_DMA_W_BE_N_P_S	0x2f	// TLX4 only
-#define AFU_CMD_DMA_PR_W  	0x30	
-#define AFU_CMD_DMA_PR_W_S  	0x31	// TLX4 only 
+#define AFU_CMD_DMA_PR_W  	0x30
+#define AFU_CMD_DMA_PR_W_S  	0x31	// TLX4 only
 #define AFU_CMD_DMA_PR_W_P  	0x32	// TLX4 only
 #define AFU_CMD_DMA_PR_W_P_S	0x33	// TLX4 only
 #define AFU_CMD_DMA_PR_W_N  	0x34
 #define AFU_CMD_DMA_PR_W_N_S  	0x35	// TLX4 only
 #define AFU_CMD_DMA_PR_W_N_P 	0x36	// TLX4 only
 #define AFU_CMD_DMA_PR_W_N_P_S  0x37	// TLX4 only
-#define AFU_CMD_AMO_RD  	0x38	
-#define AFU_CMD_AMO_RD_S  	0x39	// TLX4 only	
-#define AFU_CMD_AMO_RD_N  	0x3c	
-#define AFU_CMD_AMO_RD_N_S  	0x3d	// TLX4 only	
-#define AFU_CMD_AMO_RW  	0x40	
-#define AFU_CMD_AMO_RW_S  	0x41	// TLX4 only	
-#define AFU_CMD_AMO_RW_N  	0x44	
-#define AFU_CMD_AMO_RW_N_S  	0x45	// TLX4 only	
-#define AFU_CMD_AMO_W  		0x48	
-#define AFU_CMD_AMO_W_S  	0x49	// TLX4 only 
+#define AFU_CMD_AMO_RD  	0x38
+#define AFU_CMD_AMO_RD_S  	0x39	// TLX4 only
+#define AFU_CMD_AMO_RD_N  	0x3c
+#define AFU_CMD_AMO_RD_N_S  	0x3d	// TLX4 only
+#define AFU_CMD_AMO_RW  	0x40
+#define AFU_CMD_AMO_RW_S  	0x41	// TLX4 only
+#define AFU_CMD_AMO_RW_N  	0x44
+#define AFU_CMD_AMO_RW_N_S  	0x45	// TLX4 only
+#define AFU_CMD_AMO_W  		0x48
+#define AFU_CMD_AMO_W_S  	0x49	// TLX4 only
 #define AFU_CMD_AMO_W_P  	0x4a	// TLX4 only
 #define AFU_CMD_AMO_W_P_S	0x4b	// TLX4 only
 #define AFU_CMD_AMO_W_N  	0x4c
 #define AFU_CMD_AMO_W_N_S  	0x4d	// TLX4 only
 #define AFU_CMD_AMO_W_N_P 	0x4e	// TLX4 only
 #define AFU_CMD_AMO_W_N_P_S  	0x4f	// TLX4 only
-#define AFU_CMD_ASSIGN_ACTAG	0x50	
-#define AFU_CMD_ADR_TAG_RELEASE	0x51	// TLX4 only	
-#define AFU_CMD_MEM_PA_FLUSH	0x52	// TLX4 only	
-#define AFU_CMD_CASTOUT		0x55	// TLX4 only	
-#define AFU_CMD_CASTOUT_PUSH	0x56	// TLX4 only	
-#define AFU_CMD_INTRP_REQ	0x58	
-#define AFU_CMD_INTRP_REQ_S	0x59	// TLX4 only	
-#define AFU_CMD_INTRP_REQ_D	0x5a	
-#define AFU_CMD_INTRP_REQ_D_S	0x5b	// TLX4 only	
-#define AFU_CMD_WAKE_HOST_THRD	0x5c	
-#define AFU_CMD_WAKE_HOST_THRD_S	0x5d // TLX4 only	
-#define AFU_CMD_UPGRADE_STATE		0x60 	// TLX4 only	
-#define AFU_CMD_READ_EXCLUSIVE		0x68 	// TLX4 only	
-#define AFU_CMD_READ_SHARED		0x69 	// TLX4 only	
-#define AFU_CMD_XLATE_TOUCH		0x78 	
-#define AFU_CMD_XLATE_TOUCH_N		0x7c	
-#define AFU_CMD_RD_WNITC_T		0x90 	// TLX4 only	
-#define AFU_CMD_RD_WNITC_T_S		0x91 	// TLX4 only	
-#define AFU_CMD_RD_WNITC_T_N		0x94 	// TLX4 only	
-#define AFU_CMD_RD_WNITC_T_N_S		0x95 	// TLX4 only	
-#define AFU_CMD_PR_RD_WNITC_T		0x92 	// TLX4 only	
-#define AFU_CMD_PR_RD_WNITC_T_S		0x93 	// TLX4 only	
-#define AFU_CMD_PR_RD_WNITC_T_N		0x96 	// TLX4 only	
-#define AFU_CMD_PR_RD_WNITC_T_N_S	0x97 	// TLX4 only	
+#define AFU_CMD_ASSIGN_ACTAG	0x50
+#define AFU_CMD_ADR_TAG_RELEASE	0x51	// TLX4 only
+#define AFU_CMD_MEM_PA_FLUSH	0x52	// TLX4 only
+#define AFU_CMD_CASTOUT		0x55	// TLX4 only
+#define AFU_CMD_CASTOUT_PUSH	0x56	// TLX4 only
+#define AFU_CMD_INTRP_REQ	0x58
+#define AFU_CMD_INTRP_REQ_S	0x59	// TLX4 only
+#define AFU_CMD_INTRP_REQ_D	0x5a
+#define AFU_CMD_INTRP_REQ_D_S	0x5b	// TLX4 only
+#define AFU_CMD_WAKE_HOST_THRD	0x5c
+#define AFU_CMD_WAKE_HOST_THRD_S	0x5d // TLX4 only
+#define AFU_CMD_UPGRADE_STATE		0x60 	// TLX4 only
+#define AFU_CMD_READ_EXCLUSIVE		0x68 	// TLX4 only
+#define AFU_CMD_READ_SHARED		0x69 	// TLX4 only
+#define AFU_CMD_XLATE_TOUCH		0x78
+#define AFU_CMD_XLATE_TOUCH_N		0x7c
+#define AFU_CMD_RD_WNITC_T		0x90 	// TLX4 only
+#define AFU_CMD_RD_WNITC_T_S		0x91 	// TLX4 only
+#define AFU_CMD_RD_WNITC_T_N		0x94 	// TLX4 only
+#define AFU_CMD_RD_WNITC_T_N_S		0x95 	// TLX4 only
+#define AFU_CMD_PR_RD_WNITC_T		0x92 	// TLX4 only
+#define AFU_CMD_PR_RD_WNITC_T_S		0x93 	// TLX4 only
+#define AFU_CMD_PR_RD_WNITC_T_N		0x96 	// TLX4 only
+#define AFU_CMD_PR_RD_WNITC_T_N_S	0x97 	// TLX4 only
 #define AFU_CMD_DMA_W_T  		0xa0    // TLX4 only
-#define AFU_CMD_DMA_W_T_S  		0xa1	// TLX4 only 
+#define AFU_CMD_DMA_W_T_S  		0xa1	// TLX4 only
 #define AFU_CMD_DMA_W_T_P	  	0xa2	// TLX4 only
 #define AFU_CMD_DMA_W_T_P_S		0xa3	// TLX4 only
 #define AFU_CMD_DMA_W_T_N	  	0xa4    // TLX4 only
@@ -195,7 +196,7 @@
 #define AFU_CMD_DMA_W_BE_T_N_P		0xae	// TLX4 only
 #define AFU_CMD_DMA_W_BE_T_N_P_S	0xaf	// TLX4 only
 #define AFU_CMD_DMA_PR_W_T  		0xb0	// TLX4 only
-#define AFU_CMD_DMA_PR_W_T_S  		0xb1	// TLX4 only 
+#define AFU_CMD_DMA_PR_W_T_S  		0xb1	// TLX4 only
 #define AFU_CMD_DMA_PR_W_T_P  		0xb2	// TLX4 only
 #define AFU_CMD_DMA_PR_W_T_P_S		0xb3	// TLX4 only
 #define AFU_CMD_DMA_PR_W_T_N  		0xb4	// TLX4 only
@@ -203,24 +204,24 @@
 #define AFU_CMD_DMA_PR_W_T_N_P 		0xb6	// TLX4 only
 #define AFU_CMD_DMA_PR_W_T_N_P_S  	0xb7	// TLX4 only
 #define AFU_CMD_AMO_RD_T  		0xb8	// TLX4 only
-#define AFU_CMD_AMO_RD_T_S  		0xb9	// TLX4 only	
-#define AFU_CMD_AMO_RD_T_N  		0xbc	// TLX4 only	
-#define AFU_CMD_AMO_RD_T_N_S  		0xbd	// TLX4 only	
+#define AFU_CMD_AMO_RD_T_S  		0xb9	// TLX4 only
+#define AFU_CMD_AMO_RD_T_N  		0xbc	// TLX4 only
+#define AFU_CMD_AMO_RD_T_N_S  		0xbd	// TLX4 only
 #define AFU_CMD_AMO_RW_T  		0xc0	// TLX4 only
-#define AFU_CMD_AMO_RW_T_S  		0xc1	// TLX4 only	
+#define AFU_CMD_AMO_RW_T_S  		0xc1	// TLX4 only
 #define AFU_CMD_AMO_RW_T_N  		0xc4	// TLX4 only
-#define AFU_CMD_AMO_RW_T_N_S  		0xc5	// TLX4 only	
+#define AFU_CMD_AMO_RW_T_N_S  		0xc5	// TLX4 only
 #define AFU_CMD_AMO_W_T  		0xc8	// TLX4 only
-#define AFU_CMD_AMO_W_T_S  		0xc9	// TLX4 only 
+#define AFU_CMD_AMO_W_T_S  		0xc9	// TLX4 only
 #define AFU_CMD_AMO_W_T_P  		0xca	// TLX4 only
 #define AFU_CMD_AMO_W_T_P_S		0xcb	// TLX4 only
 #define AFU_CMD_AMO_W_T_N  		0xcc	// TLX4 only
 #define AFU_CMD_AMO_W_T_N_S  		0xcd	// TLX4 only
 #define AFU_CMD_AMO_W_T_N_P 		0xce	// TLX4 only
 #define AFU_CMD_AMO_W_T_N_P_S  		0xcf	// TLX4 only
-#define AFU_CMD_UPGRADE_STATE_T		0xe0 	// TLX4 only	
-#define AFU_CMD_READ_EXCLUSIVE_T	0xe8 	// TLX4 only	
-#define AFU_CMD_READ_SHARED_T		0xe9 	// TLX4 only	
+#define AFU_CMD_UPGRADE_STATE_T		0xe0 	// TLX4 only
+#define AFU_CMD_READ_EXCLUSIVE_T	0xe8 	// TLX4 only
+#define AFU_CMD_READ_SHARED_T		0xe9 	// TLX4 only
 
 
 /* TL CAPP responses (from host to AFU)  */
@@ -235,8 +236,8 @@
 #define TLX_RSP_WRITE_FAILED	0x09
 #define TLX_RSP_MEM_FLUSH_DONE	0x0a 	// TLX4 only
 #define TLX_RSP_INTRP_RESP	0x0c
-#define TLX_RSP_READ_RESP_OW	0x0d 	// OMI 
-#define TLX_RSP_READ_RESP_XW	0x0e 	// OMI 
+#define TLX_RSP_READ_RESP_OW	0x0d 	// OMI
+#define TLX_RSP_READ_RESP_XW	0x0e 	// OMI
 #define TLX_RSP_WAKE_HOST_RESP	0x10
 #define TLX_RSP_CL_RD_RESP_OW	0x16 	// TLX4 only
 
@@ -245,11 +246,11 @@
 #define AFU_RSP_NOP  0
 #define AFU_RSP_MEM_RD_RESP	0x01
 #define AFU_RSP_MEM_RD_FAIL	0x02
-#define AFU_RSP_MEM_RD_RESP_OW	0x03 	// OMI 
+#define AFU_RSP_MEM_RD_RESP_OW	0x03 	// OMI
 #define AFU_RSP_MEM_WR_RESP	0x04
 #define AFU_RSP_MEM_WR_FAIL	0x05
-#define AFU_RSP_MEM_RD_RESP_XW	0x07 	// OMI 
-#define AFU_RSP_RET_TL_CREDITS	0x08 	// OMI 
+#define AFU_RSP_MEM_RD_RESP_XW	0x07 	// OMI
+#define AFU_RSP_RET_TL_CREDITS	0x08 	// OMI
 #define AFU_RSP_WAKE_AFU_RESP	0x0a 	// TLX4 only
 #define AFU_RSP_FORCE_UR_DONE	0x0c 	// TLX4 only
 
@@ -272,8 +273,12 @@ struct AFU_EVENT {
   uint8_t  tlx_afu_credit_valid;		  /* TODO TEMP for now, needed for xfer of credits */
   uint8_t  afu_tlx_cmd_credits_available;
   uint8_t  afu_tlx_resp_credits_available;
-  uint8_t  tlx_afu_cmd_resp_credits_available;
-  uint8_t  tlx_afu_data_credits_available;
+  uint8_t  tlx_afu_cmd_credits_available;
+  uint8_t  tlx_afu_resp_credits_available;
+  uint8_t  tlx_afu_resp_data_credits_available;
+  uint8_t  tlx_afu_cmd_data_credits_available;
+  uint16_t  tlx_afu_cmd_data_byte_cnt;	/*  used for socket transfer only */
+  uint16_t  tlx_afu_resp_data_byte_cnt;	/*  used for socket transfer only */
   // TLX to AFU Repsonse Interface (table 1)
   // CAPP to AP (host to afu) responses (generally to ap/capp commands and data)
   uint8_t tlx_afu_resp_valid;             /* 1 bit valid respoonse from tlx */
@@ -288,13 +293,13 @@ struct AFU_EVENT {
   uint32_t tlx_afu_resp_host_tag;            /* TLX4 */
   uint8_t tlx_afu_resp_cache_state;          /* TLX4 */
 #endif
-  
+
   // AFU to TLX Response Credit Interface (table 2)
   uint8_t afu_tlx_resp_credit;              /* 1 bit return a credit to tlx */
   uint8_t afu_tlx_resp_initial_credit;      /* 7 bit initial number of credits that the afu is providing to tlx for consumption - when is this valid? */
-  
+
   // TLX to AFU Command Interface (table 3)
-  // CAPP to AP (host to afu) commands and data 
+  // CAPP to AP (host to afu) commands and data
   uint8_t tlx_afu_cmd_valid;              /* 1 bit command valid from from host */
   uint8_t tlx_afu_cmd_opcode;             /* 8 bit command op code */
   uint16_t tlx_afu_cmd_capptag;           /* 16 bit command tag from host */
@@ -312,7 +317,7 @@ struct AFU_EVENT {
   // TLX Command Credit Interface (table 4)
   uint8_t afu_tlx_cmd_credit;              /* 1 bit return a credit to tlx */
   uint8_t afu_tlx_cmd_initial_credit;      /* 7 bit initial number of credits that the afu is providing to tlx for consumption - when is this valid? */
-  
+
   // TLX to AFU Repsonse DATA Interface (table 5)
   // CAPP to AP (host to afu) data responses (generally to ap/capp read commands)
   uint8_t tlx_afu_resp_data_valid;         /* 1 bit response data valid */
@@ -320,7 +325,7 @@ struct AFU_EVENT {
   uint8_t tlx_afu_resp_data_bdi;           /* 1 bit bad data indicator */
   uint8_t afu_tlx_resp_rd_req;             /* 1 bit response to a read request */
   uint8_t afu_tlx_resp_rd_cnt;             /* 3 bit encoded read count */
-  
+
   // TLX to AFU command DATA Interface (table 6)
   // CAPP to AP (host to afu) data (generally to capp/ap write commands)
   uint8_t tlx_afu_cmd_data_valid;          /* 1 bit command from host valid */
@@ -328,7 +333,7 @@ struct AFU_EVENT {
   uint8_t tlx_afu_cmd_data_bdi;            /* 1 bit bad data indicator */
   uint8_t afu_tlx_cmd_rd_req;              /* 1 bit read request */
   uint8_t afu_tlx_cmd_rd_cnt;              /* 3 bit encoded read count */
- 
+
   // TLX Framer Command Interface (table 7)
   uint8_t tlx_afu_resp_credit;             /* 1 bit tlx returning a response credit to the afu */
   uint8_t tlx_afu_resp_data_credit;        /* 1 bit tlx returning a response data credit to the afu */
@@ -370,7 +375,7 @@ struct AFU_EVENT {
   uint8_t afu_tlx_rdata_valid;            /* 6 bit response data is valid */
   unsigned char afu_tlx_rdata_bus[64];    /* 512 bit response data */
   uint8_t afu_tlx_rdata_bad;              /* 1 bit response data is bad */
-  				       
+
   // TLX Framer Template Configuration (table 10)
   uint8_t afu_cfg_xmit_tmpl_config_0;     /* 1 bit xmit template enable - default */
   uint8_t afu_cfg_xmit_tmpl_config_1;     /* 1 bit xmit template enable */
@@ -380,11 +385,7 @@ struct AFU_EVENT {
   uint8_t afu_cfg_xmit_rate_config_1;     /* 4 bit xmit rate */
   uint8_t afu_cfg_xmit_rate_config_2;     /* 4 bit xmit rate - not in TLX3 */
   uint8_t afu_cfg_xmit_rate_config_3;     /* 4 bit xmit rate */
-  				       
-  // CREDITS!!!
 
-  
 };
 /* *INDENT-ON* */
-
 #endif
