@@ -73,7 +73,7 @@ int tlx_afu_send_resp(struct AFU_EVENT *event,
  * @ time to FIFO ?*/
 
 int tlx_afu_send_resp_data(struct AFU_EVENT *event,
-		 uint8_t DATA_RESP_CONTINUATION,
+		 uint16_t resp_byte_cnt,
 		 uint8_t resp_data_bdi,uint8_t * resp_data);
 
 

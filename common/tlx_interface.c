@@ -361,24 +361,27 @@ int tlx_afu_send_resp(struct AFU_EVENT *event,
 
 
 int tlx_afu_send_resp_data(struct AFU_EVENT *event,
-		 uint8_t DATA_RESP_CONTINUATION,
+		 uint16_t resp_byte_cnt,
 		 uint8_t resp_data_bdi,uint8_t * resp_data)
 
 {
 	if (event->afu_tlx_resp_rd_req == 0)
 		return AFU_TLX_NO_CREDITS;
 	//afu_tlx_resp_rd_cnt only valid when afu_tlx_resp_rd_req is valid
-	event->tlx_afu_resp_data_byte_cnt = event->afu_tlx_resp_rd_cnt;
+	if (resp_byte_cnt <= 64) {
+		if (event->afu_tlx_resp_rd_cnt != 1)
+			return AFU_TLX_RD_CNT_WRONG;
+	} else if (event->afu_tlx_resp_rd_cnt != (resp_byte_cnt/64))
+			return AFU_TLX_RD_CNT_WRONG;
 
 	event->tlx_afu_resp_data_bdi = resp_data_bdi;
-	// TODO FOR NOW WE ALWAYS COPY 8 BYTES of DATA - OCSE ALWAYS
-	// SENDS 8 BYTES
 	memcpy(event->tlx_afu_resp_data, resp_data, 8);
 	event->tlx_afu_resp_data_valid = 1;
+	event->tlx_afu_resp_data_byte_cnt = resp_byte_cnt;
+	printf("resp_rd_cnt is 0x%2x \n", event->afu_tlx_resp_rd_cnt);
 	//may not be best place to do this but it has to be done
-	event->afu_tlx_resp_rd_cnt -= 1;
-	if (event->afu_tlx_resp_rd_cnt == 0)
-		event->afu_tlx_resp_rd_req = 0;
+	event->afu_tlx_resp_rd_cnt = 0;
+	event->afu_tlx_resp_rd_req = 0;
 	return TLX_SUCCESS;
 }
 
@@ -473,21 +476,21 @@ int tlx_afu_send_cmd_data(struct AFU_EVENT *event,
 {
 	if (event->afu_tlx_cmd_rd_req == 0)
 		return AFU_TLX_NO_CREDITS;
-		//TODO will need to read afu_tlx_cmd_rd_cnt soon!
-		if (cmd_byte_cnt <= 64) {
-			if (event->afu_tlx_cmd_rd_cnt != 1)
-				return AFU_TLX_RD_CNT_WRONG;
-		} else if (event->afu_tlx_cmd_rd_cnt != (cmd_byte_cnt/64))
-				return AFU_TLX_RD_CNT_WRONG;
-		event->tlx_afu_cmd_data_bdi = cmd_data_bdi;
-		memcpy(event->tlx_afu_cmd_data_bus, cmd_data, cmd_byte_cnt);
-		event->tlx_afu_cmd_data_byte_cnt = cmd_byte_cnt;
-		printf("cnd_rd_cnt is 0x%2x \n", event->afu_tlx_cmd_rd_cnt);
-		event->tlx_afu_cmd_data_valid = 1;
-		//may not be best place to do this but it has to be done
-		event->afu_tlx_cmd_rd_cnt = 0;
-		event->afu_tlx_cmd_rd_req = 0;
-		return TLX_SUCCESS;
+	//TODO will need to read afu_tlx_cmd_rd_cnt soon!
+	if (cmd_byte_cnt <= 64) {
+		if (event->afu_tlx_cmd_rd_cnt != 1)
+			return AFU_TLX_RD_CNT_WRONG;
+	} else if (event->afu_tlx_cmd_rd_cnt != (cmd_byte_cnt/64))
+			return AFU_TLX_RD_CNT_WRONG;
+	event->tlx_afu_cmd_data_bdi = cmd_data_bdi;
+	memcpy(event->tlx_afu_cmd_data_bus, cmd_data, cmd_byte_cnt);
+	event->tlx_afu_cmd_data_byte_cnt = cmd_byte_cnt;
+	printf("cnd_rd_cnt is 0x%2x \n", event->afu_tlx_cmd_rd_cnt);
+	event->tlx_afu_cmd_data_valid = 1;
+	//may not be best place to do this but it has to be done
+	event->afu_tlx_cmd_rd_cnt = 0;
+	event->afu_tlx_cmd_rd_req = 0;
+	return TLX_SUCCESS;
 }
 
 
@@ -702,7 +705,7 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 		event->tbuf[4] = (event->tlx_afu_resp_data_byte_cnt & 0xFF);
 		event->tbuf[bp++] = (event->tlx_afu_resp_data_bdi  & 0x01 );
 		//printf("event->tbuf[bp] is 0x%2x and bp is 0x%2x \n", event->tbuf[bp], bp);
-		for (i = 0; i < 8; i++) {
+		for (i = 0; i < event->tlx_afu_resp_data_byte_cnt; i++) {
 			event->tbuf[bp++] = event->tlx_afu_resp_data[i];
 		}
 		event->tlx_afu_resp_data_valid = 0;
@@ -758,7 +761,7 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		return TLX_SUCCESS;
 	event->clock = 0;
 	event->tbuf[0] = 0x10;
-	if (event->afu_tlx_cmd_valid != 0) { //TODO FIX THIS COUNT!!! There are 24 bytes to xfer in this group (25 for TLX4 )
+	if (event->afu_tlx_cmd_valid != 0) { //There are 24 bytes to xfer in this group (25 for TLX4 )
 		event->tbuf[0] = event->tbuf[0] | 0x02;
 		// printf("event->tbuf[0] is 0x%2x \n", event->tbuf[0]);
 		event->tbuf[bp++] = event->afu_tlx_cmd_opcode;
@@ -1179,7 +1182,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 		event->tlx_afu_cmd_data_valid = 1;
 		event->tlx_afu_cmd_data_bdi = event->rbuf[rbc++];
 		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
-		for (i = 0; i < 4; i++) {
+		for (i = 0; i < cmd_data_byte_cnt; i++) {
 			event->tlx_afu_cmd_data_bus[i] = event->rbuf[rbc++] ;
 		}
 
@@ -1205,7 +1208,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 		event->tlx_afu_resp_data_valid = 1;
 		event->tlx_afu_resp_data_bdi = event->rbuf[rbc++] ;
 		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
-		for (i = 0; i < 8; i++) {
+		for (i = 0; i < resp_data_byte_cnt; i++) {
 			event->tlx_afu_resp_data[i] = event->rbuf[rbc++] ;
 		}
 	} else {

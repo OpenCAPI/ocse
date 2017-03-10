@@ -65,90 +65,52 @@ int _is_cmd_pending(struct ocl *ocl, int32_t context)
 // Attach to AFU
 static void _attach(struct ocl *ocl, struct client *client)
 {
-	uint64_t wed;
+	uint64_t AMR;
 	uint8_t ack;
 	uint8_t buffer[MAX_LINE_CHARS];
 	size_t size;
 
-	// FIXME: This only works for dedicate mode
-	// might work for afu-directed now - lgt
-
-	// Get wed value from application
-	// always do the get
-        // pass the wed only for dedicated
+	// Get pasid value from application when they call attach
+	// we make up the BDF value in read_afu_config
+	// AFU sends us the actag later in assign_actag
 	ack = OCSE_DETACH;
 	size = sizeof(uint64_t);
 	if (get_bytes_silent(client->fd, size, buffer, ocl->timeout,
 			     &(client->abort)) < 0) {
-	  warn_msg("Failed to get WED value from client");
+	  warn_msg("Failed to get AMR value from client");
 	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 	  goto attach_done;
 	}
 
-	// but need to save wed if master|slave for future consumption
-	// interestingly, I can always save it
-	// add to client type.
-	memcpy((char *)&wed, (char *)buffer, sizeof(uint64_t));
-	// wed came over in be format
+	// save AMR for future consumption (always in directed mode now)
+	memcpy((char *)&AMR, (char *)buffer, sizeof(uint64_t));
+	// AMR came over in be format
 	// since we are modeling the ocl register here, we should leave it be
-	client->wed = wed; // ntohll(wed);
+	client->AMR = AMR; // ntohll(AMR);
 
-	// Send start to AFU
-	// only add TLX_JOB_START for dedicated and master clients.
+	// TODO do we still Send start to AFU?
+	// in past wey add TLX_JOB_START for dedicated and master clients.
 	// send an empty wed in the case of master
 	// lgt - new idea:
 	// track number of clients in ocl
 	// if number of clients = 0, then add the start job
 	// add llcmd add to client  (loop through clients in send_com)
 	// increment number of clients (decrement where we handle the completion of the detach)
-	switch (client->type) {
-	case 'd':
-	  if (ocl->attached_clients == 0) {
-	  /*  if (add_job(ocl->job, TLX_JOB_START, client->wed) != NULL) {
-	      // if dedicated, we can ack OCSE_ATTACH
-	      // if master, we might want to wait until after the llcmd add is complete
-	      // can I wait here for the START to finish?
-	      ocl->idle_cycles = TLX_IDLE_CYCLES;
-	      ack = OCSE_ATTACH;
-	    } */
-	  }
-	  break;
-	case 'm':
-	case 's':
-	  if (ocl->attached_clients < ocl->max_clients) {
+	 if (ocl->attached_clients < ocl->max_clients) {
 	    if (ocl->attached_clients == 0) {
 	      /*if (add_job(ocl->job, TLX_JOB_START, 0L) != NULL) {
 		// if master, we might want to wait until after the llcmd add is complete
 		// can I wait here for the START to finish?
 	      } */
-	    }
-	    ocl->idle_cycles = TLX_IDLE_CYCLES;
-	    ack = OCSE_ATTACH;
-	  }
-	  // running will be set by send/handle_aux2 routines
-	  break;
-	default:
-	  // error?
-	  break;
-	}
-
+	   }
+	 ocl->idle_cycles = TLX_IDLE_CYCLES;
+	 ack = OCSE_ATTACH;
+	 }
 	ocl->attached_clients++;
-	info_msg( "Attached client context %d: current attached clients = %d: client type = %c\n", client->context, ocl->attached_clients, client->type );
+	info_msg( "Attached client context %d: current attached clients = %d: client AMR = %c\n", client->context, ocl->attached_clients, client->AMR );
 
-	// for master and slave send llcmd add
-        // master "wed" is 0x0005000000000000 can actually use client->context here as well since context = 0
-	// slave "wed" is 0x000500000000hhhh where hhhh is the "handle" from client->context
-	// now - about those llcmds :-)
-	// put these in a separate list associated with the job?  ocl->pe maybe...  or another call to add_job?
-	// new routine to job.c?  add_cmd?
+	// NO LONGER for master and slave send llcmd add
 	// should a slave know their master?
-	if (client->type == 'm' || client->type == 's') {
-	        //wed = TLX_LLCMD_ADD;
-	//	wed = wed | (uint64_t)client->context;
-		// add_pe adds to the client
-	    //    if (add_pe(ocl->job, TLX_JOB_LLCMD, wed) != NULL) {
-	//	}
-	}
 
  attach_done:
 	if (put_bytes(client->fd, 1, &ack, ocl->dbg_fp, ocl->dbg_id,
@@ -160,39 +122,12 @@ static void _attach(struct ocl *ocl, struct client *client)
 // Client is detaching from the AFU
 static void _detach(struct ocl *ocl, struct client *client)
 {
-	//uint64_t wed;
 
 	debug_msg("DETACH from client context 0x%02x", client->context);
-	// if dedicated mode just drop the client
-	// if afu-directed mode
-	//   add llcmd terminate to ocl->job->pe
-	//   add llcmd remove to ocl->job->pe
-	// comment - check to see if send pe is called if the client state is CLIENT_NONE
-	// allow the socket to close and the client struct to be freed.
-	//if (client->type == 'm' || client->type == 's') {
-	       // wed = TLX_LLCMD_TERMINATE;
-	//	wed = wed | (uint64_t)client->context;
-	     //   if (add_pe(ocl->job, TLX_JOB_LLCMD, wed) == NULL) {
-		  // error
-		  error_msg( "%s:_detach failed to add llcmd terminate for context=%d"PRIx64, ocl->name, client->context );
-	//	}
-	   //     wed = TLX_LLCMD_REMOVE;
-	//	wed = wed | (uint64_t)client->context;
-	      //  if (add_pe(ocl->job, TLX_JOB_LLCMD, wed) == NULL) {
-		  // error
-	//	  error_msg( "%s:_detach failed to add llcmd remove for context=%d"PRIx64, ocl->name, client->context );
-	//	}
-//	} else {
-//	  if (client->type == 'd' ) {
-	    client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
-//	  }
-//	}
-
-	// we will let _ocl_loop call send_pe to issue the llcmds
-	// when the jcack's come back, we will
-	//   send the detach response to the client and
-	//   free the client structure
-
+	//   NO LONGER add llcmd terminate to ocl->job->pe
+	//   NO LONGER add llcmd remove to ocl->job->pe
+	//SO what, exactly, DO we do?
+        client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 
 }
 
@@ -278,7 +213,7 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 		switch (buffer[0]) {
 		case OCSE_DETACH:
 		        debug_msg("DETACH request from client context %d on socket %d", client->context, client->fd);
-		        //client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		        client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		        _detach(ocl, client);
 			break;
 		case OCSE_ATTACH:

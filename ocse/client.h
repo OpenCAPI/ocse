@@ -42,7 +42,10 @@ struct client {
 	enum client_state state;
 	uint16_t max_irqs;
 	char type;
-	uint64_t wed;
+	uint64_t AMR;
+	uint32_t pasid;
+	uint16_t bdf;
+	uint16_t actag;
 	uint32_t mmio_offset;
 	uint32_t mmio_size;
 	void *mem_access;
