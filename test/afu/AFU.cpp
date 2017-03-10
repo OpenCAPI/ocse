@@ -85,14 +85,22 @@ AFU::start ()
             continue;
 	
 	// Check for TLX return credit
-	if(afu_event.tlx_afu_resp_credit)
+	if(afu_event.tlx_afu_resp_credit) {
 	    TagManager::release_tlx_credit(RESP_CREDIT);
-	else if(afu_event.tlx_afu_resp_data_credit)
+	    afu_event.tlx_afu_resp_credit = 0;
+	}
+	if(afu_event.tlx_afu_resp_data_credit) {
 	    TagManager::release_tlx_credit(RESP_DATA_CREDIT);
-	else if(afu_event.tlx_afu_cmd_credit)
+	    afu_event.tlx_afu_resp_data_credit = 0;
+	}
+	if(afu_event.tlx_afu_cmd_credit) {
 	    TagManager::release_tlx_credit(CMD_CREDIT);
-	else if(afu_event.tlx_afu_cmd_data_credit)
+	    afu_event.tlx_afu_cmd_credit = 0;
+	}
+	if(afu_event.tlx_afu_cmd_data_credit) {
 	    TagManager::release_tlx_credit(CMD_DATA_CREDIT);
+	    afu_event.tlx_afu_cmd_data_credit = 0;
+	}
 
         // job done should only be asserted for one cycle
         //if (afu_event.job_done)
