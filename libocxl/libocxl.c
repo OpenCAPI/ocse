@@ -242,14 +242,14 @@ static void _handle_read(struct ocxl_afu_h *afu, uint64_t addr, uint16_t size)
 			return;
 		}
 		DPRINTF("READ from invalid addr @ 0x%016" PRIx64 "\n", addr);
-		buffer[0] = (uint8_t) PSLSE_MEM_FAILURE;
+		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
 		if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
 			afu->opened = 0;
 			afu->attached = 0;
 		}
 		return;
 	}
-	buffer[0] = PSLSE_MEM_SUCCESS;
+	buffer[0] = OCSE_MEM_SUCCESS;
 	memcpy(&(buffer[1]), (void *)addr, size);
 	if (put_bytes_silent(afu->fd, size + 1, buffer) != size + 1) {
 		afu->opened = 0;
@@ -271,7 +271,7 @@ static void _handle_write(struct ocxl_afu_h *afu, uint64_t addr, uint16_t size,
 			return;
 		}
 		DPRINTF("WRITE to invalid addr @ 0x%016" PRIx64 "\n", addr);
-		buffer = PSLSE_MEM_FAILURE;
+		buffer = OCSE_MEM_FAILURE;
 		if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
 			afu->opened = 0;
 			afu->attached = 0;
@@ -279,7 +279,7 @@ static void _handle_write(struct ocxl_afu_h *afu, uint64_t addr, uint16_t size,
 		return;
 	}
 	memcpy((void *)addr, data, size);
-	buffer = PSLSE_MEM_SUCCESS;
+	buffer = OCSE_MEM_SUCCESS;
 	if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
 		afu->opened = 0;
 		afu->attached = 0;
@@ -299,14 +299,14 @@ static void _handle_touch(struct ocxl_afu_h *afu, uint64_t addr, uint8_t size)
 			return;
 		}
 		DPRINTF("TOUCH of invalid addr @ 0x%016" PRIx64 "\n", addr);
-		buffer = (uint8_t) PSLSE_MEM_FAILURE;
+		buffer = (uint8_t) OCSE_MEM_FAILURE;
 		if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
 			afu->opened = 0;
 			afu->attached = 0;
 		}
 		return;
 	}
-	buffer = PSLSE_MEM_SUCCESS;
+	buffer = OCSE_MEM_SUCCESS;
 	if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
 		afu->opened = 0;
 		afu->attached = 0;
@@ -321,7 +321,7 @@ static void _handle_ack(struct ocxl_afu_h *afu)
 	if (!afu)
 		fatal_msg("NULL afu passed to libocxl.c:_handle_ack");
 	DPRINTF("MMIO ACK\n");
-	if ((afu->mmio.type == PSLSE_MMIO_READ64)| (afu->mmio.type == PSLSE_MMIO_EBREAD)) {
+	if ((afu->mmio.type == OCSE_MMIO_READ64)| (afu->mmio.type == OCSE_MMIO_EBREAD)) {
 		if (get_bytes_silent(afu->fd, sizeof(uint64_t), data, 1000, 0) <
 		    0) {
 			warn_msg("Socket failure getting MMIO Ack");
@@ -332,7 +332,7 @@ static void _handle_ack(struct ocxl_afu_h *afu)
 			afu->mmio.data = ntohll(afu->mmio.data);
 		}
 	}
-	if (afu->mmio.type == PSLSE_MMIO_READ32) {
+	if (afu->mmio.type == OCSE_MMIO_READ32) {
 		if (get_bytes_silent(afu->fd, sizeof(uint32_t), data, 1000, 0) <
 		    0) {
 			warn_msg("Socket failure getting MMIO Read 32 data");
@@ -414,7 +414,7 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 				// printf(" case 4: op_2 is %08"PRIx32 "\n", op_2);
 			} else if (op_size == 8) {
 				DPRINTF("INVALID op_size  0x%x for  addr  0x%016" PRIx64 "\n", op_size, addr);
-				buffer = (uint8_t) PSLSE_MEM_FAILURE;
+				buffer = (uint8_t) OCSE_MEM_FAILURE;
 				if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
 					afu->opened = 0;
 					afu->attached = 0;
@@ -450,7 +450,7 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 				// printf(" case c: op_2 is %08"PRIx32 "\n", op_2);
 			} else if (op_size == 8) {
 				DPRINTF("INVALID op_size  0x%x for  addr  0x%016" PRIx64 "\n", op_size, addr);
-				buffer = (uint8_t) PSLSE_MEM_FAILURE;
+				buffer = (uint8_t) OCSE_MEM_FAILURE;
 				if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
 					afu->opened = 0;
 					afu->attached = 0;
@@ -465,7 +465,7 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 
 	atomic_op = function_code;
 	// Remove and read atomic_le from bit7 of data[0]
-	// if atomic_le == 1, afu is le, so no data issues (pslse is always le). 
+	// if atomic_le == 1, afu is le, so no data issues (ocse is always le). 
 	// if atomic_le == 0, we have to swap op1/op2 data before ops, and also swap 
 	// data returned by fetches
 	if ((atomic_op & 0x80) == 0x80) {
@@ -901,14 +901,14 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 // only AMO_ARMWF_* commands return back original data from EA, otherwise just MEM ACK
 	switch (wb)  {
 			case 0:
-				buffer = PSLSE_MEM_SUCCESS;
+				buffer = OCSE_MEM_SUCCESS;
 				if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
 					afu->opened = 0;
 					afu->attached = 0;
 				}
 				break;
 			case 1:
-				wbuffer[0] = PSLSE_MEM_SUCCESS;
+				wbuffer[0] = OCSE_MEM_SUCCESS;
 				if (atomic_le == 0) 
 					op_A = htonl(op_A);
 				memcpy(&(wbuffer[1]), (void *)&op_A, op_size);
@@ -919,7 +919,7 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 				DPRINTF("READ from addr @ 0x%016" PRIx64 "\n", addr);
 				break;
 			case 2:
-				wbuffer[0] = PSLSE_MEM_SUCCESS;
+				wbuffer[0] = OCSE_MEM_SUCCESS;
 				if (atomic_le == 0) 
 					op_Al = htonll(op_Al);
 				memcpy(&(wbuffer[1]), (void *)&op_Al, op_size);
@@ -952,7 +952,7 @@ static void _req_max_int(struct ocxl_afu_h *afu)
 		fatal_msg("NULL afu passed to libocxl.c:_req_max_int");
 	size = 1 + sizeof(uint16_t);
 	buffer = (uint8_t *) malloc(size);
-	buffer[0] = PSLSE_MAX_INT;
+	buffer[0] = OCSE_MAX_INT;
 	value = htons(afu->int_req.max);
 	memcpy((char *)&(buffer[1]), (char *)&value, sizeof(uint16_t));
 	if (put_bytes_silent(afu->fd, size, buffer) != size) {
@@ -978,7 +978,7 @@ static void _ocse_attach(struct ocxl_afu_h *afu)
 	size = 1; // + sizeof(uint64_t);
 	buffer = (uint8_t *) malloc(size);
 	buffer[0] = OCSE_ATTACH;
-	offset = 1;
+	// lgt - remove - offset = 1;
 	// lgt - remove - wed_ptr = (uint64_t *) & (buffer[offset]);
 	// lgt - remove - *wed_ptr = htonll(afu->attach.wed);
 	if (put_bytes_silent(afu->fd, size, buffer) != size) {
@@ -1004,7 +1004,7 @@ static void _mmio_map(struct ocxl_afu_h *afu)
 		fatal_msg("NULL afu passed to libocxl.c:_mmio_map");
 	size = 1 + sizeof(uint32_t);
 	buffer = (uint8_t *) malloc(size);
-	buffer[0] = PSLSE_MMIO_MAP;
+	buffer[0] = OCSE_MMIO_MAP;
 	flags = (uint32_t) afu->mmio.data;
 	flags_ptr = (uint32_t *) & (buffer[1]);
 	*flags_ptr = htonl(flags);
@@ -1031,7 +1031,7 @@ static void _mmio_write64(struct ocxl_afu_h *afu)
 		fatal_msg("NULL afu passed to libocxl.c:_mmio_write64");
 	size = 1 + sizeof(addr) + sizeof(data);
 	buffer = (uint8_t *) malloc(size);
-	buffer[0] = PSLSE_MMIO_WRITE64;
+	buffer[0] = OCSE_MMIO_WRITE64;
 	offset = 1;
 	addr = htonl(afu->mmio.addr);
 	memcpy((char *)&(buffer[offset]), (char *)&addr, sizeof(addr));
@@ -1061,7 +1061,7 @@ static void _mmio_write32(struct ocxl_afu_h *afu)
 		fatal_msg("NULL afu passed to libocxl.c:_mmio_write32");
 	size = 1 + sizeof(addr) + sizeof(data);
 	buffer = (uint8_t *) malloc(size);
-	buffer[0] = PSLSE_MMIO_WRITE32;
+	buffer[0] = OCSE_MMIO_WRITE32;
 	offset = 1;
 	addr = htonl(afu->mmio.addr);
 	memcpy((char *)&(buffer[offset]), (char *)&addr, sizeof(addr));
@@ -1112,11 +1112,11 @@ static void *_psl_loop(void *ptr)
 {
 	struct ocxl_afu_h *afu = (struct ocxl_afu_h *)ptr;
 	uint8_t buffer[MAX_LINE_CHARS];
-	uint8_t op_size, function_code;
+	// uint8_t op_size, function_code;
 	uint64_t addr;
 	uint16_t size, value;
 	uint32_t lvalue;
-	uint64_t llvalue, op1, op2;
+	uint64_t llvalue; //, op1, op2;
 	int rc;
 
 	if (!afu)
@@ -1132,18 +1132,18 @@ static void *_psl_loop(void *ptr)
 			_ocse_attach(afu);
 		if (afu->mmio.state == LIBOCXL_REQ_REQUEST) {
 			switch (afu->mmio.type) {
-			case PSLSE_MMIO_MAP:
+			case OCSE_MMIO_MAP:
 				_mmio_map(afu);
 				break;
-			case PSLSE_MMIO_WRITE64:
+			case OCSE_MMIO_WRITE64:
 				_mmio_write64(afu);
 				break;
-			case PSLSE_MMIO_WRITE32:
+			case OCSE_MMIO_WRITE32:
 				_mmio_write32(afu);
 				break;
-			case PSLSE_MMIO_EBREAD:
-			case PSLSE_MMIO_READ64:
-			case PSLSE_MMIO_READ32:	/*fall through */
+			case OCSE_MMIO_EBREAD:
+			case OCSE_MMIO_READ64:
+			case OCSE_MMIO_READ32:	/*fall through */
 				_mmio_read(afu);
 				break;
 			default:
@@ -1166,7 +1166,7 @@ static void *_psl_loop(void *ptr)
 			break;
 		}
 
-		DPRINTF("PSL EVENT\n");
+		DPRINTF("OCL EVENT\n");
 		switch (buffer[0]) {
 		case OCSE_OPEN:
 			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
@@ -1180,8 +1180,8 @@ static void *_psl_loop(void *ptr)
 		case OCSE_ATTACH:
 			afu->attach.state = LIBOCXL_REQ_IDLE;
 			break;
-		case PSLSE_DETACH:
-		        info_msg("detach response from from pslse");
+		case OCSE_DETACH:
+		        info_msg("detach response from from ocse");
 			afu->mapped = 0;
 			afu->attached = 0;
 			afu->opened = 0;
@@ -1190,7 +1190,7 @@ static void *_psl_loop(void *ptr)
 			afu->mmio.state = LIBOCXL_REQ_IDLE;
 			afu->int_req.state = LIBOCXL_REQ_IDLE;
 			break;
-		case PSLSE_MAX_INT:
+		case OCSE_MAX_INT:
 			size = sizeof(uint16_t);
 			if (get_bytes_silent(afu->fd, size, buffer, 1000, 0) <
 			    0) {
@@ -1201,13 +1201,21 @@ static void *_psl_loop(void *ptr)
 			}
 			memcpy((char *)&value, (char *)buffer,
 			       sizeof(uint16_t));
-			afu->irqs_max = ntohs(value);
+			// afu->irqs_max = ntohs(value);
 			afu->int_req.state = LIBOCXL_REQ_IDLE;
 			break;
 		case OCSE_QUERY: {
-			size = sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint16_t) +
-			    sizeof(uint64_t) + sizeof(uint64_t) + sizeof(uint64_t) +  
-                            sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint32_t);
+    		        // update to reflect opencapi configuration information
+		        // right now we only save the cr_device and cr_vendor
+		        size = sizeof(uint32_t) + // OCAPI_TL_ACTAG
+			       sizeof(uint16_t) + // max_irqs
+			  sizeof(uint32_t) + // OCAPI_TL_MAXAFU
+			  sizeof(uint32_t) + // AFU_INFO_REVID
+			  sizeof(uint32_t) + // AFU_CTL_PASID_BASE
+			  sizeof(uint32_t) + // AFU_CTL_INTS_PER_PASID
+			  sizeof(uint16_t) + // cr_device
+			  sizeof(uint16_t) + // cr_vendor
+			  sizeof(uint32_t) ; // AFU_CTL_EN_RST_INDEX
 			if (get_bytes_silent(afu->fd, size, buffer, 1000, 0) <
 			    0) {
 				warn_msg("Socket failure getting OCSE query");
@@ -1227,29 +1235,29 @@ static void *_psl_loop(void *ptr)
 			// mmio offset, stride
 			// number of pasid s and offset
 			// and stuff
-			memcpy((char *)&value, (char *)&(buffer[0]), 2);
-			afu->irqs_min = (long)(value);
-			memcpy((char *)&value, (char *)&(buffer[2]), 2);
-			afu->irqs_max = (long)(value);
-                	memcpy((char *)&value, (char *)&(buffer[4]), 2);
-			afu->modes_supported = (long)(value);
-                	memcpy((char *)&llvalue, (char *)&(buffer[6]), 8);
-			afu->mmio_len = (long)(llvalue & 0x00ffffffffffffff);
-                	memcpy((char *)&llvalue, (char *)&(buffer[14]), 8);
-			afu->mmio_off = (long)(llvalue);
-                	memcpy((char *)&llvalue, (char *)&(buffer[22]), 8);
-			afu->eb_len = (long)(llvalue);
-                	memcpy((char *)&value, (char *)&(buffer[30]), 2);
-			afu->cr_device = (long)ntohs(value);
-                        memcpy((char *)&value, (char *)&(buffer[32]), 2);
-			afu->cr_vendor = (long)ntohs(value);
-                        memcpy((char *)&lvalue, (char *)&(buffer[34]), 4);
-			afu->cr_class = ntohl(lvalue);
+			memcpy((char *)&value, (char *)&(buffer[0]), 4); // OCAPI_TL_ACTAG  
+			//afu->irqs_min = (long)(value);
+			memcpy((char *)&value, (char *)&(buffer[4]), 2); // max_irqs
+			//afu->irqs_max = (long)(value);
+                	memcpy((char *)&value, (char *)&(buffer[6]), 4); // OCAPI_TL_MAXAFU
+			//afu->modes_supported = (long)(value);
+                	memcpy((char *)&llvalue, (char *)&(buffer[10]), 4); // AFU_INFO_REVID
+			//afu->mmio_len = (long)(llvalue & 0x00ffffffffffffff);
+                	memcpy((char *)&llvalue, (char *)&(buffer[14]), 4); // AFU_CTL_PASID_BASE
+			//afu->mmio_off = (long)(llvalue);
+                	memcpy((char *)&llvalue, (char *)&(buffer[18]), 4); // AFU_CTL_INTS_PER_PASID
+			//afu->eb_len = (long)(llvalue);
+                	memcpy((char *)&value, (char *)&(buffer[22]), 2); // cr_device
+			afu->cr_device = ntohs(value);
+                        memcpy((char *)&value, (char *)&(buffer[24]), 2); // cr_vendor
+			afu->cr_vendor = ntohs(value);
+                        memcpy((char *)&lvalue, (char *)&(buffer[26]), 4); // AFU_CTL_EN_RST_INDEX
+			//afu->cr_class = ntohl(lvalue);
 			//no better place to put this right now
-			afu->prefault_mode = OCXL_PREFAULT_MODE_NONE;
+			// afu->prefault_mode = OCXL_PREFAULT_MODE_NONE;
 			break;
 		}
-		case PSLSE_MEMORY_READ:
+		case OCSE_MEMORY_READ:
 			DPRINTF("AFU MEMORY READ\n");
 			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
 				warn_msg
@@ -1269,7 +1277,7 @@ static void *_psl_loop(void *ptr)
 			addr = ntohll(addr);
 			_handle_read(afu, addr, size);
 			break;
-		case PSLSE_MEMORY_WRITE:
+		case OCSE_MEMORY_WRITE:
 			DPRINTF("AFU MEMORY WRITE\n");
 			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
 				warn_msg
@@ -1295,7 +1303,7 @@ static void *_psl_loop(void *ptr)
 			_handle_write(afu, addr, size, buffer);
 			break;
 #ifdef PSL9
-		case PSLSE_DMA0_RD:
+		case OCSE_DMA0_RD:
 			DPRINTF("AFU DMA0 MEMORY READ\n");
 			if (get_bytes_silent(afu->fd, 2, buffer, 1000, 0) < 0) {
 				warn_msg
@@ -1318,7 +1326,7 @@ static void *_psl_loop(void *ptr)
 			break;
 
 
-		case PSLSE_DMA0_WR:
+		case OCSE_DMA0_WR:
 			DPRINTF("AFU DMA0 MEMORY WRITE\n");
 			if (get_bytes_silent(afu->fd, 2, buffer, 1000, 0) < 0) {
 				warn_msg
@@ -1346,7 +1354,7 @@ static void *_psl_loop(void *ptr)
 			_handle_write(afu, addr, size, buffer);
 			break;
 
-		case PSLSE_DMA0_WR_AMO:
+		case OCSE_DMA0_WR_AMO:
 			DPRINTF("AFU DMA0 MEMORY WRITE AMO \n");
 			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
 				warn_msg
@@ -1384,7 +1392,7 @@ static void *_psl_loop(void *ptr)
 
 
 #endif /* ifdef PSL9 */
-		case PSLSE_MEMORY_TOUCH:
+		case OCSE_MEMORY_TOUCH:
 			DPRINTF("AFU MEMORY TOUCH\n");
 			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
 				warn_msg
@@ -1404,16 +1412,16 @@ static void *_psl_loop(void *ptr)
 			addr = ntohll(addr);
 			_handle_touch(afu, addr, size);
 			break;
-		case PSLSE_MMIO_ACK:
+		case OCSE_MMIO_ACK:
 			_handle_ack(afu);
 			break;
-		case PSLSE_INTERRUPT:
+		case OCSE_INTERRUPT:
 			if (_handle_interrupt(afu) < 0) {
 				perror("Interrupt Failure");
 				goto psl_fail;
 			}
 			break;
-		case PSLSE_AFU_ERROR:
+		case OCSE_AFU_ERROR:
 			if (_handle_afu_error(afu) < 0) {
 				perror("AFU ERROR Failure");
 				goto psl_fail;
@@ -1492,9 +1500,9 @@ static int _ocse_connect(uint16_t * afu_map, int *fd)
 		goto connect_fail;
 	}
 	strcpy((char *)buffer, "OCSE");
-	buffer[5] = (uint8_t) OCSE_VERSION_MAJOR;
-	buffer[6] = (uint8_t) OCSE_VERSION_MINOR;
-	if (put_bytes_silent(*fd, 7, buffer) != 7) {
+	buffer[4] = (uint8_t) OCSE_VERSION_MAJOR;
+	buffer[5] = (uint8_t) OCSE_VERSION_MINOR;
+	if (put_bytes_silent(*fd, 6, buffer) != 6) {
 		warn_msg("ocxl_afu_open_dev:Failed to write to socket!");
 		goto connect_fail;
 	}
@@ -1608,6 +1616,7 @@ static struct ocxl_afu_h *_new_afu(uint16_t afu_map, uint16_t position, int fd)
 	return afu;
 }
 
+// this routine may need some work - it does not wait for a detach response from ocse
 static void _release_afus(struct ocxl_afu_h *afu)
 {
 	struct ocxl_afu_h *current;
@@ -1637,6 +1646,7 @@ static void _release_afus(struct ocxl_afu_h *afu)
 	}
 }
 
+// this routine may need some work - it does not wait for a detach response from ocse
 static void _release_adapters(struct ocxl_adapter_h *adapter)
 {
 	struct ocxl_adapter_h *current;
@@ -1998,15 +2008,15 @@ struct ocxl_afu_h *ocxl_afu_open_h(struct ocxl_afu_h *afu, enum ocxl_views view)
 	switch (view) {
 	case OCXL_VIEW_DEDICATED:
 		afu_type = 'd';
-		afu->mode = OCXL_MODE_DEDICATED;
+		// afu->mode = OCXL_MODE_DEDICATED;
 		break;
 	case OCXL_VIEW_MASTER:
 		afu_type = 'm';
-		afu->mode = OCXL_MODE_DIRECTED;
+		// afu->mode = OCXL_MODE_DIRECTED;
 		break;
 	case OCXL_VIEW_SLAVE:
 		afu_type = 's';
-		afu->mode = OCXL_MODE_DIRECTED;
+		// afu->mode = OCXL_MODE_DIRECTED;
 		break;
 	default:
 		errno = ENODEV;
@@ -2057,7 +2067,8 @@ int ocxl_afu_opened(struct ocxl_afu_h *afu)
 	return afu->opened;
 }
 
-int ocxl_afu_attach(struct ocxl_afu_h *afu, uint64_t wed)
+//int ocxl_afu_attach(struct ocxl_afu_h *afu, uint64_t wed)
+int ocxl_afu_attach(struct ocxl_afu_h *afu)
 {
 	if (!afu) {
 		errno = EINVAL;
@@ -2086,18 +2097,18 @@ int ocxl_afu_attach(struct ocxl_afu_h *afu, uint64_t wed)
 	return 0;
 }
 
-int ocxl_afu_attach_full(struct ocxl_afu_h *afu, uint64_t wed,
-			uint16_t num_interrupts, uint64_t amr)
-{
-	if (!afu) {
-		errno = EINVAL;
-		return -1;
-	}
-	// Request maximum interrupts
-	afu->int_req.max = num_interrupts;
+/* int ocxl_afu_attach_full(struct ocxl_afu_h *afu, uint64_t wed, */
+/* 			uint16_t num_interrupts, uint64_t amr) */
+/* { */
+/* 	if (!afu) { */
+/* 		errno = EINVAL; */
+/* 		return -1; */
+/* 	} */
+/* 	// Request maximum interrupts */
+/* 	afu->int_req.max = num_interrupts; */
 
-	return ocxl_afu_attach(afu, wed);
-}
+/* 	return ocxl_afu_attach(afu, wed); */
+/* } */
 
 int ocxl_afu_get_process_element(struct ocxl_afu_h *afu)
 {
@@ -2149,7 +2160,7 @@ int ocxl_get_irqs_max(struct ocxl_afu_h *afu, long *valp)
 		errno = ENODEV;
 		return -1;
 	}
-	*valp = afu->irqs_max;
+	*valp = 0; // afu->irqs_max;
 	return 0;
 }
 
@@ -2160,7 +2171,7 @@ int ocxl_get_irqs_min(struct ocxl_afu_h *afu, long *valp)
 		errno = ENODEV;
 		return -1;
 	}
-	*valp = afu->irqs_min;
+	*valp = 0; // afu->irqs_min;
 	return 0;
 }
 
@@ -2171,10 +2182,10 @@ int ocxl_set_irqs_max(struct ocxl_afu_h *afu, long value)
 		errno = ENODEV;
 		return -1;
 	}
-	if (value > afu->irqs_max)
-	 	warn_msg("ocxl_set_irqs_max: value is greater than limit, ignoring \n");
-	else
-		afu->irqs_max = value;
+	//if (value > afu->irqs_max)
+	// 	warn_msg("ocxl_set_irqs_max: value is greater than limit, ignoring \n");
+	//else
+	//	afu->irqs_max = value;
 	//TODO	 Send the new irqs_max value back to psl's client struct
 	return 0;
 }
@@ -2327,82 +2338,82 @@ int ocxl_mmio_read64(struct ocxl_afu_h *afu, uint64_t offset, uint64_t * data)
 	return -1;
 }
 
-int ocxl_errinfo_read(struct ocxl_afu_h *afu, void *dst, off_t off, size_t len)
-{
-        off_t aligned_start, last_byte;
-	off_t index1, index2;
-	uint8_t *buffer;
-	size_t total_read_length;
+/* int ocxl_errinfo_read(struct ocxl_afu_h *afu, void *dst, off_t off, size_t len) */
+/* { */
+/*         off_t aligned_start, last_byte; */
+/* 	off_t index1, index2; */
+/* 	uint8_t *buffer; */
+/* 	size_t total_read_length; */
 
-	if ((afu == NULL) || !afu->mapped)   {
-		errno = ENODEV;
-		return -1;
-	}
-	if (len == 0 || off < 0 || (size_t)off >= afu->eb_len)
-		return 0;
+/* 	if ((afu == NULL) || !afu->mapped)   { */
+/* 		errno = ENODEV; */
+/* 		return -1; */
+/* 	} */
+/* 	if (len == 0 || off < 0 || (size_t)off >= afu->eb_len) */
+/* 		return 0; */
 
-	/* calculate aligned read window */
-	len = MIN((size_t)(afu->eb_len - off), len);
-	aligned_start = off & 0xfff8;
-	last_byte = aligned_start + len + (off & 0x7);
-	total_read_length = (((off & 0x7) + len + 0x7) >>3) << 3  ;
-	buffer = (uint8_t* )calloc(total_read_length +8, sizeof(uint8_t));
-	if (!buffer)
-		return -ENOMEM;
-	uint64_t *wbuf = (uint64_t *)buffer;
-	uint8_t *bbuf = (uint8_t *)buffer;
+/* 	/\* calculate aligned read window *\/ */
+/* 	len = MIN((size_t)(afu->eb_len - off), len); */
+/* 	aligned_start = off & 0xfff8; */
+/* 	last_byte = aligned_start + len + (off & 0x7); */
+/* 	total_read_length = (((off & 0x7) + len + 0x7) >>3) << 3  ; */
+/* 	buffer = (uint8_t* )calloc(total_read_length +8, sizeof(uint8_t)); */
+/* 	if (!buffer) */
+/* 		return -ENOMEM; */
+/* 	uint64_t *wbuf = (uint64_t *)buffer; */
+/* 	uint8_t *bbuf = (uint8_t *)buffer; */
 
-	/* max we can copy in one read is PAGE_SIZE */
-	if (total_read_length > ERR_BUFF_MAX_COPY_SIZE) {
-		total_read_length = ERR_BUFF_MAX_COPY_SIZE;
-		len = ERR_BUFF_MAX_COPY_SIZE - (off & 0x7);
-	}
+/* 	/\* max we can copy in one read is PAGE_SIZE *\/ */
+/* 	if (total_read_length > ERR_BUFF_MAX_COPY_SIZE) { */
+/* 		total_read_length = ERR_BUFF_MAX_COPY_SIZE; */
+/* 		len = ERR_BUFF_MAX_COPY_SIZE - (off & 0x7); */
+/* 	} */
 
-	/* perform aligned read from the mmio region */
-        index1 = 0;
-	while (aligned_start <= last_byte)  {
-	// Send MMIO request to OCSE
-		afu->mmio.type = OCSE_MMIO_EBREAD;
-		afu->mmio.addr = (uint32_t) aligned_start ;
-		afu->mmio.state = LIBOCXL_REQ_REQUEST;
-		while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
-			_delay_1ms();
-		if (!afu->opened)
-			goto bread64_fail;
-		// if offset, have to potentially do BE->LE swap
-        	if ((off & 0x7) >0) 
-                	afu->mmio.data = htonll(afu->mmio.data);
-        	wbuf[index1] = afu->mmio.data;
-        	aligned_start = aligned_start + 8;
-                ++index1;
-        }
-	memcpy(&wbuf[0], &bbuf[off & 0x7], len);
-	// if offset we have to do LE->BE swap back	
- 	if ((off & 0x7) > 0)    {
-                index2 = 0;
-	       total_read_length = len;
-                while (total_read_length !=0)  {
-                        if (total_read_length < 8) 
-                        // set total_read_length to 0
-				total_read_length = 0;
-                        else                    {
-				wbuf[index2]= htonll(wbuf[index2]);
-                		++index2;
-                        	total_read_length = total_read_length -8; 
-                	}
-		}
-	} 
-	memcpy(dst, &wbuf[0], len);
-	free(buffer);
-	// return # of bytes read
-	return len;
+/* 	/\* perform aligned read from the mmio region *\/ */
+/*         index1 = 0; */
+/* 	while (aligned_start <= last_byte)  { */
+/* 	// Send MMIO request to OCSE */
+/* 		afu->mmio.type = OCSE_MMIO_EBREAD; */
+/* 		afu->mmio.addr = (uint32_t) aligned_start ; */
+/* 		afu->mmio.state = LIBOCXL_REQ_REQUEST; */
+/* 		while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/\*infinite loop *\/ */
+/* 			_delay_1ms(); */
+/* 		if (!afu->opened) */
+/* 			goto bread64_fail; */
+/* 		// if offset, have to potentially do BE->LE swap */
+/*         	if ((off & 0x7) >0)  */
+/*                 	afu->mmio.data = htonll(afu->mmio.data); */
+/*         	wbuf[index1] = afu->mmio.data; */
+/*         	aligned_start = aligned_start + 8; */
+/*                 ++index1; */
+/*         } */
+/* 	memcpy(&wbuf[0], &bbuf[off & 0x7], len); */
+/* 	// if offset we have to do LE->BE swap back	 */
+/*  	if ((off & 0x7) > 0)    { */
+/*                 index2 = 0; */
+/* 	       total_read_length = len; */
+/*                 while (total_read_length !=0)  { */
+/*                         if (total_read_length < 8)  */
+/*                         // set total_read_length to 0 */
+/* 				total_read_length = 0; */
+/*                         else                    { */
+/* 				wbuf[index2]= htonll(wbuf[index2]); */
+/*                 		++index2; */
+/*                         	total_read_length = total_read_length -8;  */
+/*                 	} */
+/* 		} */
+/* 	}  */
+/* 	memcpy(dst, &wbuf[0], len); */
+/* 	free(buffer); */
+/* 	// return # of bytes read */
+/* 	return len; */
 
- bread64_fail:
-        if (buffer)
-          free(buffer);
-	errno = ENODEV;
-	return -1;
-}
+/*  bread64_fail: */
+/*         if (buffer) */
+/*           free(buffer); */
+/* 	errno = ENODEV; */
+/* 	return -1; */
+/* } */
 
 int ocxl_mmio_write32(struct ocxl_afu_h *afu, uint64_t offset, uint32_t data)
 {
@@ -2465,7 +2476,7 @@ int ocxl_get_cr_device(struct ocxl_afu_h *afu, long cr_num, long *valp)
         //uint16_t crnum = cr_num;
 	// For now, don't worry about cr_num
 	//*valp =  htons(afu->cr_device);
-	*valp =  afu->cr_device;
+	*valp =  (long)afu->cr_device;
 	return 0;
 }
 
@@ -2476,7 +2487,7 @@ int ocxl_get_cr_vendor(struct ocxl_afu_h *afu, long cr_num, long *valp)
         //uint16_t crnum = cr_num;
 	// For now, don't worry about cr_num
 	//*valp =  htons(afu->cr_vendor);
-	*valp =  afu->cr_vendor;
+	*valp =  (long)afu->cr_vendor;
 	return 0;
 }
 
@@ -2487,7 +2498,7 @@ int ocxl_get_cr_class(struct ocxl_afu_h *afu, long cr_num, long *valp)
         //uint16_t crnum = cr_num;
 	// For now, don't worry about cr_num
 	//*valp =  htonl(afu->cr_class);
-	*valp =  afu->cr_class;
+	*valp =  0; // afu->cr_class;
 	return 0;
 }
 
@@ -2504,7 +2515,7 @@ int ocxl_errinfo_size(struct ocxl_afu_h *afu, size_t *valp)
 {
 	if (afu == NULL) 
 		return -1;
-	*valp =  afu->eb_len;
+	*valp =  0; // afu->eb_len;
 	return 0;
 }
 
@@ -2512,7 +2523,7 @@ int ocxl_get_pp_mmio_len(struct ocxl_afu_h *afu, long *valp)
 {
 	if (afu == NULL) 
 		return -1;
-	*valp =  afu->mmio_len;
+	*valp =  0; //   afu->mmio_len;
 	return 0;
 }
 
@@ -2520,7 +2531,7 @@ int ocxl_get_pp_mmio_off(struct ocxl_afu_h *afu, long *valp)
 {
 	if (afu == NULL) 
 		return -1;
-	*valp =  afu->mmio_off;
+	*valp =  0; //   afu->mmio_off;
 	return 0;
 }
 
@@ -2530,7 +2541,7 @@ int ocxl_get_modes_supported(struct ocxl_afu_h *afu, long *valp)
 //Valid entries are: "dedicated_process" and "afu_directed"
 	if (afu == NULL) 
 		return -1;
-	*valp =  afu->modes_supported;
+	*valp =  0; //   afu->modes_supported;
 	return 0;
 }
 
@@ -2538,7 +2549,7 @@ int ocxl_get_mode(struct ocxl_afu_h *afu, long *valp)
 {
 	if (afu == NULL) 
 		return -1;
-	*valp =  afu->mode;
+	*valp =  0; //   afu->mode;
 	return 0;
 }
 
@@ -2548,7 +2559,7 @@ int ocxl_set_mode(struct ocxl_afu_h *afu, long value)
 	if (afu == NULL) 
 		return -1;
         //check to be sure no contexts are attached before setting this, could be hard to tell?
-	afu->mode = value;
+	// afu->mode = value;
         // do we also need to change afu_type to match mode now??
 	return 0;
 }
@@ -2564,7 +2575,7 @@ int ocxl_get_prefault_mode(struct ocxl_afu_h *afu, enum ocxl_prefault_mode *valp
 //       all: all segments process calling START_WORK maps.
 	if (afu == NULL) 
 		return -1;
-	*valp =  afu->prefault_mode;
+	*valp =  0; //   afu->prefault_mode;
 	return 0;
 }
 
@@ -2579,10 +2590,10 @@ int ocxl_set_prefault_mode(struct ocxl_afu_h *afu, enum ocxl_prefault_mode value
 //       all: all segments process calling START_WORK maps.
 	if (afu == NULL) 
 		return -1;
- if ((value == OCXL_PREFAULT_MODE_NONE) |
-    (value == OCXL_PREFAULT_MODE_WED) |
-    (value == OCXL_PREFAULT_MODE_ALL)) 
-		afu->prefault_mode = value;
+	//if ((value == OCXL_PREFAULT_MODE_NONE) |
+	//(value == OCXL_PREFAULT_MODE_WED) |
+	//(value == OCXL_PREFAULT_MODE_ALL)) 
+	//	afu->prefault_mode = value;
 //Probably should return error msg if value wasn't a "good" value
 	return 0;
 }
@@ -2625,18 +2636,18 @@ int ocxl_get_psl_revision(struct ocxl_adapter_h *adapter, long *valp)
         return 0;
 }
 
-inline
-int ocxl_afu_attach_work(struct ocxl_afu_h *afu,
-			struct ocxl_ioctl_start_work *work)
-{
-	if (afu == NULL ||  work == NULL) {
-		errno = EINVAL;
-		return -1;
-	}
-	afu->int_req.max = work->num_interrupts;
-;
-	return ocxl_afu_attach(afu, work->work_element_descriptor);
-}
+/* inline */
+/* int ocxl_afu_attach_work(struct ocxl_afu_h *afu, */
+/* 			struct ocxl_ioctl_start_work *work) */
+/* { */
+/* 	if (afu == NULL ||  work == NULL) { */
+/* 		errno = EINVAL; */
+/* 		return -1; */
+/* 	} */
+/* 	afu->int_req.max = work->num_interrupts; */
+/* ; */
+/* 	return ocxl_afu_attach(afu, work->work_element_descriptor); */
+/* } */
 
 inline
 struct ocxl_ioctl_start_work *ocxl_work_alloc()

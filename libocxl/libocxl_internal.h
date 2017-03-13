@@ -67,6 +67,19 @@ struct ocxl_afu_h {
 	int attached;
 	int mapped;
 	int pipe[2];
+  long mmio_length;  // this pasid stride
+  long mmio_offset;  // this pasid mmio offset - f(pasid, per pasid stride, per pasid mmio offset)
+	uint16_t cr_device;
+	uint16_t cr_vendor;
+	struct int_req int_req;
+	struct open_req open;
+	struct attach_req attach;
+	struct mmio_req mmio;
+	struct ocxl_afu_h *_head;
+	struct ocxl_afu_h *_next;
+        struct ocxl_afu_h *_next_adapter; // ???
+};
+  /*
 	long irqs_max;
 	long irqs_min;
 	long mode;
@@ -75,25 +88,16 @@ struct ocxl_afu_h {
 	long mmio_off;
 	long prefault_mode;
         size_t eb_len;
-	long cr_device;
-	long cr_vendor;
 	long cr_class;
-	struct int_req int_req;
-	struct open_req open;
-	struct attach_req attach;
-	struct mmio_req mmio;
-	struct ocxl_afu_h *_head;
-	struct ocxl_afu_h *_next;
-	struct ocxl_afu_h *_next_adapter;
-};
+  */
 
 struct ocxl_adapter_h {
 	DIR *enum_dir;
 	struct dirent *enum_ent;
 	char *sysfs_path;
-	long caia_major;
-	long caia_minor;
-	long pslse_version;
+	long oppa_major;
+	long oppa_minor;
+	long ocse_version;
 	int fd;
 	char *id;
 	uint16_t map;

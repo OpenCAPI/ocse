@@ -223,7 +223,7 @@ static struct client *_client_connect(int *fd, char *ip)
 	// Parse client handshake data
 	ack[0] = OCSE_DETACH;
 	memset(buffer, '\0', MAX_LINE_CHARS);
-	rc = get_bytes(*fd, 5, buffer, timeout, 0, fp, -1, -1);
+	rc = get_bytes(*fd, 4, buffer, timeout, 0, fp, -1, -1);
 	if ((rc < 0) || (strcmp((char *)buffer, "OCSE"))) {
 		info_msg("Connecting application is not OCSE client\n");
 		info_msg("Expected: \"OCSE\" Got: \"%s\"", buffer);

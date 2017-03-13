@@ -108,6 +108,7 @@ enum ocxl_views {
  * descriptor that has already been opened. The AFU file descriptor will be
  * closed by ocxl_afu_free() regardless of how it was opened.
  */
+// struct ocxl_afu_h *ocxl_afu_open_by_name(char *name);  // a new routine that leverages the "name space" of a device
 struct ocxl_afu_h *ocxl_afu_open_dev(char *path);
 struct ocxl_afu_h *ocxl_afu_open_h(struct ocxl_afu_h *afu, enum ocxl_views view);
 //struct ocxl_afu_h * ocxl_afu_fd_to_h(int fd);
@@ -126,13 +127,14 @@ int ocxl_work_set_amr(struct ocxl_ioctl_start_work *work, __u64 amr);
 int ocxl_work_set_num_irqs(struct ocxl_ioctl_start_work *work, __s16 num_irqs);
 int ocxl_work_set_wed(struct ocxl_ioctl_start_work *work, __u64 wed);
 
-int ocxl_afu_attach(struct ocxl_afu_h *afu, uint64_t wed);
-int ocxl_afu_attach_work(struct ocxl_afu_h *afu,
-			struct ocxl_ioctl_start_work *work);
+int ocxl_afu_attach(struct ocxl_afu_h *afu);
+  //int ocxl_afu_attach(struct ocxl_afu_h *afu, uint64_t wed);
+  //int ocxl_afu_attach_work(struct ocxl_afu_h *afu,
+  //			struct ocxl_ioctl_start_work *work);
 
 /* Deprecated interface */
-int ocxl_afu_attach_full(struct ocxl_afu_h *afu, uint64_t wed,
-			uint16_t num_interrupts, uint64_t amr);
+//int ocxl_afu_attach_full(struct ocxl_afu_h *afu, uint64_t wed,
+//			uint16_t num_interrupts, uint64_t amr);
 
 /*
  * Get AFU process element
