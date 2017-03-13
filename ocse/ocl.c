@@ -65,28 +65,9 @@ int _is_cmd_pending(struct ocl *ocl, int32_t context)
 // Attach to AFU
 static void _attach(struct ocl *ocl, struct client *client)
 {
-	uint64_t AMR;
 	uint8_t ack;
-	uint8_t buffer[MAX_LINE_CHARS];
-	size_t size;
 
-	// Get pasid value from application when they call attach
-	// we make up the BDF value in read_afu_config
-	// AFU sends us the actag later in assign_actag
-	ack = OCSE_DETACH;
-	size = sizeof(uint64_t);
-	if (get_bytes_silent(client->fd, size, buffer, ocl->timeout,
-			     &(client->abort)) < 0) {
-	  warn_msg("Failed to get AMR value from client");
-	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
-	  goto attach_done;
-	}
 
-	// save AMR for future consumption (always in directed mode now)
-	memcpy((char *)&AMR, (char *)buffer, sizeof(uint64_t));
-	// AMR came over in be format
-	// since we are modeling the ocl register here, we should leave it be
-	client->AMR = AMR; // ntohll(AMR);
 
 	// TODO do we still Send start to AFU?
 	// in past wey add TLX_JOB_START for dedicated and master clients.
@@ -110,7 +91,6 @@ static void _attach(struct ocl *ocl, struct client *client)
 	info_msg( "Attached client context %d: current attached clients = %d: client AMR = %c\n", client->context, ocl->attached_clients, client->AMR );
 
 	// NO LONGER for master and slave send llcmd add
-	// should a slave know their master?
 
  attach_done:
 	if (put_bytes(client->fd, 1, &ack, ocl->dbg_fp, ocl->dbg_id,
