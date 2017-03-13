@@ -55,7 +55,7 @@
 #include "../common/debug.h"
 #include "../common/utils.h"
 
-#define OCL_MAX_IRQS 2037 
+#define OCL_MAX_IRQS 2037
 
 struct ocl *ocl_list;
 struct client *client_list;
@@ -114,7 +114,7 @@ static void _query(struct client *client, uint8_t id)
 	int size, offset;
 
 	ocl = _find_ocl(id, &major, &minor);
-	size = 1 + sizeof(ocl->mmio->cfg.OCAPI_TL_ACTAG) + sizeof(client->max_irqs) + 
+	size = 1 + sizeof(ocl->mmio->cfg.OCAPI_TL_ACTAG) + sizeof(client->max_irqs) +
 	    sizeof(ocl->mmio->cfg.OCAPI_TL_MAXAFU) +
 	    sizeof(ocl->mmio->cfg.AFU_INFO_REVID) + sizeof(ocl->mmio->cfg.AFU_CTL_PASID_BASE) +
 	    sizeof(ocl->mmio->cfg.AFU_CTL_INTS_PER_PASID) + sizeof(ocl->mmio->cfg.cr_device) +
@@ -281,47 +281,33 @@ static int _client_associate(struct client *client, uint8_t id, char afu_type)
 	}
 
 	// Check AFU type is valid for connection
-/*	switch (afu_type) {
+	switch (afu_type) {
 	case 'd':
-		if (!dedicated_mode_support(ocl->mmio)) {
-			warn_msg
-			    ("afu%d.%d is does not support dedicated mode\n",
+		warn_msg ("afu%d.%d is does not support dedicated mode\n",
 			     major, minor);
 			put_bytes(client->fd, 1, &(rc[0]), fp, ocl->dbg_id, -1);
 			close_socket(&(client->fd));
 			return -1;
-		}
 		break;
 	case 'm':
-	case 's':
-		if (!directed_mode_support(ocl->mmio)) {
-			warn_msg("afu%d.%d is does not support directed mode\n",
+		warn_msg("afu%d.%d is does not support directed mode (master)\n",
 				 major, minor);
 			put_bytes(client->fd, 1, &(rc[0]), fp, ocl->dbg_id, -1);
 			close_socket(&(client->fd));
 			return -1;
-		}
+		break;
+	case 's':
+		info_msg("AFU supports directed mode (slave) ");
 		break;
 	default:
 		warn_msg("AFU device type '%c' is not valid\n", afu_type);
 		put_bytes(client->fd, 1, &(rc[0]), fp, ocl->dbg_id, -1);
 		close_socket(&(client->fd));
 		return -1;
-	} */
-
-	// check to see if device is already open
-	// lgt - I think I can open any combination of m/s upto max
-	if ( afu_type == 'd' /* | afu_type == 'm' */ ) {
-		if (ocl->client[0] != NULL) {
-			warn_msg
-			    ("afu%d.%d%c is already open\n",
-			     major, minor, afu_type);
-			put_bytes(client->fd, 1, &(rc[0]), fp, ocl->dbg_id, -1);
-			// should I really close the socket in this case?
-			close_socket(&(client->fd));
-			return -1;
-		}
 	}
+
+	// NO LONGER check to see if device is already open
+	// lgt - I think I can open any combination of m/s upto max
 
 	// Look for open client slot
 	// dedicated - client[0] is the only client.
@@ -366,31 +352,8 @@ static int _client_associate(struct client *client, uint8_t id, char afu_type)
 	client->max_irqs = OCL_MAX_IRQS; // TODO FIX OR REMOVE
 	client->type = afu_type;
 
-	// Send reset to AFU, if no other clients already connected
-	// hmmm...  this might be a problem...
-	// I need only do this on the very first client in m/s mode...
-	// if this is dedicated client (only one), send a reset
-	// if this an an afu-directed client, only send a reset on the very first open...
+	// We NO LONGER Send reset to AFU, even if no other clients are connected
 	// don't even send a reset if we've dropped to 0 clients and are now opening a new one
-	switch ( afu_type ) {
-	case 'd':
-	        // send a reset
-	        debug_msg( "_client_associate: adding reset for open of dedicated device", afu_type );
-		//add_job(ocl->job, TLX_JOB_RESET, 0L);
-		// ignores ocl->has_been_reset
-		break;
-	case 'm':
-	case 's':
-	        // send a reset the very first time we associate a client
-	        if ( ocl->has_been_reset == 0 ) {
-		  debug_msg( "_client_associate: adding reset for first open of afu-directed device", afu_type );
-		  //add_job(ocl->job, TLX_JOB_RESET, 0L);
-		  ocl->has_been_reset = 1;
-		}
-	        break;
-	default:
-	        debug_msg( "_client_associate: invalid afu_type: %c", afu_type );
-	}
 
 	// Acknowledge to client
 	if (put_bytes(client->fd, 2, &(rc[0]), fp, ocl->dbg_id, context) < 0) {

@@ -5,6 +5,10 @@
 std::set < uint32_t > TagManager::tags_in_use;
 int TagManager::num_credits = 0;
 int TagManager::max_credits = 0;
+uint8_t TagManager::resp_credit = 0;
+uint8_t TagManager::cmd_credit  = 0;
+uint8_t TagManager::resp_data_credit = 0;
+uint8_t TagManager::cmd_data_credit  = 0;
 
 bool TagManager::request_tag (uint32_t * new_tag)
 {
@@ -83,3 +87,92 @@ TagManager::set_max_credits (int mc)
     max_credits = mc;
     num_credits = max_credits;
 }
+
+// reset credit
+void
+TagManager::reset_tlx_credit(uint8_t cmd_max_credit, uint8_t data_max_credit )
+{
+    //info_msg("TagManager: Initialize TLX cmd and data credits");
+    resp_credit = cmd_max_credit;
+    cmd_credit  = cmd_max_credit;
+    resp_data_credit = data_max_credit;
+    cmd_data_credit  = data_max_credit;
+}
+
+// request credit
+bool
+TagManager::request_tlx_credit(uint8_t type)
+{
+    switch(type) {
+	case CMD_CREDIT:
+	   if(cmd_credit > 0) {
+		cmd_credit--;
+		debug_msg("TagManager: request cmd credit = %d", cmd_credit);
+	    }
+	    else {
+		error_msg("TagManager: No Command credit available");
+		return false;
+	    }
+	    break;
+	case RESP_CREDIT:
+	    if(resp_credit > 0) {
+		resp_credit--;
+		debug_msg("TagManager: request resp credit = %d", resp_credit);
+	    }
+	    else {
+		error_msg("TagManager: No Response credit available");
+		return false;
+	    }
+	    break;
+	case CMD_DATA_CREDIT:
+	    if(cmd_data_credit > 0) {
+		cmd_data_credit--;
+		debug_msg("TagManager: request cmd data credit = %d", cmd_data_credit);
+	    }
+	    else {
+		error_msg("TagManager: No Command Data credit available");
+		return false;
+	    }
+	    break;
+	case RESP_DATA_CREDIT:
+	    if(resp_data_credit > 0) {
+		resp_data_credit--;
+		debug_msg("TagManager: request resp data credit = %d", resp_data_credit);
+	    }
+	    else {
+		error_msg("TagManager: No Response Data credit available");
+	   	return false;
+	    }
+	    break;
+	default:
+	    break;
+    }
+    return true;
+}
+
+// release credit
+void
+TagManager::release_tlx_credit(uint8_t type)
+{
+    switch(type) {
+	case CMD_CREDIT:
+	    cmd_credit++;
+	    debug_msg("TagManager: release cmd_credit = %d", cmd_credit);
+	    break;
+	case RESP_CREDIT:
+	    resp_credit++;
+	    debug_msg("TagManager: release resp_credit = %d", resp_credit);
+	    break;
+	case CMD_DATA_CREDIT:
+	    cmd_data_credit++;
+	    debug_msg("TagManager: release cmd_data_credit = %d", cmd_data_credit);
+	    break;
+	case RESP_DATA_CREDIT:
+	    resp_data_credit++;
+	    debug_msg("TagManager: release resp_data_credit = %d", resp_data_credit);
+	    break;
+	default:
+	    break;
+    }
+}
+

@@ -39,14 +39,19 @@
 #define CXL_MMIO_HOST_ENDIAN 0x3
 #define CXL_MMIO_ENDIAN_MASK 0x3
 
+
 struct mmio_event {
 	uint32_t rnw;
-	uint32_t dw;
-	uint32_t eb_rd;
-	uint32_t addr;
+	uint32_t dw;    // TODO remove this ?
+	uint32_t eb_rd; //TODO remove this
 	uint32_t cfg;
-	uint64_t data;
-	uint32_t parity;
+	uint64_t cmd_data;
+	uint64_t cmd_PA;
+	uint16_t cmd_CAPPtag;
+	uint8_t cmd_opcode;
+	uint8_t cmd_pL;
+	uint8_t cmd_TorR;  //may not need this
+	uint8_t cmd_rd_cnt;
 	enum ocse_state state;
 	struct mmio_event *_next;
 };
@@ -107,7 +112,7 @@ struct mmio *mmio_init(struct AFU_EVENT *afu_event, int timeout, char *afu_name,
 int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock);
 
 struct mmio_event *add_mmio(struct mmio *mmio, uint32_t rnw, uint32_t dw,
-			    uint32_t addr, uint64_t data);
+			    uint64_t addr, uint64_t data);
 
 void send_mmio(struct mmio *mmio);
 
