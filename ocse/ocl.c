@@ -102,18 +102,29 @@ static void _attach(struct ocl *ocl, struct client *client)
 // Client is detaching from the AFU
 static void _detach(struct ocl *ocl, struct client *client)
 {
+	uint8_t ack = OCSE_DETACH;
 
 	debug_msg("DETACH from client context 0x%02x", client->context);
 	//   NO LONGER add llcmd terminate to ocl->job->pe
 	//   NO LONGER add llcmd remove to ocl->job->pe
 	//SO what, exactly, DO we do?
-        client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+ 	debug_msg("%s,%d:_detach: detach response sent to host on socket %d",
+			    ocl->major, ocl->minor, client->context);
+	put_bytes(client->fd, 1, &ack, ocl->dbg_fp, ocl->dbg_id,
+		      client->context);
+		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		//_free( ocl, client );
+		//ocl->client->context = NULL;  // I don't like this part...
 
-}
 
+       // client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+
+//}
+// TEMP FOR NOW< MAY BECOME PERMANENT...if we no longer need to have a separate _free call from
+// ocl_loop (the OLD way to detach clients in dedicated mode)
 // Client release from AFU
-static void _free(struct ocl *ocl, struct client *client)
-{
+//static void _free(struct ocl *ocl, struct client *client)
+//{
 	struct cmd_event *mem_access;
 
 	// DEBUG
@@ -193,7 +204,7 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 		switch (buffer[0]) {
 		case OCSE_DETACH:
 		        debug_msg("DETACH request from client context %d on socket %d", client->context, client->fd);
-		        client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		        //client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		        _detach(ocl, client);
 			break;
 		case OCSE_ATTACH:
@@ -312,7 +323,7 @@ static void *_ocl_loop(void *ptr)
 				put_bytes(ocl->client[i]->fd, 1, &ack,
 					  ocl->dbg_fp, ocl->dbg_id,
 					  ocl->client[i]->context);
-				_free(ocl, ocl->client[i]);
+				//_free(ocl, ocl->client[i]);
 				ocl->client[i] = NULL;  // aha - this is how we only called _free once the old way
 				                        // why do we not free client[i]?
 				                        // because this was a short cut pointer
