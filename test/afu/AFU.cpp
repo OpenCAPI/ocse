@@ -308,14 +308,14 @@ AFU::resolve_tlx_afu_resp()
 #endif
     uint8_t  resp_dp;
     uint32_t resp_addr_tag;
-
+    
     tlx_afu_read_resp(&afu_event, &tlx_resp_opcode, &resp_afutag, 
 		&resp_code, &resp_pg_size, &resp_resp_dl,
 #ifdef	TLX4
 		&resp_host_tag, &resp_cache_state,
 #endif
 		&resp_dp, &resp_addr_tag); 
-
+   
     switch (tlx_resp_opcode) {
 	case TLX_RSP_NOP:
 	case TLX_RSP_RET_TLX_CREDITS:
@@ -404,7 +404,8 @@ AFU::tlx_afu_config_read()
     info_msg("AFU: resp_capptag = 0x%x", afu_tlx_resp_capptag);
     memcpy(&afu_event.afu_tlx_rdata_bus, &vsec_data, data_size);   
     info_msg("AFU: vsec_offset = 0x%x vsec_data = 0x%x", vsec_offset, vsec_data);
-    if(TagManager::request_tlx_credit(RESP_DATA_CREDIT)) {
+    if(TagManager::request_tlx_credit(RESP_DATA_CREDIT) && 
+       TagManager::request_tlx_credit(RESP_CREDIT)) {
         if(afu_tlx_send_resp_and_data(&afu_event, afu_tlx_resp_opcode, afu_tlx_resp_dl, 
 		afu_tlx_resp_capptag, afu_event.afu_tlx_resp_dp, 
 		afu_tlx_resp_code, afu_tlx_rdata_valid, 
@@ -414,7 +415,7 @@ AFU::tlx_afu_config_read()
     	}
     }
     else {
-	error_msg("AFU: No response credit available");
+	error_msg("AFU: No response data credit available");
     }
 }
 
@@ -436,9 +437,15 @@ AFU::tlx_afu_config_write()
     if(config_state == IDLE) {
 	afu_tlx_cmd_rd_req = 0x1;
 	afu_tlx_cmd_rd_cnt = 0x1;
-	if( afu_tlx_cmd_data_read_req(&afu_event, afu_tlx_cmd_rd_req, afu_tlx_cmd_rd_cnt) !=
-	    TLX_SUCCESS) {
-	    printf("AFU: Failed afu_tlx_resp_data_read_req\n");
+	if(TagManager::request_tlx_credit(CMD_DATA_CREDIT) &&
+           TagManager::request_tlx_credit(CMD_CREDIT)) {
+	    if( afu_tlx_cmd_data_read_req(&afu_event, afu_tlx_cmd_rd_req, afu_tlx_cmd_rd_cnt) !=
+	    	TLX_SUCCESS) {
+	    	printf("AFU: Failed afu_tlx_resp_data_read_req\n");
+	    }
+	}
+	else {
+	    error_msg("AFU: no cmd data credit available");
 	}
     	config_state = READY;
 	debug_msg("AFU: Set config_state = READY");
@@ -447,10 +454,16 @@ AFU::tlx_afu_config_write()
 	tlx_afu_read_cmd_data(&afu_event, &cmd_data_bdi, afu_event.afu_tlx_cdata_bus);
 	afu_resp_opcode = 0x04;		// mem write resp
 	resp_code = 0x0;
-        if(afu_tlx_send_resp(&afu_event, afu_resp_opcode, resp_dl, resp_capptag,
+	if(TagManager::request_tlx_credit(RESP_CREDIT)) {
+            if(afu_tlx_send_resp(&afu_event, afu_resp_opcode, resp_dl, resp_capptag,
 			resp_dp, resp_code) != TLX_SUCCESS) {
-	    printf("AFU: Failed afu_tlx_send_resp\n");
+	    	printf("AFU: Failed afu_tlx_send_resp\n");
+	    }
 	}
+	else {
+		error_msg("AFU: no resp credit available");
+	}
+	    
 	config_state = IDLE;
 	for(int i=0; i<4; i++)
 	    printf("%02x", afu_event.afu_tlx_cdata_bus[i]);
