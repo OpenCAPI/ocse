@@ -23,6 +23,6 @@ libocxl.a: $(OBJS)
 	$(call Q,AR, $(AR) rcs $@ $^, $@)
 
 clean:
-	rm -f *.[od] $(COMMON_DIR)/*.[od] gmon.out libocxl.so libocxl.a $(COMMON_DIR)/misc/ocxl.h
+	rm -f *.[od] $(COMMON_DIR)/*.[od] gmon.out libocxl.so libocxl.a $(COMMON_DIR)/misc/cxl.h
 
 .PHONY: clean all
