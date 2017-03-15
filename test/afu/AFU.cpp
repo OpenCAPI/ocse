@@ -84,7 +84,7 @@ AFU::start ()
         if (rc <= 0)		
             continue;
 	
-	// Check for TLX return credit
+	// Return TLX credit
 	if(afu_event.tlx_afu_resp_credit) {
 	    TagManager::release_tlx_credit(RESP_CREDIT);
 	    afu_event.tlx_afu_resp_credit = 0;
@@ -111,11 +111,13 @@ AFU::start ()
 	    debug_msg("AFU: Get TLX command 0x%x", afu_event.tlx_afu_cmd_opcode);
 	    debug_msg("AFU: Process TLX command");
 	    resolve_tlx_afu_cmd();
+	    afu_event.afu_tlx_cmd_credit = 1;	// return TLX cmd credit
 	}
 	// process tlx response
 	if (afu_event.tlx_afu_resp_valid) {
 	    debug_msg("AFU: Process TLX response 0x%x", afu_event.tlx_afu_resp_opcode);
 	    resolve_tlx_afu_resp();
+	    afu_event.afu_tlx_resp_credit = 1;	// return TLX resp credit
 	}
 
 	// configuration write response
