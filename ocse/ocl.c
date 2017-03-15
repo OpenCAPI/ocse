@@ -88,11 +88,11 @@ static void _attach(struct ocl *ocl, struct client *client)
 	 ack = OCSE_ATTACH;
 	 }
 	ocl->attached_clients++;
-	info_msg( "Attached client context %d: current attached clients = %d: client AMR = %c\n", client->context, ocl->attached_clients, client->AMR );
+	info_msg( "Attached client context %d: current attached clients = %d: client type = %c\n", client->context, ocl->attached_clients, client->type );
 
 	// NO LONGER for master and slave send llcmd add
 
- attach_done:
+ //attach_done:
 	if (put_bytes(client->fd, 1, &ack, ocl->dbg_fp, ocl->dbg_id,
 		      client->context) < 0) {
 		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
@@ -108,16 +108,14 @@ static void _detach(struct ocl *ocl, struct client *client)
 	//   NO LONGER add llcmd terminate to ocl->job->pe
 	//   NO LONGER add llcmd remove to ocl->job->pe
 	//SO what, exactly, DO we do?
- 	debug_msg("%s,%d:_detach: detach response sent to host on socket %d",
-			    ocl->major, ocl->minor, client->context);
 	put_bytes(client->fd, 1, &ack, ocl->dbg_fp, ocl->dbg_id,
 		      client->context);
 		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		//_free( ocl, client );
 		//ocl->client->context = NULL;  // I don't like this part...
 
-
-       // client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	if (client->type == 'd')
+        	client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 
 //}
 // TEMP FOR NOW< MAY BECOME PERMANENT...if we no longer need to have a separate _free call from
@@ -139,7 +137,7 @@ static void _detach(struct ocl *ocl, struct client *client)
 	mem_access = (struct cmd_event *)client->mem_access;
 	if (mem_access != NULL) {
 		if (mem_access->state != MEM_DONE) {
-		//	mem_access->resp = TLX_RESPONSE_FAILED;
+			mem_access->resp = TLX_RESPONSE_FAILED;
 			mem_access->state = MEM_DONE;
 		}
 	}
@@ -149,8 +147,7 @@ static void _detach(struct ocl *ocl, struct client *client)
 
 	ocl->attached_clients--;
 	info_msg( "Detatched a client: current attached clients = %d\n", ocl->attached_clients );
-
-	// where do we *really* free the client struct and it's contents???
+	//  we *really* free the client struct and it's contents back in ocl_loop
 
 }
 
@@ -201,6 +198,7 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 			return;
 		}
+		info_msg("buffer[0] is 0x%02x from client %d", buffer[0], client->fd);
 		switch (buffer[0]) {
 		case OCSE_DETACH:
 		        debug_msg("DETACH request from client context %d on socket %d", client->context, client->fd);
@@ -315,11 +313,13 @@ static void *_ocl_loop(void *ptr)
 		for (i = 0; i < ocl->max_clients; i++) {
 			if (ocl->client[i] == NULL)
 				continue;
-			if ((ocl->client[i]->type == 'd') &&
-			    (ocl->client[i]->state == CLIENT_NONE) &&
+		//	if ((ocl->client[i]->type == 'd') &&
+			    //(ocl->client[i]->state == CLIENT_NONE) &&
+			    if ((ocl->client[i]->state == CLIENT_NONE) &&
 			    (ocl->client[i]->idle_cycles == 0)) {
 			        // this was the old way of detaching a dedicated process app/afu pair
 			        // we get the detach message, drop the client, and wait for idle cycle to get to 0
+			        // so why not go back to using this? No need to wait for LLCMD REMOVE to complete
 				put_bytes(ocl->client[i]->fd, 1, &ack,
 					  ocl->dbg_fp, ocl->dbg_id,
 					  ocl->client[i]->context);
@@ -328,18 +328,11 @@ static void *_ocl_loop(void *ptr)
 				                        // why do we not free client[i]?
 				                        // because this was a short cut pointer
 				                        // the *real* client point is in client_list in ocse
-				reset = 1;
-				// for m/s devices we need to do this differently and not send a reset...
-				// _handle_client - creates the llcmd's to term and remove
-				// send_pe - sends the llcmd pe's to afu one at a time
-				// _handle_afu calls _handle_aux2
-				// _handle_aux2 finishes the llcmd pe's when jcack is asserted by afu
-				//   when the remove llcmd is processed, we should put_bytes, _free and set client[i] to NULL
+				printf("ocl->state is %x \n", ocl->state);
 				continue;
 			}
 			if (ocl->state == OCSE_RESET)
 				continue;
-//printf("before handle client \n");
 			_handle_client(ocl, ocl->client[i]);
 			if (ocl->client[i]->idle_cycles) {
 				ocl->client[i]->idle_cycles--;

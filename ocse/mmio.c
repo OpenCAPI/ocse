@@ -18,7 +18,7 @@
  * Description: mmio.c
  *
  *  This file contains the code for MMIO access to the AFU including the
- *  AFU descriptor space.  Only one MMIO access is legal at a time.  So each
+ *  AFU configuration space.  Only one MMIO access is legal at a time.  So each
  *  client only tracks up to one mmio_access at a time.  However, since a
  *  "directed mode" AFU may have multiple clients attached the mmio struct
  *  tracks multiple mmio accesses with the element "list."  As MMIO requests
@@ -124,14 +124,14 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 	return event;
 }
 
-// Add AFU descriptor access event
+// Add AFU config space (config_rd, config_wr) access event
 static struct mmio_event *_add_cfg(struct mmio *mmio, uint32_t rnw,
 				    uint32_t dw, uint64_t addr, uint64_t data)
 {
 	return _add_event(mmio, NULL, rnw, dw, addr, 1, data);
 }
 
-// Add AFU MMIO (non-descriptor) access event
+// Add AFU MMIO (non-config) access event
 static struct mmio_event *_add_mmio(struct mmio *mmio, struct client *client,
 				    uint32_t rnw, uint32_t dw, uint64_t addr,
 				    uint64_t data)
@@ -322,7 +322,7 @@ void send_mmio(struct mmio *mmio)
 
 	if (event->cfg) {
 		sprintf(type, "CONFIG");
-	// Attempt to send config_re or config_wr to AFU
+	// Attempt to send config_rd or config_wr to AFU
 	//special case for now, always use same cmd_pa for config cmds and T= 0
 	//cmd_pa = 0x00000000cdef0000;
 		if (event->rnw && tlx_afu_send_cmd(mmio->afu_event,

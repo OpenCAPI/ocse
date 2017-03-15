@@ -443,8 +443,8 @@ int tlx_afu_send_cmd(struct AFU_EVENT *event,
 		 uint64_t cmd_pa)
 
 {
-	printf("afu_tlx_cmd_credits is %d initial credit is %d \n", event->afu_tlx_cmd_credits_available,
-		event->afu_tlx_cmd_initial_credit);
+//	printf("afu_tlx_cmd_credits is %d initial credit is %d \n", event->afu_tlx_cmd_credits_available,
+//		event->afu_tlx_cmd_initial_credit);
 	if (event->afu_tlx_cmd_credits_available == 0)
 		return AFU_TLX_NO_CREDITS;
 	if (event->tlx_afu_cmd_valid) {
@@ -719,7 +719,7 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 		event->tbuf[bp++] = event->tlx_afu_cmd_credit;
 		event->tbuf[bp++] = event->tlx_afu_resp_data_credit;
 		event->tbuf[bp++] = event->tlx_afu_cmd_data_credit;
-	printf("tlx_afu_resp_credit is 0x%x \n", event->tlx_afu_resp_credit);
+	printf("n TLX_SIGNAL_AFU_MODEL tlx_afu_resp_credit is 0x%x \n", event->tlx_afu_resp_credit);
 	printf("tlx_afu_resp_data_credit is 0x%x \n", event->tlx_afu_resp_data_credit);
 		event->tlx_afu_credit_valid = 0;
 		event->tlx_afu_cmd_credit = 0;
@@ -1025,6 +1025,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 
 	} else {
 		event->afu_tlx_rdata_valid = 0;
+		printf("in tlx_get_afu_events and setting tlx_afu_resp & resp_data credits to 0\n");
 		event->tlx_afu_resp_data_credit = 0;
 	}
 	if ((event->rbuf[0] & 0x01) != 0) {
@@ -1146,6 +1147,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 	if (event->rbuf[0] & 0x10) {
 		event->tlx_afu_cmd_valid = 1;
 		printf("in tlx_get_tlx_events and just set tlx_afu_cmd_valid = %d \n", event->tlx_afu_cmd_valid);
+		// right now, tlx_interface is sending back credits to ocse...AFU should do this
 		event->afu_tlx_cmd_credit = 1;
 		event->afu_tlx_credit_req_valid = 1;
 		event->tlx_afu_cmd_opcode = event->rbuf[rbc++];
@@ -1191,6 +1193,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 	}
 	if (event->rbuf[0] & 0x04) {
 		event->tlx_afu_resp_valid = 1;
+		// right now, tlx_interface is sending back credits to ocse...AFU should do this
 		event->afu_tlx_resp_credit = 1;
 		event->afu_tlx_credit_req_valid = 1;
 		event->tlx_afu_resp_opcode = event->rbuf[rbc++];
@@ -1231,7 +1234,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 			event->tlx_afu_cmd_data_credits_available += 1;
 		if (event->tlx_afu_resp_data_credit == 1)
 			event->tlx_afu_resp_data_credits_available += 1;
-	printf("tlx_afu_resp_data_credit is 0x%x \n", event->tlx_afu_resp_data_credit);
+	printf("incremented tlx_afu_resp_data_credit is 0x%x \n", event->tlx_afu_resp_data_credit);
 	} else {
 		event->tlx_afu_credit_valid = 0;
 		event->tlx_afu_cmd_credit = 0;
