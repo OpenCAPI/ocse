@@ -211,6 +211,7 @@ void tlx_bfm(
       if(!c_reset)
       {
         afu_tlx_send_initial_credits (&event, c_afu_tlx_cmd_initial_credit, c_afu_tlx_resp_initial_credit);
+        tlx_afu_read_initial_credits (&event, &c_afu_tlx_cmd_initial_credit, &c_afu_tlx_resp_initial_credit);
       }
 #ifdef DEBUG1
       if(invalidVal != 0)
@@ -289,7 +290,7 @@ void tlx_bfm(
       if(c_afu_tlx_cmd_valid & (!c_afu_tlx_cdata_valid))
       {
         afu_tlx_send_cmd(&event,
-        		c_afu_tlx_cmd_opcode, c_afu_tlx_cmd_actag, c_afu_tlx_cmd_stream_id, 
+        		c_afu_tlx_cmd_opcode, c_afu_tlx_cmd_actag, c_afu_tlx_cmd_stream_id,
   		c_afu_tlx_cmd_ea_or_obj, c_afu_tlx_cmd_afutag,
   		c_afu_tlx_cmd_dl, c_afu_tlx_cmd_pl,
 #ifdef TLX4
@@ -302,7 +303,7 @@ void tlx_bfm(
       else if(c_afu_tlx_cdata_valid)
       {
         afu_tlx_send_cmd_and_data(&event,
-        		c_afu_tlx_cmd_opcode, c_afu_tlx_cmd_actag, c_afu_tlx_cmd_stream_id, 
+        		c_afu_tlx_cmd_opcode, c_afu_tlx_cmd_actag, c_afu_tlx_cmd_stream_id,
   		c_afu_tlx_cmd_ea_or_obj, c_afu_tlx_cmd_afutag,
 		c_afu_tlx_cmd_dl, c_afu_tlx_cmd_pl,
 #ifdef TLX4
@@ -351,17 +352,19 @@ void tlx_bfm(
       if(c_afu_tlx_resp_valid && !c_afu_tlx_rdata_valid)
       {
         afu_tlx_send_resp(&event,
-        		c_afu_tlx_resp_opcode, c_afu_tlx_resp_dl, c_afu_tlx_resp_capptag, 
+        		c_afu_tlx_resp_opcode, c_afu_tlx_resp_dl, c_afu_tlx_resp_capptag,
         		c_afu_tlx_resp_dp, c_afu_tlx_resp_code
         );
       }
       else if(c_afu_tlx_rdata_valid)
       {
-        afu_tlx_send_resp_and_data(&event,
-        		c_afu_tlx_resp_opcode, c_afu_tlx_resp_dl, c_afu_tlx_resp_capptag, 
+        int resp_code = afu_tlx_send_resp_and_data(&event,
+        		c_afu_tlx_resp_opcode, c_afu_tlx_resp_dl, c_afu_tlx_resp_capptag,
         		c_afu_tlx_resp_dp, c_afu_tlx_resp_code, c_afu_tlx_rdata_valid,
         		c_afu_tlx_rdata_bus, c_afu_tlx_rdata_bdi
         );
+        printf("%08lld: ", (long long) c_sim_time);
+        printf(" The AFU-TLX Response Data transferred thru method and the resp code is %d \n",  resp_code);
       }
       invalidVal = 0;
       c_afu_tlx_cmd_rd_req_top  	= (afu_tlx_cmd_rd_req_top & 0x2) ? 0 : (afu_tlx_cmd_rd_req_top & 0x1);
@@ -540,9 +543,9 @@ static int getMy64Bit(const svLogicVecVal *my64bSignal, uint64_t *conv64bit)
   msb32_bval = (my64bSignal+1)->bval;
   lsb32_aval =  my64bSignal->aval;
   msb32_aval = (my64bSignal+1)->aval;
-//    printf("msb32_aval=%08x, lsb32_aval=%08x\n", msb32_aval, lsb32_aval); 
-//    printf("msb32_bval=%08x, lsb32_bval=%08x\n", msb32_bval, lsb32_bval); 
- 
+//    printf("msb32_aval=%08x, lsb32_aval=%08x\n", msb32_aval, lsb32_aval);
+//    printf("msb32_bval=%08x, lsb32_bval=%08x\n", msb32_bval, lsb32_bval);
+
   *conv64bit = ((uint64_t) msb32_aval <<32) | (uint64_t) lsb32_aval;
 //    printf("conv64bit = %llx\n", (long long) *conv64bit);
   if((lsb32_bval | msb32_bval) == 0){ return 0;}
@@ -566,7 +569,7 @@ int getMyCacheLine(const svLogicVecVal *myLongSignal, uint8_t myCacheData[CACHEL
   {
     j = (CACHELINE_BYTES/4 ) - (i + 1);
     if(myLongSignal[i].bval !=0){ errorVal=1; }
-    p32BitCacheWords[j] = myLongSignal[i].aval; 
+    p32BitCacheWords[j] = myLongSignal[i].aval;
     p32BitCacheWords[j] = htonl(p32BitCacheWords[j]);
   }
   if(errorVal!=0){return 1;}
@@ -582,7 +585,7 @@ int getMyByteArray(const svLogicVecVal *myLongSignal, uint32_t arrayLength, uint
   {
     j = (arrayLength/4 ) - (i + 1);
     if(myLongSignal[i].bval !=0){ errorVal=1; }
-    p32BitCacheWords[j] = myLongSignal[i].aval; 
+    p32BitCacheWords[j] = myLongSignal[i].aval;
     p32BitCacheWords[j] = htonl(p32BitCacheWords[j]);
   }
   if(errorVal!=0){return 1;}
@@ -597,7 +600,7 @@ void setMyCacheLine(svLogicVecVal *myLongSignal, uint8_t myCacheData[CACHELINE_B
   for(i=0; i <(CACHELINE_BYTES/4 ); i++)
   {
     j = (CACHELINE_BYTES/4 ) - (i + 1);
-    myLongSignal[j].aval = htonl(p32BitCacheWords[i]); 
+    myLongSignal[j].aval = htonl(p32BitCacheWords[i]);
     myLongSignal[j].bval = 0;
   }
 }

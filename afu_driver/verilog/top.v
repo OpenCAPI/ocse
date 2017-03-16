@@ -1,12 +1,12 @@
 //
 // Copyright 2014 International Business Machines
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -125,7 +125,7 @@ module top (
 				inout [3:0]       afu_cfg_in_rcv_rate_capability_3_top,
 				inout             tlx_afu_ready_top
                                        );
-  
+
    parameter RESET_CYCLES = 9;
    reg             tlx_clock;
    reg             afu_clock;
@@ -187,7 +187,7 @@ module top (
 
 //	Table 2: TLX Response Credit Interface
    reg			afu_tlx_resp_credit_top               ;
-   reg	[6:0]		afu_tlx_resp_initial_credit_top               ;	
+   reg	[6:0]		afu_tlx_resp_initial_credit_top               ;
 
 //	Table 4: TLX Command Credit Interface
    reg			afu_tlx_cmd_credit_top               ;
@@ -244,7 +244,7 @@ module top (
  // Wires for AFU o/p
 //	Table 2: TLX Response Credit Interface
    wire			afu_tlx_resp_credit               ;
-   wire	[6:0]		afu_tlx_resp_initial_credit               ;	
+   wire	[6:0]		afu_tlx_resp_initial_credit               ;
 
 //	Table 4: TLX Command Credit Interface
    wire			afu_tlx_cmd_credit               ;
@@ -298,7 +298,7 @@ module top (
    wire	[3:0]		afu_cfg_xmit_rate_config_1               ;
    wire	[3:0]		afu_cfg_xmit_rate_config_2               ;
    wire	[3:0]		afu_cfg_xmit_rate_config_3               ;
-  
+
 // Other wires
   // Table 1: TLX to AFU Response Interface
    wire             tlx_afu_resp_valid;
@@ -360,7 +360,7 @@ module top (
  // Sim related variables
   reg [0:63]      simulationTime ;
   reg             simulationError;
-  
+
 initial begin
     resetCnt = 0;
     i = 0;
@@ -456,7 +456,7 @@ end
 
   always @ (posedge tlx_clock) begin
    afu_tlx_resp_credit_top               <= afu_tlx_resp_credit;
-   afu_tlx_resp_initial_credit_top       <= afu_tlx_resp_initial_credit;	
+   afu_tlx_resp_initial_credit_top       <= afu_tlx_resp_initial_credit;
    afu_tlx_cmd_credit_top                <= afu_tlx_cmd_credit;
    afu_tlx_cmd_initial_credit_top        <= afu_tlx_cmd_initial_credit;
    afu_tlx_resp_rd_req_top               <= afu_tlx_resp_rd_req;
@@ -479,7 +479,7 @@ end
    afu_tlx_cmd_pasid_top                 <= afu_tlx_cmd_pasid;
    afu_tlx_cmd_pg_size_top               <= afu_tlx_cmd_pg_size;
    afu_tlx_cdata_bus_top                 <= afu_tlx_cdata_bus;
-   afu_tlx_cdata_bdi_top                 <= afu_tlx_cdata_bdi;	
+   afu_tlx_cdata_bdi_top                 <= afu_tlx_cdata_bdi;
    afu_tlx_cdata_valid_top               <= afu_tlx_cdata_valid;
    afu_tlx_resp_valid_top                <= afu_tlx_resp_valid;
    afu_tlx_resp_opcode_top               <= afu_tlx_resp_opcode;
@@ -685,7 +685,7 @@ end
 //    .tlx_afu_resp_host_tag          (tlx_afu_resp_host_tag), //    Reserved for CAPI4.0
     .tlx_afu_resp_addr_tag            (tlx_afu_resp_addr_tag),
 //    .tlx_afu_resp_cache_state       (tlx_afu_resp_cache_state), //    Reserved for CAPI4.0
-                                   
+
 //	Table 2: TLX Response Credit Interface
     .afu_tlx_resp_credit              (afu_tlx_resp_credit),
     .afu_tlx_resp_initial_credit      (afu_tlx_resp_initial_credit),
@@ -781,7 +781,7 @@ end
     .afu_cfg_in_rcv_rate_capability_2 (afu_cfg_in_rcv_rate_capability_2),
     .afu_cfg_in_rcv_rate_capability_3 (afu_cfg_in_rcv_rate_capability_3),
     .tlx_afu_ready                    (tlx_afu_ready)
-                                       
+
   );
 
 endmodule
