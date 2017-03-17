@@ -1114,8 +1114,8 @@ static void *_psl_loop(void *ptr)
 	uint8_t buffer[MAX_LINE_CHARS];
 	// uint8_t op_size, function_code;
 	uint64_t addr;
-	uint16_t size, value;
-	uint32_t lvalue;
+	uint16_t size;
+	uint32_t value, lvalue;
 	uint64_t llvalue; //, op1, op2;
 	int rc;
 
