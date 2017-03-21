@@ -109,6 +109,10 @@ public:
     uint32_t get_vsec_reg(uint32_t);
     // set vsec register
     void set_vsec_reg(uint32_t, uint32_t);
+    // get port reg
+    uint32_t get_port_reg(uint32_t offset);
+    // set port reg
+    void set_port_reg(uint32_t offset, uint32_t data);
 
 };
 

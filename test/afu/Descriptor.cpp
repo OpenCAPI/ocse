@@ -269,3 +269,15 @@ Descriptor::set_vsec_reg(uint32_t vsec_offset, uint32_t vsec_data)
     vsec[vsec_offset] = vsec_data;
 }
 
+uint32_t
+Descriptor::get_port_reg(uint32_t offset)
+{
+    return port[offset];
+}
+
+void
+Descriptor::set_port_reg(uint32_t offset, uint32_t data)
+{
+    port[offset] = data;
+}
+

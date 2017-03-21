@@ -432,7 +432,7 @@ AFU::tlx_afu_config_write()
     uint8_t  resp_dp = 0;
     uint8_t  resp_code = 0;
     uint8_t  cmd_data_bdi;
-    uint32_t config_data, vsec_data, vsec_offset;
+    uint32_t config_data, port_data, port_offset;
 
     debug_msg("AFU::tlx_afu_config_write");
     resp_capptag = afu_event.tlx_afu_cmd_capptag;
@@ -457,10 +457,10 @@ AFU::tlx_afu_config_write()
 	tlx_afu_read_cmd_data(&afu_event, &cmd_data_bdi, afu_event.afu_tlx_cdata_bus);
 	memcpy(&config_data, afu_event.afu_tlx_cdata_bus, 4);
    	if(config_data == 0x29c) {		// descriptor config write address port
-	    vsec_offset = descriptor.get_vsec_reg(0x29c);
-	    vsec_data = descriptor.get_vsec_reg(vsec_offset);
-	    descriptor.set_vsec_reg(0x2a0, vsec_data);
-	    descriptor.set_vsec_reg(0x29c, 0x8000 | vsec_offset);
+	    port_offset = descriptor.get_port_reg(0x29c);
+	    port_data = descriptor.get_port_reg(port_offset);
+	    descriptor.set_port_reg(0x2a0, port_data);
+	    descriptor.set_port_reg(0x29c, 0x80000000 | port_offset);
 	}
 	afu_resp_opcode = 0x04;		// mem write resp
 	resp_code = 0x0;
