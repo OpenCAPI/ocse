@@ -252,7 +252,7 @@ Descriptor::get_AFU_EB_offset () const
 
 // vsec registers
 uint32_t
-Descriptor::get_VSEC_reg(uint32_t vsec_offset)
+Descriptor::get_vsec_reg(uint32_t vsec_offset)
 {
     uint32_t vsec_data, offset;
     //uint8_t byte_offset;
@@ -262,3 +262,10 @@ Descriptor::get_VSEC_reg(uint32_t vsec_offset)
 
     return vsec_data;
 }
+
+void
+Descriptor::set_vsec_reg(uint32_t vsec_offset, uint32_t vsec_data)
+{
+    vsec[vsec_offset] = vsec_data;
+}
+

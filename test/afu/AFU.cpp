@@ -358,7 +358,7 @@ AFU::tlx_afu_config_read()
     afu_tlx_resp_capptag = afu_event.tlx_afu_cmd_capptag;
     cmd_pl = afu_event.tlx_afu_cmd_pl;
     vsec_offset = 0x0000FFFC & afu_event.tlx_afu_cmd_pa;
-    vsec_data  = descriptor.get_VSEC_reg(vsec_offset);
+    vsec_data  = descriptor.get_vsec_reg(vsec_offset);
     if(cmd_pl == 0x00) {
 	data_size = 1;
 	switch(vsec_offset) {
@@ -432,6 +432,7 @@ AFU::tlx_afu_config_write()
     uint8_t  resp_dp = 0;
     uint8_t  resp_code = 0;
     uint8_t  cmd_data_bdi;
+    uint32_t config_data, vsec_data, vsec_offset;
 
     debug_msg("AFU::tlx_afu_config_write");
     resp_capptag = afu_event.tlx_afu_cmd_capptag;
@@ -454,6 +455,13 @@ AFU::tlx_afu_config_write()
     }
     else if(config_state == READY) {
 	tlx_afu_read_cmd_data(&afu_event, &cmd_data_bdi, afu_event.afu_tlx_cdata_bus);
+	memcpy(&config_data, afu_event.afu_tlx_cdata_bus, 4);
+   	if(config_data == 0x29c) {		// descriptor config write address port
+	    vsec_offset = descriptor.get_vsec_reg(0x29c);
+	    vsec_data = descriptor.get_vsec_reg(vsec_offset);
+	    descriptor.set_vsec_reg(0x2a0, vsec_data);
+	    descriptor.set_vsec_reg(0x29c, 0x8000 | vsec_offset);
+	}
 	afu_resp_opcode = 0x04;		// mem write resp
 	resp_code = 0x0;
 	if(TagManager::request_tlx_credit(RESP_CREDIT)) {

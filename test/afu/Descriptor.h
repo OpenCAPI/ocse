@@ -106,7 +106,9 @@ public:
     // reg0x48
     uint64_t get_AFU_EB_offset () const;
     // vsec registers
-    uint32_t get_VSEC_reg(uint32_t);
+    uint32_t get_vsec_reg(uint32_t);
+    // set vsec register
+    void set_vsec_reg(uint32_t, uint32_t);
 
 };
 
