@@ -150,13 +150,14 @@ static void _wait_for_done(enum ocse_state *state, pthread_mutex_t * lock)
 // and AFU control information extended capabilities and keep a copy
 int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 {
-//	For know, we "know"where things are, so just queue up reads...
+//	For now, we "know"where things are, so just queue up reads...
 //	TODO change to read capabilities pointers and use offsets to index
 //	TODO add code to read AFU descriptor info (indirect regs)
 
 	printf("In read_descriptor and WON'T BE ABLE TO SEND CMD UNTIL AFU GIVES US INITIAL CREDIT!!\n");
 	uint8_t   afu_tlx_cmd_credits_available;
 	uint8_t   afu_tlx_resp_credits_available;
+	#define AFU_DESC_DATA_VALID 0x80000000
 printf("before read initial credits \n");
 	//if (afu_tlx_read_initial_credits(mmio->afu_event, &afu_tlx_cmd_credits_available,
 	 //&afu_tlx_resp_credits_available) != TLX_SUCCESS)
@@ -175,7 +176,7 @@ printf("before read initial credits \n");
 	    *event29c, *event2a0, *event2b0, *event2b4, *event2b8, *event2c0, *event2c4, *event2c8;
 
 	uint64_t cmd_pa;
-	cmd_pa = 0x00000000cdef0000; // TODO add this to some structure...ocl?
+	cmd_pa = 0x00000000cdef0000; // per Lance, only need BDF for config
 	// Queue mmio reads - these go out in order, gated (eventually) by credits
 	event00 = _add_cfg(mmio, 1, 0, cmd_pa, 0L);
 	event100 = _add_cfg(mmio, 1, 0, cmd_pa + 0x100, 0L);
@@ -205,6 +206,7 @@ printf("before read initial credits \n");
         debug_msg("%x:%x CR dev & vendor swapped", ntohs(mmio->cfg.cr_device),ntohs(mmio->cfg.cr_vendor));
 	free(event00);
 
+	// Read Process Addr Space ID (PASID) Extended Capability
 	_wait_for_done(&(event100->state), lock);
 	mmio->cfg.PASID_CP = event100->cmd_data;
 	free(event100);
@@ -213,6 +215,7 @@ printf("before read initial credits \n");
 	mmio->cfg.PASID_CTL_STS = event104->cmd_data;
 	free(event104);
 
+	// Read OpenCAPI Transport Layer DVSEC
 	_wait_for_done(&(event200->state), lock);
 	mmio->cfg.OCAPI_TL_CP = event200->cmd_data;
 	free(event200);
@@ -237,6 +240,7 @@ printf("before read initial credits \n");
 	mmio->cfg.OCAPI_TL_TX_RATE = event26c->cmd_data;
 	free(event26c);
 
+	// Read AFU Information DVSEC
 	_wait_for_done(&(event290->state), lock);
 	mmio->cfg.AFU_INFO_CP = event290->cmd_data;
 	free(event290);
@@ -252,6 +256,7 @@ printf("before read initial credits \n");
 	// we can't read the AFU descriptor indirect regs like this,
 	// will read them later
 	//
+	//Read AFU Control DVSEC
 	_wait_for_done(&(event2b0->state), lock);
 	mmio->cfg.AFU_CTL_CP = event2b0->cmd_data;
 	free(event2b0);
@@ -276,6 +281,54 @@ printf("before read initial credits \n");
 	mmio->cfg.AFU_CTL_INTS_PER_PASID = event2c8->cmd_data;
 	free(event2c8);
 
+	// To read AFU descriptor values, first write to cmd_pa + 0x29c with
+	// [31] = 0 [30:0] = 4B offset of Descriptor data to read
+	// Next, read cmd_pa + 0x29c and test bit[31]
+	// if 0, read again
+	// if 1, read cmd_pa+0x2a0 to get afu descriptor data
+
+	event29c = _add_event(mmio, NULL, 0, 0, 1, cmd_pa+0x29c, 0x01001c);
+	printf("Just sent config_wr, will wait for read_req then send data \n");
+        _wait_for_done(&(event29c->state), lock);
+	free(event29c);
+
+	event29c = _add_cfg(mmio, 1, 0, cmd_pa + 0x29c, 0L);
+        _wait_for_done(&(event29c->state), lock);
+
+	// Uncomment the while statement to get multiple reads on 0x29c
+/*	while ((event29c->cmd_data & AFU_DESC_DATA_VALID) == 0) {
+		event29c = _add_cfg(mmio, 1, 0, cmd_pa + 0x29c, 0L);
+        	_wait_for_done(&(event29c->state), lock);
+	} */
+	free(event29c);
+	event2a0 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2a0, 0L);
+        _wait_for_done(&(event2a0->state), lock);
+	// first read gives us per process MMIO offset & per process MMIO BAR
+	mmio->cfg.pp_MMIO_offset = (event2a0->cmd_data & 0xFFFFFFF0);
+	mmio->cfg.pp_MMIO_BAR = (event2a0->cmd_data & 0x0000000F);
+	free(event2a0);
+
+	event29c = _add_event(mmio, NULL, 0, 0, 1, cmd_pa+0x29c, 0x010020);
+	printf("Just sent config_wr, will wait for read_req then send data \n");
+        _wait_for_done(&(event29c->state), lock);
+	free(event29c);
+
+	printf("sent config write now do config read \n");
+	event29c = _add_cfg(mmio, 1, 0, cmd_pa + 0x29c, 0L);
+        _wait_for_done(&(event29c->state), lock);
+	// Uncomment the while statement to get multiple reads on 0x29c
+/*	while ((event29c->cmd_data & AFU_DESC_DATA_VALID) == 0) {
+		event29c = _add_cfg(mmio, 1, 0, cmd_pa + 0x29c, 0L);
+        	_wait_for_done(&(event29c->state), lock);
+	} */
+	free(event29c);
+
+	event2a0 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2a0, 0L);
+        _wait_for_done(&(event2a0->state), lock);
+	// second read gives us per process MMIO stride
+	mmio->cfg.pp_MMIO_stride = event2a0->cmd_data;
+	free(event2a0);
+
 
 	/* Verify num_of_processes
 	if (!mmio->cfg.num_of_processes) {
@@ -292,11 +345,6 @@ printf("before read initial credits \n");
 		return -1;
 	} */
 
-		//Need to send a config_write to make sure it works
-	event29c = _add_event(mmio, NULL, 0, 0, 1, cmd_pa+0x29c, 0x01000);
-	printf("Just sent config_wr, will wait for read_req then send data \n");
-        _wait_for_done(&(event29c->state), lock);
-	free(event29c);
 
 	return 0;
 }
@@ -310,9 +358,9 @@ void send_mmio(struct mmio *mmio)
 	unsigned char ddata[17];
 	char data[17];
 #ifdef TLX4
-	 uint8_t cmd_os,
+	uint8_t cmd_os,
 #endif
-	 uint8_t  cmd_byte_cnt;;
+	uint8_t  cmd_byte_cnt;;
 
 	event = mmio->list;
 
@@ -323,71 +371,79 @@ void send_mmio(struct mmio *mmio)
 	if (event->cfg) {
 		sprintf(type, "CONFIG");
 	// Attempt to send config_rd or config_wr to AFU
-	//special case for now, always use same cmd_pa for config cmds and T= 0
-	//cmd_pa = 0x00000000cdef0000;
 		if (event->rnw && tlx_afu_send_cmd(mmio->afu_event,
-		TLX_CMD_CONFIG_READ, 0xdead,0, 2, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
-		debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type,
-			  event->dw ? 64 : 32, event->cmd_PA);
-		debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
+			TLX_CMD_CONFIG_READ, 0xdead,0, 2, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
+			debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type,
+			  	event->dw ? 64 : 32, event->cmd_PA);
+			debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
 				event->rnw, event->dw, event->cmd_PA);
-		event->state = OCSE_PENDING;
-	}
+			event->state = OCSE_PENDING;
+		}
 
 	//if (!event->rnw && tlx_afu_send_cmd_and_data(mmio->afu_event,
 	//	TLX_CMD_CONFIG_WRITE, 0xbeef,0, 2, 0, 0, 0, event->addr, 0, dptr) == TLX_SUCCESS)
 
-	if (!event->rnw) { // CONFIG write - two part operation
-		// restricted by spec to pL of 1, 2, or 4 bytes ONLY
-		// We only do 4B config writes for now
-		if (event->state == OCSE_RD_RQ_PENDING) {
-			//special case for now, always use same cmd_pa for config cmds and T= 0
-			uint8_t * dptr = ddata;
-			memcpy(ddata, &(event->cmd_data), 4);
-			if (tlx_afu_send_cmd_data(mmio->afu_event, 4, 0, dptr) == TLX_SUCCESS) {
-			if (event->dw)
-				sprintf(data, "%016" PRIx64, event->cmd_data);
-			else
-				sprintf(data, "%08" PRIx32, (uint32_t) event->cmd_data);
-			debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s",
-				  mmio->afu_name, type, event->dw ? 64 : 32,
-			  	event->cmd_PA, data);
+		if (!event->rnw) { // CONFIG write - two part operation
+			// restricted by spec to pL of 1, 2, or 4 bytes ONLY
+			// We only do 4B config writes for now
+			if (event->state == OCSE_RD_RQ_PENDING) {
+				uint8_t * dptr = ddata;
+				memcpy(ddata, &(event->cmd_data), 4);
+				if (tlx_afu_send_cmd_data(mmio->afu_event, 4, 0, dptr) == TLX_SUCCESS) {
+					if (event->dw)
+						sprintf(data, "%016" PRIx64, event->cmd_data);
+					else
+						sprintf(data, "%08" PRIx32, (uint32_t) event->cmd_data);
+					debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s",
+						mmio->afu_name, type, event->dw ? 64 : 32,
+			  			event->cmd_PA, data);
+					debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
+						event->rnw, event->dw, event->cmd_PA);
+					event->state = OCSE_PENDING;
+					printf("got rd_req and sent data, now wait for cmd resp from AFU \n");
+				}
+       	 		} else if ( tlx_afu_send_cmd(mmio->afu_event,
+				TLX_CMD_CONFIG_WRITE, 0xbeef,0, 2, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
+					event->state = OCSE_RD_RQ_PENDING;
+					printf("sent wr cmd, now wait for rd_req from AFU \n"); }
+		}
+       	}  else   {  // if not a CONFIG, then must be MMIO rd/wr
+		sprintf(type, "MMIO");
+
+		// Attempt to send mmio to AFU
+		if (event->rnw && tlx_afu_send_cmd(mmio->afu_event,
+			TLX_CMD_PR_RD_MEM, 0xcafe,4, 0, 0, 0, 0, 0x200) == TLX_SUCCESS) {
+			debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type,
+			  	event->dw ? 64 : 32, event->cmd_PA);
 			debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
 					event->rnw, event->dw, event->cmd_PA);
 			event->state = OCSE_PENDING;
-			printf("got rd_req and sent data, now wait for cmd resp from AFU \n");
-			}
-       	 	} else if ( tlx_afu_send_cmd(mmio->afu_event,
-			TLX_CMD_CONFIG_WRITE, 0xbeef,0, 2, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
-				event->state = OCSE_RD_RQ_PENDING;
-				printf("sent wr cmd, now wait for rd_req from AFU \n"); }
-			}
-        }  else   {  // if not a CONFIG, then must be MMIO rd/wr
-		sprintf(type, "MMIO");
-
-	// Attempt to send mmio to AFU
-	if (event->rnw && tlx_afu_send_cmd(mmio->afu_event,
-		TLX_CMD_PR_RD_MEM, 0xcafe,4, 0, 0, 0, 0, 0x200) == TLX_SUCCESS) {
-		debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type,
-			  event->dw ? 64 : 32, event->cmd_PA);
-		debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
-				event->rnw, event->dw, event->cmd_PA);
-		event->state = OCSE_PENDING;
-	}
-	//NEED TO MAKE SOME DATA STRING TO SEND HERE !!
-/*	if (!event->rnw && tlx_afu_send_cmd_and_data(mmio->afu_event,
-		TLX_CMD_PR_WR_MEM, 0xbeef,4, 0, 0, 0, 0, 0x505, 0, 0, somedata ) == TLX_SUCCESS) {
-		if (event->dw)
-			sprintf(data, "%016" PRIx64, event->data);
-		else
-			sprintf(data, "%08" PRIx32, (uint32_t) event->data);
-		debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s",
-			  mmio->afu_name, type, event->dw ? 64 : 32,
-			  event->addr, data);
-		debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
-				event->rnw, event->dw, event->addr);
-		event->state = OCSE_PENDING;
-	} */
+		}
+		if (!event->rnw) { // MMIO write - two part operation
+			// We only do 4B or 8B MMIO writes for now - caller has to specify in pL
+			if (event->state == OCSE_RD_RQ_PENDING) {
+				// TODO do something to cmd_pa ??
+				uint8_t * dptr = ddata;
+				//memcpy(ddata, &(event->cmd_data), 4);
+				memcpy(ddata, &(event->cmd_data), event->cmd_pL);
+				if (tlx_afu_send_cmd_data(mmio->afu_event, event->cmd_pL, 0, dptr) == TLX_SUCCESS) {
+				if (event->dw)
+					sprintf(data, "%016" PRIx64, event->cmd_data);
+				else
+					sprintf(data, "%08" PRIx32, (uint32_t) event->cmd_data);
+				debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s",
+				  	mmio->afu_name, type, event->dw ? 64 : 32,
+			  		event->cmd_PA, data);
+				debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
+						event->rnw, event->dw, event->cmd_PA);
+				event->state = OCSE_PENDING;
+				printf("got rd_req and sent data, now wait for cmd resp from AFU \n");
+				}
+       	 		} else if ( tlx_afu_send_cmd(mmio->afu_event,
+				TLX_CMD_PR_WR_MEM, 0xbead,0, event->cmd_pL, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
+					event->state = OCSE_RD_RQ_PENDING;
+					printf("sent mmio_pr_wr cmd, now wait for rd_req from AFU \n"); }
+				}
 	}
 }
 
@@ -435,14 +491,6 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 		mmio->list->state = OCSE_DONE;
 		mmio->list = mmio->list->_next;
 		}
-
-	/*if (mmio->afu_event->afu_tlx_credit_req_valid) {
-		printf ("afu_tlx_cmd_rd_req is 0x%x \n", mmio->afu_event->afu_tlx_cmd_rd_req);
-		printf ("afu_tlx_cmd_rd_cnt is 0x%x \n", mmio->afu_event->afu_tlx_cmd_rd_cnt);
-		printf ("afu_tlx_resp_rd_req is 0x%x \n", mmio->afu_event->afu_tlx_resp_rd_req);
-		printf ("afu_tlx_resp_rd_cnt is 0x%x \n", mmio->afu_event->afu_tlx_resp_rd_cnt);
-	} */
-
 
 }
 

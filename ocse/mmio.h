@@ -77,9 +77,9 @@ struct afu_cfg_sp {
         uint32_t AFU_CTL_PASID_LEN;
         uint32_t AFU_CTL_PASID_BASE;
         uint32_t AFU_CTL_INTS_PER_PASID;
-        uint32_t AFU_DESC_MMIO_SPACE;
-        uint32_t AFU_DESC_MMIO_PP_OFFSET_BAR;
-        uint32_t AFU_DESC_MMIO_PP_STRIDE;
+        uint32_t pp_MMIO_offset;
+        uint32_t pp_MMIO_BAR;
+        uint32_t pp_MMIO_stride;
 //	uint16_t num_ints_per_process;
 //	uint16_t num_of_processes;
 //	uint16_t num_of_afu_CRs;
