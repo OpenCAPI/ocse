@@ -358,7 +358,12 @@ AFU::tlx_afu_config_read()
     afu_tlx_resp_capptag = afu_event.tlx_afu_cmd_capptag;
     cmd_pl = afu_event.tlx_afu_cmd_pl;
     vsec_offset = 0x0000FFFC & afu_event.tlx_afu_cmd_pa;
-    vsec_data  = descriptor.get_vsec_reg(vsec_offset);
+    if(vsec_offset == 0x2a0) {	// Descriptor port
+	vsec_data = descriptor.get_port_reg(vsec_offset);
+    }
+    else {
+    	vsec_data  = descriptor.get_vsec_reg(vsec_offset);
+    }
     if(cmd_pl == 0x00) {
 	data_size = 1;
 	switch(vsec_offset) {
