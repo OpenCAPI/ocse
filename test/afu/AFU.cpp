@@ -464,13 +464,14 @@ AFU::tlx_afu_config_write()
     else if(config_state == READY) {
 	tlx_afu_read_cmd_data(&afu_event, &cmd_data_bdi, afu_event.afu_tlx_cdata_bus);
 	memcpy(&config_data, afu_event.afu_tlx_cdata_bus, 4);
-	debug_msg("AFU: config_data = 0x%x", config_data);
- 	debug_msg("AFU: cmd_pa = 0x%x", cmd_pa);
+	debug_msg("AFU:config_write: config_data = 0x%x", config_data);
+ 	debug_msg("AFU:config_write: cmd_pa = 0x%x", cmd_pa);
    	if(cmd_pa == 0x29c) {		// descriptor config write address port
 	    port_offset = descriptor.get_port_reg(0x29c);
 	    port_data = descriptor.get_port_reg(port_offset);
 	    descriptor.set_port_reg(0x2a0, port_data);
-	    descriptor.set_port_reg(0x29c, 0x80000000 | port_offset);
+	    port_offset = port_offset | 0x80000000;
+	    descriptor.set_port_reg(0x29c, port_offset);
 	    debug_msg("AFU: port 0x29c = 0x%x", descriptor.get_port_reg(0x29c));
 	}
 	afu_resp_opcode = 0x04;		// mem write resp
