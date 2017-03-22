@@ -287,7 +287,7 @@ printf("before read initial credits \n");
 	// if 0, read again
 	// if 1, read cmd_pa+0x2a0 to get afu descriptor data
 
-	event29c = _add_event(mmio, NULL, 0, 0, 1, cmd_pa+0x29c, 0x01001c);
+	event29c = _add_event(mmio, NULL, 0, 0, cmd_pa+0x29c, 1, 0x01001c);
 	printf("Just sent config_wr, will wait for read_req then send data \n");
         _wait_for_done(&(event29c->state), lock);
 	free(event29c);
@@ -308,7 +308,7 @@ printf("before read initial credits \n");
 	mmio->cfg.pp_MMIO_BAR = (event2a0->cmd_data & 0x0000000F);
 	free(event2a0);
 
-	event29c = _add_event(mmio, NULL, 0, 0, 1, cmd_pa+0x29c, 0x010020);
+	event29c = _add_event(mmio, NULL, 0, 0, cmd_pa+0x29c, 1, 0x010020);
 	printf("Just sent config_wr, will wait for read_req then send data \n");
         _wait_for_done(&(event29c->state), lock);
 	free(event29c);
@@ -320,7 +320,7 @@ printf("before read initial credits \n");
 /*	while ((event29c->cmd_data & AFU_DESC_DATA_VALID) == 0) {
 		event29c = _add_cfg(mmio, 1, 0, cmd_pa + 0x29c, 0L);
         	_wait_for_done(&(event29c->state), lock);
-	} */
+	}  */
 	free(event29c);
 
 	event2a0 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2a0, 0L);
