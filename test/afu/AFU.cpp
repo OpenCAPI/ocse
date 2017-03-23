@@ -354,16 +354,12 @@ AFU::tlx_afu_config_read()
     afu_tlx_resp_opcode = 0x01;	// mem rd response
     afu_tlx_resp_dl = 0x01;	// length 64 byte
     afu_tlx_resp_code = 0x0;	
-    afu_tlx_rdata_valid = 0x0;
+    afu_tlx_rdata_valid = 0x0;	
     afu_tlx_resp_capptag = afu_event.tlx_afu_cmd_capptag;
     cmd_pl = afu_event.tlx_afu_cmd_pl;
     vsec_offset = 0x0000FFFC & afu_event.tlx_afu_cmd_pa;
-    if(vsec_offset == 0x2a0 || vsec_offset == 0x29c) {	// Descriptor ports
-	vsec_data = descriptor.get_port_reg(vsec_offset);
-    }
-    else {
-    	vsec_data  = descriptor.get_vsec_reg(vsec_offset);
-    }
+    vsec_data  = descriptor.get_vsec_reg(vsec_offset);	// get vsec data
+
     if(cmd_pl == 0x00) {
 	data_size = 1;
 	switch(vsec_offset) {
@@ -467,12 +463,13 @@ AFU::tlx_afu_config_write()
 	debug_msg("AFU:config_write: config_data = 0x%x", config_data);
  	debug_msg("AFU:config_write: cmd_pa = 0x%x", cmd_pa);
    	if(cmd_pa == 0x29c) {		// descriptor config write address port
-	    port_offset = descriptor.get_port_reg(0x29c);
-	    port_data = descriptor.get_port_reg(port_offset);
-	    descriptor.set_port_reg(0x2a0, port_data);
-	    port_offset = port_offset | 0x80000000;
-	    descriptor.set_port_reg(0x29c, port_offset);
-	    debug_msg("AFU: port 0x29c = 0x%x", descriptor.get_port_reg(0x29c));
+	    port_offset = config_data;	// get descriptor offset
+	    port_data = descriptor.get_port_reg(port_offset);	// get descriptor data
+	    descriptor.set_vsec_reg(0x2a0, port_data);		// write data to port 0x2a0
+	    port_offset = port_offset | 0x80000000;		// set bit 31 to port 0x29c
+	    descriptor.set_vsec_reg(0x29c, port_offset);
+	    debug_msg("AFU: port 0x29c = 0x%x", descriptor.get_vsec_reg(0x29c));
+	    debug_msg("AFU: port 0x2a0 = 0x%x", descriptor.get_vsec_reg(0x2a0));
 	}
 	afu_resp_opcode = 0x04;		// mem write resp
 	resp_code = 0x0;
