@@ -296,16 +296,18 @@ printf("before read initial credits \n");
         _wait_for_done(&(event29c->state), lock);
 
 	// Uncomment the while statement to get multiple reads on 0x29c
-/*	while ((event29c->cmd_data & AFU_DESC_DATA_VALID) == 0) {
+	while ((event29c->cmd_data & AFU_DESC_DATA_VALID) == 0) {
 		event29c = _add_cfg(mmio, 1, 0, cmd_pa + 0x29c, 0L);
         	_wait_for_done(&(event29c->state), lock);
-	} */
+	} 
 	free(event29c);
 	event2a0 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2a0, 0L);
         _wait_for_done(&(event2a0->state), lock);
 	// first read gives us per process MMIO offset & per process MMIO BAR
 	mmio->cfg.pp_MMIO_offset = (event2a0->cmd_data & 0xFFFFFFF0);
+	debug_msg("per process MMIO offset is 0x%x ", mmio->cfg.pp_MMIO_offset);
 	mmio->cfg.pp_MMIO_BAR = (event2a0->cmd_data & 0x0000000F);
+	debug_msg("per process MMIO BAR is 0x%x ", mmio->cfg.pp_MMIO_BAR);
 	free(event2a0);
 
 	event29c = _add_event(mmio, NULL, 0, 0, cmd_pa+0x29c, 1, 0x010020);
@@ -317,16 +319,17 @@ printf("before read initial credits \n");
 	event29c = _add_cfg(mmio, 1, 0, cmd_pa + 0x29c, 0L);
         _wait_for_done(&(event29c->state), lock);
 	// Uncomment the while statement to get multiple reads on 0x29c
-/*	while ((event29c->cmd_data & AFU_DESC_DATA_VALID) == 0) {
+	while ((event29c->cmd_data & AFU_DESC_DATA_VALID) == 0) {
 		event29c = _add_cfg(mmio, 1, 0, cmd_pa + 0x29c, 0L);
         	_wait_for_done(&(event29c->state), lock);
-	}  */
+	}  
 	free(event29c);
 
 	event2a0 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2a0, 0L);
         _wait_for_done(&(event2a0->state), lock);
 	// second read gives us per process MMIO stride
 	mmio->cfg.pp_MMIO_stride = event2a0->cmd_data;
+	debug_msg("per process MMIO stride is 0x%x ", mmio->cfg.pp_MMIO_stride);
 	free(event2a0);
 
 
