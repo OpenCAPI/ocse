@@ -66,6 +66,8 @@ struct afu_cfg_sp {
         uint32_t OCAPI_TL_REVID;
         uint32_t OCAPI_TL_ACTAG;
         uint32_t OCAPI_TL_MAXAFU;
+	// for updated config spec, replace above w/below
+        // uint32_t FUNC_CFG_MAXAFU;
         uint32_t OCAPI_TL_TMP_CFG;
         uint32_t OCAPI_TL_TX_RATE;
         uint32_t AFU_INFO_CP;

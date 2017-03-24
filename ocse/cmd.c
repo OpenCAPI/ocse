@@ -1650,6 +1650,7 @@ void handle_caia2_cmds(struct cmd *cmd)
 	struct cmd_event *event;
 	struct client *client;
 //	uint32_t this_itag;
+//	unsigned char need_a_tag;
 
 
 	// Make sure cmd structure is valid
@@ -1710,7 +1711,21 @@ void handle_caia2_cmds(struct cmd *cmd)
 				_handle_cas_op(cmd, event);}
 			break;
 		case TLX_COMMAND_XLAT_RD_P0:
-			event->itag = (rand() % 512);
+			need_a_tag = 1;
+			while (need_a_tag == 1)  {
+				this_itag = (rand() % 256);
+				head = &cmd->list;
+				while (*head != NULL) {
+					if ((*head)->itag == this_itag)
+						break;
+					head = &((*head)->_next);
+					}
+				if (*head == NULL)   // didn't find this tag so okay to use
+					break;
+				 else debug_msg("itag already in use!! Have to choose another value");
+				}
+
+			event->itag = this_itag;
 			event->port = 0;
 			//printf("in handle_caia2 for xlat_rd, address is 0x%016"PRIX64 "\n", event->addr);
 			cmd->afu_event->response_dma0_itag = event->itag;
@@ -1719,7 +1734,21 @@ void handle_caia2_cmds(struct cmd *cmd)
 			event->state = DMA_ITAG_RET;
 			break;
 		case TLX_COMMAND_XLAT_WR_P0:
-			event->itag = (rand() % 512);
+			need_a_tag = 1;
+			while (need_a_tag == 1)  {
+				this_itag = ((rand() % 256) + 256);
+				head = &cmd->list;
+				while (*head != NULL) {
+					if ((*head)->itag == this_itag)
+						break;
+					head = &((*head)->_next);
+					}
+				if (*head == NULL)   // didn't find this tag so okay to use
+					break;
+				else debug_msg("itag already in use!! Have to choose another value");
+				}
+
+			event->itag = this_itag;
 			event->port = 0;
 			//printf("in handle_caia2 for xlat_wr, address is 0x%016"PRIX64 "\n", event->addr);
 			cmd->afu_event->response_dma0_itag = event->itag;

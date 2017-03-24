@@ -1,12 +1,12 @@
 /*
  * Copyright 2014,2015 International Business Machines
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -384,9 +384,9 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 			if (op_size == 4) {
 			        // OP1 is in ((__u8 *)(&op1))[0 to 3]
 			        // OP2 is in ((__u8 *)(&op2))[0 to 3]
-			        // don't shift as the 32bits we want are already le on the left, 
+			        // don't shift as the 32bits we want are already le on the left,
 			        // so the cast will grab the correct end
- 			        // op_1 = (uint32_t) op1;// (op1 >> 32); 
+ 			        // op_1 = (uint32_t) op1;// (op1 >> 32);
 				// op_2 = (uint32_t) op2;// (op2 >> 32);
 				memcpy( (void *)&op_1, (void *)&op1, op_size);
 				memcpy( (void *)&op_2, (void *)&op2, op_size);
@@ -404,7 +404,7 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 			        // OP2 is in (__u8 *)(&op2)[4 to 7]
 			        // if the ops are really be, we have to handle them differently
 			        // I think we should switch to memcpy to extract the data...
-			        // the below  worked because the mcp afu replicated the ops, 
+			        // the below  worked because the mcp afu replicated the ops,
 			        // architecturally, it is not correct, but how to change it?
 				// op_1 = (uint32_t) op1;
 				// op_2 = (uint32_t) op2;
@@ -418,7 +418,7 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 				if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
 					afu->opened = 0;
 					afu->attached = 0;
-				}	
+				}
 				return;
 			}
 			break;
@@ -454,7 +454,7 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 				if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
 					afu->opened = 0;
 					afu->attached = 0;
-				}	
+				}
 				return;
 			}
 			break;
@@ -465,15 +465,15 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 
 	atomic_op = function_code;
 	// Remove and read atomic_le from bit7 of data[0]
-	// if atomic_le == 1, afu is le, so no data issues (ocse is always le). 
-	// if atomic_le == 0, we have to swap op1/op2 data before ops, and also swap 
+	// if atomic_le == 1, afu is le, so no data issues (ocse is always le).
+	// if atomic_le == 0, we have to swap op1/op2 data before ops, and also swap
 	// data returned by fetches
 	if ((atomic_op & 0x80) == 0x80) {
 		atomic_le = 1;
 		atomic_op &= 0x3F;
-	} else 
+	} else
 		atomic_le = 0;
-		
+
 	debug_msg("_handle_DMO_OPs:  atomic_op = 0x%2x and atomic_le = 0x%x ", atomic_op, atomic_le);
 
 	DPRINTF("READ from addr @ 0x%016" PRIx64 "\n", addr);
@@ -550,12 +550,12 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 				if  (op_size == 4) {
 				debug_msg("UNSIGNED COMPARE %08"PRIx32" with %08"PRIx32 " , store larger & return op_A ", op_A, op_1);
 					if (op_A > op_1)
-						op_1 = op_A;   
+						op_1 = op_A;
 					wb = 1;
 				} else {
 				debug_msg("UNSIGNED COMPARE %016"PRIx64" with %016"PRIx64 " , store larger & return op_Al  ", op_Al, op_1l);
 					if (op_Al > op_1l)
-						op_1l = op_Al;   
+						op_1l = op_Al;
 					wb = 2;
 				}
 				break;
@@ -566,14 +566,14 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 					op_1 = sign_extend(op_1);
 				debug_msg("SIGNED COMPARE %08"PRIx32" with %08"PRIx32 " store larger & return op_A ", op_A, op_1);
 					if ((int32_t)op_A > (int32_t)op_1)
-						op_1 = op_A;   
+						op_1 = op_A;
 					wb = 1;
 				} else {
 					op_Al = sign_extend64(op_Al);
 					op_1l = sign_extend64(op_1l);
 				debug_msg("SIGNED COMPARE %016"PRIx64" with %016"PRIx64 " store larger & return op_Al ", op_Al, op_1l);
 					if ((int64_t)op_Al > (int64_t)op_1l)
-						op_1l = op_Al;   
+						op_1l = op_Al;
 					wb = 2;
 				};
 				break;
@@ -581,12 +581,12 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 				if  (op_size == 4) {
 				debug_msg("UNSIGNED COMPARE %08"PRIx32" with %08"PRIx32 " store smaller & return op_A ", op_A, op_1);
 					if (op_A < op_1)
-						op_1 = op_A;  
+						op_1 = op_A;
 					wb = 1;
 				} else {
 				debug_msg("UNSIGNED COMPARE %016"PRIx64" with %016"PRIx64 " store smaller & return op_Al ", op_Al, op_1l);
 					if (op_Al < op_1l)
-						op_1l = op_Al;  
+						op_1l = op_Al;
 					wb = 2;
 				}
 				break;
@@ -596,14 +596,14 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 					op_1 = sign_extend(op_1);
 				debug_msg("SIGNED COMPARE %08"PRIx32" with %08"PRIx32 " store smaller & return op_A ", op_A, op_1);
 					if ((int32_t)op_A < (int32_t)op_1)
-						op_1 = op_A;   
+						op_1 = op_A;
 					wb = 1;
 				} else {
 					op_Al = sign_extend64(op_Al);
 					op_1l = sign_extend64(op_1l);
 				debug_msg("SIGNED COMPARE %016"PRIx64" with %016"PRIx64 " store smaller & return op_Al ", op_Al, op_1l);
 					if ((int64_t)op_Al < (int64_t)op_1l)
-						op_1l = op_Al;   
+						op_1l = op_Al;
 					wb = 2;
 				}
 				break;
@@ -614,11 +614,11 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 			case AMO_ARMWF_CAS_U:
 				if  (op_size == 4) {
 				debug_msg("COMPARE & SWAP  %08"PRIx32" with %08"PRIx32 " ,store op_2 & return op_A ", op_A, op_1);
-					op_1 = op_2;  
+					op_1 = op_2;
 					wb = 1;
 				} else {
 				debug_msg("COMPARE & SWAP  %016"PRIx64" with %016"PRIx64 " ,store op_2l & return op_Al ", op_Al, op_1l);
-					op_1l = op_2l;  
+					op_1l = op_2l;
 					wb = 2;
 				}
 				break;
@@ -626,15 +626,15 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 				if  (op_size == 4) {
 				debug_msg("COMPARE & SWAP == %08"PRIx32" with %08"PRIx32 " ,if true store op_2 & return op_A ", op_A, op_1);
 					if (op_A == op_1)
-						op_1 = op_2;  
-					else 
+						op_1 = op_2;
+					else
 						op_1 = op_A;
 					wb = 1;
 				} else {
 				debug_msg("COMPARE & SWAP == %016"PRIx64" with %016"PRIx64 " ,if true store op_2l & return op_Al ", op_Al, op_1l);
 					if (op_Al == op_1l)
-						op_1l = op_2l;  
-					else 
+						op_1l = op_2l;
+					else
 						op_1l = op_Al;
 					wb = 2;
 				}
@@ -643,22 +643,22 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 				if  (op_size == 4) {
 				debug_msg("COMPARE & SWAP != %08"PRIx32" with %08"PRIx32 " ,if true, store op_2 & return op_A ", op_A, op_1);
 					if (op_A != op_1)
-						op_1 = op_2;  
-					else 
+						op_1 = op_2;
+					else
 						op_1 = op_A;
 					wb = 1;
 				} else {
 				debug_msg("COMPARE & SWAP != %016"PRIx64" with %016"PRIx64 " ,if true, store op_2l & return op_Al ", op_Al, op_1l);
 					if (op_Al != op_1l)
-						op_1l = op_2l;  
-					else 
+						op_1l = op_2l;
+					else
 						op_1l = op_Al;
 					wb = 2;
 				}
 				break;
 			/* addr = location of two address aligned 4 or 8 byte operands.
  * The first operand A is found at the address specified; second operand A2 is found at
- * addr + 4 or addr +8, depending on widths of operands. 
+ * addr + 4 or addr +8, depending on widths of operands.
  *  • cannot target locations at 32n-2bin2dec(‘1L’), where n = 1,2,3... (armwf_inc_b, armwf_inc_e)
  *  • cannot target locations at 32n, when n = 0, 1, 2, 3... (armwf_dec_b)
  * The original value from memory, or (1 << (s*8 -1)) is returned (s = 4 or 8) */
@@ -668,12 +668,12 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 					op_1 = (uint32_t)(lvalue);
 				debug_msg("COMPARE & INC Bounded %08"PRIx32" with %08"PRIx32 ", if !=, inc op_A, ret orig op_A, else..", op_A, op_1);
 					if (op_A != op_1)
-						op_1 = op_A +1;  
+						op_1 = op_A +1;
 					else {
 						op_1 = op_A;
 						op_A = MIN_INT32;
 						//op_A = (1 << 31);
-					     }	
+					     }
 					wb = 1;
 				} else {
 					memcpy((char *) &llvalue, (void *)addr+8, op_size);
@@ -684,8 +684,8 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 					else  {
 						op_1l = op_Al;
 						op_Al = MIN_INT64;
-						//op_Al = (1ULL << 63); 
-					      } 
+						//op_Al = (1ULL << 63);
+					      }
 					wb = 2;
 				}
 				break;
@@ -695,7 +695,7 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 					op_1 = (uint32_t)(lvalue);
 				debug_msg("COMPARE & INC Equal %08"PRIx32" with %08"PRIx32 ", if =, inc op_A, ret orig op_A, else..", op_A, op_1);
 					if (op_A == op_1)
-						op_1 = op_A +1;  
+						op_1 = op_A +1;
 					else   {
 						op_1 = op_A;
 						op_A = MIN_INT32;
@@ -709,10 +709,10 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 					if (op_Al == op_1l)
 						op_1l = op_A +1;
 					else    {
-						op_1l = op_Al; 
+						op_1l = op_Al;
 						op_Al = MIN_INT64;
 						//op_Al = (int64_t) (1ULL <<63);
-						}  
+						}
 					wb = 2;
 				}
 				break;
@@ -722,7 +722,7 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 					op_1 = (uint32_t)(lvalue);
 				debug_msg("COMPARE & DEC Bounded %08"PRIx32" with %08"PRIx32 ", if != dec op_A, ret orig op_A, else..", op_A, op_1);
 					if (op_A != op_1)
-						op_1 = op_A -1;  
+						op_1 = op_A -1;
 					else  {
 						op_1 = op_A;
 						op_A = MIN_INT32;
@@ -738,8 +738,8 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 					else   {
 						op_1l = op_Al;
 						op_Al = MIN_INT64;
-						//op_Al = (1ULL << 63); 
-					       } 
+						//op_Al = (1ULL << 63);
+					       }
 					wb = 2;
 				}
 				break;
@@ -791,11 +791,11 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 				if  (op_size == 4) {
 				debug_msg("UNSIGNED COMPARE %08"PRIx32" with %08"PRIx32 " store the larger ", op_A, op_1);
 					if (op_A > op_1)
-						op_1 = op_A;  
+						op_1 = op_A;
 				} else {
 				debug_msg("UNSIGNED COMPARE %016"PRIx64" with %016"PRIx64 " store the larger  ", op_Al, op_1l);
 					if (op_Al > op_1l)
-						op_1l = op_Al; 
+						op_1l = op_Al;
 				}
 				wb = 0;
 				break;
@@ -807,14 +807,14 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 					op_1 = sign_extend(op_1);
 				debug_msg("SIGNED COMPARE %08"PRIx32" with %08"PRIx32 " store the larger ", op_A, op_1);
 					if ((int32_t)op_A > (int32_t)op_1)
-						op_1 = op_A;   
+						op_1 = op_A;
 					wb = 0;
 				} else {
 					op_Al = sign_extend64(op_Al);
 					op_1l = sign_extend64(op_1l);
 				debug_msg("SIGNED COMPARE %016"PRIx64" with %016"PRIx64 " store the larger  ", op_Al, op_1l);
 					if ((int64_t)op_Al > (int64_t)op_1l)
-						op_1l = op_Al;   
+						op_1l = op_Al;
 					wb = 0;
 				}
 				break;
@@ -822,11 +822,11 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 				if  (op_size == 4) {
 				debug_msg("UNSIGNED COMPARE %08"PRIx32" with %08"PRIx32 " store the smaller ", op_A, op_1);
 					if (op_A < op_1)
-						op_1 = op_A;   
+						op_1 = op_A;
 				} else {
 				debug_msg("UNSIGNED COMPARE %016"PRIx64" with %016"PRIx64 " store the smaller  ", op_Al, op_1l);
 					if (op_Al < op_1l)
-						op_1l = op_Al; 
+						op_1l = op_Al;
 				}
 				wb = 0;
 				break;
@@ -836,30 +836,30 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 					op_1 = sign_extend(op_1);
 				debug_msg("SIGNED COMPARE %08"PRIx32" with %08"PRIx32 " store the smaller ", op_A, op_1);
 					if ((int32_t)op_A < (int32_t)op_1)
-						op_1 = op_A;   
+						op_1 = op_A;
 					wb = 0;
 				} else {
 					op_Al = sign_extend64(op_Al);
 					op_1l = sign_extend64(op_1l);
 				debug_msg("SIGNED COMPARE %016"PRIx64" with %016"PRIx64 " store the smaller  ", op_Al, op_1l);
 					if ((int64_t)op_Al < (int64_t)op_1l)
-						op_1l = op_Al;   
+						op_1l = op_Al;
 					wb = 0;
 				}
 				break;
 			/* addr = location of two address aligned 4 or 8 byte operands.
  * The first operand A is at addr; second operand A2 is at addr+  or addr+8, depending on widths of operands.
- * The address must be naturally aligned and cannot target locations at 32n-2bin2dec(‘1L’), where n = 1,2,3... 
+ * The address must be naturally aligned and cannot target locations at 32n-2bin2dec(‘1L’), where n = 1,2,3...
  * The AFU provides a third operand, op_1 or op_1, and will be stored at addr and addr+4 if A1 == A2. */
 			case AMO_ARMW_CAS_T:
 				if  (op_size == 4) {
 					memcpy((char *) &lvalue, (void *)addr+4, op_size);
 					op_2 = (uint32_t)(lvalue);
 				debug_msg("STORE TWIN compare %08"PRIx32" with %08"PRIx32 ", if == store op_1 to both locations", op_A, op_2);
-					if (op_A == op_2) 
-						op_2 = op_1;  
-					else 
-						op_1 = op_A;	
+					if (op_A == op_2)
+						op_2 = op_1;
+					else
+						op_1 = op_A;
 					wb = 0;
 				} else {
 					memcpy((char *) &llvalue, (void *)addr+8, op_size);
@@ -882,7 +882,7 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 		if (op_size == 4) {
 			memcpy ((void *)addr, &op_1, op_size);
 			DPRINTF("WRITE to addr @ 0x%016" PRIx64 " with results of 0x%08" PRIX32 " \n", addr, op_1);
-			// if this was STORE TWIN, write op_2 to addr+4 
+			// if this was STORE TWIN, write op_2 to addr+4
 			if ((atomic_op) == AMO_ARMW_CAS_T) {
 				memcpy ((void *)addr+4, &op_2, op_size);
 				DPRINTF("WRITE to addr+4 @ 0x%016" PRIx64 " with results of 0x%08" PRIX32 " \n", addr+4, op_2);
@@ -890,7 +890,7 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 		} else  {// only other supported size is 8
 			memcpy ((void *)addr, &op_1l, op_size);
 			DPRINTF("WRITE to addr @ 0x%016" PRIx64 " with results of 0x%016" PRIX64 "\n", addr, op_1l);
-			// if this was STORE TWIN, write op_2l to addr+8 
+			// if this was STORE TWIN, write op_2l to addr+8
 			if ((atomic_op) == AMO_ARMW_CAS_T) {
 				memcpy ((void *)addr+8, &op_2l, op_size);
 				DPRINTF("WRITE to addr+8 @ 0x%016" PRIx64 " with results of 0x%016" PRIX64 " \n", addr+8, op_2l);
@@ -909,24 +909,24 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 				break;
 			case 1:
 				wbuffer[0] = OCSE_MEM_SUCCESS;
-				if (atomic_le == 0) 
+				if (atomic_le == 0)
 					op_A = htonl(op_A);
 				memcpy(&(wbuffer[1]), (void *)&op_A, op_size);
 				if (put_bytes_silent(afu->fd, op_size + 1, wbuffer) != op_size + 1) {
 					afu->opened = 0;
 					afu->attached = 0;
-				}		
+				}
 				DPRINTF("READ from addr @ 0x%016" PRIx64 "\n", addr);
 				break;
 			case 2:
 				wbuffer[0] = OCSE_MEM_SUCCESS;
-				if (atomic_le == 0) 
+				if (atomic_le == 0)
 					op_Al = htonll(op_Al);
 				memcpy(&(wbuffer[1]), (void *)&op_Al, op_size);
 				if (put_bytes_silent(afu->fd, op_size + 1, wbuffer) != op_size + 1) {
 					afu->opened = 0;
 					afu->attached = 0;
-				}		
+				}
 				DPRINTF("READ from addr @ 0x%016" PRIx64 "\n", addr);
 				break;
 
@@ -1215,7 +1215,10 @@ static void *_psl_loop(void *ptr)
 			  sizeof(uint32_t) + // AFU_CTL_INTS_PER_PASID
 			  sizeof(uint16_t) + // cr_device
 			  sizeof(uint16_t) + // cr_vendor
-			  sizeof(uint32_t) ; // AFU_CTL_EN_RST_INDEX
+			  sizeof(uint32_t) + // AFU_CTL_EN_RST_INDEX
+			  sizeof(uint32_t) + // pp_MMIO_offset
+			  sizeof(uint32_t) + // pp_MMIO_BAR
+			  sizeof(uint32_t) ; // pp_MMIO_stride
 			if (get_bytes_silent(afu->fd, size, buffer, 1000, 0) <
 			    0) {
 				warn_msg("Socket failure getting OCSE query");
@@ -1228,14 +1231,14 @@ static void *_psl_loop(void *ptr)
 			// revision id
 			// maybe subsystem id and subsystem vendor id
 			// from vsec's
-			// tl version capability and configuration 
+			// tl version capability and configuration
 			// lpc size = lpc memory always starts at 0
 			// there is a bit of cleverness in the mmio space...  need to think more about this.
 			// from afu_descriptor vsec
 			// mmio offset, stride
 			// number of pasid s and offset
 			// and stuff
-			memcpy((char *)&value, (char *)&(buffer[0]), 4); // OCAPI_TL_ACTAG  
+			memcpy((char *)&value, (char *)&(buffer[0]), 4); // OCAPI_TL_ACTAG
 			//afu->irqs_min = (long)(value);
 			memcpy((char *)&value, (char *)&(buffer[4]), 2); // max_irqs
 			//afu->irqs_max = (long)(value);
@@ -1253,6 +1256,12 @@ static void *_psl_loop(void *ptr)
 			afu->cr_vendor = ntohs(value);
                         memcpy((char *)&lvalue, (char *)&(buffer[26]), 4); // AFU_CTL_EN_RST_INDEX
 			//afu->cr_class = ntohl(lvalue);
+                        memcpy((char *)&lvalue, (char *)&(buffer[30]), 4); // pp_MMIO_offset
+			//afu->pp_MMIO_offset = ntohl(lvalue);
+                        memcpy((char *)&lvalue, (char *)&(buffer[34]), 4); // pp_MMIO_BAR
+			//afu->pp_MMIO_BAR = ntohl(lvalue);
+                        memcpy((char *)&lvalue, (char *)&(buffer[38]), 4); // pp_MMIO_stride
+			//afu->pp_MMIO_stride = ntohl(lvalue);
 			//no better place to put this right now
 			// afu->prefault_mode = OCXL_PREFAULT_MODE_NONE;
 			break;
@@ -1386,8 +1395,8 @@ static void *_psl_loop(void *ptr)
 			debug_msg("op2 bytes 1-8 are 0x%016" PRIx64, op2);
 			//op2 = ntohll (op2);
 			//printf("op2 bytes 1-8 are 0x%016" PRIx64 " \n", op2);
-			
-			_handle_DMO_OPs(afu, op_size, addr, function_code, op1, op2);	
+
+			_handle_DMO_OPs(afu, op_size, addr, function_code, op1, op2);
 			break;
 
 
@@ -2471,7 +2480,7 @@ int ocxl_mmio_read32(struct ocxl_afu_h *afu, uint64_t offset, uint32_t * data)
 
 int ocxl_get_cr_device(struct ocxl_afu_h *afu, long cr_num, long *valp)
 {
-	if (afu == NULL) 
+	if (afu == NULL)
 		return -1;
         //uint16_t crnum = cr_num;
 	// For now, don't worry about cr_num
@@ -2482,7 +2491,7 @@ int ocxl_get_cr_device(struct ocxl_afu_h *afu, long cr_num, long *valp)
 
 int ocxl_get_cr_vendor(struct ocxl_afu_h *afu, long cr_num, long *valp)
 {
-	if (afu == NULL) 
+	if (afu == NULL)
 		return -1;
         //uint16_t crnum = cr_num;
 	// For now, don't worry about cr_num
@@ -2493,7 +2502,7 @@ int ocxl_get_cr_vendor(struct ocxl_afu_h *afu, long cr_num, long *valp)
 
 int ocxl_get_cr_class(struct ocxl_afu_h *afu, long cr_num, long *valp)
 {
-	if (afu == NULL) 
+	if (afu == NULL)
 		return -1;
         //uint16_t crnum = cr_num;
 	// For now, don't worry about cr_num
@@ -2513,7 +2522,7 @@ int ocxl_get_mmio_size(struct ocxl_afu_h *afu, long *valp)
 
 int ocxl_errinfo_size(struct ocxl_afu_h *afu, size_t *valp)
 {
-	if (afu == NULL) 
+	if (afu == NULL)
 		return -1;
 	*valp =  0; // afu->eb_len;
 	return 0;
@@ -2521,7 +2530,7 @@ int ocxl_errinfo_size(struct ocxl_afu_h *afu, size_t *valp)
 
 int ocxl_get_pp_mmio_len(struct ocxl_afu_h *afu, long *valp)
 {
-	if (afu == NULL) 
+	if (afu == NULL)
 		return -1;
 	*valp =  0; //   afu->mmio_len;
 	return 0;
@@ -2529,7 +2538,7 @@ int ocxl_get_pp_mmio_len(struct ocxl_afu_h *afu, long *valp)
 
 int ocxl_get_pp_mmio_off(struct ocxl_afu_h *afu, long *valp)
 {
-	if (afu == NULL) 
+	if (afu == NULL)
 		return -1;
 	*valp =  0; //   afu->mmio_off;
 	return 0;
@@ -2539,7 +2548,7 @@ int ocxl_get_modes_supported(struct ocxl_afu_h *afu, long *valp)
 {
 //List of the modes this AFU supports. One per line.
 //Valid entries are: "dedicated_process" and "afu_directed"
-	if (afu == NULL) 
+	if (afu == NULL)
 		return -1;
 	*valp =  0; //   afu->modes_supported;
 	return 0;
@@ -2547,7 +2556,7 @@ int ocxl_get_modes_supported(struct ocxl_afu_h *afu, long *valp)
 
 int ocxl_get_mode(struct ocxl_afu_h *afu, long *valp)
 {
-	if (afu == NULL) 
+	if (afu == NULL)
 		return -1;
 	*valp =  0; //   afu->mode;
 	return 0;
@@ -2556,7 +2565,7 @@ int ocxl_get_mode(struct ocxl_afu_h *afu, long *valp)
 int ocxl_set_mode(struct ocxl_afu_h *afu, long value)
 {
 //Writing will change the mode provided that no user contexts are attached.
-	if (afu == NULL) 
+	if (afu == NULL)
 		return -1;
         //check to be sure no contexts are attached before setting this, could be hard to tell?
 	// afu->mode = value;
@@ -2573,7 +2582,7 @@ int ocxl_get_prefault_mode(struct ocxl_afu_h *afu, enum ocxl_prefault_mode *valp
 //           descriptor as an effective address and
 //           prefault what it points to.
 //       all: all segments process calling START_WORK maps.
-	if (afu == NULL) 
+	if (afu == NULL)
 		return -1;
 	*valp =  0; //   afu->prefault_mode;
 	return 0;
@@ -2588,11 +2597,11 @@ int ocxl_set_prefault_mode(struct ocxl_afu_h *afu, enum ocxl_prefault_mode value
 //           descriptor as an effective address and
 //           prefault what it points to.
 //       all: all segments process calling START_WORK maps.
-	if (afu == NULL) 
+	if (afu == NULL)
 		return -1;
 	//if ((value == OCXL_PREFAULT_MODE_NONE) |
 	//(value == OCXL_PREFAULT_MODE_WED) |
-	//(value == OCXL_PREFAULT_MODE_ALL)) 
+	//(value == OCXL_PREFAULT_MODE_ALL))
 	//	afu->prefault_mode = value;
 //Probably should return error msg if value wasn't a "good" value
 	return 0;

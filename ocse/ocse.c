@@ -116,9 +116,13 @@ static void _query(struct client *client, uint8_t id)
 	ocl = _find_ocl(id, &major, &minor);
 	size = 1 + sizeof(ocl->mmio->cfg.OCAPI_TL_ACTAG) + sizeof(client->max_irqs) +
 	    sizeof(ocl->mmio->cfg.OCAPI_TL_MAXAFU) +
+	    // TODO for updated config spec, replace above w/below
+	    // sizeof(ocl->mmio->cfg.FUNC_CFG_MAXAFU) +
 	    sizeof(ocl->mmio->cfg.AFU_INFO_REVID) + sizeof(ocl->mmio->cfg.AFU_CTL_PASID_BASE) +
 	    sizeof(ocl->mmio->cfg.AFU_CTL_INTS_PER_PASID) + sizeof(ocl->mmio->cfg.cr_device) +
-	    sizeof(ocl->mmio->cfg.cr_vendor) + sizeof(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX);
+	    sizeof(ocl->mmio->cfg.cr_vendor) + sizeof(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX) +
+	    sizeof(ocl->mmio->cfg.pp_MMIO_offset) + sizeof(ocl->mmio->cfg.pp_MMIO_BAR) +
+	    sizeof(ocl->mmio->cfg.pp_MMIO_stride);
 	buffer = (uint8_t *) malloc(size);
 	buffer[0] = OCSE_QUERY;
 	offset = 1;
@@ -135,6 +139,10 @@ static void _query(struct client *client, uint8_t id)
 	       (char *)&(ocl->mmio->cfg.OCAPI_TL_MAXAFU),
 	       sizeof(ocl->mmio->cfg.OCAPI_TL_MAXAFU));
         offset += sizeof(ocl->mmio->cfg.OCAPI_TL_MAXAFU);
+	    // TODO for updated config spec, replace above w/below
+	       // (char *)&(ocl->mmio->cfg.FUNC_CFG_MAXAFU),
+	       // sizeof(ocl->mmio->cfg.FUNC_CFG_MAXAFU));
+        // offset += sizeof(ocl->mmio->cfg.FUNC_CFG_MAXAFU);
 	memcpy(&(buffer[offset]),
 	       (char *)&(ocl->mmio->cfg.AFU_INFO_REVID),
 	       sizeof(ocl->mmio->cfg.AFU_INFO_REVID));
@@ -158,6 +166,18 @@ static void _query(struct client *client, uint8_t id)
 	memcpy(&(buffer[offset]),
 	       (char *)&(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX),
 	       sizeof(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX));
+        offset += sizeof(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX);
+	memcpy(&(buffer[offset]),
+	       (char *)&(ocl->mmio->cfg.pp_MMIO_offset),
+	       sizeof(ocl->mmio->cfg.pp_MMIO_offset));
+        offset += sizeof(ocl->mmio->cfg.pp_MMIO_offset);
+	memcpy(&(buffer[offset]),
+	       (char *)&(ocl->mmio->cfg.pp_MMIO_BAR),
+	       sizeof(ocl->mmio->cfg.pp_MMIO_BAR));
+        offset += sizeof(ocl->mmio->cfg.pp_MMIO_BAR);
+	memcpy(&(buffer[offset]),
+	       (char *)&(ocl->mmio->cfg.pp_MMIO_stride),
+	       sizeof(ocl->mmio->cfg.pp_MMIO_stride));
 	if (put_bytes(client->fd, size, buffer, ocl->dbg_fp, ocl->dbg_id,
 		      client->context) < 0) {
 		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);

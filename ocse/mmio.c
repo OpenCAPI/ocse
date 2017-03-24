@@ -170,7 +170,7 @@ printf("before read initial credits \n");
 	printf("afu_tlx_cmd_credits_available is %d, afu_tlx_resp_credits_available is %d \n",
 		afu_tlx_cmd_credits_available, afu_tlx_resp_credits_available);
 
-
+	// TODO for new config, change event names to match new offset values
  	struct mmio_event *event00, *event100, *event104, *event200, *event204,
 	    *event208, *event20c, *event224, *event26c, *event290, *event294, *event298,
 	    *event29c, *event2a0, *event2b0, *event2b4, *event2b8, *event2c0, *event2c4, *event2c8;
@@ -184,12 +184,21 @@ printf("before read initial credits \n");
 	event200 = _add_cfg(mmio, 1, 0, cmd_pa + 0x200, 0L);
 	event204 = _add_cfg(mmio, 1, 0, cmd_pa + 0x204, 0L);
 	event208 = _add_cfg(mmio, 1, 0, cmd_pa + 0x208, 0L);
+	// TODO for new config spec, remove event208
 	event20c = _add_cfg(mmio, 1, 0, cmd_pa + 0x20c, 0L);
 	event224 = _add_cfg(mmio, 1, 0, cmd_pa + 0x224, 0L);
 	event26c = _add_cfg(mmio, 1, 0, cmd_pa + 0x26c, 0L);
 	event290 = _add_cfg(mmio, 1, 0, cmd_pa + 0x290, 0L);
+	// TODO for new config spec, event290 is now Func_cfg DVSEC
+	// rest of events all get shifted by 0x10
 	event294 = _add_cfg(mmio, 1, 0, cmd_pa + 0x294, 0L);
 	event298 = _add_cfg(mmio, 1, 0, cmd_pa + 0x298, 0L);
+	// TODO AFU info DVSEC is NOW at 0x2A0
+	// event2A0 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2A0, 0L);
+	// event2A4 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2A4, 0L);
+	// event2A8 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2A8, 0L);
+	// this means afu_desc offset reg is 0x2Ac & data is 0x2B0
+	// and rest of below have to change to event2c0, etc....
 	event2b0 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2b0, 0L);
 	event2b4 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2b4, 0L);
 	event2b8 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2b8, 0L);
@@ -216,6 +225,7 @@ printf("before read initial credits \n");
 	free(event104);
 
 	// Read OpenCAPI Transport Layer DVSEC
+	// TODO for new config, update event offsets
 	_wait_for_done(&(event200->state), lock);
 	mmio->cfg.OCAPI_TL_CP = event200->cmd_data;
 	free(event200);
@@ -241,6 +251,7 @@ printf("before read initial credits \n");
 	free(event26c);
 
 	// Read AFU Information DVSEC
+	// TODO for new config, update event offsets
 	_wait_for_done(&(event290->state), lock);
 	mmio->cfg.AFU_INFO_CP = event290->cmd_data;
 	free(event290);
@@ -257,6 +268,7 @@ printf("before read initial credits \n");
 	// will read them later
 	//
 	//Read AFU Control DVSEC
+	// TODO for new config, update event offsets
 	_wait_for_done(&(event2b0->state), lock);
 	mmio->cfg.AFU_CTL_CP = event2b0->cmd_data;
 	free(event2b0);
@@ -286,6 +298,8 @@ printf("before read initial credits \n");
 	// Next, read cmd_pa + 0x29c and test bit[31]
 	// if 0, read again
 	// if 1, read cmd_pa+0x2a0 to get afu descriptor data
+	// TODO for new config, update event offsets event29C WILL BE event2Ac
+	// and event2a0 WILL BE event2b0
 
 	event29c = _add_event(mmio, NULL, 0, 0, cmd_pa+0x29c, 1, 0x01001c);
 	printf("Just sent config_wr, will wait for read_req then send data \n");
@@ -299,7 +313,7 @@ printf("before read initial credits \n");
 	while ((event29c->cmd_data & AFU_DESC_DATA_VALID) == 0) {
 		event29c = _add_cfg(mmio, 1, 0, cmd_pa + 0x29c, 0L);
         	_wait_for_done(&(event29c->state), lock);
-	} 
+	}
 	free(event29c);
 	event2a0 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2a0, 0L);
         _wait_for_done(&(event2a0->state), lock);
@@ -322,7 +336,7 @@ printf("before read initial credits \n");
 	while ((event29c->cmd_data & AFU_DESC_DATA_VALID) == 0) {
 		event29c = _add_cfg(mmio, 1, 0, cmd_pa + 0x29c, 0L);
         	_wait_for_done(&(event29c->state), lock);
-	}  
+	}
 	free(event29c);
 
 	event2a0 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2a0, 0L);
@@ -331,23 +345,6 @@ printf("before read initial credits \n");
 	mmio->cfg.pp_MMIO_stride = event2a0->cmd_data;
 	debug_msg("per process MMIO stride is 0x%x ", mmio->cfg.pp_MMIO_stride);
 	free(event2a0);
-
-
-	/* Verify num_of_processes
-	if (!mmio->cfg.num_of_processes) {
-		error_msg("AFU descriptor num_of_processes=0");
-		errno = ENODEV;
-		return -1;
-	}
-	// Verify req_prog_model
-	if ( ( (mmio->cfg.req_prog_model & 0x7fffl) != 0x0010 ) && // dedicated
-	     ( (mmio->cfg.req_prog_model & 0x7fffl) != 0x0004 ) && // afu-directed
-	     ( (mmio->cfg.req_prog_model & 0x7fffl) != 0x0014 ) ) {// both
-		error_msg("AFU descriptor: Unsupported req_prog_model");
-		errno = ENODEV;
-		return -1;
-	} */
-
 
 	return 0;
 }
