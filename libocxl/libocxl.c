@@ -99,6 +99,7 @@ static void _all_idle(struct ocxl_afu_h *afu)
 	afu->attach.state = LIBOCXL_REQ_IDLE;
 	afu->mmio.state = LIBOCXL_REQ_IDLE;
 	afu->mapped = 0;
+	afu->global_mapped = 0;
 	afu->attached = 0;
 	afu->opened = 0;
 }
@@ -1188,6 +1189,7 @@ static void *_psl_loop(void *ptr)
 		case OCSE_DETACH:
 		        info_msg("detach response from from ocse");
 			afu->mapped = 0;
+			afu->global_mapped = 0;
 			afu->attached = 0;
 			afu->opened = 0;
 			afu->open.state = LIBOCXL_REQ_IDLE;
@@ -2526,7 +2528,7 @@ int ocxl_global_mmio_write64(struct ocxl_afu_h *afu, uint64_t offset, uint64_t d
 		errno = EINVAL;
 		return -1;
 	}
-	if ((afu == NULL) || !afu->mapped)
+	if ((afu == NULL) || !afu->global_mapped)
 		goto write64_fail;
 
 	// Send MMIO map to OCSE
@@ -2553,7 +2555,7 @@ int ocxl_global_mmio_read64(struct ocxl_afu_h *afu, uint64_t offset, uint64_t * 
 		errno = EINVAL;
 		return -1;
 	}
-	if ((afu == NULL) || !afu->mapped)
+	if ((afu == NULL) || !afu->global_mapped)
 		goto read64_fail;
 
 	// Send MMIO map to OCSE
@@ -2580,7 +2582,7 @@ int ocxl_global_mmio_write32(struct ocxl_afu_h *afu, uint64_t offset, uint32_t d
 		errno = EINVAL;
 		return -1;
 	}
-	if ((afu == NULL) || !afu->mapped)
+	if ((afu == NULL) || !afu->global_mapped)
 		goto write32_fail;
 
 	// Send MMIO map to OCSE
@@ -2607,7 +2609,7 @@ int ocxl_global_mmio_read32(struct ocxl_afu_h *afu, uint64_t offset, uint32_t * 
 		errno = EINVAL;
 		return -1;
 	}
-	if ((afu == NULL) || !afu->mapped)
+	if ((afu == NULL) || !afu->global_mapped)
 		goto read32_fail;
 
 	// Send MMIO map to OCSE
