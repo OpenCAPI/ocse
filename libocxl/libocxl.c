@@ -321,7 +321,7 @@ static void _handle_ack(struct ocxl_afu_h *afu)
 	if (!afu)
 		fatal_msg("NULL afu passed to libocxl.c:_handle_ack");
 	DPRINTF("MMIO ACK\n");
-	if ((afu->mmio.type == OCSE_MMIO_READ64)| (afu->mmio.type == OCSE_MMIO_EBREAD)) {
+	if ((afu->mmio.type == OCSE_MMIO_READ64) | (afu->mmio.type == OCSE_GLOBAL_MMIO_READ64) | (afu->mmio.type == OCSE_MMIO_EBREAD)) {
 		if (get_bytes_silent(afu->fd, sizeof(uint64_t), data, 1000, 0) <
 		    0) {
 			warn_msg("Socket failure getting MMIO Ack");
@@ -332,7 +332,7 @@ static void _handle_ack(struct ocxl_afu_h *afu)
 			afu->mmio.data = ntohll(afu->mmio.data);
 		}
 	}
-	if (afu->mmio.type == OCSE_MMIO_READ32) {
+	if ((afu->mmio.type == OCSE_MMIO_READ32) | (afu->mmio.type == OCSE_GLOBAL_MMIO_READ32)) {
 		if (get_bytes_silent(afu->fd, sizeof(uint32_t), data, 1000, 0) <
 		    0) {
 			warn_msg("Socket failure getting MMIO Read 32 data");
@@ -1004,7 +1004,7 @@ static void _mmio_map(struct ocxl_afu_h *afu)
 		fatal_msg("NULL afu passed to libocxl.c:_mmio_map");
 	size = 1 + sizeof(uint32_t);
 	buffer = (uint8_t *) malloc(size);
-	buffer[0] = OCSE_MMIO_MAP;
+	buffer[0] = afu->mmio.type;
 	flags = (uint32_t) afu->mmio.data;
 	flags_ptr = (uint32_t *) & (buffer[1]);
 	*flags_ptr = htonl(flags);
@@ -1031,7 +1031,7 @@ static void _mmio_write64(struct ocxl_afu_h *afu)
 		fatal_msg("NULL afu passed to libocxl.c:_mmio_write64");
 	size = 1 + sizeof(addr) + sizeof(data);
 	buffer = (uint8_t *) malloc(size);
-	buffer[0] = OCSE_MMIO_WRITE64;
+	buffer[0] = afu->mmio.type;
 	offset = 1;
 	addr = htonl(afu->mmio.addr);
 	memcpy((char *)&(buffer[offset]), (char *)&addr, sizeof(addr));
@@ -1061,7 +1061,7 @@ static void _mmio_write32(struct ocxl_afu_h *afu)
 		fatal_msg("NULL afu passed to libocxl.c:_mmio_write32");
 	size = 1 + sizeof(addr) + sizeof(data);
 	buffer = (uint8_t *) malloc(size);
-	buffer[0] = OCSE_MMIO_WRITE32;
+	buffer[0] = afu->mmio.type;
 	offset = 1;
 	addr = htonl(afu->mmio.addr);
 	memcpy((char *)&(buffer[offset]), (char *)&addr, sizeof(addr));
@@ -1133,17 +1133,22 @@ static void *_psl_loop(void *ptr)
 		if (afu->mmio.state == LIBOCXL_REQ_REQUEST) {
 			switch (afu->mmio.type) {
 			case OCSE_MMIO_MAP:
+			case OCSE_GLOBAL_MMIO_MAP:
 				_mmio_map(afu);
 				break;
 			case OCSE_MMIO_WRITE64:
+			case OCSE_GLOBAL_MMIO_WRITE64:
 				_mmio_write64(afu);
 				break;
 			case OCSE_MMIO_WRITE32:
+			case OCSE_GLOBAL_MMIO_WRITE32:
 				_mmio_write32(afu);
 				break;
 			case OCSE_MMIO_EBREAD:
 			case OCSE_MMIO_READ64:
-			case OCSE_MMIO_READ32:	/*fall through */
+			case OCSE_MMIO_READ32:	
+			case OCSE_GLOBAL_MMIO_READ64:
+			case OCSE_GLOBAL_MMIO_READ32: /*fall through */
 				_mmio_read(afu);
 				break;
 			default:
@@ -2478,6 +2483,151 @@ int ocxl_mmio_read32(struct ocxl_afu_h *afu, uint64_t offset, uint32_t * data)
 	return -1;
 }
 
+int ocxl_global_mmio_map(struct ocxl_afu_h *afu, uint32_t flags)
+{
+	DPRINTF("GLOBAL MMIO MAP\n");
+	if (!afu->opened) {
+		printf("ocxl_global_mmio_map: Must open first!\n");
+		goto map_fail;
+	}
+
+	if (!afu->attached) {
+		printf("ocxl_global_mmio_map: Must attach first!\n");
+		goto map_fail;
+	}
+
+	if (flags & ~(OCXL_MMIO_FLAGS)) {
+		printf("ocxl_global_mmio_map: Invalid flags!\n");
+		goto map_fail;
+	}
+	// Send MMIO map to OCSE
+	afu->mmio.type = OCSE_GLOBAL_MMIO_MAP;
+	afu->mmio.data = (uint64_t) flags;
+	afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+		_delay_1ms();
+	afu->global_mapped = 1;
+
+	return 0;
+ map_fail:
+	errno = ENODEV;
+	return -1;
+}
+
+int ocxl_global_mmio_unmap(struct ocxl_afu_h *afu)
+{
+	afu->global_mapped = 0;
+	return 0;
+}
+
+int ocxl_global_mmio_write64(struct ocxl_afu_h *afu, uint64_t offset, uint64_t data)
+{
+	if (offset & 0x7) {
+		errno = EINVAL;
+		return -1;
+	}
+	if ((afu == NULL) || !afu->mapped)
+		goto write64_fail;
+
+	// Send MMIO map to OCSE
+	afu->mmio.type = OCSE_GLOBAL_MMIO_WRITE64;
+	afu->mmio.addr = (uint32_t) offset;
+	afu->mmio.data = data;
+	afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+		_delay_1ms();
+
+	if (!afu->opened)
+		goto write64_fail;
+
+	return 0;
+
+ write64_fail:
+	errno = ENODEV;
+	return -1;
+}
+
+int ocxl_global_mmio_read64(struct ocxl_afu_h *afu, uint64_t offset, uint64_t * data)
+{
+	if (offset & 0x7) {
+		errno = EINVAL;
+		return -1;
+	}
+	if ((afu == NULL) || !afu->mapped)
+		goto read64_fail;
+
+	// Send MMIO map to OCSE
+	afu->mmio.type = OCSE_GLOBAL_MMIO_READ64;
+	afu->mmio.addr = (uint32_t) offset;
+	afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+		_delay_1ms();
+	*data = afu->mmio.data;
+
+	if (!afu->opened)
+		goto read64_fail;
+
+	return 0;
+
+ read64_fail:
+	errno = ENODEV;
+	return -1;
+}
+
+int ocxl_global_mmio_write32(struct ocxl_afu_h *afu, uint64_t offset, uint32_t data)
+{
+	if (offset & 0x3) {
+		errno = EINVAL;
+		return -1;
+	}
+	if ((afu == NULL) || !afu->mapped)
+		goto write32_fail;
+
+	// Send MMIO map to OCSE
+	afu->mmio.type = OCSE_GLOBAL_MMIO_WRITE32;
+	afu->mmio.addr = (uint32_t) offset;
+	afu->mmio.data = (uint64_t) data;
+	afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+		_delay_1ms();
+
+	if (!afu->opened)
+		goto write32_fail;
+
+	return 0;
+
+ write32_fail:
+	errno = ENODEV;
+	return -1;
+}
+
+int ocxl_global_mmio_read32(struct ocxl_afu_h *afu, uint64_t offset, uint32_t * data)
+{
+	if (offset & 0x3) {
+		errno = EINVAL;
+		return -1;
+	}
+	if ((afu == NULL) || !afu->mapped)
+		goto read32_fail;
+
+	// Send MMIO map to OCSE
+	afu->mmio.type = OCSE_GLOBAL_MMIO_READ32;
+	afu->mmio.addr = (uint32_t) offset;
+	afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+		_delay_1ms();
+	*data = (uint32_t) afu->mmio.data;
+
+	if (!afu->opened)
+		goto read32_fail;
+
+	return 0;
+
+ read32_fail:
+	errno = ENODEV;
+	return -1;
+}
+
 int ocxl_get_cr_device(struct ocxl_afu_h *afu, long cr_num, long *valp)
 {
 	if (afu == NULL)
@@ -2515,7 +2665,20 @@ int ocxl_get_mmio_size(struct ocxl_afu_h *afu, long *valp)
 {
 	if (afu == NULL)
                    return -1;
+        // FixMe
         // for now just return constant, later will read value from file
+        // this is the mmio stride for this afu
+        *valp = 0x04000000;
+        return 0;
+}
+
+int ocxl_get_global_mmio_size(struct ocxl_afu_h *afu, long *valp)
+{
+	if (afu == NULL)
+                   return -1;
+        // FixMe
+        // for now just return constant, later will read value from file
+        // Is this the offset of the per process mmio area ???
         *valp = 0x04000000;
         return 0;
 }

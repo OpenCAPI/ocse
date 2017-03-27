@@ -186,6 +186,7 @@ int ocxl_get_irqs_max(struct ocxl_afu_h *afu, long *valp);
 int ocxl_set_irqs_max(struct ocxl_afu_h *afu, long value);
 int ocxl_get_irqs_min(struct ocxl_afu_h *afu, long *valp);
 int ocxl_get_mmio_size(struct ocxl_afu_h *afu, long *valp);
+int ocxl_get_global_mmio_size(struct ocxl_afu_h *afu, long *valp);
 int ocxl_get_mode(struct ocxl_afu_h *afu, long *valp);
 int ocxl_set_mode(struct ocxl_afu_h *afu, long value);
 int ocxl_get_modes_supported(struct ocxl_afu_h *afu, long *valp);
@@ -231,16 +232,38 @@ int ocxl_read_expected_event(struct ocxl_afu_h *afu, struct ocxl_event *event,
 #define OCXL_MMIO_FLAGS 0x3
 int ocxl_mmio_map(struct ocxl_afu_h *afu, uint32_t flags);
 int ocxl_mmio_unmap(struct ocxl_afu_h *afu);
+int ocxl_global_mmio_map(struct ocxl_afu_h *afu, uint32_t flags);
+int ocxl_global_mmio_unmap(struct ocxl_afu_h *afu);
 
-/* WARNING: Use of ocxl_mmio_ptr not supported for PSL Simulation Engine.
+/* WARNING: Use of ocxl_mmio_ptr and ocxl_global_mmio_ptr are not supported for PSL Simulation Engine.
  * It is recommended that this function not be used but use the following MMIO
  * read/write functions instead. */
 void *ocxl_mmio_ptr(struct ocxl_afu_h *afu);
+void *ocxl_global_mmio_ptr(struct ocxl_afu_h *afu);
 
+/*
+ * AFU per process MMIO functions
+ *
+ * The below assessors will access the per process area assoicated with the 
+ * PASID that has been connected to the context of the afu.
+ */
 int ocxl_mmio_write64(struct ocxl_afu_h *afu, uint64_t offset, uint64_t data);
 int ocxl_mmio_read64(struct ocxl_afu_h *afu, uint64_t offset, uint64_t * data);
 int ocxl_mmio_write32(struct ocxl_afu_h *afu, uint64_t offset, uint32_t data);
 int ocxl_mmio_read32(struct ocxl_afu_h *afu, uint64_t offset, uint32_t * data);
+
+/*
+ * AFU global MMIO functions
+ *
+ * The below assessors will access the global area assoicated with the 
+ * PASID that has been connected to the context of the afu.  One may call 
+ * ocxl_get_global_mmio_size to obtain information on the upper bound of this
+ * area.
+ */
+int ocxl_global_mmio_write64(struct ocxl_afu_h *afu, uint64_t offset, uint64_t data);
+int ocxl_global_mmio_read64(struct ocxl_afu_h *afu, uint64_t offset, uint64_t * data);
+int ocxl_global_mmio_write32(struct ocxl_afu_h *afu, uint64_t offset, uint32_t data);
+int ocxl_global_mmio_read32(struct ocxl_afu_h *afu, uint64_t offset, uint32_t * data);
 
 /*
  * Calling this function will install the libocxl SIGBUS handler. This will

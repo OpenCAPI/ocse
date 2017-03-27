@@ -66,6 +66,7 @@ struct ocxl_afu_h {
 	int opened;
 	int attached;
 	int mapped;
+	int global_mapped;
 	int pipe[2];
   long mmio_length;  // this pasid stride
   long mmio_offset;  // this pasid mmio offset - f(pasid, per pasid stride, per pasid mmio offset)

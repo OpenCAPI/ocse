@@ -64,6 +64,11 @@
 #define OCSE_DMA0_RD		0x21
 #define OCSE_DMA0_WR		0x22
 #define OCSE_DMA0_WR_AMO	0x23
+#define OCSE_GLOBAL_MMIO_MAP	        0x24
+#define OCSE_GLOBAL_MMIO_READ64	        0x25
+#define OCSE_GLOBAL_MMIO_WRITE64	0x26
+#define OCSE_GLOBAL_MMIO_READ32	        0x27
+#define OCSE_GLOBAL_MMIO_WRITE32	0x28
 #define MAX_INT32 0x7fffffffU
 #define MIN_INT32 0x80000000U
 #define MAX_UINT32 0xffffffffU
