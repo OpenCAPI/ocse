@@ -353,9 +353,9 @@ void send_mmio(struct mmio *mmio)
 	unsigned char ddata[17];
 	char data[17];
 #ifdef TLX4
-	uint8_t cmd_os,
+	uint8_t cmd_os;
 #endif
-	//	uint8_t  cmd_byte_cnt;;
+	uint8_t  cmd_byte_cnt;
 
 	event = mmio->list;
 
@@ -405,9 +405,19 @@ void send_mmio(struct mmio *mmio)
        	}  else   {  // if not a CONFIG, then must be MMIO rd/wr
 		sprintf(type, "MMIO");
 
+		if (event->dw == 1) {
+		  // pl = 3 ::= 8 bytes
+		  event->cmd_pL = 3;
+		  cmd_byte_cnt = 8;
+		} else {
+		  // pl = 2 ::= 4 bytes
+		  event->cmd_pL = 2;
+		  cmd_byte_cnt = 4;
+		}
+
 		// Attempt to send mmio to AFU
 		if (event->rnw && tlx_afu_send_cmd(mmio->afu_event,
-			TLX_CMD_PR_RD_MEM, 0xcafe,4, 0, 0, 0, 0, 0x200) == TLX_SUCCESS) {
+			TLX_CMD_PR_RD_MEM, 0xcafe, 0, event->cmd_pL, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
 			debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type,
 			  	event->dw ? 64 : 32, event->cmd_PA);
 			debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
@@ -419,23 +429,22 @@ void send_mmio(struct mmio *mmio)
 			if (event->state == OCSE_RD_RQ_PENDING) {
 				// TODO do something to cmd_pa ??  no, addr has been adjusted already
 				uint8_t * dptr = ddata;
-				//memcpy(ddata, &(event->cmd_data), 4);
-				memcpy(ddata, &(event->cmd_data), event->cmd_pL);
-				if (tlx_afu_send_cmd_data(mmio->afu_event, event->cmd_pL, 0, dptr) == TLX_SUCCESS) {
-				if (event->dw)
-					sprintf(data, "%016" PRIx64, event->cmd_data);
-				else
-					sprintf(data, "%08" PRIx32, (uint32_t) event->cmd_data);
-				debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s",
-				  	mmio->afu_name, type, event->dw ? 64 : 32,
-			  		event->cmd_PA, data);
-				debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
-						event->rnw, event->dw, event->cmd_PA);
-				event->state = OCSE_PENDING;
-				printf("got rd_req and sent data, now wait for cmd resp from AFU \n");
+				memcpy(ddata, &(event->cmd_data), cmd_byte_cnt);
+				if (tlx_afu_send_cmd_data(mmio->afu_event, cmd_byte_cnt, 0, dptr) == TLX_SUCCESS) {
+				  if (event->dw)
+				    sprintf(data, "%016" PRIx64, event->cmd_data);
+				  else
+				    sprintf(data, "%08" PRIx32, (uint32_t) event->cmd_data);
+				  debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s",
+					    mmio->afu_name, type, event->dw ? 64 : 32,
+					    event->cmd_PA, data);
+				  debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
+						  event->rnw, event->dw, event->cmd_PA);
+				  event->state = OCSE_PENDING;
+				  printf("got rd_req and sent data, now wait for cmd resp from AFU \n");
 				}
        	 		} else if ( tlx_afu_send_cmd(mmio->afu_event,
-				TLX_CMD_PR_WR_MEM, 0xbead,0, event->cmd_pL, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
+				TLX_CMD_PR_WR_MEM, 0xbead, 0, event->cmd_pL, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
 					event->state = OCSE_RD_RQ_PENDING;
 					printf("sent mmio_pr_wr cmd, now wait for rd_req from AFU \n"); }
 				}
