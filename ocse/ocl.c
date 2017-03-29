@@ -176,8 +176,9 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 	struct mmio_event *mmio;
 	struct cmd_event *cmd;
 	uint8_t buffer[MAX_LINE_CHARS];
-	int dw = 0;
-	int eb_rd = 0;
+	int dw = 0;  // 1 means mmio that is 64 bits 
+	int eb_rd = 0;  // 1 means mmio for event based read 
+	int global = 0;  // 1 means mmio to the global space
 
 	// Handle MMIO done
 	/* if (client->mmio_access != NULL) {
@@ -191,6 +192,9 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 	// Check for event from application
 	cmd = (struct cmd_event *)client->mem_access;
 	mmio = NULL;
+	dw = 0;
+	eb_rd = 0;
+	global = 0;
 	if (bytes_ready(client->fd, 1, &(client->abort))) {
 		if (get_bytes(client->fd, 1, buffer, ocl->timeout,
 			      &(client->abort), ocl->dbg_fp, ocl->dbg_id,
@@ -219,19 +223,44 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 			client->mem_access = NULL;
 			break;
 		case OCSE_MMIO_MAP:
+		case OCSE_GLOBAL_MMIO_MAP:
 			handle_mmio_map(ocl->mmio, client);
+			break;
+		case OCSE_GLOBAL_MMIO_WRITE64:
+			global = 1;
+			dw = 1;
+			mmio = handle_mmio(ocl->mmio, client, 0, dw, 0, global);
 			break;
 		case OCSE_MMIO_WRITE64:
 			dw = 1;
-		case OCSE_MMIO_WRITE32:	/*fall through */
-			mmio = handle_mmio(ocl->mmio, client, 0, dw, 0);
+			mmio = handle_mmio(ocl->mmio, client, 0, dw, 0, global);
+			break;
+		case OCSE_GLOBAL_MMIO_WRITE32:
+			global = 1;
+			mmio = handle_mmio(ocl->mmio, client, 0, dw, 0, global);
+			break;
+		case OCSE_MMIO_WRITE32:
+			mmio = handle_mmio(ocl->mmio, client, 0, dw, 0, global);
 			break;
 		case OCSE_MMIO_EBREAD:
                         eb_rd = 1;
-		case OCSE_MMIO_READ64: /*fall through */
+			mmio = handle_mmio(ocl->mmio, client, 1, dw, eb_rd, global);
+			break;
+		case OCSE_GLOBAL_MMIO_READ64:
+			global = 1;
 			dw = 1;
-		case OCSE_MMIO_READ32:	/*fall through */
-			mmio = handle_mmio(ocl->mmio, client, 1, dw, eb_rd);
+			mmio = handle_mmio(ocl->mmio, client, 0, dw, 0, global);
+			break;
+		case OCSE_MMIO_READ64:
+			dw = 1;
+			mmio = handle_mmio(ocl->mmio, client, 1, dw, 0, global);
+			break;
+		case OCSE_GLOBAL_MMIO_READ32:
+			global = 1;
+			mmio = handle_mmio(ocl->mmio, client, 0, dw, 0, global);
+			break;
+		case OCSE_MMIO_READ32:
+			mmio = handle_mmio(ocl->mmio, client, 1, dw, 0, global);
 			break;
 		default:
 		  error_msg("Unexpected 0x%02x from client on socket", buffer[0], client->fd);

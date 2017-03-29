@@ -62,7 +62,7 @@ struct mmio *mmio_init(struct AFU_EVENT *afu_event, int timeout, char *afu_name,
 
 // Add new MMIO event
 static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
-				     uint32_t rnw, uint32_t dw, uint64_t addr,
+				     uint32_t rnw, uint32_t dw, int global, uint64_t addr,
 				     uint32_t cfg, uint64_t data)
 {
 	struct mmio_event *event;
@@ -76,26 +76,21 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 	event->rnw = rnw;
 	event->dw = dw;
 	if (client == NULL)  {
-	  // don't try to recalculate the address TODO get rid of this once we;re SURE
+	  // is this case where cfg = 1, that is, we want to read config space?
+	  // yes, when we do mmios to config space, we force client to null
 	  event->cmd_PA = addr;
 	} else {
-	  // FOR OpenCAPI, NO MORE NEED TO adjust addr (aka offset) depending on type of device (client)
-	  // type master/dedicated needs no adjustment
-	  //  type slave needs NO ADJUSTMENT NOW
-	  switch (client->type) {
-	  case 'd':
-	  case 'm':
-	  case 's':
-	    // addr no longer needs to be right shifted 2 bits?
-	    event->cmd_PA = addr;
-	    break;
-	  //case 's':
-	    // the addr has already been shifted right 2 bits, need to also shift the mmio offset for this slave.
-	   // event->addr = (client->mmio_offset / 4) + addr;
-	   // break;
-	  default:
-	    // error
-	    break;
+	  // for OpenCAPI, the mmio space is split into global and per pasid
+	  // the global parm controls how we adjust the offset prior to adding the event
+	  //   global = 1 means we offset based on the global mmio offset from the configuration
+	  //   global = 0 means we want to send the offset adjusted by the per pasid mmio offset, per pasid mmio stride, and client index
+	  //   for now, we are assuming the client index maps directly to a pasid.  we could be more creative 
+	  if (global == 1) {
+	    // global mmio offset + offset
+	    event->cmd_PA = mmio->cfg.global_MMIO_offset + addr;
+	  } else {
+	    // per pasid mmio offset + (client context * stride) + offset
+	    event->cmd_PA = mmio->cfg.pp_MMIO_offset + (mmio->cfg.pp_MMIO_stride * client->context) + addr;
 	  }
 	}
 	// event->addr = addr;
@@ -128,15 +123,15 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 static struct mmio_event *_add_cfg(struct mmio *mmio, uint32_t rnw,
 				    uint32_t dw, uint64_t addr, uint64_t data)
 {
-	return _add_event(mmio, NULL, rnw, dw, addr, 1, data);
+        return _add_event(mmio, NULL, rnw, dw, 0, addr, 1, data);
 }
 
 // Add AFU MMIO (non-config) access event
 static struct mmio_event *_add_mmio(struct mmio *mmio, struct client *client,
-				    uint32_t rnw, uint32_t dw, uint64_t addr,
+				    uint32_t rnw, uint32_t dw, int global, uint64_t addr,
 				    uint64_t data)
 {
-	return _add_event(mmio, client, rnw, dw, addr, 0, data);
+	return _add_event(mmio, client, rnw, dw, global, addr, 0, data);
 }
 
 static void _wait_for_done(enum ocse_state *state, pthread_mutex_t * lock)
@@ -301,7 +296,7 @@ printf("before read initial credits \n");
 	// TODO for new config, update event offsets event29C WILL BE event2Ac
 	// and event2a0 WILL BE event2b0
 
-	event29c = _add_event(mmio, NULL, 0, 0, cmd_pa+0x29c, 1, 0x01001c);
+	event29c = _add_event(mmio, NULL, 0, 0, 0, cmd_pa+0x29c, 1, 0x01001c);
 	printf("Just sent config_wr, will wait for read_req then send data \n");
         _wait_for_done(&(event29c->state), lock);
 	free(event29c);
@@ -324,7 +319,7 @@ printf("before read initial credits \n");
 	debug_msg("per process MMIO BAR is 0x%x ", mmio->cfg.pp_MMIO_BAR);
 	free(event2a0);
 
-	event29c = _add_event(mmio, NULL, 0, 0, cmd_pa+0x29c, 1, 0x010020);
+	event29c = _add_event(mmio, NULL, 0, 0, 0, cmd_pa+0x29c, 1, 0x010020);
 	printf("Just sent config_wr, will wait for read_req then send data \n");
         _wait_for_done(&(event29c->state), lock);
 	free(event29c);
@@ -360,7 +355,7 @@ void send_mmio(struct mmio *mmio)
 #ifdef TLX4
 	uint8_t cmd_os,
 #endif
-	uint8_t  cmd_byte_cnt;;
+	//	uint8_t  cmd_byte_cnt;;
 
 	event = mmio->list;
 
@@ -422,7 +417,7 @@ void send_mmio(struct mmio *mmio)
 		if (!event->rnw) { // MMIO write - two part operation
 			// We only do 4B or 8B MMIO writes for now - caller has to specify in pL
 			if (event->state == OCSE_RD_RQ_PENDING) {
-				// TODO do something to cmd_pa ??
+				// TODO do something to cmd_pa ??  no, addr has been adjusted already
 				uint8_t * dptr = ddata;
 				//memcpy(ddata, &(event->cmd_data), 4);
 				memcpy(ddata, &(event->cmd_data), event->cmd_pL);
@@ -518,6 +513,7 @@ void handle_mmio_map(struct mmio *mmio, struct client *client)
 		goto map_done;
 	}
 	// Check flags value and set
+	// For now, we assume that the global and per pasid areas have the same endianness
 	if (!mmio->flags) {
 		mmio->flags = ntohl(flags);
 	} else if (mmio->flags != ntohl(flags)) {
@@ -539,7 +535,7 @@ void handle_mmio_map(struct mmio *mmio, struct client *client)
 
 // Add mmio write event of register at offset to list
 static struct mmio_event *_handle_mmio_write(struct mmio *mmio,
-					     struct client *client, int dw)
+					     struct client *client, int dw, int global)
 {
 	struct mmio_event *event;
 	uint32_t offset;
@@ -571,7 +567,8 @@ static struct mmio_event *_handle_mmio_write(struct mmio *mmio,
 		data <<= 32;
 		data |= (uint64_t) data32;
 	}
-	event = _add_mmio(mmio, client, 0, dw, offset / 4, data);
+	// in OpenCAPI, don't shift the offset...  in pcie days, we used to shift right 2 bits with offset / 4
+	event = _add_mmio(mmio, client, 0, dw, global, offset, data);
 	return event;
 
  write_fail:
@@ -584,7 +581,7 @@ static struct mmio_event *_handle_mmio_write(struct mmio *mmio,
 
 // Add mmio read event of register at offset to list
 static struct mmio_event *_handle_mmio_read(struct mmio *mmio,
-					    struct client *client, int dw)
+					    struct client *client, int dw, int global)
 {
 	struct mmio_event *event;
 	uint32_t offset;
@@ -595,7 +592,8 @@ static struct mmio_event *_handle_mmio_read(struct mmio *mmio,
 		goto read_fail;
 	}
 	offset = ntohl(offset);
-	event = _add_mmio(mmio, client, 1, dw, offset / 4, 0);
+	// in OpenCAPI, don't shift the offset...  in pcie days, we used to shift right 2 bits with offset / 4
+	event = _add_mmio(mmio, client, 1, dw, global, offset, 0);
 	return event;
 
  read_fail:
@@ -637,7 +635,7 @@ static struct mmio_event *_handle_mmio_read_eb(struct mmio *mmio,
 
 // Handle MMIO request from client
 struct mmio_event *handle_mmio(struct mmio *mmio, struct client *client,
-			       int rnw, int dw, int eb_rd)
+			       int rnw, int dw, int eb_rd, int global)
 {
 	uint8_t ack;
 
@@ -655,9 +653,9 @@ struct mmio_event *handle_mmio(struct mmio *mmio, struct client *client,
 		return _handle_mmio_read_eb(mmio, client, dw);
 
 	if (rnw)
-		return _handle_mmio_read(mmio, client, dw);
+		return _handle_mmio_read(mmio, client, dw, global);
 	else
-		return _handle_mmio_write(mmio, client, dw);
+		return _handle_mmio_write(mmio, client, dw, global);
 }
 
 // Handle MMIO done

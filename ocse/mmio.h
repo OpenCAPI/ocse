@@ -79,6 +79,9 @@ struct afu_cfg_sp {
         uint32_t AFU_CTL_PASID_LEN;
         uint32_t AFU_CTL_PASID_BASE;
         uint32_t AFU_CTL_INTS_PER_PASID;
+        uint32_t global_MMIO_offset;
+        uint32_t global_MMIO_BAR;
+        uint32_t global_MMIO_size;
         uint32_t pp_MMIO_offset;
         uint32_t pp_MMIO_BAR;
         uint32_t pp_MMIO_stride;
@@ -123,7 +126,7 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled);
 void handle_mmio_map(struct mmio *mmio, struct client *client);
 
 struct mmio_event *handle_mmio(struct mmio *mmio, struct client *client,
-			       int rnw, int dw, int eb_rd);
+			       int rnw, int dw, int eb_rd, int global);
 
 struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client);
 
