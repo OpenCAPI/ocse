@@ -405,6 +405,7 @@ void send_mmio(struct mmio *mmio)
        	}  else   {  // if not a CONFIG, then must be MMIO rd/wr
 		sprintf(type, "MMIO");
 
+		// calculate event->pL from event->dw
 		if (event->dw == 1) {
 		  // pl = 3 ::= 8 bytes
 		  event->cmd_pL = 3;
