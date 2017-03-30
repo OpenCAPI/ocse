@@ -199,7 +199,7 @@ void tlx_bfm(
 {
 //  int change = 0;
   int invalidVal = 0;
-  int i = 0;
+//  int i = 0;
   c_reset			= reset & 0x1;
   if(!c_reset_d2)
   {
@@ -341,10 +341,10 @@ void tlx_bfm(
         invalidVal		+= afu_tlx_rdata_bdi_top & 0x2;
         invalidVal		+= getMyCacheLine(afu_tlx_rdata_bus_top, c_afu_tlx_rdata_bus);
         printf("%08lld: ", (long long) c_sim_time);
-        for(i = 0; i < CACHELINE_BYTES; i++)
-        {
-          printf(" The AFU-TLX Response Data Valid, at byte[%d]: 0x%x \n",  i, c_afu_tlx_rdata_bus[i]);
-        }
+//        for(i = 0; i < CACHELINE_BYTES; i++)
+//        {
+//          printf(" The AFU-TLX Response Data Valid, at byte[%d]: 0x%x \n",  i, c_afu_tlx_rdata_bus[i]);
+//        }
       }
 #ifdef DEBUG1
       if(invalidVal != 0)
