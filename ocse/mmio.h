@@ -42,7 +42,7 @@
 
 struct mmio_event {
 	uint32_t rnw;
-	uint32_t dw;    // TODO remove this ?
+	uint32_t dw;    // TODO remove this ?  Maybe, we need to know 4/8 byte mmio  cmd_pL is an encoded length
 	uint32_t eb_rd; //TODO remove this
 	uint32_t cfg;
 	uint64_t cmd_data;

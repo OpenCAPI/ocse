@@ -565,7 +565,7 @@ int afu_tlx_read_resp_and_data(struct AFU_EVENT *event,
 			*rdata_bad = event->afu_tlx_rdata_bad;
 			// TODO FOR NOW WE ALWAYS COPY 4 BYTES of DATA - AFU
 			// SENDS 4 BYTES
-			memcpy(rdata_bus, event->afu_tlx_rdata_bus, 4);
+			memcpy(rdata_bus, event->afu_tlx_rdata_bus, 64);
 			//return TLX_SUCCESS;
 		}
 	//	return AFU_TLX_RESP_NO_DATA;
@@ -817,12 +817,12 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		event->tbuf[bp++] = (event->afu_tlx_resp_code & 0x0f);
 		event->afu_tlx_resp_valid = 0;
 	}
-	if (event->afu_tlx_rdata_valid != 0) { // There are 5 bytes to xfer TODO ONLY SEND 4B now
+	if (event->afu_tlx_rdata_valid != 0) { // There are 65 bytes to xfer TODO ONLY SEND 4B now
 		event->tbuf[0] = event->tbuf[0] | 0x20;
 		//printf("event->tbuf[0] is 0x%2x \n", event->tbuf[0]);
 		event->tbuf[bp++] = (event->afu_tlx_rdata_bad  & 0x01 );
 		//printf("event->tbuf[%x] is 0x%2x \n", bp-1, event->tbuf[bp-1]);
-		for (i = 0; i < 4; i++) {
+		for (i = 0; i < 64; i++) {
 			event->tbuf[bp++] = event->afu_tlx_rdata_bus[i];
 		//printf("event->tbuf[%x] is 0x%2x \n", bp-1, event->tbuf[bp-1]);
 		}
@@ -906,7 +906,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		}
 //printf("TLX_GET_AFU_EVENT-1 - rbuf[0] is 0x%02x and e->rbp = %2d  \n", event->rbuf[0], event->rbp);
 		if ((event->rbuf[0] & 0x20) != 0)
-			rbc += 5; //TODO for now, resp data always 5B total
+			rbc += 65; //TODO for now, resp data always 5B total
 		if ((event->rbuf[0] & 0x08) != 0)
 			rbc += 6; // resp always 6B
 	 	if ((event->rbuf[0] & 0x04) != 0)
@@ -1017,7 +1017,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		event->tlx_afu_credit_valid = 1;
 		event->afu_tlx_rdata_bad= event->rbuf[rbc++];
 		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
-		for (i = 0; i < 4; i++) {
+		for (i = 0; i < 64; i++) {
 			event->afu_tlx_rdata_bus[i]= event->rbuf[rbc++];
 		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
 		//printf("event->afu_tlx_rdata_bus[%x] is 0x%2x \n", i, event->afu_tlx_rdata_bus[i]);
@@ -1333,7 +1333,8 @@ int afu_tlx_send_resp_and_data(struct AFU_EVENT *event,
  		 uint8_t rdata_bad)
 
 {
-	if ((event->tlx_afu_resp_credits_available == 0) ||
+  // rdata_bus must be at least a 64 Byte array.
+        if ((event->tlx_afu_resp_credits_available == 0) ||
 		(event->tlx_afu_resp_data_credits_available == 0))
 		return TLX_AFU_NO_CREDITS;
 	if ((event->afu_tlx_resp_valid ==1) || (event->afu_tlx_rdata_valid == 1)) {
@@ -1353,7 +1354,11 @@ int afu_tlx_send_resp_and_data(struct AFU_EVENT *event,
 		event->afu_tlx_rdata_bad = rdata_bad;
 		// TODO FOR NOW WE ALWAYS COPY 4 BYTES of DATA - AFU ALWAYS
 		// SENDS 4 BYTES
-		memcpy(event->afu_tlx_rdata_bus, rdata_bus, 4);
+		// LGT - we will always get 64 Bytes of data from the afu
+		// LGT - it will be up to "ocse" to extract the interesting data from the response
+		// LGT - for partial reads, the data will be address aligned in the vector
+		// LGT - go look for byte counts!
+		memcpy(event->afu_tlx_rdata_bus, rdata_bus, 64);
 	//	int i;
 	//	for (i = 0; i <5 ; i++) {
 	//		printf("Send data is %02x"  , rdata_bus[i]);

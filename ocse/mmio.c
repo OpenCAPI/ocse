@@ -367,7 +367,7 @@ void send_mmio(struct mmio *mmio)
 		sprintf(type, "CONFIG");
 	// Attempt to send config_rd or config_wr to AFU
 		if (event->rnw && tlx_afu_send_cmd(mmio->afu_event,
-			TLX_CMD_CONFIG_READ, 0xdead,0, 2, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
+			TLX_CMD_CONFIG_READ, 0xdead, 0, 2, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
 			debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type,
 			  	event->dw ? 64 : 32, event->cmd_PA);
 			debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
@@ -406,6 +406,7 @@ void send_mmio(struct mmio *mmio)
 		sprintf(type, "MMIO");
 
 		// calculate event->pL from event->dw
+		// calculate cmd_byte_cnt from event->dw
 		if (event->dw == 1) {
 		  // pl = 3 ::= 8 bytes
 		  event->cmd_pL = 3;
@@ -462,32 +463,55 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 	uint8_t afu_resp_opcode, resp_dl,resp_dp, resp_data_is_valid, resp_code, rdata_bad;
 	uint16_t resp_capptag;
 	uint8_t *  rdata;
-	unsigned char   rdata_bus[4];
+	unsigned char   rdata_bus[64];
+	int offset, length;
+	
+	// handle config and mmio responses
+	// length can be calculated from the mmio->list->dw or cmd_pL
+	// location of data in rdata_bus is address aligned based on mmio->list->cmd_PA
+	// that is, mask off the high order address bits to form the offset - keep the low order 6 bits.
+
 	rdata = rdata_bus;
+	
+	// needs to be modified to return 64 bytes and extract the 4/8 we want?
 	rc = afu_tlx_read_resp_and_data(mmio->afu_event,
 	 	&afu_resp_opcode, &resp_dl,
 	   	&resp_capptag, &resp_dp,
 	    	&resp_data_is_valid, &resp_code, rdata_bus, &rdata_bad);
 
 	if (rc == TLX_SUCCESS) {
+	  // should we scan the mmio list looking for a matching CAPPtag here? Not yet, assume in order responses
+	  // but we can check it...
 			debug_mmio_ack(mmio->dbg_fp, mmio->dbg_id);
 			if (!mmio->list || (mmio->list->state != OCSE_PENDING)) {
 				warn_msg("Unexpected MMIO ack from AFU");
 				return;
 			}
-			if (mmio->list->cfg)
+			
+			// check the CAPPtag - later
+			
+			if (mmio->list->cfg) {
 				sprintf(type, "CONFIG");
-			else
+			} else {
 				sprintf(type, "MMIO");
+			}
+
 			debug_msg("IN handle_mmio_ack and resp_capptag = %x and resp_code = %x! ",
 				resp_capptag, resp_code);
+
 			if (resp_data_is_valid) {
-				memcpy(&read_data, rdata_bus, 4);
-				debug_msg("%s:%s CMD RESP data=0x%x code=0x%x", mmio->afu_name, type,
-					  read_data, resp_code );
+			  // extract data from address aligned offset in vector
+			  offset = mmio->list->cmd_PA && 0x000000000000003F ;
+			  if (mmio->list->cmd_pL == 0x02) {
+			    length = 4;
+			  } else {
+			    length = 8;
+			  }
+			  memcpy(&read_data, &rdata_bus[offset], length);
+			  debug_msg("%s:%s CMD RESP data=0x%x code=0x%x", mmio->afu_name, type,
+				    read_data, resp_code );
 			} else {
 				debug_msg("%s:%s CMD RESP code=0x%x", mmio->afu_name, type, resp_code);
-
 				}
 
 		// Keep data for MMIO reads
