@@ -199,6 +199,7 @@ void tlx_bfm(
 {
 //  int change = 0;
   int invalidVal = 0;
+//  int i = 0;
   c_reset			= reset & 0x1;
   if(!c_reset_d2)
   {
@@ -340,7 +341,10 @@ void tlx_bfm(
         invalidVal		+= afu_tlx_rdata_bdi_top & 0x2;
         invalidVal		+= getMyCacheLine(afu_tlx_rdata_bus_top, c_afu_tlx_rdata_bus);
         printf("%08lld: ", (long long) c_sim_time);
-        printf(" The AFU-TLX Response Data Valid, with opcode: 0x%x \n",  c_afu_tlx_resp_opcode);
+//        for(i = 0; i < CACHELINE_BYTES; i++)
+//        {
+//          printf(" The AFU-TLX Response Data Valid, at byte[%d]: 0x%x \n",  i, c_afu_tlx_rdata_bus[i]);
+//        }
       }
 #ifdef DEBUG1
       if(invalidVal != 0)
@@ -567,10 +571,12 @@ int getMyCacheLine(const svLogicVecVal *myLongSignal, uint8_t myCacheData[CACHEL
   uint32_t *p32BitCacheWords = (uint32_t*)myCacheData;
   for(i=0; i <(CACHELINE_BYTES/4 ); i++)
   {
-    j = (CACHELINE_BYTES/4 ) - (i + 1);
+//    j = (CACHELINE_BYTES/4 ) - (i + 1);
+    j = i;
     if(myLongSignal[i].bval !=0){ errorVal=1; }
     p32BitCacheWords[j] = myLongSignal[i].aval;
-    p32BitCacheWords[j] = htonl(p32BitCacheWords[j]);
+//    p32BitCacheWords[j] = htonl(p32BitCacheWords[j]);		// since ocse is dealing with AFU with little endian mode, removing this adjustments
+    p32BitCacheWords[j] = (p32BitCacheWords[j]);
   }
   if(errorVal!=0){return 1;}
   return 0;
@@ -583,10 +589,12 @@ int getMyByteArray(const svLogicVecVal *myLongSignal, uint32_t arrayLength, uint
   uint32_t *p32BitCacheWords = (uint32_t*)myCacheData;
   for(i=0; i <(arrayLength/4 ); i++)
   {
-    j = (arrayLength/4 ) - (i + 1);
+//    j = (arrayLength/4 ) - (i + 1);
+    j = i;
     if(myLongSignal[i].bval !=0){ errorVal=1; }
     p32BitCacheWords[j] = myLongSignal[i].aval;
-    p32BitCacheWords[j] = htonl(p32BitCacheWords[j]);
+//    p32BitCacheWords[j] = htonl(p32BitCacheWords[j]);		// since ocse is dealing with AFU with little endian mode, removing this adjustments
+    p32BitCacheWords[j] = (p32BitCacheWords[j]);
   }
   if(errorVal!=0){return 1;}
   return 0;
@@ -599,8 +607,10 @@ void setMyCacheLine(svLogicVecVal *myLongSignal, uint8_t myCacheData[CACHELINE_B
   uint32_t *p32BitCacheWords = (uint32_t*)myCacheData;
   for(i=0; i <(CACHELINE_BYTES/4 ); i++)
   {
-    j = (CACHELINE_BYTES/4 ) - (i + 1);
-    myLongSignal[j].aval = htonl(p32BitCacheWords[i]);
+//    j = (CACHELINE_BYTES/4 ) - (i + 1);
+    j = i;
+//    myLongSignal[j].aval = htonl(p32BitCacheWords[i]);		// since ocse is dealing with AFU with little endian mode, removing this adjustments
+    myLongSignal[j].aval = (p32BitCacheWords[i]);
     myLongSignal[j].bval = 0;
   }
 }
