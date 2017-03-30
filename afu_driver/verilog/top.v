@@ -670,7 +670,9 @@ end
       $finish;
   end
 
-  mcp3_top a0 (
+//  mcp3_top a0 (		- UMA 30/Mar/2017 - the top instance name on
+//  mcp changed
+  afu_top_mcp3 a0 (
     .clock_tlx(tlx_clock),
     .clock_afu(afu_clock),
     .reset(reset),
@@ -780,8 +782,14 @@ end
     .afu_cfg_in_rcv_rate_capability_1 (afu_cfg_in_rcv_rate_capability_1),
     .afu_cfg_in_rcv_rate_capability_2 (afu_cfg_in_rcv_rate_capability_2),
     .afu_cfg_in_rcv_rate_capability_3 (afu_cfg_in_rcv_rate_capability_3),
-    .tlx_afu_ready                    (tlx_afu_ready)
-
+    .tlx_afu_ready                    (tlx_afu_ready),
+ // Added newly on the mcp3 release of 30/Mar/2017
+    .afu_vpd_rden                     (),
+    .afu_vpd_wren                     (),
+    .afu_vpd_addr                     (),
+    .afu_vpd_wdata                    (),
+    .vpd_afu_done                     (1'b0),
+    .vpd_afu_rdata                    (32'b0)
   );
 
 endmodule
