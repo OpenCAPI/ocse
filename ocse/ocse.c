@@ -115,9 +115,7 @@ static void _query(struct client *client, uint8_t id)
 
 	ocl = _find_ocl(id, &major, &minor);
 	size = 1 + sizeof(ocl->mmio->cfg.OCAPI_TL_ACTAG) + sizeof(client->max_irqs) +
-	    sizeof(ocl->mmio->cfg.OCAPI_TL_MAXAFU) +
-	    // TODO for updated config spec, replace above w/below
-	    // sizeof(ocl->mmio->cfg.FUNC_CFG_MAXAFU) +
+	    sizeof(ocl->mmio->cfg.FUNC_CFG_MAXAFU) +
 	    sizeof(ocl->mmio->cfg.AFU_INFO_REVID) + sizeof(ocl->mmio->cfg.AFU_CTL_PASID_BASE) +
 	    sizeof(ocl->mmio->cfg.AFU_CTL_INTS_PER_PASID) + sizeof(ocl->mmio->cfg.cr_device) +
 	    sizeof(ocl->mmio->cfg.cr_vendor) + sizeof(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX) +
@@ -136,13 +134,9 @@ static void _query(struct client *client, uint8_t id)
 	       (char *)&(client->max_irqs), sizeof(client->max_irqs));
         offset += sizeof(client->max_irqs);
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.OCAPI_TL_MAXAFU),
-	       sizeof(ocl->mmio->cfg.OCAPI_TL_MAXAFU));
-        offset += sizeof(ocl->mmio->cfg.OCAPI_TL_MAXAFU);
-	    // TODO for updated config spec, replace above w/below
-	       // (char *)&(ocl->mmio->cfg.FUNC_CFG_MAXAFU),
-	       // sizeof(ocl->mmio->cfg.FUNC_CFG_MAXAFU));
-        // offset += sizeof(ocl->mmio->cfg.FUNC_CFG_MAXAFU);
+	       (char *)&(ocl->mmio->cfg.FUNC_CFG_MAXAFU),
+	       sizeof(ocl->mmio->cfg.FUNC_CFG_MAXAFU));
+        offset += sizeof(ocl->mmio->cfg.FUNC_CFG_MAXAFU);
 	memcpy(&(buffer[offset]),
 	       (char *)&(ocl->mmio->cfg.AFU_INFO_REVID),
 	       sizeof(ocl->mmio->cfg.AFU_INFO_REVID));
