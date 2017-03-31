@@ -503,14 +503,14 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 
 			if (resp_data_is_valid) {
 			  // extract data from address aligned offset in vector
-			  offset = mmio->list->cmd_PA && 0x000000000000003F ;
+			  offset = mmio->list->cmd_PA & 0x000000000000003F ;
 			  if (mmio->list->cmd_pL == 0x02) {
 			    length = 4;
 			  } else {
 			    length = 8;
 			  }
 			  memcpy(&read_data, &rdata_bus[offset], length);
-			  debug_msg("%s:%s CMD RESP data=0x%x code=0x%x", mmio->afu_name, type,
+			  debug_msg("%s:%s CMD RESP offset=%d length=%d data=0x%x code=0x%x", mmio->afu_name, type, offset, length,
 				    read_data, resp_code );
 			} else {
 				debug_msg("%s:%s CMD RESP code=0x%x", mmio->afu_name, type, resp_code);
