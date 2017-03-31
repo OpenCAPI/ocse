@@ -166,37 +166,37 @@ printf("before read initial credits \n");
 		afu_tlx_cmd_credits_available, afu_tlx_resp_credits_available);
 
 	// TODO TEST THIS for new config, change event names to match new offset values
- 	struct mmio_event *event00, *event100, *event104, *event200, *event204,
-	    *event20c, *event224, *event26c, *event290, *event294, *event298,
-	    *event2a0, *event2a4, *event2a8, *event2ac, *event2b0,
-	    *event2c0, *event2c4, *event2c8, *event2d0, *event2d4, *event2d8;
+ 	struct mmio_event *event00, *event110, *event114, *event200, *event204,
+	    *event20c, *event224, *event26c, *event300, *event304, *event308,
+	    *event400, *event404, *event408, *event40c, *event410,
+	    *event500, *event504, *event508, *event50c, *event510, *event514;
 
 	uint64_t cmd_pa;
 	cmd_pa = 0x00000000cdef0000; // per Lance, only need BDF for config
 	// Queue mmio reads - these go out in order, gated (eventually) by credits
 	event00 = _add_cfg(mmio, 1, 0, cmd_pa, 0L);
-	event100 = _add_cfg(mmio, 1, 0, cmd_pa + 0x100, 0L);
-	event104 = _add_cfg(mmio, 1, 0, cmd_pa + 0x104, 0L);
+	event110 = _add_cfg(mmio, 1, 0, cmd_pa + 0x110, 0L);
+	event114 = _add_cfg(mmio, 1, 0, cmd_pa + 0x114, 0L);
 	event200 = _add_cfg(mmio, 1, 0, cmd_pa + 0x200, 0L);
 	event204 = _add_cfg(mmio, 1, 0, cmd_pa + 0x204, 0L);
 	event20c = _add_cfg(mmio, 1, 0, cmd_pa + 0x20c, 0L);
 	event224 = _add_cfg(mmio, 1, 0, cmd_pa + 0x224, 0L);
 	event26c = _add_cfg(mmio, 1, 0, cmd_pa + 0x26c, 0L);
-	event290 = _add_cfg(mmio, 1, 0, cmd_pa + 0x290, 0L);
-	event294 = _add_cfg(mmio, 1, 0, cmd_pa + 0x294, 0L);
-	event298 = _add_cfg(mmio, 1, 0, cmd_pa + 0x298, 0L);
-	//  AFU info DVSEC is NOW at 0x2A0
-	event2a0 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2a0, 0L);
-	event2a4 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2a4, 0L);
-	event2a8 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2a8, 0L);
-	// this means afu_desc offset reg is 0x2Ac & data is 0x2B0
+	event300 = _add_cfg(mmio, 1, 0, cmd_pa + 0x300, 0L);
+	event304 = _add_cfg(mmio, 1, 0, cmd_pa + 0x304, 0L);
+	event308 = _add_cfg(mmio, 1, 0, cmd_pa + 0x308, 0L);
+	//  AFU info DVSEC is NOW at 0x400
+	event400 = _add_cfg(mmio, 1, 0, cmd_pa + 0x400, 0L);
+	event404 = _add_cfg(mmio, 1, 0, cmd_pa + 0x404, 0L);
+	event408 = _add_cfg(mmio, 1, 0, cmd_pa + 0x408, 0L);
+	// this means afu_desc offset reg is 0x40c & data is 0x410
 	//event2b0 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2b0, 0L);
-	event2c0 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2c0, 0L);
-	event2c4 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2c4, 0L);
-	event2c8 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2c8, 0L);
-	event2d0 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2d0, 0L);
-	event2d4 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2d4, 0L);
-	event2d8 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2d8, 0L);
+	event500 = _add_cfg(mmio, 1, 0, cmd_pa + 0x500, 0L);
+	event504 = _add_cfg(mmio, 1, 0, cmd_pa + 0x504, 0L);
+	event508 = _add_cfg(mmio, 1, 0, cmd_pa + 0x508, 0L);
+	event50c = _add_cfg(mmio, 1, 0, cmd_pa + 0x50c, 0L);
+	event510 = _add_cfg(mmio, 1, 0, cmd_pa + 0x510, 0L);
+	event514 = _add_cfg(mmio, 1, 0, cmd_pa + 0x514, 0L);
 
 	// Store data from reads
 
@@ -208,13 +208,13 @@ printf("before read initial credits \n");
 	free(event00);
 
 	// Read Process Addr Space ID (PASID) Extended Capability
-	_wait_for_done(&(event100->state), lock);
-	mmio->cfg.PASID_CP = event100->cmd_data;
-	free(event100);
+	_wait_for_done(&(event110->state), lock);
+	mmio->cfg.PASID_CP = event110->cmd_data;
+	free(event110);
 
-	_wait_for_done(&(event104->state), lock);
-	mmio->cfg.PASID_CTL_STS = event104->cmd_data;
-	free(event104);
+	_wait_for_done(&(event114->state), lock);
+	mmio->cfg.PASID_CTL_STS = event114->cmd_data;
+	free(event114);
 
 	// Read OpenCAPI Transport Layer DVSEC
 	_wait_for_done(&(event200->state), lock);
@@ -238,110 +238,110 @@ printf("before read initial credits \n");
 	free(event26c);
 
 	// Read Function Configuration DVSEC
-	_wait_for_done(&(event290->state), lock);
-	mmio->cfg.FUNC_CFG_CP = event290->cmd_data;
-	free(event290);
+	_wait_for_done(&(event300->state), lock);
+	mmio->cfg.FUNC_CFG_CP = event300->cmd_data;
+	free(event300);
 
-	_wait_for_done(&(event294->state), lock);
-	mmio->cfg.FUNC_CFG_REVID = event294->cmd_data;
-	free(event294);
+	_wait_for_done(&(event304->state), lock);
+	mmio->cfg.FUNC_CFG_REVID = event304->cmd_data;
+	free(event304);
 
-	_wait_for_done(&(event298->state), lock);
-	mmio->cfg.FUNC_CFG_MAXAFU = event298->cmd_data;
-	free(event298);
+	_wait_for_done(&(event308->state), lock);
+	mmio->cfg.FUNC_CFG_MAXAFU = event308->cmd_data;
+	free(event308);
 
 	// Read AFU Information DVSEC
 	// TODO for new config, update event offsets
-	_wait_for_done(&(event2a0->state), lock);
-	mmio->cfg.AFU_INFO_CP = event2a0->cmd_data;
-	free(event2a0);
+	_wait_for_done(&(event400->state), lock);
+	mmio->cfg.AFU_INFO_CP = event400->cmd_data;
+	free(event400);
 
-	_wait_for_done(&(event2a4->state), lock);
-	mmio->cfg.AFU_INFO_REVID = event2a4->cmd_data;
-	free(event2a4);
+	_wait_for_done(&(event404->state), lock);
+	mmio->cfg.AFU_INFO_REVID = event404->cmd_data;
+	free(event404);
 
-	_wait_for_done(&(event2a8->state), lock);
-	mmio->cfg.AFU_INFO_INDEX = event2a8->cmd_data;
-	free(event2a8);
+	_wait_for_done(&(event408->state), lock);
+	mmio->cfg.AFU_INFO_INDEX = event408->cmd_data;
+	free(event408);
 
 	// we can't read the AFU descriptor indirect regs like this,
 	// will read them later
 	//
 	//Read AFU Control DVSEC
-	_wait_for_done(&(event2c0->state), lock);
-	mmio->cfg.AFU_CTL_CP = event2c0->cmd_data;
-	free(event2c0);
+	_wait_for_done(&(event500->state), lock);
+	mmio->cfg.AFU_CTL_CP = event500->cmd_data;
+	free(event500);
 
-	_wait_for_done(&(event2c4->state), lock);
-	mmio->cfg.AFU_CTL_REVID = event2c4->cmd_data;
-	free(event2c4);
+	_wait_for_done(&(event504->state), lock);
+	mmio->cfg.AFU_CTL_REVID = event504->cmd_data;
+	free(event504);
 
-	_wait_for_done(&(event2c8->state), lock);
-	mmio->cfg.AFU_CTL_EN_RST_INDEX = event2c8->cmd_data;
-	free(event2c8);
+	_wait_for_done(&(event508->state), lock);
+	mmio->cfg.AFU_CTL_EN_RST_INDEX = event508->cmd_data;
+	free(event508);
 
-	_wait_for_done(&(event2d0->state), lock);
-	mmio->cfg.AFU_CTL_PASID_LEN = event2d0->cmd_data;
-	free(event2d0);
+	_wait_for_done(&(event50c->state), lock);
+	mmio->cfg.AFU_CTL_PASID_LEN = event50c->cmd_data;
+	free(event50c);
 
-	_wait_for_done(&(event2d4->state), lock);
-	mmio->cfg.AFU_CTL_PASID_BASE = event2d4->cmd_data;
-	free(event2d4);
+	_wait_for_done(&(event510->state), lock);
+	mmio->cfg.AFU_CTL_PASID_BASE = event510->cmd_data;
+	free(event510);
 
-	_wait_for_done(&(event2d8->state), lock);
-	mmio->cfg.AFU_CTL_INTS_PER_PASID = event2d8->cmd_data;
-	free(event2d8);
+	_wait_for_done(&(event514->state), lock);
+	mmio->cfg.AFU_CTL_INTS_PER_PASID = event514->cmd_data;
+	free(event514);
 
-	// To read AFU descriptor values, first write to cmd_pa + 0x2ac with
+	// To read AFU descriptor values, first write to cmd_pa + 0x40c with
 	// [31] = 0 [30:0] = 4B offset of Descriptor data to read
-	// Next, read cmd_pa + 0x2ac and test bit[31]
+	// Next, read cmd_pa + 0x40c and test bit[31]
 	// if 0, read again
-	// if 1, read cmd_pa+0x2b0 to get afu descriptor data
+	// if 1, read cmd_pa+0x410 to get afu descriptor data
 
-	event2ac = _add_event(mmio, NULL, 0, 0, 0, cmd_pa+0x2ac, 1, 0x01001c);
+	event40c = _add_event(mmio, NULL, 0, 0, 0, cmd_pa+0x40c, 1, 0x01001c);
 	printf("Just sent config_wr, will wait for read_req then send data \n");
-        _wait_for_done(&(event2ac->state), lock);
-	free(event2ac);
+        _wait_for_done(&(event40c->state), lock);
+	free(event40c);
 
-	event2ac = _add_cfg(mmio, 1, 0, cmd_pa + 0x2ac, 0L);
-        _wait_for_done(&(event2ac->state), lock);
+	event40c = _add_cfg(mmio, 1, 0, cmd_pa + 0x40c, 0L);
+        _wait_for_done(&(event40c->state), lock);
 
-	// Uncomment the while statement to get multiple reads on 0x2ac
-	while ((event2ac->cmd_data & AFU_DESC_DATA_VALID) == 0) {
-		event2ac = _add_cfg(mmio, 1, 0, cmd_pa + 0x2ac, 0L);
-        	_wait_for_done(&(event2ac->state), lock);
+	// Uncomment the while statement to get multiple reads on 0x40c
+	while ((event40c->cmd_data & AFU_DESC_DATA_VALID) == 0) {
+		event40c = _add_cfg(mmio, 1, 0, cmd_pa + 0x40c, 0L);
+        	_wait_for_done(&(event40c->state), lock);
 	}
-	free(event2ac);
-	event2b0 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2b0, 0L);
-        _wait_for_done(&(event2b0->state), lock);
+	free(event40c);
+	event410 = _add_cfg(mmio, 1, 0, cmd_pa + 0x410, 0L);
+        _wait_for_done(&(event410->state), lock);
 	// first read gives us per process MMIO offset & per process MMIO BAR
-	mmio->cfg.pp_MMIO_offset = (event2b0->cmd_data & 0xFFFFFFF0);
+	mmio->cfg.pp_MMIO_offset = (event410->cmd_data & 0xFFFFFFF0);
 	debug_msg("per process MMIO offset is 0x%x ", mmio->cfg.pp_MMIO_offset);
-	mmio->cfg.pp_MMIO_BAR = (event2b0->cmd_data & 0x0000000F);
+	mmio->cfg.pp_MMIO_BAR = (event410->cmd_data & 0x0000000F);
 	debug_msg("per process MMIO BAR is 0x%x ", mmio->cfg.pp_MMIO_BAR);
-	free(event2b0);
+	free(event410);
 
-	event2ac = _add_event(mmio, NULL, 0, 0, 0, cmd_pa+0x2ac, 1, 0x010020);
+	event40c = _add_event(mmio, NULL, 0, 0, 0, cmd_pa+0x40c, 1, 0x010020);
 	printf("Just sent config_wr, will wait for read_req then send data \n");
-        _wait_for_done(&(event2ac->state), lock);
-	free(event2ac);
+        _wait_for_done(&(event40c->state), lock);
+	free(event40c);
 
 	printf("sent config write now do config read \n");
-	event2ac = _add_cfg(mmio, 1, 0, cmd_pa + 0x2ac, 0L);
-        _wait_for_done(&(event2ac->state), lock);
+	event40c = _add_cfg(mmio, 1, 0, cmd_pa + 0x40c, 0L);
+        _wait_for_done(&(event40c->state), lock);
 	// Uncomment the while statement to get multiple reads on 0x2ac
-	while ((event2ac->cmd_data & AFU_DESC_DATA_VALID) == 0) {
-		event2ac = _add_cfg(mmio, 1, 0, cmd_pa + 0x2ac, 0L);
-        	_wait_for_done(&(event2ac->state), lock);
+	while ((event40c->cmd_data & AFU_DESC_DATA_VALID) == 0) {
+		event40c = _add_cfg(mmio, 1, 0, cmd_pa + 0x40c, 0L);
+        	_wait_for_done(&(event40c->state), lock);
 	}
-	free(event2ac);
+	free(event40c);
 
-	event2b0 = _add_cfg(mmio, 1, 0, cmd_pa + 0x2b0, 0L);
-        _wait_for_done(&(event2b0->state), lock);
+	event410 = _add_cfg(mmio, 1, 0, cmd_pa + 0x410, 0L);
+        _wait_for_done(&(event410->state), lock);
 	// second read gives us per process MMIO stride
-	mmio->cfg.pp_MMIO_stride = event2b0->cmd_data;
+	mmio->cfg.pp_MMIO_stride = event410->cmd_data;
 	debug_msg("per process MMIO stride is 0x%x ", mmio->cfg.pp_MMIO_stride);
-	free(event2b0);
+	free(event410);
 
 	return 0;
 }
