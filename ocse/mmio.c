@@ -503,7 +503,7 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 
 			if (resp_data_is_valid) {
 			  // extract data from address aligned offset in vector
-			  offset = mmio->list->cmd_PA && 0x000000000000003F ;
+			  offset = mmio->list->cmd_PA & 0x000000000000003F ;
 			  if (mmio->list->cmd_pL == 0x02) {
 			    length = 4;
 			  } else {
