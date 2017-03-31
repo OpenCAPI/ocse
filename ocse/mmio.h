@@ -67,6 +67,7 @@ struct afu_cfg_sp {
         uint32_t OCAPI_TL_ACTAG;
         uint32_t OCAPI_TL_TMP_CFG;
         uint32_t OCAPI_TL_TX_RATE;
+        uint32_t OCAPI_TL_MAXAFU;
         uint32_t FUNC_CFG_CP;
         uint32_t FUNC_CFG_REVID;
         uint32_t FUNC_CFG_MAXAFU;
