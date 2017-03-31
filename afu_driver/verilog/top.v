@@ -670,7 +670,7 @@ end
       $finish;
   end
 
-  mcp3_top a0 (
+  afu_top_mcp3 a0 (
     .clock_tlx(tlx_clock),
     .clock_afu(afu_clock),
     .reset(reset),
