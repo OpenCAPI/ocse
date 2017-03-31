@@ -350,7 +350,8 @@ AFU::tlx_afu_config_read()
     uint8_t afu_tlx_rdata_valid;
     uint16_t afu_tlx_resp_capptag;
     uint8_t  cmd_pl, data_size;
- 
+    uint8_t byte_offset;
+
     afu_tlx_resp_opcode = 0x01;	// mem rd response
     afu_tlx_resp_dl = 0x01;	// length 64 byte
     afu_tlx_resp_code = 0x0;	
@@ -358,6 +359,7 @@ AFU::tlx_afu_config_read()
     afu_tlx_resp_capptag = afu_event.tlx_afu_cmd_capptag;
     cmd_pl = afu_event.tlx_afu_cmd_pl;
     vsec_offset = 0x0000FFFC & afu_event.tlx_afu_cmd_pa;
+    byte_offset = 0x0000003F & afu_event.tlx_afu_cmd_pa;
     vsec_data  = descriptor.get_vsec_reg(vsec_offset);	// get vsec data
 
     if(cmd_pl == 0x00) {
@@ -405,7 +407,8 @@ AFU::tlx_afu_config_read()
     bdf = (0xFFFF0000 & afu_event.tlx_afu_cmd_pa) >> 16;
     info_msg("AFU: BDF = 0x%x", bdf);
     info_msg("AFU: resp_capptag = 0x%x", afu_tlx_resp_capptag);
-    memcpy(&afu_event.afu_tlx_rdata_bus, &vsec_data, data_size);   
+    memcpy(&afu_event.afu_tlx_rdata_bus, &vsec_data, data_size); 
+    byte_shift(afu_event.afu_tlx_rdata_bus, data_size, byte_offset);  
     info_msg("AFU: vsec_offset = 0x%x vsec_data = 0x%x", vsec_offset, vsec_data);
     if(TagManager::request_tlx_credit(RESP_DATA_CREDIT) && 
        TagManager::request_tlx_credit(RESP_CREDIT)) {
@@ -433,7 +436,7 @@ AFU::tlx_afu_config_write()
     uint8_t  resp_dp = 0;
     uint8_t  resp_code = 0;
     uint8_t  cmd_data_bdi;
-    uint32_t config_data, port_data, port_offset;
+    uint32_t config_data, port_data, port_offset, vsec_offset;
     uint32_t cmd_pa;
     debug_msg("AFU::tlx_afu_config_write");
     resp_capptag = afu_event.tlx_afu_cmd_capptag;
@@ -471,6 +474,10 @@ AFU::tlx_afu_config_write()
 	    debug_msg("AFU: port 0x29c = 0x%x", descriptor.get_vsec_reg(0x29c));
 	    debug_msg("AFU: port 0x2a0 = 0x%x", descriptor.get_vsec_reg(0x2a0));
 	}
+	else {	// vsec config write 
+	    vsec_offset = cmd_pa & 0x00000FFC;
+	    descriptor.set_vsec_reg(vsec_offset, config_data);	    
+	}
 	afu_resp_opcode = 0x04;		// mem write resp
 	resp_code = 0x0;
 	if(TagManager::request_tlx_credit(RESP_CREDIT)) {
@@ -490,6 +497,16 @@ AFU::tlx_afu_config_write()
     }
 }
 
+void
+AFU::byte_shift(unsigned char *array, uint8_t size, uint8_t offset)
+{
+    int i;
+    for(i=0; i<size; i++)
+    {
+	array[offset+i] = array[i];
+	array[i] = 0;
+    }
+}
 
 void
 AFU::resolve_control_event ()
