@@ -298,7 +298,7 @@ printf("before read initial credits \n");
 	// if 0, read again
 	// if 1, read cmd_pa+0x410 to get afu descriptor data
 
-	event40c = _add_event(mmio, NULL, 0, 0, 0, cmd_pa+0x40c, 1, 0x01001c);
+	event40c = _add_event(mmio, NULL, 0, 0, 0, cmd_pa+0x40c, 1, 0x000028);
 	printf("Just sent config_wr, will wait for read_req then send data \n");
         _wait_for_done(&(event40c->state), lock);
 	free(event40c);
@@ -321,7 +321,7 @@ printf("before read initial credits \n");
 	debug_msg("per process MMIO BAR is 0x%x ", mmio->cfg.pp_MMIO_BAR);
 	free(event410);
 
-	event40c = _add_event(mmio, NULL, 0, 0, 0, cmd_pa+0x40c, 1, 0x010020);
+	event40c = _add_event(mmio, NULL, 0, 0, 0, cmd_pa+0x40c, 1, 0x00002c);
 	printf("Just sent config_wr, will wait for read_req then send data \n");
         _wait_for_done(&(event40c->state), lock);
 	free(event40c);
