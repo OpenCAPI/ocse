@@ -382,6 +382,9 @@ void tlx_bfm(
         );
         printf("%08lld: ", (long long) c_sim_time);
         printf(" The AFU-TLX Cmd Read Request for Cnt: %d \n", c_afu_tlx_cmd_rd_cnt_top );
+      } else {
+	// make sure we clear this part of the event structure
+        afu_tlx_cmd_data_read_req( &event, 0, 0 );
       }
 #ifdef DEBUG1
       if(invalidVal != 0)
