@@ -11,7 +11,7 @@ using std::string;
 using std::ifstream;
 using std::stringstream;
 
-Descriptor::Descriptor (string filename):vsec(0x300), port(0x1000), regs (DESCRIPTOR_NUM_REGS)
+Descriptor::Descriptor (string filename):vsec(0x600), port(0x1000), afu_desc(0x300), regs (DESCRIPTOR_NUM_REGS)
 {
     info_msg ("Descriptor: Reading descriptor %s file", filename.c_str ());
     parse_descriptor_file (filename);
@@ -41,26 +41,7 @@ Descriptor::parse_descriptor_file (string filename)
         uint64_t value, data;
 	uint32_t vsec_offset, vsec_data;
 	
-	        // Test for data values
-        if (field == "data") {
-            if (s_value.substr (0, 2) == "0x")
-                s_value.erase(0, 2);
-            getline (file, s_data);
-            if (s_data.substr (0, 2) == "0x")
-                s_data.erase(0, 2);
-            value = strtoull(s_value.c_str(), NULL, 16);
-            data = strtoull(s_data.c_str(), NULL, 16);
-            info_msg ("Descriptor: setting offset 0x%x with value 0x%016llx",
-                      value, data);
-            uint64_t offset = to_vector_index(value);
-            while (offset >= regs.size())
-                regs.push_back(0);
-            regs[offset] = data;
-            continue;
-        }
-
-        // re-output s_value as unsigned int
-
+	 // re-output s_value as unsigned int
         if (s_value.substr (0, 2) == "0x") {
             stringstream temp (s_value.substr (2));
             temp >> std::hex >> value;
@@ -74,74 +55,42 @@ Descriptor::parse_descriptor_file (string filename)
                       value);
         }
 
-        // set reg values base of the field name
-        // reg0x00
-        if (field == "num_ints_per_process")
-            regs[to_vector_index (0x00)] =
-                (regs[to_vector_index (0x00)] & 0x0000FFFFFFFFFFFF) |
-                ((value & 0xFFFF) << 48);
-        else if (field == "num_of_processes")
-            regs[to_vector_index (0x00)] =
-                (regs[to_vector_index (0x00)] & 0xFFFF0000FFFFFFFF) |
-                ((value & 0xFFFF) << 32);
-        else if (field == "num_of_afu_CRs")
-            regs[to_vector_index (0x00)] =
-                (regs[to_vector_index (0x00)] & 0xFFFFFFFF0000FFFF) |
-                ((value & 0xFFFF) << 16);
-        else if (field == "reg_prog_model")
-            regs[to_vector_index (0x00)] =
-                (regs[to_vector_index (0x00)] & 0xFFFFFFFFFFFF0000) |
-                (value & 0xFFFF);
-        // reg0x20
-        else if (field == "AFU_CR_len")
-            regs[to_vector_index (0x20)] =
-                (regs[to_vector_index (0x20)] & 0xFF00000000000000) |
-                (value & 0xFFFFFFFFFFFFFF);
-        // reg0x28
-        else if (field == "AFU_CR_offset")
-            regs[to_vector_index (0x28)] = value;
-        // reg0x30
-        else if (field == "PerProcessPSA_control")
-            regs[to_vector_index (0x30)] =
-                (regs[to_vector_index (0x30)] & 0x00FFFFFFFFFFFFFF) |
-                ((value & 0xFF) << 56);
-        else if (field == "PerProcessPSA_length")
-            regs[to_vector_index (0x30)] =
-                (regs[to_vector_index (0x30)] & 0xFF00000000000000) |
-                (value & 0xFFFFFFFFFFFFFF);
-        // reg0x38
-        else if (field == "PerProcessPSA_offset")
-            regs[to_vector_index (0x38)] = value;
-        // reg0x40
-        else if (field == "AFU_EB_len")
-            regs[to_vector_index (0x40)] = value & 0xFFFFFFFFFFFFFF;
-        // reg0x48
-        else if (field == "AFU_EB_offset")
-            regs[to_vector_index (0x48)] = value;
-        // Read and store vsec data
-	else if (field == "vsec_header") {
-	    while(getline(file, line)) {
-		if(line[0] == '#' || line == "")
-		    continue;
-		stringstream ss(line);
-	    	ss >> field >> colon >> s_value;
-		field.erase(0,2);	// get vsec offset
-		s_value.erase(0,2); 	// get vsec data
-		vsec_offset = strtoul(field.c_str(), NULL, 16);
-		vsec_data   = strtoul(s_value.c_str(), NULL, 16);
-		if(vsec_offset < 0x300) {
-		    vsec[vsec_offset] = vsec_data;
-		    printf("vsec offset = 0x%x vsec data = 0x%08x\n", vsec_offset, vsec[vsec_offset]);
-		} 
-		else if(vsec_offset >0xFFF) {
-		    port[vsec_offset & 0x00000FFF] = vsec_data;
-		    printf("port offset = 0x%x port data = 0x%08x\n", vsec_offset, vsec_data);
-		}  
+	// Test for data and afu_desc fields
+        if (field == "data" || field == "afu_desc") {
+            if (s_value.substr (0, 2) == "0x")
+                s_value.erase(0, 2);
+            getline (file, s_data);
+            if (s_data.substr (0, 2) == "0x")
+                s_data.erase(0, 2);
+            value = strtoull(s_value.c_str(), NULL, 16);
+            data = strtoull(s_data.c_str(), NULL, 16);
+            info_msg ("Descriptor: setting offset 0x%x with value 0x%016llx",
+                      value, data);
+	    if(field == "data") {
+            	uint64_t offset = to_vector_index(value);
+            	while (offset >= regs.size())
+                    regs.push_back(0);
+            	regs[offset] = data;
+            	continue;
 	    }
+	    if(field == "afu_desc") {
+		afu_desc[value] = data;
+	    	continue;
+	    }
+        }
+	else {	// default vsec reg values
+	    vsec_offset = strtoul(field.c_str(), NULL, 16);
+	    vsec_data   = strtoul(s_value.c_str(), NULL, 16);
+	    if(vsec_offset < 0x600) {
+	    	vsec[vsec_offset] = vsec_data;
+		//printf("vsec offset = 0x%x vsec data = 0x%08x\n", vsec_offset, vsec[vsec_offset]);
+	    } 
+	    else if(vsec_offset >0xFFF) {
+		port[vsec_offset & 0x00000FFF] = vsec_data;
+		//printf("port offset = 0x%x port data = 0x%08x\n", vsec_offset, vsec_data);
+	    }  
 	}
-	else
-	    warn_msg ("Field %s is currently not supported", field.c_str());
-    }	// end outer while loop
+    }	// end while loop
 }
 
 uint32_t Descriptor::to_vector_index (uint32_t byte_address) const
@@ -282,4 +231,19 @@ Descriptor::set_port_reg(uint32_t offset, uint32_t data)
     offset = offset & 0x00000FFC;
     port[offset] = data;
 }
+
+uint32_t
+Descriptor::get_afu_desc_reg(uint32_t offset)
+{
+    offset = offset & 0x00000FFC;
+    return afu_desc[offset];
+}
+
+void
+Descriptor::set_afu_desc_reg(uint32_t offset, uint32_t data)
+{
+    offset = offset & 0x00000FFC;
+    afu_desc[offset] = data;
+}
+
 

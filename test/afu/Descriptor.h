@@ -44,6 +44,7 @@ private:
     // VSEC registers
     std::vector < uint32_t > vsec;
     std::vector < uint32_t > port;
+    std::vector < uint32_t > afu_desc;
     std::vector < uint64_t > regs;
     /*  reg0x00 : [0:15]  num_ints_per_process
        [16:31] num_of_process
@@ -105,6 +106,7 @@ public:
 
     // reg0x48
     uint64_t get_AFU_EB_offset () const;
+
     // vsec registers
     uint32_t get_vsec_reg(uint32_t);
     // set vsec register
@@ -113,7 +115,8 @@ public:
     uint32_t get_port_reg(uint32_t offset);
     // set port reg
     void set_port_reg(uint32_t offset, uint32_t data);
-
+    uint32_t get_afu_desc_reg(uint32_t offset);
+    void set_afu_desc_reg(uint32_t offset, uint32_t data);
 };
 
 #endif

@@ -361,7 +361,8 @@ AFU::tlx_afu_config_read()
     vsec_offset = 0x0000FFFC & afu_event.tlx_afu_cmd_pa;
     byte_offset = 0x0000003F & afu_event.tlx_afu_cmd_pa;
     vsec_data  = descriptor.get_vsec_reg(vsec_offset);	// get vsec data
-
+    debug_msg("AFU: vsec data = 0x%x vsec offset = 0x%x byte offset = 0x%x",
+	vsec_data, vsec_offset, byte_offset);
     if(cmd_pl == 0x00) {
 	data_size = 1;
 	switch(vsec_offset) {
@@ -504,7 +505,7 @@ AFU::byte_shift(unsigned char *array, uint8_t size, uint8_t offset)
     for(i=0; i<size; i++)
     {
 	array[offset+i] = array[i];
-	array[i] = 0;
+	//array[i] = 0;
     }
 }
 
