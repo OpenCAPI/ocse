@@ -201,8 +201,8 @@ printf("before read initial credits \n");
 	// Store data from reads
 
 	_wait_for_done(&(event00->state), lock);
-	mmio->cfg.cr_vendor = (uint16_t) (event00->cmd_data >> 16);
-	mmio->cfg.cr_device = (uint16_t) (event00->cmd_data );
+	mmio->cfg.cr_device = (uint16_t) ((event00->cmd_data >> 16) & 0x0000FFFF);
+	mmio->cfg.cr_vendor = (uint16_t) (event00->cmd_data & 0x0000FFFF);
         debug_msg("%x:%x CR dev & vendor", mmio->cfg.cr_device, mmio->cfg.cr_vendor);
         debug_msg("%x:%x CR dev & vendor swapped", ntohs(mmio->cfg.cr_device),ntohs(mmio->cfg.cr_vendor));
 	free(event00);
