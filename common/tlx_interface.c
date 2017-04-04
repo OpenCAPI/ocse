@@ -817,7 +817,7 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		event->tbuf[bp++] = (event->afu_tlx_resp_code & 0x0f);
 		event->afu_tlx_resp_valid = 0;
 	}
-	if (event->afu_tlx_rdata_valid != 0) { // There are 65 bytes to xfer TODO ONLY SEND 4B now
+	if (event->afu_tlx_rdata_valid != 0) { // There are 65 bytes to xfer 
 		event->tbuf[0] = event->tbuf[0] | 0x20;
 		//printf("event->tbuf[0] is 0x%2x \n", event->tbuf[0]);
 		event->tbuf[bp++] = (event->afu_tlx_rdata_bad  & 0x01 );
@@ -1352,8 +1352,6 @@ int afu_tlx_send_resp_and_data(struct AFU_EVENT *event,
 		event->afu_tlx_resp_dl = resp_dl;
 		event->afu_tlx_resp_dp = resp_dp;
 		event->afu_tlx_rdata_bad = rdata_bad;
-		// TODO FOR NOW WE ALWAYS COPY 4 BYTES of DATA - AFU ALWAYS
-		// SENDS 4 BYTES
 		// LGT - we will always get 64 Bytes of data from the afu
 		// LGT - it will be up to "ocse" to extract the interesting data from the response
 		// LGT - for partial reads, the data will be address aligned in the vector

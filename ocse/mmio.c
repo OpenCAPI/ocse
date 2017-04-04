@@ -302,7 +302,7 @@ printf("before read initial credits \n");
 	printf("Just sent config_wr, will wait for read_req then send data \n");
         _wait_for_done(&(event40c->state), lock);
 	free(event40c);
-
+	printf("waiting for AFU to set [31] to 1 in addr 0x40c \n");
 	event40c = _add_cfg(mmio, 1, 0, cmd_pa + 0x40c, 0L);
         _wait_for_done(&(event40c->state), lock);
 
@@ -311,6 +311,8 @@ printf("before read initial credits \n");
 		event40c = _add_cfg(mmio, 1, 0, cmd_pa + 0x40c, 0L);
         	_wait_for_done(&(event40c->state), lock);
 	}
+	
+	printf("AFU finally set [31] to 1 in addr 0x40c \n");
 	free(event40c);
 	event410 = _add_cfg(mmio, 1, 0, cmd_pa + 0x410, 0L);
         _wait_for_done(&(event410->state), lock);
@@ -353,11 +355,14 @@ void send_mmio(struct mmio *mmio)
 	struct mmio_event *event;
 	char type[7];
 	unsigned char ddata[17];
+	unsigned char null_buff[64] = {0};
+	unsigned char tdata_bus[64];
 	char data[17];
 #ifdef TLX4
 	uint8_t cmd_os;
 #endif
 	uint8_t  cmd_byte_cnt;
+	uint64_t offset;
 
 	event = mmio->list;
 
@@ -381,19 +386,24 @@ void send_mmio(struct mmio *mmio)
 	//	TLX_CMD_CONFIG_WRITE, 0xbeef,0, 2, 0, 0, 0, event->addr, 0, dptr) == TLX_SUCCESS)
 
 		if (!event->rnw) { // CONFIG write - two part operation
-			// restricted by spec to pL of 1, 2, or 4 bytes ONLY
-			// We only do 4B config writes for now
+			// restricted by spec to pL of 1, 2, or 4 bytes HOWEVER
+			// We now have to offset the data into a 64B buffer and send it 
 			if (event->state == OCSE_RD_RQ_PENDING) {
-				uint8_t * dptr = ddata;
-				memcpy(ddata, &(event->cmd_data), 4);
-				if (tlx_afu_send_cmd_data(mmio->afu_event, 4, 0, dptr) == TLX_SUCCESS) {
+				memcpy(tdata_bus, null_buff, 64); //not sure if we always have to do this, but better safe than...
+				uint8_t * dptr = tdata_bus;;
+				//memcpy(ddata, &(event->cmd_data), 4);
+				// FOR NOW we only do 4B config writes
+			  	offset = event->cmd_PA & 0x000000000000003F ;
+				memcpy(dptr +offset, &(event->cmd_data), 4);
+				//if (tlx_afu_send_cmd_data(mmio->afu_event, 4, 0, dptr) == TLX_SUCCESS) {
+				if (tlx_afu_send_cmd_data(mmio->afu_event, 64, 0, dptr) == TLX_SUCCESS) {
 					if (event->dw)
 						sprintf(data, "%016" PRIx64, event->cmd_data);
 					else
 						sprintf(data, "%08" PRIx32, (uint32_t) event->cmd_data);
-					debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s",
+					debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s offset=0x%x",
 						mmio->afu_name, type, event->dw ? 64 : 32,
-			  			event->cmd_PA, data);
+			  			event->cmd_PA, data, offset);
 					debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
 						event->rnw, event->dw, event->cmd_PA);
 					event->state = OCSE_PENDING;
