@@ -248,6 +248,7 @@ printf("before read initial credits \n");
 
 	_wait_for_done(&(event308->state), lock);
 	mmio->cfg.FUNC_CFG_MAXAFU = event308->cmd_data;
+	debug_msg("FUNC_CFG_MAXAFU is 0x%x ", mmio->cfg.FUNC_CFG_MAXAFU);
 	free(event308);
 
 	// Read AFU Information DVSEC
@@ -276,9 +277,9 @@ printf("before read initial credits \n");
 	mmio->cfg.AFU_CTL_REVID = event504->cmd_data;
 	free(event504);
 
-	_wait_for_done(&(event508->state), lock);
-	mmio->cfg.AFU_CTL_EN_RST_INDEX = event508->cmd_data;
-	free(event508);
+	//_wait_for_done(&(event508->state), lock);
+	//mmio->cfg.AFU_CTL_EN_RST_INDEX = event508->cmd_data;
+	//free(event508);
 
 	_wait_for_done(&(event50c->state), lock);
 	mmio->cfg.AFU_CTL_PASID_LEN = event50c->cmd_data;
@@ -311,7 +312,7 @@ printf("before read initial credits \n");
 		event40c = _add_cfg(mmio, 1, 0, cmd_pa + 0x40c, 0L);
         	_wait_for_done(&(event40c->state), lock);
 	}
-	
+
 	printf("AFU finally set [31] to 1 in addr 0x40c \n");
 	free(event40c);
 	event410 = _add_cfg(mmio, 1, 0, cmd_pa + 0x410, 0L);
@@ -345,6 +346,25 @@ printf("before read initial credits \n");
 	debug_msg("per process MMIO stride is 0x%x ", mmio->cfg.pp_MMIO_stride);
 	free(event410);
 
+	//Now  set enable bit in AFU Control DVSEC
+
+	event508 = _add_cfg(mmio, 1, 0, cmd_pa + 0x508, 0L);
+        _wait_for_done(&(event508->state), lock);
+	// first read and then mask in the enable bit [25] and write back
+	mmio->cfg.AFU_CTL_EN_RST_INDEX = event508->cmd_data;
+	debug_msg("AFU_CTL_EN_RST_INDEX is 0x%x ", mmio->cfg.AFU_CTL_EN_RST_INDEX);
+	free(event508);
+
+	event508 = _add_event(mmio, NULL, 0, 0, 0, cmd_pa+0x508, 1, (mmio->cfg.AFU_CTL_EN_RST_INDEX | 0x02000000));
+	printf("Just sent config_wr, will wait for read_req then send data \n");
+        _wait_for_done(&(event508->state), lock);
+	free(event508);
+
+	printf("sent config write now do additional config read to test \n");
+	event308 = _add_cfg(mmio, 1, 0, cmd_pa + 0x308, 0L);
+        _wait_for_done(&(event308->state), lock);
+	debug_msg("FUNC_CFG_MAXAFU is 0x%x ", event308->cmd_data);
+	free(event308);
 	return 0;
 }
 
@@ -382,12 +402,9 @@ void send_mmio(struct mmio *mmio)
 			event->state = OCSE_PENDING;
 		}
 
-	//if (!event->rnw && tlx_afu_send_cmd_and_data(mmio->afu_event,
-	//	TLX_CMD_CONFIG_WRITE, 0xbeef,0, 2, 0, 0, 0, event->addr, 0, dptr) == TLX_SUCCESS)
-
 		if (!event->rnw) { // CONFIG write - two part operation
 			// restricted by spec to pL of 1, 2, or 4 bytes HOWEVER
-			// We now have to offset the data into a 64B buffer and send it 
+			// We now have to offset the data into a 64B buffer and send it
 			if (event->state == OCSE_RD_RQ_PENDING) {
 				memcpy(tdata_bus, null_buff, 64); //not sure if we always have to do this, but better safe than...
 				uint8_t * dptr = tdata_bus;;
@@ -439,19 +456,23 @@ void send_mmio(struct mmio *mmio)
 			event->state = OCSE_PENDING;
 		}
 		if (!event->rnw) { // MMIO write - two part operation
-			// We only do 4B or 8B MMIO writes for now - caller has to specify in pL
+			// We only do 4B or 8B MMIO writes - caller has to specify in pL, HOWEVER
+			// We now have to offset the data into a 64B buffer and send it
 			if (event->state == OCSE_RD_RQ_PENDING) {
-				// TODO do something to cmd_pa ??  no, addr has been adjusted already
-				uint8_t * dptr = ddata;
-				memcpy(ddata, &(event->cmd_data), cmd_byte_cnt);
-				if (tlx_afu_send_cmd_data(mmio->afu_event, cmd_byte_cnt, 0, dptr) == TLX_SUCCESS) {
+				memcpy(tdata_bus, null_buff, 64); //not sure if we always have to do this, but better safe than...
+				uint8_t * dptr = tdata_bus;;
+			  	offset = event->cmd_PA & 0x000000000000003F ;
+				memcpy(dptr +offset, &(event->cmd_data), cmd_byte_cnt);
+				//memcpy(ddata, &(event->cmd_data), cmd_byte_cnt);
+				//if (tlx_afu_send_cmd_data(mmio->afu_event, cmd_byte_cnt, 0, dptr) == TLX_SUCCESS) {
+				if (tlx_afu_send_cmd_data(mmio->afu_event, 64, 0, dptr) == TLX_SUCCESS) {
 				  if (event->dw)
 				    sprintf(data, "%016" PRIx64, event->cmd_data);
 				  else
 				    sprintf(data, "%08" PRIx32, (uint32_t) event->cmd_data);
-				  debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s",
+				  debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s offset=0x%x",
 					    mmio->afu_name, type, event->dw ? 64 : 32,
-					    event->cmd_PA, data);
+					    event->cmd_PA, data, offset);
 				  debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
 						  event->rnw, event->dw, event->cmd_PA);
 				  event->state = OCSE_PENDING;
