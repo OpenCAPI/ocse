@@ -1258,9 +1258,9 @@ static void *_psl_loop(void *ptr)
                 	memcpy((char *)&llvalue, (char *)&(buffer[18]), 4); // AFU_CTL_INTS_PER_PASID
 			//afu->eb_len = (long)(llvalue);
                 	memcpy((char *)&value, (char *)&(buffer[22]), 2); // cr_device
-			afu->cr_device = ntohs(value);
+			afu->cr_device = value;
                         memcpy((char *)&value, (char *)&(buffer[24]), 2); // cr_vendor
-			afu->cr_vendor = ntohs(value);
+			afu->cr_vendor = value;
                         memcpy((char *)&lvalue, (char *)&(buffer[26]), 4); // AFU_CTL_EN_RST_INDEX
 			//afu->cr_class = ntohl(lvalue);
                         memcpy((char *)&lvalue, (char *)&(buffer[30]), 4); // pp_MMIO_offset
