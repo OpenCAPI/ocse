@@ -206,8 +206,13 @@ Descriptor::get_vsec_reg(uint32_t vsec_offset)
     uint32_t vsec_data, offset;
     //uint8_t byte_offset;
 
-    offset = vsec_offset & 0x00000FFC;
-    vsec_data = vsec[offset];
+    offset = vsec_offset & 0x0000FFFC;
+    if(offset < 0x1000) {
+    	vsec_data = vsec[offset];
+    }
+    else if (offset >= 0x1000) {
+	vsec_data = port[offset];
+    }
 
     return vsec_data;
 }
@@ -215,7 +220,12 @@ Descriptor::get_vsec_reg(uint32_t vsec_offset)
 void
 Descriptor::set_vsec_reg(uint32_t vsec_offset, uint32_t vsec_data)
 {
-    vsec[vsec_offset] = vsec_data;
+    if(vsec_offset < 0x1000) {
+        vsec[vsec_offset] = vsec_data;
+    } 
+    else if(vsec_offset > 0x1000) {
+	set_port_reg(vsec_offset, vsec_data);
+    } 
 }
 
 uint32_t
