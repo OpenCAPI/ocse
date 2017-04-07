@@ -86,8 +86,8 @@ struct afu_cfg_sp {
         uint32_t pp_MMIO_offset;
         uint32_t pp_MMIO_BAR;
         uint32_t pp_MMIO_stride;
-//	uint16_t num_ints_per_process;
-//	uint16_t num_of_processes;
+	uint32_t num_ints_per_process;
+	uint32_t num_of_processes;
 //	uint16_t num_of_afu_CRs;
 //	uint16_t req_prog_model;
 //	uint64_t reserved1;
