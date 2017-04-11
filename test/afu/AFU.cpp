@@ -468,8 +468,14 @@ AFU::tlx_afu_config_write()
  	debug_msg("AFU:config_write: cmd_pa = 0x%x", cmd_pa);
    	if(cmd_pa == 0x40c) {		// descriptor config write address port
 	    port_offset = config_data;	// get descriptor offset
-	    port_data = descriptor.get_port_reg(port_offset);	// get descriptor data
-	    descriptor.set_vsec_reg(0x410, port_data);		// write data to read port 0x410
+	    if(port_offset < 0x0FFF) {
+		port_data = descriptor.get_afu_desc_reg(port_offset);
+		descriptor.set_afu_desc_reg(0x410, port_data);
+	    }
+	    else {
+	    	port_data = descriptor.get_port_reg(port_offset);	// get descriptor data
+	    	descriptor.set_vsec_reg(0x410, port_data);		// write data to read port 0x410
+	    }
 	    port_offset = port_offset | 0x80000000;		// set bit 31 to write port 0x40c
 	    descriptor.set_vsec_reg(0x40c, port_offset);
 	    debug_msg("AFU: read port 0x410 = 0x%x", descriptor.get_vsec_reg(0x410));
