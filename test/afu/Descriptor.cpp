@@ -67,10 +67,11 @@ Descriptor::parse_descriptor_file (string filename)
             info_msg ("Descriptor: setting offset 0x%x with value 0x%016llx",
                       value, data);
 	    if(field == "data") {
-            	uint64_t offset = to_vector_index(value);
-            	while (offset >= regs.size())
-                    regs.push_back(0);
-            	regs[offset] = data;
+            	//uint64_t offset = to_vector_index(value);
+            	//while (offset >= regs.size())
+                //    regs.push_back(0);
+            	//regs[offset] = data;
+		port[value & 0x00000FFF] = data;
             	continue;
 	    }
 	    if(field == "afu_desc") {
@@ -79,9 +80,11 @@ Descriptor::parse_descriptor_file (string filename)
 	    }
         }
 	else {	// default vsec reg values
-	    vsec_offset = strtoul(field.c_str(), NULL, 16);
-	    vsec_data   = strtoul(s_value.c_str(), NULL, 16);
+	    //vsec_offset = strtoul(field.c_str(), NULL, 16);
+	    //vsec_data   = strtoul(s_value.c_str(), NULL, 16);
 	    if(vsec_offset < 0x600) {
+		vsec_offset = strtoul(field.c_str(), NULL, 16);
+		vsec_data = strtoul(s_value.c_str(), NULL, 16);
 	    	vsec[vsec_offset] = vsec_data;
 		//printf("vsec offset = 0x%x vsec data = 0x%08x\n", vsec_offset, vsec[vsec_offset]);
 	    } 
@@ -228,7 +231,7 @@ Descriptor::set_vsec_reg(uint32_t vsec_offset, uint32_t vsec_data)
     } 
 }
 
-uint32_t
+uint64_t
 Descriptor::get_port_reg(uint32_t offset)
 {
     offset = offset & 0x00000FFC;
@@ -236,7 +239,7 @@ Descriptor::get_port_reg(uint32_t offset)
 }
 
 void
-Descriptor::set_port_reg(uint32_t offset, uint32_t data)
+Descriptor::set_port_reg(uint32_t offset, uint64_t data)
 {
     offset = offset & 0x00000FFC;
     port[offset] = data;

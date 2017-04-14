@@ -30,6 +30,7 @@ private:
 
     AFU_State state;
     AFU_State config_state;
+    AFU_State mem_state;
 
     uint64_t global_configs[3];	// stores MMIO registers for global configurations
     uint8_t  tlx_afu_cmd_max_credit;
@@ -41,6 +42,8 @@ private:
     void resolve_tlx_afu_resp();
     void tlx_afu_config_read();
     void tlx_afu_config_write();
+    void tlx_pr_rd_mem();
+    void tlx_pr_wr_mem();
     void byte_shift(unsigned char* array, uint8_t size, uint8_t offset);
     void resolve_control_event ();
     void resolve_response_event (uint32_t cycle);
