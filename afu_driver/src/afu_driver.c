@@ -640,11 +640,15 @@ static void tlx_control(void)
 	FD_ZERO(&watchset);
 	FD_SET(event.sockfd, &watchset);
 	select(event.sockfd + 1, &watchset, NULL, NULL, NULL);
+	//printf("lgt: tlx_control: %08lld: calling get tlx events... \n", (long long) c_sim_time);
 	int rc = tlx_get_tlx_events(&event);
+	//printf("lgt: tlx_control: returned from get tlx events\n");
 	// No clock edge
 	while (!rc) {
 	  select(event.sockfd + 1, &watchset, NULL, NULL, NULL);
+	  //printf("lgt: tlx_control: no clock edge: %08lld: calling get tlx events again... \n", (long long) c_sim_time);
 	  rc = tlx_get_tlx_events(&event);
+	  //printf("lgt: tlx_control: no clock edge: returned from get tlx events\n");
 	}
 	// Error case
 	if (rc < 0) {
