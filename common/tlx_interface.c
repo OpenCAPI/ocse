@@ -847,11 +847,13 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 
 
 
-        // dump tbuf
-	if ( bp > 1 ) {
-	  printf( "lgt: tlx_signal_tlx_model: tbuf length:0x%02x tbuf: 0x", bp );
-	  for ( i = 0; i < bp; i++ ) printf( "%02x", event->tbuf[i] );
-	  printf( "\n" );
+        // dump tbuf - but NOT for just credit/rd_req
+        if (event->tbuf[0] != 0x11) {
+		if ( bp > 1 ) {
+	  	printf( "lgt: tlx_signal_tlx_model: tbuf length:0x%02x tbuf: 0x", bp );
+	  	for ( i = 0; i < bp; i++ ) printf( "%02x", event->tbuf[i] );
+	  	printf( "\n" );
+		}
 	}
 
 	bl = bp;
@@ -934,19 +936,23 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		return 0;
 
 	// dump rbuf
-	printf( "lgt: tlx_get_afu_events: rbuf length:0x%02x rbuf: 0x", rbc );
-	for ( i = 0; i < rbc; i++ ) printf( "%02x", event->rbuf[i] );
-	printf( "\n" );
+	if (event->rbuf[0]  != 0x11) {
+		printf( "lgt: tlx_get_afu_events: rbuf length:0x%02x rbuf: 0x", rbc );
+		for ( i = 0; i < rbc; i++ ) printf( "%02x", event->rbuf[i] );
+		printf( "\n" );
+	}
 
 	rbc = 1;
 	if ((event->rbuf[0] & 0x02) != 0) {
 		event->afu_tlx_cmd_valid = 1;
-//printf("event->afu_tlx_cmd_valid is 1  and rbc is 0x%2x \n", rbc);
+printf("event->afu_tlx_cmd_valid is 1  and rbc is 0x%2x \n", rbc);
 		event->tlx_afu_cmd_credit = 1;
 		event->tlx_afu_credit_valid = 1;
 
+		printf("event->rbuf[%x] is 0x%2x \n", rbc, event->rbuf[rbc]);
 		event->afu_tlx_cmd_opcode = event->rbuf[rbc++];
 		event->afu_tlx_cmd_actag = event->rbuf[rbc++];
+		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
 		event->afu_tlx_cmd_actag = ((event->afu_tlx_cmd_actag << 8) | event->rbuf[rbc++]);
 		event->afu_tlx_cmd_stream_id = event->rbuf[rbc++];
 		for (i = 0; i < 9; i++) {
@@ -1025,7 +1031,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 
 	} else {
 		event->afu_tlx_rdata_valid = 0;
-		printf("in tlx_get_afu_events and setting tlx_afu_resp & resp_data credits to 0\n");
+		//printf("in tlx_get_afu_events and setting tlx_afu_resp & resp_data credits to 0\n");
 		event->tlx_afu_resp_data_credit = 0;
 	}
 	if ((event->rbuf[0] & 0x01) != 0) {

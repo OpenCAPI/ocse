@@ -310,6 +310,18 @@ static void _add_caia2(struct cmd *cmd, uint32_t handle, uint32_t tag,
 			state = MEM_IDLE;
 			break;
 		case TLX_COMMAND_XLAT_RD_P0:
+	rc =  afu_tlx_read_cmd_and_data(cmd->afu_event,
+  		    &cmd_opcode, &cmd_actag,
+  		    &cmd_stream_id, &cmd_ea_or_obj,
+ 		    &cmd_afutag, &cmd_dl,
+  		    &cmd_pl,
+#ifdef TLX4
+		    &cmd_os,
+#endif
+		    &cmd_be, &cmd_flag,
+ 		    &cmd_endian, &cmd_bdf,
+  	  	    &cmd_pasid, &cmd_pg_size, &cmd_data_is_valid,
+ 		    dptr, &cdata_bad);
 			type = CMD_XLAT_RD;
 			state = DMA_ITAG_REQ;
 			break;
@@ -540,113 +552,92 @@ static void _cmd_parity_error(const char *msg, uint64_t value, uint8_t parity)
 }
 
 // See if a command was sent by AFU and process if so
-void handle_cmd(struct cmd *cmd, uint32_t parity_enabled, uint32_t latency)
+void handle_cmd(struct cmd *cmd, uint32_t latency)
 {
 	struct cmd_event *event;
-	uint64_t address, address_parity;
-	uint32_t command, command_parity, tag, tag_parity, size, abort, handle, cpagesize;
-	uint8_t parity, fail;
+	uint64_t cmd_be;
+	uint32_t cmd_pasid, command, size, abort, handle;
+	uint16_t cmd_actag, cmd_afutag, cmd_bdf;
+	uint8_t  afu_cmd_opcode, cmd_stream_id, cmd_ea_or_obj, cmd_dl, cmd_pl, cmd_flag, cmd_endian, cmd_pg_size, cmd_data_is_valid, cdata_bad, fail;
+#ifdef TLX4
+	uint8_t cmd_os;
+#endif
+	unsigned char cdata_bus[64];
+	uint8_t * dptr = cdata_bus;
 	int rc;
+
 
 	if (cmd == NULL)
 		return;
 
 	// Check for command from AFU
-	//rc = tlx_get_command(cmd->afu_event, &command, &command_parity, &tag,
-	//		     &tag_parity, &address, &address_parity, &size,
-	//		     &abort, &handle, &cpagesize);
-/*	rc = afu_tlx_read_cmd_and_data(cmd->afu_event,
-  		    &afu_cmd_opcode,  &cmd_actag,
-  		    &cmd_stream_id,  * cmd_ea_or_obj,
- 		    &cmd_afutag,  &cmd_dl,
+	rc =  afu_tlx_read_cmd_and_data(cmd->afu_event,
+  		    &afu_cmd_opcode, &cmd_actag,
+  		    &cmd_stream_id, &cmd_ea_or_obj,
+ 		    &cmd_afutag, &cmd_dl,
   		    &cmd_pl,
 #ifdef TLX4
 		    &cmd_os,
 #endif
-		    &cmd_be,  &cmd_flag,
+		    &cmd_be, &cmd_flag,
  		    &cmd_endian, &cmd_bdf,
-  	  	    &cmd_pasid,  &cmd_pg_size, &cmd_data_is_valid,
- 		    * cdata_bus, &cdata_bad);   */
-	// No command ready
-	if (rc != TLX_SUCCESS)
+  	  	    &cmd_pasid, &cmd_pg_size, &cmd_data_is_valid,
+ 		    dptr, &cdata_bad);
+
+
+	//rc = tlx_get_command(cmd->afu_event, &command, &command_parity, &tag,
+	//		     &tag_parity, &address, &address_parity, &size,
+	//		     &abort, &handle, &cpagesize
+
+	// No command ready */
+	if (rc != TLX_SUCCESS) 
 		return;
 
-	debug_msg
-	    ("%s:COMMAND tag=0x%02x code=0x%04x size=0x%02x abt=%d cch=0x%04x",
-	     cmd->afu_name, tag, command, size, abort, handle);
-	debug_msg("%s:COMMAND tag=0x%02x addr=0x%016"PRIx64 " cpagesize= 0x%x ", cmd->afu_name,
-
-		  tag, address, cpagesize);
+	debug_msg("%s:COMMAND actag=0x%02x cmd=0x%x BDF=0x%x addr=0x%016"PRIx64 " cmd_data_is_valid= 0x%x ", cmd->afu_name,
+		  cmd_actag, afu_cmd_opcode, cmd_bdf, cmd_pasid, cmd_data_is_valid);
 
 	// Is AFU running?
-	if (*(cmd->ocl_state) != OCSE_RUNNING) {
+/*	if (*(cmd->ocl_state) != OCSE_RUNNING) {
 		//warn_msg("Command without jrunning, tag=0x%02x", tag);
 		error_msg("Command without jrunning, tag=0x%02x", tag);
 		return;
-	}
+	} */
 
-	// Check parity
-	fail = 0;
-	if (parity_enabled) {
-		parity = generate_parity(address, ODD_PARITY);
-		if (parity != address_parity) {
-			_cmd_parity_error("address", (uint64_t) address,
-					  address_parity);
-			fail = 1;
-		}
-		parity = generate_parity(tag, ODD_PARITY);
-		if (parity != tag_parity) {
-			_cmd_parity_error("tag", (uint64_t) tag, tag_parity);
-			fail = 1;
-		}
-		parity = generate_parity(command, ODD_PARITY);
-		if (parity != command_parity) {
-			_cmd_parity_error("code", (uint64_t) command,
-					  command_parity);
-			fail = 1;
-		}
-	}
-	// Add failed command
-	if (fail) {
-		_add_other(cmd, handle, tag, command, abort,
-			   TLX_RESPONSE_FAILED);
-		return;
-	}
-	// Check credits and parse
-	if (!cmd->credits) {
-		warn_msg("AFU issued command without any credits");
-		_add_other(cmd, handle, tag, command, abort,
-			   TLX_RESPONSE_FAILED);
-		return;
-	}
-
-	cmd->credits--;
+	// Check credits and parse - not any more
 
 	// Client not connected
-	if ((cmd == NULL) || (cmd->client == NULL) ||
-	    (handle >= cmd->max_clients) || ((cmd->client[handle]) == NULL)) {
-		_add_other(cmd, handle, tag, command, abort,
-			   TLX_RESPONSE_FAILED);
+	//if ((cmd == NULL) || (cmd->client == NULL) ||
+	 //   (handle >= cmd->max_clients) || ((cmd->client[handle]) == NULL)) {
+	//	_add_other(cmd_opcode, handle, tag, command, abort,
+	//		   TLX_RESPONSE_FAILED);
 		return;
-	}
-	// Client is flushing new commands
+	//}
+	// Client is flushing new commands - do we still do this??
 	//if ((cmd->client[handle]->flushing == FLUSH_FLUSHING) &&
 	//    (command != TLX_COMMAND_RESTART)) {
 	//	_add_other(cmd, handle, tag, command, abort,
 	//		   TLX_RESPONSE_FLUSHED);
-		return;
+	//	return;
 	//}
-	// Check for duplicate tag
+	// Check for duplicate tag - not now, mayb e check for dup actag at some point??
 	//event = cmd->list;
-	while (event != NULL) {
-		if (event->tag == tag) {
-			error_msg("Duplicate tag 0x%02x", tag);
-			return;
-		}
-		event = event->_next;
-	}
-	// Parse command
-//	_parse_cmd(cmd, command, tag, address, size, abort, handle, latency);
+	//while (event != NULL) {
+	//	if (event->tag == tag) {
+	//		error_msg("Duplicate tag 0x%02x", tag);
+	//		return;
+	//	}
+	//	event = event->_next;
+	//}
+	// Parse command- later, now we just handle the assign_actag
+	if (afu_cmd_opcode == AFU_CMD_ASSIGN_ACTAG)
+		printf("YES! AFU cmd is ASSIGN_ACTAG!!!!\n");
+	return;
+	//
+	//parse_cmd(cmd_opcode, cmd_actag, cmd_stream_id, cmd_ea_or_obj, cmd_afutag, cmd_dl, cmd_pl
+//#ifdef TLX4
+//	cmd_os,
+//#endif
+//	cmd_be, cmd_flag, cmd_endian, cmd_bdf, cmd_pasid, cmd_pg_size, cmd_data_is_valid, dptr,);
 }
 
 // Handle randomly selected pending read by either generating early buffer
