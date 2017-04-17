@@ -352,7 +352,7 @@ printf("before read initial credits \n");
 
 	// Now set PASID Length Enabled to be same as PASID Length Supported
 	// Rest of bits in reg are RO so just mask in value and write back
-	event50c = _add_event(mmio, NULL, 0, 0, 0, cmd_pa+0x50c, 1, (mmio->cfg.AFU_CTL_PASID_LEN | (mmio->cfg.num_of_processes << 8)));
+	event50c = _add_event(mmio, NULL, 0, 0, 0, cmd_pa+0x510, 1, (mmio->cfg.AFU_CTL_PASID_LEN | (mmio->cfg.num_of_processes << 8)));
 	printf("Just sent config_wr for setting PASID Length Enabled, will wait for read_req then send data \n");
         _wait_for_done(&(event50c->state), lock);
 	free(event50c);
