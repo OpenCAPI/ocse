@@ -41,6 +41,14 @@ LIBOCXL_1 {
 		ocxl_mmio_write32;
 		ocxl_mmio_read32;
 
+		ocxl_global_mmio_map;
+		ocxl_global_mmio_unmap;
+		ocxl_global_mmio_ptr;
+		ocxl_global_mmio_write64;
+		ocxl_global_mmio_read64;
+		ocxl_global_mmio_write32;
+		ocxl_global_mmio_read32;
+
 	local:
 		*;
 };

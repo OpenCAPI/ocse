@@ -163,10 +163,10 @@ static void _handle_afu(struct ocl *ocl)
 	/*if (ocl->mmio->list !=NULL) {
 	 handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
 	} */
-	 handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
+	 	handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
 	if (ocl->cmd != NULL) {
 		handle_response(ocl->cmd);
-		//handle_cmd(ocl->cmd, ocl->parity_enabled, ocl->latency);
+		handle_cmd(ocl->cmd, ocl->latency);
 		handle_interrupt(ocl->cmd);
 
 	}
@@ -177,15 +177,15 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 	struct mmio_event *mmio;
 	struct cmd_event *cmd;
 	uint8_t buffer[MAX_LINE_CHARS];
-	int dw = 0;  // 1 means mmio that is 64 bits 
-	int eb_rd = 0;  // 1 means mmio for event based read 
+	int dw = 0;  // 1 means mmio that is 64 bits
+	int eb_rd = 0;  // 1 means mmio for event based read
 	int global = 0;  // 1 means mmio to the global space
 
 	// Handle MMIO done
 	 if (client->mmio_access != NULL) {
 		client->idle_cycles = TLX_IDLE_CYCLES;
 		client->mmio_access = handle_mmio_done(ocl->mmio, client);
-	} 
+	}
 	// Client disconnected
 	if (client->state == CLIENT_NONE)
 		return;

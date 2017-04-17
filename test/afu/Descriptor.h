@@ -43,7 +43,7 @@ class Descriptor
 private:
     // VSEC registers
     std::vector < uint32_t > vsec;
-    std::vector < uint32_t > port;
+    std::vector < uint64_t > port;
     std::vector < uint32_t > afu_desc;
     std::vector < uint64_t > regs;
     /*  reg0x00 : [0:15]  num_ints_per_process
@@ -112,9 +112,9 @@ public:
     // set vsec register
     void set_vsec_reg(uint32_t, uint32_t);
     // get port reg
-    uint32_t get_port_reg(uint32_t offset);
+    uint64_t get_port_reg(uint32_t offset);
     // set port reg
-    void set_port_reg(uint32_t offset, uint32_t data);
+    void set_port_reg(uint32_t offset, uint64_t data);
     uint32_t get_afu_desc_reg(uint32_t offset);
     void set_afu_desc_reg(uint32_t offset, uint32_t data);
 };

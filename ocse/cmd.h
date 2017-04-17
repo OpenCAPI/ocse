@@ -148,7 +148,7 @@ struct cmd *cmd_init(struct AFU_EVENT *afu_event, struct parms *parms,
 		     struct mmio *mmio, volatile enum ocse_state *state,
 		     char *afu_name, FILE * dbg_fp, uint8_t dbg_id);
 
-void handle_cmd(struct cmd *cmd, uint32_t parity_enabled, uint32_t latency);
+void handle_cmd(struct cmd *cmd,  uint32_t latency);
 
 void handle_buffer_read(struct cmd *cmd);
 
