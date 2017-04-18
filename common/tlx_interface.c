@@ -795,12 +795,12 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		//printf("event->tbuf[%x] is 0x%2x  \n", bp-1, event->tbuf[bp-1]);
 		event->afu_tlx_cmd_valid = 0;
 	}
-	if (event->afu_tlx_cdata_valid != 0) { //There are 9  bytes to xfer
+	if (event->afu_tlx_cdata_valid != 0) { //There are 65  bytes to xfer
 		event->tbuf[0] = event->tbuf[0] | 0x04;
 		//printf("event->tbuf[0] is 0x%2x \n", event->tbuf[0]);
 		event->tbuf[bp++] = (event->afu_tlx_cdata_bad  & 0x01 );
 		//printf("event->tbuf[bp] is 0x%2x and bp is 0x%2x \n", event->tbuf[bp], bp);
-		for (i = 0; i < 8; i++) {
+		for (i = 0; i < 64; i++) {
 			event->tbuf[bp++] = event->afu_tlx_cdata_bus[i];
 		}
 		//printf("event->tbuf[3] is 0x%2x and bp-1 is 0x%2x \n", event->tbuf[3], bp-1);
@@ -912,7 +912,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		if ((event->rbuf[0] & 0x08) != 0)
 			rbc += 6; // resp always 6B
 	 	if ((event->rbuf[0] & 0x04) != 0)
-			rbc += 9; //TODO for now, cmd data always 9B total
+			rbc += 65; //TODO for now, cmd data always 65 total
 		if ((event->rbuf[0] & 0x02) != 0)
 			rbc += 34; // for TLX4 cmds, value will increase by 1
 		if ((event->rbuf[0] & 0x01) != 0)
@@ -995,7 +995,7 @@ printf("event->afu_tlx_cmd_valid is 1  and rbc is 0x%2x \n", rbc);
 		event->tlx_afu_credit_valid = 1;
 		event->afu_tlx_cdata_bad = event->rbuf[rbc++] ;
 		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
-		for (i = 0; i < 8; i++) {
+		for (i = 0; i < 64; i++) {
 			event->afu_tlx_cdata_bus[i] = event->rbuf[rbc++] ;
 		}
 	} else {
@@ -1476,9 +1476,9 @@ int afu_tlx_send_cmd_and_data(struct AFU_EVENT *event,
 		event->afu_tlx_cmd_pasid = cmd_pasid;
 		event->afu_tlx_cmd_pg_size = cmd_pg_size;
 		event->afu_tlx_cdata_bad = cdata_bad;
-		// TODO FOR NOW WE ALWAYS COPY 8 BYTES of DATA - AFU ALWAYS
-		// SENDS 8 BYTES
-		memcpy(event->afu_tlx_cdata_bus, cdata_bus, 8);
+		// TODO FOR NOW WE ALWAYS COPY 64 BYTES of DATA - AFU ALWAYS
+		// SENDS 64 BYTES
+		memcpy(event->afu_tlx_cdata_bus, cdata_bus, 64);
 		return TLX_SUCCESS;
 	}
 }
