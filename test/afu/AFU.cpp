@@ -546,10 +546,11 @@ AFU::tlx_pr_rd_mem()
 
     debug_msg("AFU:tlx_pr_rd_mem");
     
-    mem_data = descriptor.get_port_reg(mem_offset);
+    // mmio read data
+    descriptor.get_mmio(mem_offset, (char*)&mem_data, data_size);
     debug_msg("mem_offset = 0x%x mem_data = 0x%016llx", mem_offset, mem_data);
     memcpy(&afu_event.afu_tlx_rdata_bus, &mem_data, data_size);
-
+    byte_shift(afu_event.afu_tlx_rdata_bus, data_size, mem_offset);
     if(TagManager::request_tlx_credit(RESP_DATA_CREDIT) && 
        TagManager::request_tlx_credit(RESP_CREDIT)) {
         if(afu_tlx_send_resp_and_data(&afu_event, afu_tlx_resp_opcode, afu_tlx_resp_dl, 
@@ -597,7 +598,9 @@ AFU::tlx_pr_wr_mem()
 	tlx_afu_read_cmd_data(&afu_event, &cmd_data_bdi, afu_event.afu_tlx_cdata_bus);
 	memcpy(&mem_data, afu_event.afu_tlx_cdata_bus, 8);
 	debug_msg("mem_data offset = 0x%x mem_data = 0x%016llx", cmd_pa, mem_data);
-	descriptor.set_port_reg(cmd_pa, mem_data);
+	// mmio write
+	descriptor.set_mmio(cmd_pa, (char*)&mem_data, 8);
+	//descriptor.set_port_reg(cmd_pa, mem_data);
 	debug_msg("set config_state = IDLE");
 	config_state = IDLE;
     }
