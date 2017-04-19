@@ -204,6 +204,7 @@ void tlx_bfm(
   if(!c_reset_d2)
   {
     if ( tlx_clock == sv_0 ) {
+      // printf("lgt: tlx_bfm: clock = 0\n" );
 	//	Accessing inputs from the AFX
       c_afu_tlx_cmd_initial_credit  	= (afu_tlx_cmd_initial_credit_top->aval) & 0x1F;
       invalidVal			+= (afu_tlx_cmd_initial_credit_top->bval) & 0x1F;
@@ -315,6 +316,9 @@ void tlx_bfm(
 		c_afu_tlx_cdata_bus, c_afu_tlx_cdata_bdi
         );
       }
+
+      // is an afu_tlx response (resp and/or rdata) valid
+      // if yes, call the appropiate tlx_interface routine to send a response or a response with data to "host"
       invalidVal = 0;
       c_afu_tlx_resp_valid  	= (afu_tlx_resp_valid_top & 0x2) ? 0 : (afu_tlx_resp_valid_top & 0x1);
       invalidVal			= afu_tlx_resp_valid_top & 0x2;
@@ -414,6 +418,7 @@ void tlx_bfm(
       }
 #endif
     } else {
+      // printf("lgt: tlx_bfm: clock = 1\n" );
       c_sim_error = 0;
       tlx_control();
       if(event.tlx_afu_resp_valid)
@@ -495,6 +500,7 @@ void tlx_bfm(
     	if (!clk_afu_cmd_dat_val)
     		*tlx_afu_cmd_data_valid_top = 0;
       }
+      // printf("lgt: tlx_bfm: driving tlx to afu credits\n");
       *tlx_afu_resp_credit_top 		= (event.tlx_afu_resp_credit) & 0x1;
       *tlx_afu_resp_data_credit_top 	= (event.tlx_afu_resp_data_credit) & 0x1;
       *tlx_afu_cmd_credit_top	 	= (event.tlx_afu_cmd_credit) & 0x1;
@@ -502,6 +508,12 @@ void tlx_bfm(
       setDpiSignal32(tlx_afu_cmd_resp_initial_credit_top, event.tlx_afu_cmd_resp_initial_credit, 3);
       setDpiSignal32(tlx_afu_data_initial_credit_top, event.tlx_afu_data_initial_credit, 4);
       *tlx_afu_ready_top			= 1;	// TODO: need to check this
+      // printf("lgt: tlx_bfm: clearing tlx to afu credits\n");
+      // remember to clear the credits in the event because a clock only cycle will not update the event structure
+      event.tlx_afu_resp_credit = 0;
+      event.tlx_afu_resp_data_credit = 0;
+      event.tlx_afu_cmd_credit = 0;
+      event.tlx_afu_cmd_data_credit = 0;
     }
   }
   c_reset_d2 = c_reset_d1;
@@ -642,7 +654,7 @@ static void tlx_control(void)
 	select(event.sockfd + 1, &watchset, NULL, NULL, NULL);
 	//printf("lgt: tlx_control: %08lld: calling get tlx events... \n", (long long) c_sim_time);
 	int rc = tlx_get_tlx_events(&event);
-	//printf("lgt: tlx_control: returned from get tlx events\n");
+	// printf("lgt: tlx_control: returned from tlx_get_tlx_events\n");
 	// No clock edge
 	while (!rc) {
 	  select(event.sockfd + 1, &watchset, NULL, NULL, NULL);
