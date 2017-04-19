@@ -610,7 +610,7 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 	 //   (handle >= cmd->max_clients) || ((cmd->client[handle]) == NULL)) {
 	//	_add_other(cmd_opcode, handle, tag, command, abort,
 	//		   TLX_RESPONSE_FAILED);
-		return;
+	//	return;
 	//}
 	// Client is flushing new commands - do we still do this??
 	//if ((cmd->client[handle]->flushing == FLUSH_FLUSHING) &&
