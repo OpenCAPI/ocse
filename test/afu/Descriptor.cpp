@@ -11,7 +11,7 @@ using std::string;
 using std::ifstream;
 using std::stringstream;
 
-Descriptor::Descriptor (string filename):vsec(0x600), port(0x1000), afu_desc(0x300), regs (DESCRIPTOR_NUM_REGS)
+Descriptor::Descriptor (string filename):vsec(0x600), port(0x1000), afu_desc(0x300), regs (DESCRIPTOR_NUM_REGS), mmio(0x4000)
 {
     info_msg ("Descriptor: Reading descriptor %s file", filename.c_str ());
     parse_descriptor_file (filename);
@@ -259,4 +259,22 @@ Descriptor::set_afu_desc_reg(uint32_t offset, uint32_t data)
     afu_desc[offset] = data;
 }
 
+// mmio memory 
+void
+Descriptor::set_mmio(uint32_t offset, char *data, uint32_t size)
+{
+    if(offset > 0x4000) {
+	printf("MMIO memory out of range\n");
+    }
+    memcpy(&data, &mmio[offset], size);
+}
+
+void
+Descriptor::get_mmio(uint32_t offset, char *data, uint32_t size)
+{
+    if(offset > 0x4000) {
+	printf("get_mmio address out of range\n");
+    }
+    memcpy(&mmio[offset], &data, size);
+}
 
