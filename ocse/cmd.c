@@ -2136,8 +2136,16 @@ void handle_response(struct cmd *cmd)
 			tlx_signal_afu_model(cmd->afu_event);
 			tlx_get_afu_events(cmd->afu_event);
 		}
-	}
-	rc = tlx_response(cmd->afu_event, event->tag, event->resp, 1, 0, 0, cmd->pagesize, event->resp_extra);
+	} */
+
+	// lgt: this should probably be tlx_afu_send_resp_and_data
+	// lgt: the trick is going to be how do we deal with the various sizes of data
+	// lgt: do we transmit it all to afu_driver and let afu_driver partition it up?
+	// lgt: do we buffer it in tlx_interface somehow?
+	// lgt: the sad fact is that ocse is saving all the information to make the correct decisions and afu_driver is not.
+	// rc = tlx_response(cmd->afu_event, event->tag, event->resp, 1, 0, 0, cmd->pagesize, event->resp_extra);
+
+	/*
 	debug_msg("returning pagesize value of 0x%x and resp_extra = 0x%x" , cmd->pagesize, event->resp_extra);
 	if (rc == TLX_SUCCESS) {
 		debug_msg("%s:RESPONSE event @ 0x%016" PRIx64 ", sent tag=0x%02x code=0x%x", cmd->afu_name,
