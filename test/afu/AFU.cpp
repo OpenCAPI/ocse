@@ -424,7 +424,11 @@ AFU::tlx_afu_config_read()
     info_msg("AFU: BDF = 0x%x", bdf);
     info_msg("AFU: resp_capptag = 0x%x", afu_tlx_resp_capptag);
     memcpy(&afu_event.afu_tlx_rdata_bus, &vsec_data, data_size); 
-    byte_shift(afu_event.afu_tlx_rdata_bus, data_size, byte_offset);  
+    byte_shift(afu_event.afu_tlx_rdata_bus, data_size, byte_offset, RIGHT);  
+    printf("rdata_bus = 0x");
+    for(uint8_t i=0; i<64; i++)
+	printf("%02x", afu_event.afu_tlx_rdata_bus[i]);
+    printf("\n");
     info_msg("AFU: vsec_offset = 0x%x vsec_data = 0x%x", vsec_offset, vsec_data);
     if(TagManager::request_tlx_credit(RESP_DATA_CREDIT) && 
        TagManager::request_tlx_credit(RESP_CREDIT)) {
@@ -455,6 +459,7 @@ AFU::tlx_afu_config_write()
     uint8_t  byte_offset, data_size;
     uint32_t config_data, port_data, port_offset, vsec_offset;
     uint32_t cmd_pa;
+    
     debug_msg("AFU::tlx_afu_config_write");
     resp_capptag = afu_event.tlx_afu_cmd_capptag;
     cmd_pa = afu_event.tlx_afu_cmd_pa & 0x0000FFFC;   
@@ -472,7 +477,7 @@ AFU::tlx_afu_config_write()
 	    }
 	}
 	else {
-	    error_msg("AFU: no cmd data credit available");
+	    error_msg("AFU:tlx_afu_config_write: no cmd data credit available");
 	}
     	config_state = READY;
 	debug_msg("AFU: Set config_state = READY");
@@ -481,19 +486,24 @@ AFU::tlx_afu_config_write()
 	data_size = 4;
 	byte_offset = 0x0000003F & afu_event.tlx_afu_cmd_pa;
 	tlx_afu_read_cmd_data(&afu_event, &cmd_data_bdi, afu_event.afu_tlx_cdata_bus);
-   	byte_shift(afu_event.afu_tlx_cdata_bus, data_size, byte_offset); 
+	printf("cdata_bus = 0x");
+	for(uint8_t i=0; i<64; i++)
+	    printf("%02x", afu_event.afu_tlx_cdata_bus[i]);
+	printf("\n");
+   	byte_shift(afu_event.afu_tlx_cdata_bus, data_size, byte_offset, LEFT); 
 	memcpy(&config_data, afu_event.afu_tlx_cdata_bus, data_size);
-	debug_msg("AFU:config_write: config_data = 0x%x", config_data);
+	debug_msg("AFU:config_write: config_data (afu_desc offset) = 0x%x", config_data);
  	debug_msg("AFU:config_write: cmd_pa = 0x%x", cmd_pa);
-   	if(cmd_pa == 0x40c) {		// descriptor config write address port
-	    port_offset = config_data;	// get descriptor offset
+	debug_msg("AFU:config_write: byte_offset = 0x%x", byte_offset);
+   	if(cmd_pa == 0x40c) {		// config write port
+	    port_offset = config_data;	// get afu descriptor offset
 	    if(port_offset < 0x0FFF) {
-		port_data = descriptor.get_afu_desc_reg(port_offset);
-		descriptor.set_afu_desc_reg(0x410, port_data);
+		port_data = descriptor.get_afu_desc_reg(port_offset);	// get afu desc data
+		descriptor.set_afu_desc_reg(0x410, port_data);		// write afu desc data to read port
 	    }
 	    else {
-	    	port_data = descriptor.get_port_reg(port_offset);	// get descriptor data
-	    	descriptor.set_vsec_reg(0x410, port_data);		// write data to read port 0x410
+	    	port_data = descriptor.get_port_reg(port_offset);	// get vsec data
+	    	descriptor.set_vsec_reg(0x410, port_data);		// write data to read port
 	    }
 	    port_offset = port_offset | 0x80000000;		// set bit 31 to write port 0x40c
 	    descriptor.set_vsec_reg(0x40c, port_offset);
@@ -517,8 +527,6 @@ AFU::tlx_afu_config_write()
 	}
 	    
 	config_state = IDLE;
-	for(int i=0; i<4; i++)
-	    printf("%02x", afu_event.afu_tlx_cdata_bus[i]);
 	printf("\nafu_tlx_cdata_bus\n");
     }
 }
@@ -547,10 +555,10 @@ AFU::tlx_pr_rd_mem()
     debug_msg("AFU:tlx_pr_rd_mem");
     
     // mmio read data
-    descriptor.get_mmio(mem_offset, (char*)&mem_data, data_size);
+    descriptor.get_mmio_mem(mem_offset, (char*)&mem_data, data_size);
     debug_msg("mem_offset = 0x%x mem_data = 0x%016llx", mem_offset, mem_data);
     memcpy(&afu_event.afu_tlx_rdata_bus, &mem_data, data_size);
-    byte_shift(afu_event.afu_tlx_rdata_bus, data_size, mem_offset);
+    byte_shift(afu_event.afu_tlx_rdata_bus, data_size, mem_offset, RIGHT);
     if(TagManager::request_tlx_credit(RESP_DATA_CREDIT) && 
        TagManager::request_tlx_credit(RESP_CREDIT)) {
         if(afu_tlx_send_resp_and_data(&afu_event, afu_tlx_resp_opcode, afu_tlx_resp_dl, 
@@ -574,9 +582,17 @@ AFU::tlx_pr_wr_mem()
     uint8_t  cmd_data_bdi;
     uint32_t cmd_pa;
     uint64_t mem_data;
+    uint8_t  afu_resp_opcode;
+    uint8_t  resp_dl = 0;
+    uint16_t resp_capptag;
+    uint8_t  resp_dp = 0;
+    uint8_t  resp_code = 0;
+    uint8_t  byte_offset;
 
     debug_msg("AFU:tlx_pr_wr_mem");
     cmd_pa = afu_event.tlx_afu_cmd_pa & 0x0000FFFC;
+    resp_capptag = afu_event.tlx_afu_cmd_capptag;
+    byte_offset = 0x0000003F & afu_event.tlx_afu_cmd_pa;
 
     if(mem_state == IDLE) {
 	afu_tlx_cmd_rd_req = 0x1;
@@ -587,34 +603,57 @@ AFU::tlx_pr_wr_mem()
 	        TLX_SUCCESS) {
 	    	printf("AFU: Failed afu_tlx_resp_data_read_req\n");
 	    }
-	    else {
-	    	error_msg("AFU: no cmd data credit available");
-	    }
-    	}
+	}
+	else {
+	    	error_msg("AFU:tlx_pr_wr_mem: no cmd data credit available");
+	}
 	debug_msg("AFU: set mem_state = READY");
 	mem_state = READY;
     }
-    else if(config_state == READY) {
+    else if(mem_state == READY) {
 	tlx_afu_read_cmd_data(&afu_event, &cmd_data_bdi, afu_event.afu_tlx_cdata_bus);
+	byte_shift(afu_event.afu_tlx_cdata_bus, 8, byte_offset, LEFT);
 	memcpy(&mem_data, afu_event.afu_tlx_cdata_bus, 8);
 	debug_msg("mem_data offset = 0x%x mem_data = 0x%016llx", cmd_pa, mem_data);
 	// mmio write
-	descriptor.set_mmio(cmd_pa, (char*)&mem_data, 8);
+	descriptor.set_mmio_mem(cmd_pa, (char*)&mem_data, 8);
 	//descriptor.set_port_reg(cmd_pa, mem_data);
-	debug_msg("set config_state = IDLE");
-	config_state = IDLE;
+	afu_resp_opcode = 0x04;		// mem write resp
+	resp_code = 0x0;
+	if(TagManager::request_tlx_credit(RESP_CREDIT)) {
+            if(afu_tlx_send_resp(&afu_event, afu_resp_opcode, resp_dl, resp_capptag,
+			resp_dp, resp_code) != TLX_SUCCESS) {
+	    	printf("AFU: Failed afu_tlx_send_resp\n");
+	    }
+	}
+	else {
+		error_msg("AFU: no resp credit available");
+	}
+	debug_msg("set mem_state = IDLE");
+	mem_state = IDLE;
     }
 }
 
 
 void
-AFU::byte_shift(unsigned char *array, uint8_t size, uint8_t offset)
+AFU::byte_shift(unsigned char *array, uint8_t size, uint8_t offset, uint8_t direction)
 {
-    int i;
-    for(i=0; i<size; i++)
-    {
-	array[offset+i] = array[i];
-	//array[i] = 0;
+    uint8_t i;
+    switch(direction) {
+    case LEFT: 
+    	for(i=0; i<size; i++)
+    	{
+	    array[i] = array[offset+i];
+    	}
+	break;
+    case RIGHT:
+	for(i=0; i<size; i++)
+	{
+	    array[offset+i] = array[i];
+	}
+	break;
+    default:
+	break;
     }
 }
 

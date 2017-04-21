@@ -13,6 +13,9 @@ extern "C" {
 #include <string>
 #include <vector>
 
+#define RIGHT	1
+#define LEFT	0
+
 class AFU
 {
 private:
@@ -44,7 +47,7 @@ private:
     void tlx_afu_config_write();
     void tlx_pr_rd_mem();
     void tlx_pr_wr_mem();
-    void byte_shift(unsigned char* array, uint8_t size, uint8_t offset);
+    void byte_shift(unsigned char* array, uint8_t size, uint8_t offset, uint8_t direction);
     void resolve_control_event ();
     void resolve_response_event (uint32_t cycle);
     void set_seed ();

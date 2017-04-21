@@ -207,15 +207,17 @@ uint32_t
 Descriptor::get_vsec_reg(uint32_t vsec_offset)
 {
     uint32_t vsec_data, offset;
-    //uint8_t byte_offset;
 
     offset = vsec_offset & 0x0000FFFC;
-    if(offset < 0x1000) {
+    if(offset == 0x410) {	// read afu desc reg
+	vsec_data = afu_desc[offset];
+    }
+    else if(offset < 0x1000) {	// read vsec reg
     	vsec_data = vsec[offset];
     }
-    else if (offset >= 0x1000) {
-	vsec_data = port[offset];
-    }
+    //else if (offset >= 0x1000) {
+//	vsec_data = port[offset];
+//    }
 
     return vsec_data;
 }
@@ -223,7 +225,7 @@ Descriptor::get_vsec_reg(uint32_t vsec_offset)
 void
 Descriptor::set_vsec_reg(uint32_t vsec_offset, uint32_t vsec_data)
 {
-    if(vsec_offset < 0x1000) {
+    if(vsec_offset < 0x1000) {	// write to vsec reg
         vsec[vsec_offset] = vsec_data;
     } 
     else if(vsec_offset > 0x1000) {
@@ -261,20 +263,38 @@ Descriptor::set_afu_desc_reg(uint32_t offset, uint32_t data)
 
 // mmio memory 
 void
-Descriptor::set_mmio(uint32_t offset, char *data, uint32_t size)
+Descriptor::set_mmio_mem(uint32_t offset, char *data, uint8_t size)
 {
+    uint8_t i;
+    debug_msg("Descriptor:set_mmio_mem");
     if(offset > 0x4000) {
-	printf("MMIO memory out of range\n");
+	error_msg("Descriptor:set_mmio memory out of range");
     }
-    memcpy(&data, &mmio[offset], size);
+    //memcpy(&mmio[offset], &data, size);
+    for(i=0; i<size; i++)
+	mmio[offset+i] = data[i];
+    printf("MMIO offset = 0x%x data = 0x", offset);
+    for(i=0; i< size; i++)
+	printf("%02x", mmio[offset+i]);
+    printf("\n");
+    debug_msg("Descriptor:set_mmio: exit");
 }
 
 void
-Descriptor::get_mmio(uint32_t offset, char *data, uint32_t size)
+Descriptor::get_mmio_mem(uint32_t offset, char *data, uint8_t size)
 {
+    uint8_t i;
+    debug_msg("Descriptor:get_mmio_mem");
     if(offset > 0x4000) {
-	printf("get_mmio address out of range\n");
+	error_msg("Descriptor:get_mmio address out of range\n");
     }
-    memcpy(&mmio[offset], &data, size);
+    //memcpy(&data, &mmio[offset], size);
+    for(i=0; i<size; i++)
+	data[i] = mmio[offset+i];
+    printf("MMIO offset = 0x%x data = 0x", offset);
+    for(i=0; i<size; i++)
+	printf("%02x",data[i]);
+    printf("\n");
+    debug_msg("Descriptor:get_mmio: exit");
 }
 
