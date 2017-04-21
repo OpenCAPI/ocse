@@ -86,6 +86,42 @@ struct cmd *cmd_init(struct AFU_EVENT *afu_event, struct parms *parms,
 	return cmd;
 }
 
+// find a client that has a matching pasid and bdf.  return pointer to client
+static struct client *_find_client_by_pasid_and_bdf(struct cmd *cmd, uint16_t cmd_bdf, uint32_t cmd_pasid)
+{
+  // search the client array in cmd for a matching pasid and bdf
+  // return NULL for no matching client
+  // cmd->client[i]->pasid and bdr, right?
+  int32_t i;
+
+  for (i = 0; i < cmd->max_clients; i++) {
+    if (cmd->client[i] != NULL) {
+      if ( ( cmd->client[i]->bdf == cmd_bdf ) && (cmd->client[i]->pasid == cmd_pasid ) ) {
+	  return cmd->client[i];
+      }
+    }
+  }
+  return NULL;
+}
+
+// find a client that has a matching actag.  return pointer to client
+static int32_t _find_client_by_actag(struct cmd *cmd, uint16_t cmd_actag)
+{
+  // search the client array in cmd for a matching pasid and bdf
+  // return -1 for no matching client
+  // cmd->client[i]->pasid and bdr, right?
+  int32_t i;
+
+  for (i = 0; i < cmd->max_clients; i++) {
+    if (cmd->client[i] != NULL) {
+      if ( cmd->client[i]->actag == cmd_actag ) {
+	  return i;
+      }
+    }
+  }
+  return -1;
+}
+
 static void _print_event(struct cmd_event *event)
 {
 	printf("Command event: client=");
@@ -178,7 +214,7 @@ static struct client *_get_client(struct cmd *cmd, struct cmd_event *event)
 
 // Add new command to list
 static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t tag,
-		     uint32_t command, uint32_t abort, enum cmd_type type,
+		     uint32_t command, enum cmd_type type,
 		     uint64_t addr, uint32_t size, enum mem_state state,
 		     uint32_t resp, uint8_t unlock)
 {
@@ -191,7 +227,6 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t tag,
 	event->context = context;
 	event->command = command;
 	event->tag = tag;
-	event->abt = abort;
 	event->type = type;
 	event->addr = addr;
 	event->size = size;
@@ -203,9 +238,10 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t tag,
 	else
 		event->resp_extra = 0;
 	event->unlock = unlock;
-	// make sure data buffer is big enough to hold 512B (MAX DMA xfer)
+	// make sure data buffer is big enough to hold 256B (MAX memory transfer for OpenCAPI 3.0)
 	event->data = (uint8_t *) malloc(CACHELINE_BYTES * 4);
 	memset(event->data, 0xFF, CACHELINE_BYTES * 4);
+	// lgt may not need cpl xfers to go and parity
 	event->cpl_xfers_to_go = 0;  //init this to 0 (used for DMA read multi completion flow)
 	event->parity = (uint8_t *) malloc(DWORDS_PER_CACHELINE / 8);
 	memset(event->parity, 0xFF, DWORDS_PER_CACHELINE / 8);
@@ -226,31 +262,34 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t tag,
 }
 
 // Format and add interrupt to command list
-static void _add_interrupt(struct cmd *cmd, uint32_t handle, uint32_t tag,
-			   uint32_t command, uint32_t abort, uint16_t irq)
-{
-	uint32_t resp = TLX_RESPONSE_DONE;
-	enum cmd_type type = CMD_INTERRUPT;
+/* static void _add_interrupt(struct cmd *cmd, uint32_t handle, uint32_t tag, */
+/* 			   uint32_t command, uint32_t abort, uint16_t irq) */
+/* { */
+/* 	uint32_t resp = TLX_RESPONSE_DONE; */
+/* 	enum cmd_type type = CMD_INTERRUPT; */
 
-	if (!irq || (irq > cmd->client[handle]->max_irqs)) {
-		warn_msg("AFU issued interrupt with illegal source id");
-		resp = TLX_RESPONSE_FAILED;
-		type = CMD_OTHER;
-		goto int_done;
-	}
-	// Only track first interrupt until software reads event
-	if (!cmd->irq)
-		cmd->irq = irq;
- int_done:
-	_add_cmd(cmd, handle, tag, command, abort, type, (uint64_t) irq, 0,
-		 MEM_IDLE, resp, 0);
-}
+/* 	if (!irq || (irq > cmd->client[handle]->max_irqs)) { */
+/* 		warn_msg("AFU issued interrupt with illegal source id"); */
+/* 		resp = TLX_RESPONSE_FAILED; */
+/* 		type = CMD_OTHER; */
+/* 		goto int_done; */
+/* 	} */
+/* 	// Only track first interrupt until software reads event */
+/* 	if (!cmd->irq) */
+/* 		cmd->irq = irq; */
+/*  int_done: */
+/* 	_add_cmd(cmd, handle, tag, command, abort, type, (uint64_t) irq, 0, */
+/* 		 MEM_IDLE, resp, 0); */
+/* } */
 
 // Format and add misc. command to list
-static void _add_other(struct cmd *cmd, uint32_t handle, uint32_t tag,
-		       uint32_t command, uint32_t abort, uint32_t resp)
+static void _add_other(struct cmd *cmd, uint16_t actag, uint32_t afutag,
+		       uint32_t cmd_opcode, uint32_t resp)
 {
-	_add_cmd(cmd, handle, tag, command, abort, CMD_OTHER, 0, 0, MEM_DONE,
+        int32_t context;
+ 
+        context = _find_client_by_actag(cmd, actag);
+	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_OTHER, 0, 0, MEM_DONE,
 		 resp, 0);
 }
 
@@ -258,6 +297,7 @@ static void _add_other(struct cmd *cmd, uint32_t handle, uint32_t tag,
 static int _aligned(uint64_t addr, uint32_t size)
 {
 	// Check valid size
+        // that is, size must be a power of 2
 	if ((size == 0) || (size & (size - 1))) {
 		warn_msg("AFU issued command with invalid size %d", size);
 		return 0;
@@ -275,171 +315,208 @@ static int _aligned(uint64_t addr, uint32_t size)
 
 // Format and add new p9 commands to list
 
-static void _add_caia2(struct cmd *cmd, uint32_t handle, uint32_t tag,
-		       uint32_t command, uint32_t abort, uint64_t addr)
-{
-	uint32_t resp = TLX_RESPONSE_DONE;
-	enum cmd_type type = CMD_CAIA2;
-	enum mem_state state = MEM_DONE;
+/* static void _add_caia2(struct cmd *cmd, uint32_t handle, uint32_t tag, */
+/* 		       uint32_t command, uint32_t abort, uint64_t addr) */
+/* { */
+/* 	uint32_t resp = TLX_RESPONSE_DONE; */
+/* 	enum cmd_type type = CMD_CAIA2; */
+/* 	enum mem_state state = MEM_DONE; */
 
-/* 	switch (command) {
-		case TLX_COMMAND_CAS_E_4B:
-		case TLX_COMMAND_CAS_NE_4B:
-		case TLX_COMMAND_CAS_U_4B:
-			//printf("in _add_caia2 for cmd_CAS 4B, address is 0x%016"PRIX64 "\n", addr);
-			// Check command size and address
-			if (!_aligned(addr, 16)) {
-				_add_other(cmd, handle, tag, command, abort,
-			  	 TLX_RESPONSE_FAILED);
-			return;
-			}
-			type = CMD_CAS_4B;
-			state = MEM_IDLE;
-			break;
-		case TLX_COMMAND_CAS_E_8B:
-		case TLX_COMMAND_CAS_NE_8B:
-		case TLX_COMMAND_CAS_U_8B:
-			//printf("in _add_caia2 for cmd_CAS 8B, address is 0x%016"PRIX64 "\n", addr);
-			// Check command size and address
-			if (!_aligned(addr,16)) {
-			_add_other(cmd, handle, tag, command, abort,
-			   	TLX_RESPONSE_FAILED);
-			return;
-			}
-			type = CMD_CAS_8B;
-			state = MEM_IDLE;
-			break;
-		case TLX_COMMAND_XLAT_RD_P0:
-	rc =  afu_tlx_read_cmd_and_data(cmd->afu_event,
-  		    &cmd_opcode, &cmd_actag,
-  		    &cmd_stream_id, &cmd_ea_or_obj,
- 		    &cmd_afutag, &cmd_dl,
-  		    &cmd_pl,
-#ifdef TLX4
-		    &cmd_os,
-#endif
-		    &cmd_be, &cmd_flag,
- 		    &cmd_endian, &cmd_bdf,
-  	  	    &cmd_pasid, &cmd_pg_size, &cmd_data_is_valid,
- 		    dptr, &cdata_bad);
-			type = CMD_XLAT_RD;
-			state = DMA_ITAG_REQ;
-			break;
-		case TLX_COMMAND_XLAT_WR_P0:
-			type = CMD_XLAT_WR;
-			state = DMA_ITAG_REQ;
-			break;
-		case TLX_COMMAND_XLAT_RD_TOUCH:
-			type = CMD_XLAT_RD_TOUCH;
-			//state = DMA_ITAG_REQ;
-			state = MEM_IDLE;
-			break;
-		case TLX_COMMAND_XLAT_WR_TOUCH:
-			type = CMD_XLAT_WR_TOUCH;
-			//state = DMA_ITAG_REQ;
-			state = MEM_IDLE;
-			break;
-		case TLX_COMMAND_ITAG_ABRT_RD:
-			type = CMD_ITAG_ABRT_RD;
-			state = DMA_ITAG_REQ;
-			break;
-		case TLX_COMMAND_ITAG_ABRT_WR:
-			type = CMD_ITAG_ABRT_WR;
-			state = DMA_ITAG_REQ;
-			break;
-		default:
-			warn_msg("Unsupported command 0x%04x", cmd);
-			break;
+/* /\* 	switch (command) { */
+/* 		case TLX_COMMAND_CAS_E_4B: */
+/* 		case TLX_COMMAND_CAS_NE_4B: */
+/* 		case TLX_COMMAND_CAS_U_4B: */
+/* 			//printf("in _add_caia2 for cmd_CAS 4B, address is 0x%016"PRIX64 "\n", addr); */
+/* 			// Check command size and address */
+/* 			if (!_aligned(addr, 16)) { */
+/* 				_add_other(cmd, handle, tag, command, abort, */
+/* 			  	 TLX_RESPONSE_FAILED); */
+/* 			return; */
+/* 			} */
+/* 			type = CMD_CAS_4B; */
+/* 			state = MEM_IDLE; */
+/* 			break; */
+/* 		case TLX_COMMAND_CAS_E_8B: */
+/* 		case TLX_COMMAND_CAS_NE_8B: */
+/* 		case TLX_COMMAND_CAS_U_8B: */
+/* 			//printf("in _add_caia2 for cmd_CAS 8B, address is 0x%016"PRIX64 "\n", addr); */
+/* 			// Check command size and address */
+/* 			if (!_aligned(addr,16)) { */
+/* 			_add_other(cmd, handle, tag, command, abort, */
+/* 			   	TLX_RESPONSE_FAILED); */
+/* 			return; */
+/* 			} */
+/* 			type = CMD_CAS_8B; */
+/* 			state = MEM_IDLE; */
+/* 			break; */
+/* 		case TLX_COMMAND_XLAT_RD_P0: */
+/* 	rc =  afu_tlx_read_cmd_and_data(cmd->afu_event, */
+/*   		    &cmd_opcode, &cmd_actag, */
+/*   		    &cmd_stream_id, &cmd_ea_or_obj, */
+/*  		    &cmd_afutag, &cmd_dl, */
+/*   		    &cmd_pl, */
+/* #ifdef TLX4 */
+/* 		    &cmd_os, */
+/* #endif */
+/* 		    &cmd_be, &cmd_flag, */
+/*  		    &cmd_endian, &cmd_bdf, */
+/*   	  	    &cmd_pasid, &cmd_pg_size, &cmd_data_is_valid, */
+/*  		    dptr, &cdata_bad); */
+/* 			type = CMD_XLAT_RD; */
+/* 			state = DMA_ITAG_REQ; */
+/* 			break; */
+/* 		case TLX_COMMAND_XLAT_WR_P0: */
+/* 			type = CMD_XLAT_WR; */
+/* 			state = DMA_ITAG_REQ; */
+/* 			break; */
+/* 		case TLX_COMMAND_XLAT_RD_TOUCH: */
+/* 			type = CMD_XLAT_RD_TOUCH; */
+/* 			//state = DMA_ITAG_REQ; */
+/* 			state = MEM_IDLE; */
+/* 			break; */
+/* 		case TLX_COMMAND_XLAT_WR_TOUCH: */
+/* 			type = CMD_XLAT_WR_TOUCH; */
+/* 			//state = DMA_ITAG_REQ; */
+/* 			state = MEM_IDLE; */
+/* 			break; */
+/* 		case TLX_COMMAND_ITAG_ABRT_RD: */
+/* 			type = CMD_ITAG_ABRT_RD; */
+/* 			state = DMA_ITAG_REQ; */
+/* 			break; */
+/* 		case TLX_COMMAND_ITAG_ABRT_WR: */
+/* 			type = CMD_ITAG_ABRT_WR; */
+/* 			state = DMA_ITAG_REQ; */
+/* 			break; */
+/* 		default: */
+/* 			warn_msg("Unsupported command 0x%04x", cmd); */
+/* 			break; */
 
-	} */
-	_add_cmd(cmd, handle, tag, command, abort, type, addr, 0, state,
-		 resp, 0 );
-}
+/* 	} *\/ */
+/* 	_add_cmd(cmd, handle, tag, command, abort, type, addr, 0, state, */
+/* 		 resp, 0 ); */
+/* } */
 
 // Format and add memory touch to command list
-static void _add_touch(struct cmd *cmd, uint32_t handle, uint32_t tag,
-		       uint32_t command, uint32_t abort, uint64_t addr,
-		       uint32_t size, uint8_t unlock)
-{
-	// Check command size and address
-	if (!_aligned(addr, size)) {
-		_add_other(cmd, handle, tag, command, abort,
-			   TLX_RESPONSE_FAILED);
-		return;
-	}
-	_add_cmd(cmd, handle, tag, command, abort, CMD_TOUCH, addr,
-		 CACHELINE_BYTES, MEM_IDLE, TLX_RESPONSE_DONE, unlock);
-}
+/* static void _add_touch(struct cmd *cmd, uint32_t handle, uint32_t tag, */
+/* 		       uint32_t command, uint32_t abort, uint64_t addr, */
+/* 		       uint32_t size, uint8_t unlock) */
+/* { */
+/* 	// Check command size and address */
+/* 	if (!_aligned(addr, size)) { */
+/* 		_add_other(cmd, handle, tag, command, abort, */
+/* 			   TLX_RESPONSE_FAILED); */
+/* 		return; */
+/* 	} */
+/* 	_add_cmd(cmd, handle, tag, command, abort, CMD_TOUCH, addr, */
+/* 		 CACHELINE_BYTES, MEM_IDLE, TLX_RESPONSE_DONE, unlock); */
+/* } */
 
 // Format and add unlock to command list
-static void _add_unlock(struct cmd *cmd, uint32_t handle, uint32_t tag,
-			uint32_t command, uint32_t abort)
-{
-	_add_cmd(cmd, handle, tag, command, abort, CMD_OTHER, 0, 0, MEM_DONE,
-		 TLX_RESPONSE_DONE, 0);
-}
+/* static void _add_unlock(struct cmd *cmd, uint32_t handle, uint32_t tag, */
+/* 			uint32_t command, uint32_t abort) */
+/* { */
+/* 	_add_cmd(cmd, handle, tag, command, abort, CMD_OTHER, 0, 0, MEM_DONE, */
+/* 		 TLX_RESPONSE_DONE, 0); */
+/* } */
 
 // format a read_pe command and add it to the command list
-static void _add_read_pe(struct cmd *cmd, uint32_t handle, uint32_t tag,
-		      uint32_t command, uint32_t abort, uint64_t addr,
-		      uint32_t size)
+/* static void _add_read_pe(struct cmd *cmd, uint32_t handle, uint32_t tag, */
+/* 		      uint32_t command, uint32_t abort, uint64_t addr, */
+/* 		      uint32_t size) */
+/* { */
+/*         // ultimately, this generates a return on the write buffer interface of the cacheline representing the pe */
+/*         // pe struct is basically all 0 except for WED */
+/*         // what parms does read_pe really need? */
+/*         // maybe only the handle and the tag */
+/*         // Check command size and address - not used in read_pe */
+/* 	// if (!_aligned(addr, size)) { */
+/* 	// 	_add_other(cmd, handle, tag, command, abort, */
+/* 	//		   TLX_RESPONSE_FAILED); */
+/* 	//	return; */
+/* 	// } */
+/* 	// Reads will be added to the list and will next be processed */
+/* 	// in the function handle_buffer_write() */
+/* 	// should this just call handle_buffer_write_pe??? */
+/*         //printf( "in _add_read_pe \n" ); */
+/* 	_add_cmd(cmd, handle, tag, command, abort, CMD_READ_PE, addr, size, */
+/* 		 MEM_IDLE, TLX_RESPONSE_DONE, 0); */
+/* } */
+
+// Format and add memory read to command list
+static void _assign_actag(struct cmd *cmd, uint16_t cmd_bdf, uint32_t cmd_pasid, uint16_t actag)
 {
-        // ultimately, this generates a return on the write buffer interface of the cacheline representing the pe
-        // pe struct is basically all 0 except for WED
-        // what parms does read_pe really need?
-        // maybe only the handle and the tag
-        // Check command size and address - not used in read_pe
-	// if (!_aligned(addr, size)) {
-	// 	_add_other(cmd, handle, tag, command, abort,
-	//		   TLX_RESPONSE_FAILED);
-	//	return;
-	// }
-	// Reads will be added to the list and will next be processed
-	// in the function handle_buffer_write()
-	// should this just call handle_buffer_write_pe???
-        //printf( "in _add_read_pe \n" );
-	_add_cmd(cmd, handle, tag, command, abort, CMD_READ_PE, addr, size,
-		 MEM_IDLE, TLX_RESPONSE_DONE, 0);
+  struct client *client;
+  // search the client array in cmd for a matching pasid and bdf.  fill in the actag field.
+  client = _find_client_by_pasid_and_bdf(cmd, cmd_bdf, cmd_pasid);
+  if (client == NULL) {
+    // some kind of error and return...  no way to respond to afu, so just a message???
+    return;
+  }
+  client->actag = actag;
+  return;
 }
 
 // Format and add memory read to command list
-static void _add_read(struct cmd *cmd, uint32_t handle, uint32_t tag,
-		      uint32_t command, uint32_t abort, uint64_t addr,
-		      uint32_t size)
+static void _add_read(struct cmd *cmd, uint16_t actag, uint16_t afutag,
+		      uint8_t cmd_opcode, uint8_t *cmd_ea_or_obj, uint8_t cmd_dl, uint8_t cmd_pl)
 {
+        int32_t context;
+        int32_t size;
+        int64_t addr;
+ 
+        // convert 68 bit ea/obj to 64 bit addr
+        // for ap read commands, ea_or_obj is a 64 bit thing...
+        memcpy( (void *)&addr, (void *)&(cmd_ea_or_obj[0]), sizeof(int64_t));
+
+        // decode dl/pl to get a size in bytes
+        size = dl_pl_to_size( cmd_dl, cmd_pl );
+
 	// Check command size and address
 	if (!_aligned(addr, size)) {
-		_add_other(cmd, handle, tag, command, abort,
+	  _add_other(cmd, actag, afutag, cmd_opcode,
 			   TLX_RESPONSE_FAILED);
 		return;
 	}
+
+        // convert actag to a context - search the client array contained in cmd for a client with matching actag
+	context = _find_client_by_actag(cmd, actag);
+
 	// Reads will be added to the list and will next be processed
 	// in the function handle_buffer_write()
-	_add_cmd(cmd, handle, tag, command, abort, CMD_READ, addr, size,
+	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_READ, addr, size,
 		 MEM_IDLE, TLX_RESPONSE_DONE, 0);
 }
 
 // Format and add memory write to command list
-static void _add_write(struct cmd *cmd, uint32_t handle, uint32_t tag,
-		       uint32_t command, uint32_t abort, uint64_t addr,
-		       uint32_t size, uint8_t unlock)
-{
-	// Check command size and address
-	if (!_aligned(addr, size)) {
-		_add_other(cmd, handle, tag, command, abort,
-			   TLX_RESPONSE_FAILED);
-		return;
-	}
-	// Writes will be added to the list and will next be processed
-	// in the function handle_touch()
-	_add_cmd(cmd, handle, tag, command, abort, CMD_WRITE, addr, size,
-		 MEM_IDLE, TLX_RESPONSE_DONE, unlock);
-}
+/* static void _add_write(struct cmd *cmd, uint32_t handle, uint32_t tag, */
+/* 		       uint32_t command, uint32_t abort, uint64_t addr, */
+/* 		       uint32_t size, uint8_t unlock) */
+/* { */
+/* 	// Check command size and address */
+/* 	if (!_aligned(addr, size)) { */
+/* 		_add_other(cmd, handle, tag, command, abort, */
+/* 			   TLX_RESPONSE_FAILED); */
+/* 		return; */
+/* 	} */
+/* 	// Writes will be added to the list and will next be processed */
+/* 	// in the function handle_touch() */
+/* 	_add_cmd(cmd, handle, tag, command, abort, CMD_WRITE, addr, size, */
+/* 		 MEM_IDLE, TLX_RESPONSE_DONE, unlock); */
+/* } */
 
 // Determine what type of command to add to list
-static void _parse_cmd(struct cmd *cmd, uint32_t command, uint32_t tag,
-		       uint64_t addr, uint32_t size, uint32_t abort,
-		       uint32_t handle, uint32_t latency)
+static void _parse_cmd(struct cmd *cmd,
+		       uint8_t cmd_opcode, uint16_t cmd_actag,
+		       uint8_t cmd_stream_id, uint8_t *cmd_ea_or_obj,
+		       uint16_t cmd_afutag, uint8_t cmd_dl,
+		       uint8_t cmd_pl,
+#ifdef TLX4
+		       uint8_t cmd_os,
+#endif
+		       uint64_t cmd_be, uint8_t cmd_flag,
+		       uint8_t cmd_endian, uint16_t cmd_bdf,
+		       uint32_t cmd_pasid, uint8_t cmd_pg_size, uint8_t cmd_data_is_valid,
+		       uint8_t *cdata_bus, uint8_t cdata_bad)
 {
 	//uint16_t irq = (uint16_t) (addr & IRQ_MASK);
 	//uint8_t unlock = 0;
@@ -449,8 +526,25 @@ static void _parse_cmd(struct cmd *cmd, uint32_t command, uint32_t tag,
 	//		   TLX_RESPONSE_CONTEXT);
 	//	return;
 	//}
-/*	switch (command) {
-		// Interrupt
+ 
+        // how do we model stream_id?
+
+        // Based on the cmd_opcode we have received from the afu, add a cmd_event to the list associated with our cmd struct
+	switch (cmd_opcode) {
+		// assign actag to map an actag to a pasid/bdf (a context for us)
+	case AFU_CMD_ASSIGN_ACTAG:
+		printf("YES! AFU cmd is ASSIGN_ACTAG!!!!\n");
+                _assign_actag( cmd, cmd_bdf, cmd_pasid, cmd_actag );
+		break;
+		// Memory Reads
+	case AFU_CMD_RD_WNITC:
+	case AFU_CMD_RD_WNITC_N:
+	case AFU_CMD_PR_RD_WNITC:
+	case AFU_CMD_PR_RD_WNITC_N:
+		printf("YES! AFU cmd is some sort of read!!!!\n");
+		_add_read(cmd, cmd_actag, cmd_afutag, cmd_opcode, cmd_ea_or_obj, cmd_dl, cmd_pl);
+		break;
+	/*		// Interrupt
 	case TLX_COMMAND_INTREQ:
 		_add_interrupt(cmd, handle, tag, command, abort, irq);
 		break;
@@ -473,13 +567,7 @@ static void _parse_cmd(struct cmd *cmd, uint32_t command, uint32_t tag,
 		cmd->lock_addr = addr & CACHELINE_MASK;
 	case TLX_COMMAND_READ_CL_RES:
 		if (!cmd->locked)
-			cmd->res_addr = addr & CACHELINE_MASK;
-	case TLX_COMMAND_READ_CL_NA:
-	case TLX_COMMAND_READ_CL_S:
-	case TLX_COMMAND_READ_CL_M:
-	case TLX_COMMAND_READ_PNA:
-		_add_read(cmd, handle, tag, command, abort, addr, size);
-		break;
+		cmd->res_addr = addr & CACHELINE_MASK;
 		// Cacheline unlock
 	case TLX_COMMAND_UNLOCK:
 		_add_unlock(cmd, handle, tag, command, abort);
@@ -535,13 +623,12 @@ static void _parse_cmd(struct cmd *cmd, uint32_t command, uint32_t tag,
 	case TLX_COMMAND_ITAG_ABRT_RD:
 	case TLX_COMMAND_ITAG_ABRT_WR:
 		_add_caia2(cmd, handle, tag, command, abort,addr);
-		break;
+		break; */
 	default:
 		warn_msg("Unsupported command 0x%04x", cmd);
-		_add_other(cmd, handle, tag, command, abort,
-			   TLX_RESPONSE_FAILED);
+		_add_other(cmd, cmd_actag, cmd_afutag, cmd_opcode, TLX_RESPONSE_FAILED);
 		break;
-	} */
+	}
 }
 
 // Report parity error on some command bus
@@ -558,7 +645,8 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 	uint64_t cmd_be;
 	uint32_t cmd_pasid, command, size, abort, handle;
 	uint16_t cmd_actag, cmd_afutag, cmd_bdf;
-	uint8_t  afu_cmd_opcode, cmd_stream_id, cmd_ea_or_obj, cmd_dl, cmd_pl, cmd_flag, cmd_endian, cmd_pg_size, cmd_data_is_valid, cdata_bad, fail;
+	uint8_t  cmd_ea_or_obj[9]; 
+	uint8_t  cmd_opcode, cmd_stream_id, cmd_dl, cmd_pl, cmd_flag, cmd_endian, cmd_pg_size, cmd_data_is_valid, cdata_bad, fail;
 #ifdef TLX4
 	uint8_t cmd_os;
 #endif
@@ -566,14 +654,13 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 	uint8_t * dptr = cdata_bus;
 	int rc;
 
-
 	if (cmd == NULL)
 		return;
 
 	// Check for command from AFU
 	rc =  afu_tlx_read_cmd_and_data(cmd->afu_event,
-  		    &afu_cmd_opcode, &cmd_actag,
-  		    &cmd_stream_id, &cmd_ea_or_obj,
+  		    &cmd_opcode, &cmd_actag,
+  		    &cmd_stream_id, &cmd_ea_or_obj[0],
  		    &cmd_afutag, &cmd_dl,
   		    &cmd_pl,
 #ifdef TLX4
@@ -594,7 +681,7 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 		return;
 
 	debug_msg("%s:COMMAND actag=0x%02x cmd=0x%x BDF=0x%x addr=0x%016"PRIx64 " cmd_data_is_valid= 0x%x ", cmd->afu_name,
-		  cmd_actag, afu_cmd_opcode, cmd_bdf, cmd_pasid, cmd_data_is_valid);
+		  cmd_actag, cmd_opcode, cmd_bdf, cmd_pasid, cmd_data_is_valid);
 
 	// Is AFU running?
 /*	if (*(cmd->ocl_state) != OCSE_RUNNING) {
@@ -605,13 +692,14 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 
 	// Check credits and parse - not any more
 
-	// Client not connected
+	// Client not connected - some of this we don't know until a bit later...
 	//if ((cmd == NULL) || (cmd->client == NULL) ||
-	 //   (handle >= cmd->max_clients) || ((cmd->client[handle]) == NULL)) {
+	//   (handle >= cmd->max_clients) || ((cmd->client[handle]) == NULL)) {
 	//	_add_other(cmd_opcode, handle, tag, command, abort,
 	//		   TLX_RESPONSE_FAILED);
 	//	return;
 	//}
+
 	// Client is flushing new commands - do we still do this??
 	//if ((cmd->client[handle]->flushing == FLUSH_FLUSHING) &&
 	//    (command != TLX_COMMAND_RESTART)) {
@@ -619,25 +707,23 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 	//		   TLX_RESPONSE_FLUSHED);
 	//	return;
 	//}
-	// Check for duplicate tag - not now, mayb e check for dup actag at some point??
-	//event = cmd->list;
-	//while (event != NULL) {
-	//	if (event->tag == tag) {
-	//		error_msg("Duplicate tag 0x%02x", tag);
-	//		return;
-	//	}
-	//	event = event->_next;
-	//}
-	// Parse command- later, now we just handle the assign_actag
-	if (afu_cmd_opcode == AFU_CMD_ASSIGN_ACTAG)
-		printf("YES! AFU cmd is ASSIGN_ACTAG!!!!\n");
-	return;
-	//
-	//parse_cmd(cmd_opcode, cmd_actag, cmd_stream_id, cmd_ea_or_obj, cmd_afutag, cmd_dl, cmd_pl
-//#ifdef TLX4
-//	cmd_os,
-//#endif
-//	cmd_be, cmd_flag, cmd_endian, cmd_bdf, cmd_pasid, cmd_pg_size, cmd_data_is_valid, dptr,);
+
+	// Check for duplicate afutag - not now, mayb e check for dup actag at some point??
+	event = cmd->list;
+	while (event != NULL) {
+		if (event->afutag == cmd_afutag) {
+			error_msg("Duplicate afutag 0x%02x", cmd_afutag);
+			return;
+		}
+		event = event->_next;
+	}
+
+	// Parse command- 	//
+	_parse_cmd(cmd, cmd_opcode, cmd_actag, cmd_stream_id, cmd_ea_or_obj, cmd_afutag, cmd_dl, cmd_pl,
+#ifdef TLX4
+		   cmd_os,
+#endif
+		   cmd_be, cmd_flag, cmd_endian, cmd_bdf, cmd_pasid, cmd_pg_size, cmd_data_is_valid, dptr, cdata_bad);
 }
 
 // Handle randomly selected pending read by either generating early buffer

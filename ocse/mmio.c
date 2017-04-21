@@ -84,7 +84,9 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 	  // the global parm controls how we adjust the offset prior to adding the event
 	  //   global = 1 means we offset based on the global mmio offset from the configuration
 	  //   global = 0 means we want to send the offset adjusted by the per pasid mmio offset, per pasid mmio stride, and client index
-	  //   for now, we are assuming the client index maps directly to a pasid.  we could be more creative
+	  //   for now, we are assuming the client index (context) maps directly to a pasid.  
+	  //        we could be more creative and relocate the pasid base and pasid length supported to 
+	  //        provide more verification coverage
 	  if (global == 1) {
 	    // global mmio offset + offset
 	    event->cmd_PA = mmio->cfg.global_MMIO_offset + addr;
@@ -145,21 +147,25 @@ static void _wait_for_done(enum ocse_state *state, pthread_mutex_t * lock)
 // and AFU control information extended capabilities and keep a copy
 int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 {
-//	For now, we "know"where things are, so just queue up reads...
+//	For now, we "know" where things are, so just queue up reads...
+//      TODO write back pasid length enabled ( = pasid length supported )
 //	TODO change to read capabilities pointers and use offsets to index
+//	TODO relocate and write back pasid base
+//      TODO write back pasid length enabled ( < pasid length supported )
 
 	printf("In read_descriptor and WON'T BE ABLE TO SEND CMD UNTIL AFU GIVES US INITIAL CREDIT!!\n");
 	uint8_t   afu_tlx_cmd_credits_available;
 	uint8_t   afu_tlx_resp_credits_available;
 	#define AFU_DESC_DATA_VALID 0x80000000
-printf("before read initial credits \n");
+
+	printf("before read initial credits \n");
 	//if (afu_tlx_read_initial_credits(mmio->afu_event, &afu_tlx_cmd_credits_available,
 	 //&afu_tlx_resp_credits_available) != TLX_SUCCESS)
 	//	printf("NO CREDITS FROM AFU!!\n");
 	while (afu_tlx_read_initial_credits(mmio->afu_event, &afu_tlx_cmd_credits_available,
 	 &afu_tlx_resp_credits_available) != TLX_SUCCESS){
-	//infinite loop
-	sleep(1);
+	  //infinite loop
+	  sleep(1);
 	}
 	printf("afu_tlx_cmd_credits_available is %d, afu_tlx_resp_credits_available is %d \n",
 		afu_tlx_cmd_credits_available, afu_tlx_resp_credits_available);
@@ -226,6 +232,8 @@ printf("before read initial credits \n");
 	mmio->cfg.OCAPI_TL_REVID = event204->cmd_data;
 	free(event204);
 
+	//lgt actag moved to afu control dvsec 0x18, 0x1c
+	//lgt now has a base, supported and enabled values similar to pasid
 	_wait_for_done(&(event20c->state), lock);
 	mmio->cfg.OCAPI_TL_ACTAG = event20c->cmd_data;
 	free(event20c);

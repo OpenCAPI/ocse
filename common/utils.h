@@ -32,8 +32,8 @@
 
 #define ODD_PARITY 1
 #define BYTES_PER_DWORD 8
-#define DWORDS_PER_CACHELINE 16
-#define CACHELINE_BYTES 128
+#define DWORDS_PER_CACHELINE 8
+#define CACHELINE_BYTES 64
 #define TLX_IDLE_CYCLES 200
 
 #define OCSE_VERSION_MAJOR	0x03
@@ -150,5 +150,9 @@ int32_t sign_extend(uint32_t in_op);
 
 //sign extend a 64b integer
 int64_t sign_extend64(uint64_t in_op);
+
+// convert dl (dLengh) and pl (pLength) to a 32 bit integer
+// a size less than 0 indicates an bad combination of dl/pl
+int32_t dl_pl_to_size (uint8_t dl, uint8_t pl);
 
 #endif				/* _UTILS_H_ */

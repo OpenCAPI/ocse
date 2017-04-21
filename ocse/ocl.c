@@ -163,9 +163,11 @@ static void _handle_afu(struct ocl *ocl)
 	/*if (ocl->mmio->list !=NULL) {
 	 handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
 	} */
-	 	handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
+        handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
+
 	if (ocl->cmd != NULL) {
 		handle_response(ocl->cmd);
+		handle_buffer_write(ocl->cmd);
 		handle_cmd(ocl->cmd, ocl->latency);
 		handle_interrupt(ocl->cmd);
 

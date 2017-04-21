@@ -355,3 +355,64 @@ int64_t sign_extend64 (uint64_t in_op)
 	return in_op;
 }
 
+// convert dl (dLengh) and pl (pLength) to a 32 bit integer
+// a size less than 0 indicates an bad combination of dl/pl
+int32_t dl_pl_to_size (uint8_t dl, uint8_t pl)
+{
+        uint32_t size;
+
+	// might need to add cmd_opcode to flag some sizes as reserved in some cases
+	// or a different routine needs be called for "amo" ops
+
+	// can I just combine dl and pl into a single "exponent" and and do a 2**e sort of thing?
+	// like:
+	// exponent = dl;
+	// exponent = exponent << 2;
+	// exponent = exponent + pl;
+	// size = 2 ** exponent;
+	// perhaps, but still need to check for an invalid size...
+	switch (dl) {
+	case 0:
+ 	   //decode pl
+	   switch (pl) {
+	   case 0:
+	      size = 1;
+	      break;
+	   case 1:
+	      size = 2;
+	      break;
+	   case 2:
+	      size = 4;
+	      break;
+	   case 3:
+	      size = 8;
+	      break;
+	   case 4:
+	      size = 16;
+	      break;
+	   case 5:
+	      size = 32;
+	      break;
+	   default:
+	      warn_msg("Unsupported dl/pl combination: %d / %d", dl, pl);
+	      size = -1;
+	      break;
+	   }
+	   break;
+	case 1:
+	  size = 64;
+	  break;
+	case 2:
+	  size = 128;
+	  break;
+	case 3:
+	  size = 256;
+	  break;
+	default:
+	  warn_msg("Unsupported dl/pl combination: %d / %d", dl, pl);
+		size = -1;
+		break;
+	}
+	return size;
+}
+
