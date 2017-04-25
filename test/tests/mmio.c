@@ -26,7 +26,8 @@ int main(int argc, char *argv[])
     int rc;
     uint64_t wed, result;
     struct ocxl_afu_h *mafu_h;
-    
+    uint32_t result32;
+
     static struct option long_options[] = {
 	{"cachelines", required_argument, 0	  , 'c'},
 	{"timeout",    required_argument, 0	  , 't'},
@@ -34,11 +35,6 @@ int main(int argc, char *argv[])
 	{"help",       no_argument      , 0	  , 'h'},
 	{NULL, 0, 0, 0}
     };
-
-    //if(argc < 2) {
-//	print_help(argv[0]);
-//	return -1;
-  //  }
 
     while((opt = getopt_long(argc, argv, "vhc:t:", long_options, &option_index)) >= 0 )
     {
@@ -98,6 +94,21 @@ int main(int argc, char *argv[])
 
     printf("RESULT = 0x%016lx\n", result);
     
+    wed = 0x0a0b0c0d0e0f1122;
+    printf("WED data = 0x%016lx WED address = 0x%x\n", wed, &wed);
+    printf("Attempt mmio write\n");
+    if(ocxl_mmio_write32(mafu_h, 0x20, wed) != 0) {
+	printf("FAILED: ocxl_mmio_write32\n");
+	goto done;
+    }
+    printf("Attempt mmio read\n");
+    if(ocxl_mmio_read32(mafu_h, 0x20, &result32) != 0) {
+	printf("FAILED: ocxl_mmio_read32\n");
+	goto done;
+    }
+
+    printf("RESULT32 = 0x%08x\n", result32);
+
 done:
     // free device
     printf("Freeing device ... \n");
