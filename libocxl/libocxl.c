@@ -235,7 +235,7 @@ static void _handle_read(struct ocxl_afu_h *afu, uint64_t addr, uint16_t size)
 {
 	uint8_t buffer[MAX_LINE_CHARS];
 
-	DPRINTF("_handle_read: addr @ 0x%016" PRIx64 ", size = %d\n", addr,size);
+	DPRINTF("_handle_read: addr @ 0x%016" PRIx64 ", size = %d\n", addr, size);
 	if (!afu)
 		fatal_msg("NULL afu passed to libocxl.c:_handle_read");
 	if (!_testmemaddr((uint8_t *) addr)) {

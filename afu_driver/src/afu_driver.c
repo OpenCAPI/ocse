@@ -21,11 +21,14 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "../../common/utils.h"
 #include "tlx_interface.h"
 #include "vpi_user.h"
 #include "svdpi.h"
 
 // Global Variables
+static struct RDATA_PKT *new_rdata_pkt;
+static struct RDATA_PKT *old_rdata_pkt;
 static struct AFU_EVENT event;
 //
 //
@@ -86,14 +89,135 @@ uint8_t		c_afu_tlx_resp_rd_cnt_top;
 //
 //
 // Local Methods
-static int getMy64Bit(const svLogicVecVal *my64bSignal, uint64_t *conv64bit);
-int getMyCacheLine(const svLogicVecVal *myLongSignal, uint8_t myCacheData[]);
-int getMyByteArray(const svLogicVecVal *myLongSignal, uint32_t arrayLength, uint8_t myCacheData[arrayLength]);
-void setMyCacheLine(svLogicVecVal *myLongSignal, uint8_t myCacheData[]);
-void setDpiSignal32(svLogicVecVal *my32bSignal, uint32_t inData, int size);
-static void setDpiSignal64(svLogicVecVal *my64bSignal, uint64_t data);
-static void error_message(const char *str);
-static void tlx_control(void);
+// Setup & facility functions
+static int getMy64Bit(const svLogicVecVal *my64bSignal, uint64_t *conv64bit)
+{
+    //gets the two 32bit values from the 4-state svLogicVec array
+    //and packs it into a 64bit in *conv64bit
+    //Also returns 1 if bval is non-zero (i.e. value contains Z, X or both)
+
+  uint32_t lsb32_aval, msb32_aval, lsb32_bval, msb32_bval;
+  lsb32_bval =  my64bSignal->bval;
+  msb32_bval = (my64bSignal+1)->bval;
+  lsb32_aval =  my64bSignal->aval;
+  msb32_aval = (my64bSignal+1)->aval;
+//    printf("msb32_aval=%08x, lsb32_aval=%08x\n", msb32_aval, lsb32_aval);
+//    printf("msb32_bval=%08x, lsb32_bval=%08x\n", msb32_bval, lsb32_bval);
+
+  *conv64bit = ((uint64_t) msb32_aval <<32) | (uint64_t) lsb32_aval;
+//    printf("conv64bit = %llx\n", (long long) *conv64bit);
+  if((lsb32_bval | msb32_bval) == 0){ return 0;}
+  return 1;
+}
+
+// The getMyCacheLine is a more specific version of the PLI function
+// get_signal_long. In here, we are specifically doing the conversion of 1024
+// bit long vector to 128 byte cacheline buffer. On VPI as well as DPI, the
+// 1024 bit vector is returned as array of 32bit entries. ie, array[0] will
+// contain the aval for bits [992:1023]. The OCSE demands that the first
+// entry of the array has bits [0:31], hence we do a reversal of that array
+// the htonl std lib function will ensure that the byte ordering is maintained
+// based on the endianness of the processor
+int getMyCacheLine(const svLogicVecVal *myLongSignal, uint8_t myCacheData[CACHELINE_BYTES])
+{
+   int i, j;
+  uint8_t errorVal = 0;
+  uint32_t *p32BitCacheWords = (uint32_t*)myCacheData;
+  for(i=0; i <(CACHELINE_BYTES/4 ); i++)
+  {
+//    j = (CACHELINE_BYTES/4 ) - (i + 1);
+    j = i;
+    if(myLongSignal[i].bval !=0){ errorVal=1; }
+    p32BitCacheWords[j] = myLongSignal[i].aval;
+//    p32BitCacheWords[j] = htonl(p32BitCacheWords[j]);		// since ocse is dealing with AFU with little endian mode, removing this adjustments
+    p32BitCacheWords[j] = (p32BitCacheWords[j]);
+  }
+  if(errorVal!=0){return 1;}
+  return 0;
+}
+
+int getMyByteArray(const svLogicVecVal *myLongSignal, uint32_t arrayLength, uint8_t myCacheData[arrayLength])
+{
+   int i, j;
+  uint8_t errorVal = 0;
+  uint32_t *p32BitCacheWords = (uint32_t*)myCacheData;
+  for(i=0; i <(arrayLength/4 ); i++)
+  {
+//    j = (arrayLength/4 ) - (i + 1);
+    j = i;
+    if(myLongSignal[i].bval !=0){ errorVal=1; }
+    p32BitCacheWords[j] = myLongSignal[i].aval;
+//    p32BitCacheWords[j] = htonl(p32BitCacheWords[j]);		// since ocse is dealing with AFU with little endian mode, removing this adjustments
+    p32BitCacheWords[j] = (p32BitCacheWords[j]);
+  }
+  if(errorVal!=0){return 1;}
+  return 0;
+}
+
+void setMyCacheLine(svLogicVecVal *myLongSignal, uint8_t myCacheData[CACHELINE_BYTES])
+{
+   int i, j;
+  //uint32_t get32aval, get32bval;
+  uint32_t *p32BitCacheWords = (uint32_t*)myCacheData;
+  for(i=0; i <(CACHELINE_BYTES/4 ); i++)
+  {
+//    j = (CACHELINE_BYTES/4 ) - (i + 1);
+    j = i;
+//    myLongSignal[j].aval = htonl(p32BitCacheWords[i]);		// since ocse is dealing with AFU with little endian mode, removing this adjustments
+    myLongSignal[j].aval = (p32BitCacheWords[i]);
+    myLongSignal[j].bval = 0;
+  }
+}
+
+void setDpiSignal32(svLogicVecVal *my32bSignal, uint32_t inData, int size)
+{
+  uint32_t myMask = ~(0xFFFFFFFF << size);
+  my32bSignal->aval = inData & myMask;
+  my32bSignal->bval = 0x0;
+}
+
+static void setDpiSignal64(svLogicVecVal *my64bSignal, uint64_t data)
+{
+	(my64bSignal+1)->aval = (uint32_t)(data >> 32);
+	(my64bSignal+1)->bval = 0x0;
+	(my64bSignal)->aval = (uint32_t)(data & 0xffffffff);
+	(my64bSignal)->bval = 0x0;
+}
+
+static void error_message(const char *str)
+{
+	fflush(stdout);
+//	fprintf(stderr, "%08lld: ERROR: %s\n", get_time(), str);
+//	Removing the get_time() from the function, since this is a VPI function unsupported on DPI
+	fprintf(stderr, "%08lld: ERROR: %s\n", (long long) c_sim_time, str);
+	fflush(stderr);
+}
+
+static void tlx_control(void)
+{
+	// Wait for clock edge from OCSE
+	fd_set watchset;
+	FD_ZERO(&watchset);
+	FD_SET(event.sockfd, &watchset);
+	select(event.sockfd + 1, &watchset, NULL, NULL, NULL);
+	//printf("lgt: tlx_control: %08lld: calling get tlx events... \n", (long long) c_sim_time);
+	int rc = tlx_get_tlx_events(&event);
+	// printf("lgt: tlx_control: returned from tlx_get_tlx_events\n");
+	// No clock edge
+	while (!rc) {
+	  select(event.sockfd + 1, &watchset, NULL, NULL, NULL);
+	  //printf("lgt: tlx_control: no clock edge: %08lld: calling get tlx events again... \n", (long long) c_sim_time);
+	  rc = tlx_get_tlx_events(&event);
+	  //printf("lgt: tlx_control: no clock edge: returned from get tlx events\n");
+	}
+	// Error case
+	if (rc < 0) {
+	  printf("%08lld: ", (long long) c_sim_time);
+	  printf("Socket closed: Ending Simulation.");
+	  c_sim_error = 1;
+	}
+}
+
 //
 void tlx_bfm(
 	            const svLogic       tlx_clock,
@@ -199,8 +323,11 @@ void tlx_bfm(
 {
 //  int change = 0;
   int invalidVal = 0;
-//  int i = 0;
+  int i = 0;
+  int j = 0;
+
   c_reset			= reset & 0x1;
+
   if(!c_reset_d2)
   {
     if ( tlx_clock == sv_0 ) {
@@ -402,11 +529,12 @@ void tlx_bfm(
       invalidVal			= afu_tlx_resp_rd_req_top & 0x2;
       if(c_afu_tlx_resp_rd_req_top)
       {
+	// here is where we catch resp_rd_cnt, add it to a count we are maintaining...
+	// we may not need to call anything at this point as we are buffering the data that came from a
+	// tlx_afu_resp event from tlx_interface - I hope
         c_afu_tlx_resp_rd_cnt_top 	 = (afu_tlx_resp_rd_cnt_top->aval) & 0x7;
         invalidVal		+= (afu_tlx_resp_rd_cnt_top->bval) & 0x7;
-        afu_tlx_resp_data_read_req(&event,
-        		c_afu_tlx_resp_rd_req_top, c_afu_tlx_resp_rd_cnt_top
-        );
+	event.rdata_rd_cnt = event.rdata_rd_cnt + decode_rd_cnt( c_afu_tlx_resp_rd_cnt_top );
         printf("%08lld: ", (long long) c_sim_time);
         printf(" The AFU-TLX Response Read Request for Cnt: %d \n", c_afu_tlx_resp_rd_cnt_top );
       }
@@ -439,7 +567,33 @@ void tlx_bfm(
         event.tlx_afu_resp_valid = 0;
         printf("%08lld: ", (long long) c_sim_time);
         printf(" The TLX-AFU Response with OPCODE=0x%x \n",  event.tlx_afu_resp_opcode);
+	// also catch the data, if any
+	if(event.tlx_afu_resp_data_valid) {
+	  // split it into 64 B chucks an add it to the tail of a fifo
+	  // the event struct can hold the head and tail pointers, and a rd_cnt that we get later
+	  // the afu will issue afu_tlx_resp_rd_req later to tell us to start to pump the data out
+	  // imbed the check for tlx_afu_resp_data_valid in here to grab the data, if any.
+	  // event->tlx_afu_resp_data has all the data
+	  // use dl to create dl 64 B enties in a fifo linked list rdata_head, rdata_tail, rdata_rd_cnt
+	  // rdata_pkt contain _next, and 64 B of rdata
+	  for ( i = 0; i < decode_dl(event.tlx_afu_resp_dl); i++ ) {  
+	      new_rdata_pkt = (struct RDATA_PKT *)malloc( sizeof( struct RDATA_PKT ) );
+	      // copy data from response event data to rdata_pkt
+	      new_rdata_pkt->_next = NULL;
+	      for ( j=0; j<64; j++ ) {
+		new_rdata_pkt->rdata[j] = event.tlx_afu_resp_data[(i*64)+j];
+	      }
+	      // put the packet at the tail of the fifo
+	      if ( event.rdata_head == NULL ) {
+		event.rdata_head = new_rdata_pkt;
+	      } else {
+		event.rdata_tail->_next = new_rdata_pkt;
+	      }
+	      event.rdata_tail = new_rdata_pkt;
+	  }
+	}
       }
+      
       if (clk_afu_resp_val) {
       	--clk_afu_resp_val;
       	if (!clk_afu_resp_val)
@@ -470,13 +624,19 @@ void tlx_bfm(
     	if (!clk_afu_cmd_val)
     		*tlx_afu_cmd_valid_top = 0;
       }
-      if(event.tlx_afu_resp_data_valid)
+      if(event.rdata_rd_cnt > 0)
       {
-        *tlx_afu_resp_data_bdi_top = (event.tlx_afu_resp_data_bdi) & 0x1;
-        setMyCacheLine(tlx_afu_resp_data_bus_top, event.tlx_afu_resp_data);
+	// if event.resp_rd_cnt > 0, there is response data to drive to the afu 
+	//    put the rdata at rdata_head on the tlx_afu_resp_data_bus and set tlx_afu_resp_data_valid
+	//    decrement rdata_rd_cnt and free the head of the fifo
+        setMyCacheLine( tlx_afu_resp_data_bus_top, event.rdata_head->rdata );
         *tlx_afu_resp_data_valid_top = 1;
+        *tlx_afu_resp_data_bdi_top = (event.tlx_afu_resp_data_bdi) & 0x1;
         clk_afu_resp_dat_val = CLOCK_EDGE_DELAY;
-        event.tlx_afu_resp_data_valid = 0;
+        event.rdata_rd_cnt = event.rdata_rd_cnt - 1;
+	old_rdata_pkt = event.rdata_head;
+	event.rdata_head = event.rdata_head->_next;
+	free( old_rdata_pkt ); // DANGER - if this is the last one, tail will point to unallocated memory
         printf("%08lld: ", (long long) c_sim_time);
         printf(" The TLX-AFU Response with Data Available \n");
       }
@@ -550,132 +710,4 @@ void get_simuation_error(svLogic *simulationError)
 //  printf("inside C: error value  = %08d\n",  c_sim_error);
 }
 
-// Setup & facility functions
-static int getMy64Bit(const svLogicVecVal *my64bSignal, uint64_t *conv64bit)
-{
-    //gets the two 32bit values from the 4-state svLogicVec array
-    //and packs it into a 64bit in *conv64bit
-    //Also returns 1 if bval is non-zero (i.e. value contains Z, X or both)
-
-  uint32_t lsb32_aval, msb32_aval, lsb32_bval, msb32_bval;
-  lsb32_bval =  my64bSignal->bval;
-  msb32_bval = (my64bSignal+1)->bval;
-  lsb32_aval =  my64bSignal->aval;
-  msb32_aval = (my64bSignal+1)->aval;
-//    printf("msb32_aval=%08x, lsb32_aval=%08x\n", msb32_aval, lsb32_aval);
-//    printf("msb32_bval=%08x, lsb32_bval=%08x\n", msb32_bval, lsb32_bval);
-
-  *conv64bit = ((uint64_t) msb32_aval <<32) | (uint64_t) lsb32_aval;
-//    printf("conv64bit = %llx\n", (long long) *conv64bit);
-  if((lsb32_bval | msb32_bval) == 0){ return 0;}
-  return 1;
-}
-
-// The getMyCacheLine is a more specific version of the PLI function
-// get_signal_long. In here, we are specifically doing the conversion of 1024
-// bit long vector to 128 byte cacheline buffer. On VPI as well as DPI, the
-// 1024 bit vector is returned as array of 32bit entries. ie, array[0] will
-// contain the aval for bits [992:1023]. The OCSE demands that the first
-// entry of the array has bits [0:31], hence we do a reversal of that array
-// the htonl std lib function will ensure that the byte ordering is maintained
-// based on the endianness of the processor
-int getMyCacheLine(const svLogicVecVal *myLongSignal, uint8_t myCacheData[CACHELINE_BYTES])
-{
-   int i, j;
-  uint8_t errorVal = 0;
-  uint32_t *p32BitCacheWords = (uint32_t*)myCacheData;
-  for(i=0; i <(CACHELINE_BYTES/4 ); i++)
-  {
-//    j = (CACHELINE_BYTES/4 ) - (i + 1);
-    j = i;
-    if(myLongSignal[i].bval !=0){ errorVal=1; }
-    p32BitCacheWords[j] = myLongSignal[i].aval;
-//    p32BitCacheWords[j] = htonl(p32BitCacheWords[j]);		// since ocse is dealing with AFU with little endian mode, removing this adjustments
-    p32BitCacheWords[j] = (p32BitCacheWords[j]);
-  }
-  if(errorVal!=0){return 1;}
-  return 0;
-}
-
-int getMyByteArray(const svLogicVecVal *myLongSignal, uint32_t arrayLength, uint8_t myCacheData[arrayLength])
-{
-   int i, j;
-  uint8_t errorVal = 0;
-  uint32_t *p32BitCacheWords = (uint32_t*)myCacheData;
-  for(i=0; i <(arrayLength/4 ); i++)
-  {
-//    j = (arrayLength/4 ) - (i + 1);
-    j = i;
-    if(myLongSignal[i].bval !=0){ errorVal=1; }
-    p32BitCacheWords[j] = myLongSignal[i].aval;
-//    p32BitCacheWords[j] = htonl(p32BitCacheWords[j]);		// since ocse is dealing with AFU with little endian mode, removing this adjustments
-    p32BitCacheWords[j] = (p32BitCacheWords[j]);
-  }
-  if(errorVal!=0){return 1;}
-  return 0;
-}
-
-void setMyCacheLine(svLogicVecVal *myLongSignal, uint8_t myCacheData[CACHELINE_BYTES])
-{
-   int i, j;
-  //uint32_t get32aval, get32bval;
-  uint32_t *p32BitCacheWords = (uint32_t*)myCacheData;
-  for(i=0; i <(CACHELINE_BYTES/4 ); i++)
-  {
-//    j = (CACHELINE_BYTES/4 ) - (i + 1);
-    j = i;
-//    myLongSignal[j].aval = htonl(p32BitCacheWords[i]);		// since ocse is dealing with AFU with little endian mode, removing this adjustments
-    myLongSignal[j].aval = (p32BitCacheWords[i]);
-    myLongSignal[j].bval = 0;
-  }
-}
-
-void setDpiSignal32(svLogicVecVal *my32bSignal, uint32_t inData, int size)
-{
-  uint32_t myMask = ~(0xFFFFFFFF << size);
-  my32bSignal->aval = inData & myMask;
-  my32bSignal->bval = 0x0;
-}
-
-static void setDpiSignal64(svLogicVecVal *my64bSignal, uint64_t data)
-{
-	(my64bSignal+1)->aval = (uint32_t)(data >> 32);
-	(my64bSignal+1)->bval = 0x0;
-	(my64bSignal)->aval = (uint32_t)(data & 0xffffffff);
-	(my64bSignal)->bval = 0x0;
-}
-
-static void tlx_control(void)
-{
-	// Wait for clock edge from OCSE
-	fd_set watchset;
-	FD_ZERO(&watchset);
-	FD_SET(event.sockfd, &watchset);
-	select(event.sockfd + 1, &watchset, NULL, NULL, NULL);
-	//printf("lgt: tlx_control: %08lld: calling get tlx events... \n", (long long) c_sim_time);
-	int rc = tlx_get_tlx_events(&event);
-	// printf("lgt: tlx_control: returned from tlx_get_tlx_events\n");
-	// No clock edge
-	while (!rc) {
-	  select(event.sockfd + 1, &watchset, NULL, NULL, NULL);
-	  //printf("lgt: tlx_control: no clock edge: %08lld: calling get tlx events again... \n", (long long) c_sim_time);
-	  rc = tlx_get_tlx_events(&event);
-	  //printf("lgt: tlx_control: no clock edge: returned from get tlx events\n");
-	}
-	// Error case
-	if (rc < 0) {
-	  printf("%08lld: ", (long long) c_sim_time);
-	  printf("Socket closed: Ending Simulation.");
-	  c_sim_error = 1;
-	}
-}
-
-static void error_message(const char *str)
-{
-	fflush(stdout);
-//	fprintf(stderr, "%08lld: ERROR: %s\n", get_time(), str);
-//	Removing the get_time() from the function, since this is a VPI function unsupported on DPI
-	fprintf(stderr, "%08lld: ERROR: %s\n", (long long) c_sim_time, str);
-	fflush(stderr);
-}
 

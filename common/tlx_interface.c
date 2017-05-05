@@ -15,6 +15,7 @@
  */
 
 #include "tlx_interface.h"
+#include "utils.h"
 
 #include <arpa/inet.h>
 #include <string.h>
@@ -227,6 +228,10 @@ int tlx_serv_afu_event(struct AFU_EVENT *event, int port)
 	int cs = -1;
 	tlx_event_reset(event);
 	event->rbp = 0;
+	event->rdata_head = NULL;
+	event->rdata_tail = NULL;
+	event->rdata_rd_cnt = 0;
+
 	//DO NOT set initial credit values to anything other than 0
 	// AFU & ccse have to set them to valid values.
 	// ocse has to WAIT until AFU sets initial value before sending first
@@ -403,6 +408,8 @@ int tlx_afu_send_resp_and_data(struct AFU_EVENT *event,
 
 {
 
+        uint32_t size;
+
 	if (event->afu_tlx_resp_credits_available == 0)
 		return AFU_TLX_NO_CREDITS;
 	if ((event->tlx_afu_resp_valid ==1) || (event->tlx_afu_resp_data_valid == 1)) {
@@ -422,9 +429,9 @@ int tlx_afu_send_resp_and_data(struct AFU_EVENT *event,
 		event->tlx_afu_resp_cache_state = resp_cache_state;
 #endif
 		event->tlx_afu_resp_data_bdi = resp_data_bdi;
-		// TODO FOR NOW WE ALWAYS COPY 8 BYTES of DATA - OCSE ALWAYS
-		// SENDS 8 BYTES
-		memcpy(event->tlx_afu_resp_data, resp_data, 8);
+		// convert dl to size and send all the data
+		size = dl_pl_to_size( resp_dl, 0 );
+		memcpy(event->tlx_afu_resp_data, resp_data, size);
 		return TLX_SUCCESS;
 	}
 }

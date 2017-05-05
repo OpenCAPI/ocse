@@ -416,3 +416,63 @@ int32_t dl_pl_to_size (uint8_t dl, uint8_t pl)
 	return size;
 }
 
+// convert size to a combination of dl
+// size must be a multiple of 64...  and no greater than 256
+// return -1 if size is illegal
+uint8_t size_to_dl (int32_t size)
+{
+  uint8_t dl;
+  if ( size % 64 != 0 ) return -1;
+  
+  if ( size > 256 ) return -1;
+
+  dl = size / 64;
+
+  return dl;
+}
+
+// dl into a number...
+// map the dl encode into a number of chunks
+int32_t decode_dl (uint8_t dl)
+{
+  uint32_t chunks = 0;
+  switch (dl) {
+  case 1:
+  case 2:
+    chunks = dl;
+    break;
+  case 3:
+    chunks = 4;
+    break;
+  default:
+    printf( "decode_dl: bad dl\n" );
+  }
+  return chunks;
+}
+
+// resp_rd_cnt into a number...
+// map the rd_cnt encode into a number of chunks
+int32_t decode_rd_cnt (uint8_t rd_cnt)
+{
+  uint32_t chunks = 0;
+  switch (rd_cnt) {
+  case 0:
+    chunks = 8;
+    break;
+  case 1:
+  case 2:
+  case 5:
+  case 6:
+  case 7:
+    chunks = rd_cnt;
+    break;
+  case 3:
+    chunks = 4;
+    break;
+  case 4:
+    chunks = 3;
+    break;
+  }
+  return chunks;
+}
+

@@ -735,6 +735,7 @@ void handle_buffer_write(struct cmd *cmd)
 	struct client *client;
 	uint8_t buffer[10];
 	uint64_t *addr;
+	uint8_t resp_dl;
 	//int quadrant, byte;
 
 	// Make sure cmd structure is valid
@@ -743,18 +744,19 @@ void handle_buffer_write(struct cmd *cmd)
 
 	//printf( "handle_buffer_write \n" );
 	// Randomly select a pending read or read_pe (or none)
+	// for now, make sure allow_reorder_parms is not allowed.
 	event = cmd->list;
-	while (event != NULL) {
-	        if (((event->type == CMD_READ) || (event->type == CMD_READ_PE) )&&
-		    (event->state != MEM_DONE) &&
-		    ((event->client_state != CLIENT_VALID) ||
-		     !allow_reorder(cmd->parms))) {
+	while ( event != NULL ) {
+	        if ( ( ( event->type == CMD_READ ) || ( event->type == CMD_READ_PE ) ) &&
+		     ( event->state != MEM_DONE ) &&
+		     ( ( event->client_state != CLIENT_VALID ) ||
+		     !allow_reorder( cmd->parms ) ) ) {
 			break;
 		}
-	        if (((event->type == CMD_CAS_4B) || (event->type == CMD_CAS_8B) )&&
-		    (event->state == MEM_CAS_RD) &&
-		    ((event->client_state != CLIENT_VALID) ||
-		     !allow_reorder(cmd->parms))) {
+	        if ( ( ( event->type == CMD_CAS_4B ) || ( event->type == CMD_CAS_8B ) ) &&
+		     ( event->state == MEM_CAS_RD ) &&
+		     ( ( event->client_state != CLIENT_VALID ) ||
+		       !allow_reorder( cmd->parms ) ) ) {
 			break;
 		}
 		event = event->_next;
@@ -765,14 +767,71 @@ void handle_buffer_write(struct cmd *cmd)
 	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
 		return;
 
-	// After the client returns data with a call to the function
-	// _handle_mem_read() issue buffer write with valid data and
-	// prepare for response.
-	// While a read_pe generates it's own data and doesn't go through the _handle_mem_read() routine,
-	// a read_pe still needs to generate a call to tlx_buffer_write
-	// OTHER REASONS to call are: CAS commands...they need to get back data via the buffer write port
-	// but don't send the read data back, it's used for the operation
+	// after the client returns data with a call to the function _handle_mem_read,
+	// we need to generate one or more capp responses.  We need to chunk data into 64 byte pieces
+	// to honor the txl/afu interface.
+	// for partial read, we can probabaly just return data as we have already inserted the data into 
+	// the appropriate place in the event->data buffer
+	// for "full" reads, we need to chunk data
+	// use tlx_afu_send_resp_and_data, for each 64B chunk - look at the old pslse dma code...
+	// concerns
+	//    chunk spacing
+	//    interleaving
+	//    and so on.
 	if ((event->state == MEM_RECEIVED) && ((event->type == CMD_READ) || (event->type == CMD_READ_PE))) {
+	  if ( (event->command == AFU_CMD_PR_RD_WNITC) || (event->command == AFU_CMD_PR_RD_WNITC_N) ) {
+	    // we can just send the 64 bytes of data back
+	    // and complete the event
+	    if ( tlx_afu_send_resp_and_data( cmd->afu_event, 
+					     TLX_RSP_READ_RESP, 
+					     event->tag, 
+					     0, // resp_code - not really used for a good response
+					     0, // resp_pg_size - not used by response, 
+					     1, // for partials, dl is 1 (64 B)
+					     0, // for partials, dp is 0 (the 0th part)
+					     0, // resp_addr_tag, - not used by response
+					     0, // resp_data_bdi - not used by response
+					     event->data ) == TLX_SUCCESS ) { // data in this case is already at the proper offset in the 64 B data packet
+	      // debug message
+	    }
+	    event->resp = TLX_RESPONSE_DONE;
+	    event->state = MEM_DONE;
+	  } else if ( (event->command == AFU_CMD_RD_WNITC) || (event->command == AFU_CMD_RD_WNITC_N) ) {
+	    // we need to send back 1 or more 64B response
+	    // we can:
+	    //    send a complete response, with all the data
+	    //    send partial responses, in any order, with aligned partial data (vary dl and dp in the response
+	    //       power will likely send back chunks in <= 128 B responses...
+	    //    responses can come back in any order
+	    // I'm thinking ocse decides what response to send and whether or not to split it. 
+	    // and sends all the data associated with the selected response.
+	    // then tlx_interface/afu_driver forward the response portion and hold the data in a fifo linked list of 64 B values.
+	    // then when the afu does a resp_rd_req of some resp_rd_cnt, tlx_interaface/afu_driver just starts pumping values out of the 
+	    // fifo.  This method actually works for partial read as well as the minimum size of a split response is 64 B.
+	    // it is the afu's responsiblity to manage resp_rd_cnt correctly, and this is not information for us to check
+	    // anything other than an overrun (i.e. resp_rd_req of an empty fifo, or resp_rd_cnt exceeds the amount of data in the fifo)
+	    resp_dl = size_to_dl( event->size );
+	    if ( resp_dl >= 0 ) {
+	      if ( tlx_afu_send_resp_and_data( cmd->afu_event, 
+					       TLX_RSP_READ_RESP, 
+					       event->tag, 
+					       0, // resp_code - not really used for a good response
+					       0, // resp_pg_size - not used by response, 
+					       resp_dl, // for partials, dl is 1 (64 B) - need to calculate dl from size or keep dl and dp around from initial command
+					       0, // for partials, dp is 0 (the 0th part)
+					       0, // resp_addr_tag, - not used by response
+					       0, // resp_data_bdi - not used by good response
+					       event->data ) == TLX_SUCCESS ) { // data in this case is already the complete length
+		// some print messages in debug mode maybe
+	      }
+	      event->resp = TLX_RESPONSE_DONE;
+	      event->state = MEM_DONE;
+	    } else {
+	      // failed
+	    }
+          } else {
+	    // unsupport read command message
+	  }
 /*		if (tlx_buffer_write(cmd->afu_event, event->tag, event->addr,
 				     CACHELINE_BYTES, event->data,
 				     event->parity) == TLX_SUCCESS) {
@@ -1464,9 +1523,9 @@ static void _handle_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
 	// printf ("_handle_mem_read: event->type is %2x, event->state is 0x%3x \n", event->type, event->state);
 	if ((event->type == CMD_READ) ||
 		 (((event->type == CMD_CAS_4B) || (event->type == CMD_CAS_8B)) && event->state != MEM_CAS_WR)) {
-	        // printf ("_handle_mem_read: CMD_READ \n" );
+	        printf ("_handle_mem_read: CMD_READ \n" );
 		// Client is returning data from memory read
-		// printf("_handle_mem_read: before get bytes silent \n");
+		printf("_handle_mem_read: before get bytes silent \n");
 		if (get_bytes_silent(fd, event->size, data, cmd->parms->timeout,
 			     event->abort) < 0) {
 	        	debug_msg("%s:_handle_mem_read failed tag=0x%02x size=%d addr=0x%016"PRIx64,
@@ -1479,8 +1538,12 @@ static void _handle_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
 				 event->context, event->resp);
 			return;
 		}
-		// printf("_handle_mem_read: AFTER get bytes silent \n");
+		printf("_handle_mem_read: AFTER get bytes silent \n");
+		// we used to put the data in the event->data at the offset implied by the address
+		// should we still do that?  It might depend on the the actual ap command that we received.
 		memcpy((void *)&(event->data[offset]), (void *)&data, event->size);
+		// parity is no long required. although we might want to set the bad data indicator for 
+		// bad machine path simulations.
 		generate_cl_parity(event->data, event->parity);
 		event->state = MEM_RECEIVED;
 	}
