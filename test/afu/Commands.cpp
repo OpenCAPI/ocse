@@ -87,6 +87,23 @@ LoadCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
                            uint64_t address, uint16_t command_size,
                            uint8_t abort, uint16_t context)
 {
+    uint8_t  cmd_stream_id;
+    uint8_t  cmd_dl, cmd_pl;
+    uint64_t cmd_be;
+    uint8_t  cmd_flag, cmd_endian, cmd_pg_size;
+    uint16_t  cmd_bdf;
+    uint16_t cmd_pasid;
+
+    cmd_dl = 0x01;	// 1=64 bytes, 2=128 bytes, 3=256 bytes
+    cmd_pl = 0x11;	// 0=1B, 1=2B, 2=4B, 3=8B, 4=16B, 5=32B
+    cmd_bdf = afu_event->afu_tlx_cmd_bdf;
+    cmd_stream_id = afu_event->afu_tlx_cmd_stream_id;
+    cmd_be = afu_event->afu_tlx_cmd_be;
+    cmd_flag = afu_event->afu_tlx_cmd_flag;
+    cmd_endian = afu_event->afu_tlx_cmd_endian;
+    cmd_pasid = afu_event->afu_tlx_cmd_pasid;
+    cmd_pg_size = afu_event->afu_tlx_cmd_pg_size;
+
     if (Command::state != IDLE)
         error_msg
         ("LoadCommand: Attempting to send command before previous command is completed");
@@ -107,9 +124,13 @@ LoadCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
 
     if (command_address_parity)
         address_parity = 1 - address_parity;
-    debug_msg("LoadCommand::send_command: command = 0x%x", Command::code);
-
-    debug_msg ("LoadCommand::send_command: command sent");
+    afu_tlx_send_cmd(afu_event, Command::code, (uint16_t)new_tag, cmd_stream_id,
+	(uint8_t*)&address, (uint16_t)new_tag, cmd_dl, cmd_pl,
+#ifdef	TLX4
+	cmd_os,
+#endif
+	cmd_be, cmd_flag, cmd_endian, cmd_bdf, cmd_pasid, cmd_pg_size);
+   
     Command::state = WAITING_DATA;
     Command::tag = new_tag;
 }

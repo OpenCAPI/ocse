@@ -24,12 +24,10 @@ MachineController::MachineController (uint16_t ctx):machines (NUM_MACHINES),
 
 bool MachineController::send_command (AFU_EVENT * afu_event, uint32_t cycle)
 {
-    bool
-    try_send = true;
+    bool  try_send = true;
 
     // allocate a tag
-    uint32_t
-    tag;
+    uint32_t  tag;
 
     if (!TagManager::request_tag (&tag)) {
         debug_msg ("MachineController::send_command: no more tags available");
@@ -37,11 +35,15 @@ bool MachineController::send_command (AFU_EVENT * afu_event, uint32_t cycle)
     }
 
     // attempt to send a command with the allocated tag
+//    for(uint32_t i=0; i< machines.size(); i++) {
+//	if(machines[i]->is_enabled()) {
+//	    printf("MC machine %d is enabled\n", i);
+//	}
+//    }
     for (uint32_t i = 0; i < machines.size (); ++i) {
         if (try_send && machines[i]->is_enabled ()
                 && machines[i]->attempt_new_command (afu_event, tag,
-                        flushed_state,
-                        (uint16_t) (cycle & 0x7FFF)))
+                        flushed_state, (uint16_t) (cycle & 0x7FFF)))
         {
             debug_msg
             ("MachineController::send_command: machine id %d sent new command", i);
@@ -62,6 +64,14 @@ bool MachineController::send_command (AFU_EVENT * afu_event, uint32_t cycle)
 }
 
 void
+MachineController::set_machine_enable_bit(uint8_t position)
+{
+    uint32_t i;
+    for(i=0; i<machines.size(); i++) {
+	
+    }
+}
+void
 MachineController::process_response (AFU_EVENT * afu_event, uint32_t cycle)
 {
 }
@@ -77,55 +87,21 @@ MachineController::process_buffer_read (AFU_EVENT * afu_event)
 }
 
 void
-MachineController::change_machine_config (uint32_t word_address,
-        uint64_t data, uint32_t mmio_double)
+MachineController::change_machine_config (uint16_t index, uint16_t machine_number, uint64_t data)
 {
-    uint32_t i = word_address / (SIZE_CONFIG_TABLE * 2);
+    machines[machine_number]->change_machine_config(index, data);
 
-    if (i >= NUM_MACHINES) {
+    if (machine_number >= NUM_MACHINES) {
         warn_msg
         ("MachineController::change_machine_config: word address exceeded machine configuration space");
         return;
     }
-
-    uint32_t offset = word_address % (SIZE_CONFIG_TABLE * 2);
-
-    if (mmio_double) {
-        machines[i]->change_machine_config (offset + 1, data & 0xFFFFFFFF);
-        machines[i]->change_machine_config (offset,
-                                            (data & 0xFFFFFFFF00000000LL) >>
-                                            32);
-    }
-    else {
-        machines[i]->change_machine_config (offset, data & 0xFFFFFFFF);
-    }
 }
 
-uint64_t
-MachineController::get_machine_config (uint32_t word_address,
-                                       uint32_t mmio_double)
+void
+MachineController::get_machine_config (uint16_t context)
 {
-    uint32_t i = word_address / (SIZE_CONFIG_TABLE * 2);
-
-    if (i >= NUM_MACHINES) {
-        warn_msg
-        ("MachineController::get_machine_config: word address exceeded machine configuration space");
-        return 0xFFFFFFFFFFFFFFFFLL;
-    }
-
-    uint32_t offset = word_address % (SIZE_CONFIG_TABLE * 2);
-    uint64_t data;
-
-    if (mmio_double) {
-        data = machines[i]->get_machine_config (offset);
-        data = (data << 32) | machines[i]->get_machine_config (offset + 1);
-    }
-    else {
-        data = machines[i]->get_machine_config (offset);
-        data = (data << 32) | data;
-    }
-
-    return data;
+   
 }
 
 void

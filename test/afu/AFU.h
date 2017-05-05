@@ -52,9 +52,11 @@ private:
     void resolve_response_event (uint32_t cycle);
     void set_seed ();
     void set_seed (uint32_t);
-
+    bool afu_is_enabled();
+    bool afu_is_reset();
     void reset ();
     void reset_machine_controllers ();
+    bool get_machine_context();
 
     bool get_mmio_read_parity ();
     bool set_jerror_not_run;

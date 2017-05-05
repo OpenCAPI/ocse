@@ -4,7 +4,7 @@
 
 std::set < uint32_t > TagManager::tags_in_use;
 int TagManager::num_credits = 0;
-int TagManager::max_credits = 0;
+int TagManager::max_credits = 255;
 uint8_t TagManager::resp_credit = 0;
 uint8_t TagManager::cmd_credit  = 0;
 uint8_t TagManager::resp_data_credit = 0;
@@ -14,8 +14,8 @@ bool TagManager::request_tag (uint32_t * new_tag)
 {
 
     if (max_credits == 0)
-        warn_msg
-        ("TagManager: attempting to request tag when maximum available credit is 0. Did you forget to set room?");
+        warn_msg("TagManager: attempting to request tag when maximum available credit is 0. \
+                  Did you forget to set room? ");
 
     // no more available credits
     if (num_credits == 0)
@@ -31,9 +31,6 @@ bool TagManager::request_tag (uint32_t * new_tag)
 //    debug_msg("TagManager::request_tag: insert new_tag = %d", *new_tag);
 
     --num_credits;
-
-//    for(std::set<uint32_t>::iterator it=tags_in_use.begin(); it != tags_in_use.end(); ++it)
-//	debug_msg("TagManager::request_tag: %d", *it);
 
     return true;
 }

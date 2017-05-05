@@ -66,8 +66,8 @@ static int _machine_base_address_index(uint16_t mach_num, int mode)
     }
 
     machine_config_base_address = mach_num << 5;
-    if (mode == DIRECTED)
-	machine_config_base_address += 0x1000;
+//    if (mode == DIRECTED)
+//	machine_config_base_address += 0x1000;
 
     return machine_config_base_address;
 }
@@ -77,19 +77,19 @@ int enable_machine(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t cont
 		   uint16_t mach_num, int mode)
 {
 	int i;
-	int machineConfig_baseaddress = _machine_base_address_index(mach_num, mode);
+	int machine_config_base_address = _machine_base_address_index(mach_num, mode);
 
 	switch (mode) {
 		case DIRECTED:
-			machineConfig_baseaddress += context * 0x1000 ;
+			machine_config_base_address += context * 0x1000 ;
 			break;
 		default:
 			break;
 	}
-
+	printf("machine config base address = 0x%x\n", machine_config_base_address);
 	for (i = 3; i >= 0; --i){
 		uint64_t data = machine->config[i];
-		if (ocxl_mmio_write64(afu, machineConfig_baseaddress + (i * 8),
+		if (ocxl_mmio_write64(afu, machine_config_base_address + (i * 8),
 		    data))
 		{
 			printf("Failed to write data\n");

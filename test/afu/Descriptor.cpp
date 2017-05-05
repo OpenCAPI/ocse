@@ -261,7 +261,8 @@ Descriptor::set_afu_desc_reg(uint32_t offset, uint32_t data)
     afu_desc[offset] = data;
 }
 
-// mmio memory 
+// mmio memory space 
+// 0x0000 - 0x4000
 void
 Descriptor::set_mmio_mem(uint32_t offset, char *data, uint8_t size)
 {
@@ -277,7 +278,7 @@ Descriptor::set_mmio_mem(uint32_t offset, char *data, uint8_t size)
     for(i=0; i< size; i++)
 	printf("%02x", mmio[offset+i]);
     printf("\n");
-    debug_msg("Descriptor:set_mmio: exit");
+    //debug_msg("Descriptor:set_mmio_mem: exit");
 }
 
 void
@@ -295,6 +296,6 @@ Descriptor::get_mmio_mem(uint32_t offset, char *data, uint8_t size)
     for(i=0; i<size; i++)
 	printf("%02x",data[i]);
     printf("\n");
-    debug_msg("Descriptor:get_mmio: exit");
+    //debug_msg("Descriptor:get_mmio_mem: exit");
 }
 
