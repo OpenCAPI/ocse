@@ -747,22 +747,22 @@ void handle_buffer_write(struct cmd *cmd)
 	// for now, make sure allow_reorder_parms is not allowed.
 	event = cmd->list;
 	while ( event != NULL ) {
-	        if ( ( ( event->type == CMD_READ ) || ( event->type == CMD_READ_PE ) ) &&
+	        if ( ( event->type == CMD_READ ) &&
 		     ( event->state != MEM_DONE ) &&
-		     ( ( event->client_state != CLIENT_VALID ) ||
-		     !allow_reorder( cmd->parms ) ) ) {
+		     ( ( event->client_state != CLIENT_VALID ) ) ) { // || ( !allow_reorder( cmd->parms ) ) ) ) {
 			break;
 		}
-	        if ( ( ( event->type == CMD_CAS_4B ) || ( event->type == CMD_CAS_8B ) ) &&
-		     ( event->state == MEM_CAS_RD ) &&
-		     ( ( event->client_state != CLIENT_VALID ) ||
-		       !allow_reorder( cmd->parms ) ) ) {
-			break;
-		}
+	        /* if ( ( ( event->type == CMD_CAS_4B ) || ( event->type == CMD_CAS_8B ) ) && */
+		/*      ( event->state == MEM_CAS_RD ) && */
+		/*      ( ( event->client_state != CLIENT_VALID ) || */
+		/*        !allow_reorder( cmd->parms ) ) ) { */
+		/* 	break; */
+		/* } */
 		event = event->_next;
 	}
 
-	//printf( "handle_buffer_write: we've picked an event \n" );
+	printf( "handle_buffer_write: we've picked an event \n" );
+
 	// Test for client disconnect
 	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
 		return;

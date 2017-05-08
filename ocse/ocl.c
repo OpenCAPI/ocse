@@ -166,8 +166,8 @@ static void _handle_afu(struct ocl *ocl)
         handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
 
 	if (ocl->cmd != NULL) {
-		handle_response(ocl->cmd);
-		handle_buffer_write(ocl->cmd);
+	  // handle_response(ocl->cmd);
+	  handle_buffer_write(ocl->cmd);  // generates a response and data eventually for ap read commands
 		handle_cmd(ocl->cmd, ocl->latency);
 		handle_interrupt(ocl->cmd);
 
