@@ -382,7 +382,8 @@ AFU::resolve_tlx_afu_resp()
 #endif
     uint8_t  resp_dp;
     uint32_t resp_addr_tag;
-    
+    uint8_t  cmd_rd_req, cmd_rd_cnt;
+
     tlx_afu_read_resp(&afu_event, &tlx_resp_opcode, &resp_afutag, 
 		&resp_code, &resp_pg_size, &resp_resp_dl,
 #ifdef	TLX4
@@ -395,6 +396,10 @@ AFU::resolve_tlx_afu_resp()
 	case TLX_RSP_RET_TLX_CREDITS:
 	case TLX_RSP_TOUCH_RESP:
 	case TLX_RSP_READ_RESP:
+	    cmd_rd_req = 0x1;	
+	    cmd_rd_cnt = 0x1; 	// 0=512B, 1=64B, 2=128B
+	    afu_tlx_cmd_data_read_req(&afu_event, cmd_rd_req, cmd_rd_cnt);
+	    break;
 	case TLX_RSP_UGRADE_RESP:
 	case TLX_RSP_READ_FAILED:
 	case TLX_RSP_CL_RD_RESP:
