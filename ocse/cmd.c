@@ -213,7 +213,7 @@ static struct client *_get_client(struct cmd *cmd, struct cmd_event *event)
 }
 
 // Add new command to list
-static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t tag,
+static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 		     uint32_t command, enum cmd_type type,
 		     uint64_t addr, uint32_t size, enum mem_state state,
 		     uint32_t resp, uint8_t unlock)
@@ -226,7 +226,8 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t tag,
 	event = (struct cmd_event *)calloc(1, sizeof(struct cmd_event));
 	event->context = context;
 	event->command = command;
-	event->tag = tag;
+	event->tag = 0; // remove this someday...
+	event->afutag = afutag;
 	event->type = type;
 	event->addr = addr;
 	event->size = size;
@@ -258,7 +259,7 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t tag,
 	event->_next = *head;
 	*head = event;
 	debug_msg("_add_cmd:created cmd_event @ 0x%016"PRIx64":command=0x%02x, type=0x%02x, tag=0x%02x, state=0x%03x", event, event->command, event->type, event->tag, event-> state );
-	debug_cmd_add(cmd->dbg_fp, cmd->dbg_id, tag, context, command);
+	debug_cmd_add(cmd->dbg_fp, cmd->dbg_id, afutag, context, command);
 }
 
 // Format and add interrupt to command list
@@ -680,8 +681,8 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 	if (rc != TLX_SUCCESS) 
 		return;
 
-	debug_msg("%s:COMMAND actag=0x%02x cmd=0x%x BDF=0x%x addr=0x%016"PRIx64 " cmd_data_is_valid= 0x%x ", cmd->afu_name,
-		  cmd_actag, cmd_opcode, cmd_bdf, cmd_pasid, cmd_data_is_valid);
+	debug_msg("%s:COMMAND actag=0x%02x afutag=0x%04x cmd=0x%x BDF=0x%x addr=0x%016"PRIx64 " cmd_data_is_valid= 0x%x ", cmd->afu_name,
+		  cmd_actag, cmd_afutag, cmd_opcode, cmd_bdf, cmd_pasid, cmd_data_is_valid);
 
 	// Is AFU running?
 /*	if (*(cmd->ocl_state) != OCSE_RUNNING) {
@@ -712,7 +713,7 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 	event = cmd->list;
 	while (event != NULL) {
 		if (event->afutag == cmd_afutag) {
-			error_msg("Duplicate afutag 0x%02x", cmd_afutag);
+			error_msg("Duplicate afutag 0x%04x", cmd_afutag);
 			return;
 		}
 		event = event->_next;
@@ -729,6 +730,10 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 // Handle randomly selected pending read by either generating early buffer
 // write with bogus data, send request to client for real data or do final
 // buffer write with valid data after it has been received from client.
+// lgt:  in opencapi, we don't really have a separate buffer write.  Instead,
+// when get the data back from the host, we just send it with the response.
+// should we defer some of this to handle_response?  Or should we process
+// the data and response here and also free the event?
 void handle_buffer_write(struct cmd *cmd)
 {
 	struct cmd_event *event;
@@ -745,6 +750,7 @@ void handle_buffer_write(struct cmd *cmd)
 	//printf( "handle_buffer_write \n" );
 	// Randomly select a pending read or read_pe (or none)
 	// for now, make sure allow_reorder_parms is not allowed.
+	// lgt: if we want to free the event later, we should find the event with the same method as handle_response...
 	event = cmd->list;
 	while ( event != NULL ) {
 	        if ( ( event->type == CMD_READ ) &&
@@ -761,11 +767,11 @@ void handle_buffer_write(struct cmd *cmd)
 		event = event->_next;
 	}
 
-	printf( "handle_buffer_write: we've picked an event \n" );
-
 	// Test for client disconnect
 	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
 		return;
+
+	printf( "handle_buffer_write: we've picked a non-NULL event and the client is still there \n" );
 
 	// after the client returns data with a call to the function _handle_mem_read,
 	// we need to generate one or more capp responses.  We need to chunk data into 64 byte pieces
@@ -784,7 +790,7 @@ void handle_buffer_write(struct cmd *cmd)
 	    // and complete the event
 	    if ( tlx_afu_send_resp_and_data( cmd->afu_event, 
 					     TLX_RSP_READ_RESP, 
-					     event->tag, 
+					     event->afutag, 
 					     0, // resp_code - not really used for a good response
 					     0, // resp_pg_size - not used by response, 
 					     1, // for partials, dl is 1 (64 B)
@@ -793,6 +799,7 @@ void handle_buffer_write(struct cmd *cmd)
 					     0, // resp_data_bdi - not used by response
 					     event->data ) == TLX_SUCCESS ) { // data in this case is already at the proper offset in the 64 B data packet
 	      // debug message
+	      // and free the event?
 	    }
 	    event->resp = TLX_RESPONSE_DONE;
 	    event->state = MEM_DONE;
@@ -814,7 +821,7 @@ void handle_buffer_write(struct cmd *cmd)
 	    if ( resp_dl >= 0 ) {
 	      if ( tlx_afu_send_resp_and_data( cmd->afu_event, 
 					       TLX_RSP_READ_RESP, 
-					       event->tag, 
+					       event->afutag, 
 					       0, // resp_code - not really used for a good response
 					       0, // resp_pg_size - not used by response, 
 					       resp_dl, // for partials, dl is 1 (64 B) - need to calculate dl from size or keep dl and dp around from initial command
@@ -896,14 +903,14 @@ void handle_buffer_write(struct cmd *cmd)
 		  addr = (uint64_t *) & (buffer[2]);
 		  *addr = htonll(event->addr);
 		  event->abort = &(client->abort);
-		  debug_msg("%s:MEMORY READ tag=0x%02x size=%d addr=0x%016"PRIx64,
-			    cmd->afu_name, event->tag, event->size, event->addr);
+		  debug_msg("%s:MEMORY READ afutag=0x%04x size=%d addr=0x%016"PRIx64,
+			    cmd->afu_name, event->afutag, event->size, event->addr);
 		  if (put_bytes(client->fd, 10, buffer, cmd->dbg_fp,
 				cmd->dbg_id, event->context) < 0) {
 		    client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		  }
 		  event->state = MEM_REQUEST;
-		  debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->tag,
+		  debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag,
 				   event->context);
 		  client->mem_access = (void *)event;
 		}
