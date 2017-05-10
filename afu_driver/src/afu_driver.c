@@ -367,9 +367,9 @@ void tlx_bfm(
       invalidVal = 0;
 	//	Code to access the AFU->TLX command interface
       c_afu_tlx_cmd_valid  	= (afu_tlx_cmd_valid_top & 0x2) ? 0 : (afu_tlx_cmd_valid_top & 0x1);
-      invalidVal			+= afu_tlx_cmd_valid_top & 0x2;
+      invalidVal		+= afu_tlx_cmd_valid_top & 0x2;
       c_afu_tlx_cdata_valid  	= (afu_tlx_cdata_valid_top & 0x2) ? 0 : (afu_tlx_cdata_valid_top & 0x1);
-      invalidVal			+= afu_tlx_cdata_valid_top & 0x2;
+      invalidVal		+= afu_tlx_cdata_valid_top & 0x2;
       if(c_afu_tlx_cmd_valid)
       {
         c_afu_tlx_cmd_opcode	= (afu_tlx_cmd_opcode_top->aval) & 0xFF;
@@ -381,18 +381,18 @@ void tlx_bfm(
         invalidVal		+= getMyByteArray(afu_tlx_cmd_ea_or_obj_top, 9, c_afu_tlx_cmd_ea_or_obj);
         c_afu_tlx_cmd_afutag	= (afu_tlx_cmd_afutag_top->aval) & 0xFFFF;
         invalidVal		+= (afu_tlx_cmd_afutag_top->bval) & 0xFFFF;
-        c_afu_tlx_cmd_dl		= (afu_tlx_cmd_dl_top->aval) & 0x3;
+        c_afu_tlx_cmd_dl	= (afu_tlx_cmd_dl_top->aval) & 0x3;
         invalidVal		+= (afu_tlx_cmd_dl_top->bval) & 0x3;
-        c_afu_tlx_cmd_pl		= (afu_tlx_cmd_pl_top->aval) & 0x7;
+        c_afu_tlx_cmd_pl	= (afu_tlx_cmd_pl_top->aval) & 0x7;
         invalidVal		+= (afu_tlx_cmd_pl_top->bval) & 0x7;
-        c_afu_tlx_cmd_os		= (afu_tlx_cmd_os_top & 0x2) ? 0 : (afu_tlx_cmd_os_top & 0x1);
+        c_afu_tlx_cmd_os	= (afu_tlx_cmd_os_top & 0x2) ? 0 : (afu_tlx_cmd_os_top & 0x1);
         invalidVal		+= afu_tlx_cmd_os_top & 0x2;
         invalidVal		+= getMy64Bit(afu_tlx_cmd_be_top, &c_afu_tlx_cmd_be);
         c_afu_tlx_cmd_flag	= (afu_tlx_cmd_flag_top->aval) & 0xF;
         invalidVal		+= (afu_tlx_cmd_flag_top->bval) & 0xF;
         c_afu_tlx_cmd_endian	= (afu_tlx_cmd_endian_top & 0x2) ? 0 : (afu_tlx_cmd_endian_top & 0x1);
         invalidVal		+= afu_tlx_cmd_endian_top & 0x2;
-        c_afu_tlx_cmd_bdf		= (afu_tlx_cmd_bdf_top->aval) & 0xFFFF;
+        c_afu_tlx_cmd_bdf	= (afu_tlx_cmd_bdf_top->aval) & 0xFFFF;
         invalidVal		+= (afu_tlx_cmd_bdf_top->bval) & 0xFFFF;
         c_afu_tlx_cmd_pasid	= (afu_tlx_cmd_pasid_top->aval) & 0xFFFFF;
         invalidVal		+= (afu_tlx_cmd_pasid_top->bval) & 0xFFFFF;
@@ -419,7 +419,7 @@ void tlx_bfm(
       if(c_afu_tlx_cmd_valid & (!c_afu_tlx_cdata_valid))
       {
         afu_tlx_send_cmd(&event,
-        		c_afu_tlx_cmd_opcode, c_afu_tlx_cmd_actag, c_afu_tlx_cmd_stream_id,
+        	c_afu_tlx_cmd_opcode, c_afu_tlx_cmd_actag, c_afu_tlx_cmd_stream_id,
   		c_afu_tlx_cmd_ea_or_obj, c_afu_tlx_cmd_afutag,
   		c_afu_tlx_cmd_dl, c_afu_tlx_cmd_pl,
 #ifdef TLX4
@@ -545,10 +545,6 @@ void tlx_bfm(
         printf(" The AFU-TLX Response Data Interface has either X or Z value \n" );
       }
 #endif
-    } else {
-      // printf("lgt: tlx_bfm: clock = 1\n" );
-      c_sim_error = 0;
-      tlx_control();
       if(event.tlx_afu_resp_valid)
       {
         setDpiSignal32(tlx_afu_resp_opcode_top, event.tlx_afu_resp_opcode, 8);
@@ -674,6 +670,10 @@ void tlx_bfm(
       event.tlx_afu_resp_data_credit = 0;
       event.tlx_afu_cmd_credit = 0;
       event.tlx_afu_cmd_data_credit = 0;
+    } else {
+      // printf("lgt: tlx_bfm: clock = 1\n" );
+      c_sim_error = 0;
+      tlx_control();
     }
   }
   c_reset_d2 = c_reset_d1;
