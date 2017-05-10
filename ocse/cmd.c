@@ -740,7 +740,6 @@ void handle_buffer_write(struct cmd *cmd)
 	struct client *client;
 	uint8_t buffer[10];
 	uint64_t *addr;
-	uint8_t resp_dl;
 	//int quadrant, byte;
 
 	// Make sure cmd structure is valid
@@ -750,7 +749,9 @@ void handle_buffer_write(struct cmd *cmd)
 	//printf( "handle_buffer_write \n" );
 	// Randomly select a pending read or read_pe (or none)
 	// for now, make sure allow_reorder_parms is not allowed.
-	// lgt: if we want to free the event later, we should find the event with the same method as handle_response...
+	// lgt: if we want to free the cmd event later, we should find the event with the same method as handle_response...
+	// lgt: decided to put the call to tlx_afu_send_resp_and_data in the handle_response routine since it will also free the cmd event
+	//      so here we just set MEM_DONE and TLX_RESPONSE_DONE for the event that we selected
 	event = cmd->list;
 	while ( event != NULL ) {
 	        if ( ( event->type == CMD_READ ) &&
@@ -776,6 +777,8 @@ void handle_buffer_write(struct cmd *cmd)
 	// after the client returns data with a call to the function _handle_mem_read,
 	// we need to generate one or more capp responses.  We need to chunk data into 64 byte pieces
 	// to honor the txl/afu interface.
+	// in ocse, we will always send responses with all the data appropriate for the response we generate
+	// see handle_response
 	// for partial read, we can probabaly just return data as we have already inserted the data into 
 	// the appropriate place in the event->data buffer
 	// for "full" reads, we need to chunk data
@@ -786,21 +789,7 @@ void handle_buffer_write(struct cmd *cmd)
 	//    and so on.
 	if ((event->state == MEM_RECEIVED) && ((event->type == CMD_READ) || (event->type == CMD_READ_PE))) {
 	  if ( (event->command == AFU_CMD_PR_RD_WNITC) || (event->command == AFU_CMD_PR_RD_WNITC_N) ) {
-	    // we can just send the 64 bytes of data back
-	    // and complete the event
-	    if ( tlx_afu_send_resp_and_data( cmd->afu_event, 
-					     TLX_RSP_READ_RESP, 
-					     event->afutag, 
-					     0, // resp_code - not really used for a good response
-					     0, // resp_pg_size - not used by response, 
-					     1, // for partials, dl is 1 (64 B)
-					     0, // for partials, dp is 0 (the 0th part)
-					     0, // resp_addr_tag, - not used by response
-					     0, // resp_data_bdi - not used by response
-					     event->data ) == TLX_SUCCESS ) { // data in this case is already at the proper offset in the 64 B data packet
-	      // debug message
-	      // and free the event?
-	    }
+	    // we can just complete the event and let handle_response send the response and 64 bytes of data back
 	    event->resp = TLX_RESPONSE_DONE;
 	    event->state = MEM_DONE;
 	  } else if ( (event->command == AFU_CMD_RD_WNITC) || (event->command == AFU_CMD_RD_WNITC_N) ) {
@@ -817,48 +806,11 @@ void handle_buffer_write(struct cmd *cmd)
 	    // fifo.  This method actually works for partial read as well as the minimum size of a split response is 64 B.
 	    // it is the afu's responsiblity to manage resp_rd_cnt correctly, and this is not information for us to check
 	    // anything other than an overrun (i.e. resp_rd_req of an empty fifo, or resp_rd_cnt exceeds the amount of data in the fifo)
-	    resp_dl = size_to_dl( event->size );
-	    if ( resp_dl >= 0 ) {
-	      if ( tlx_afu_send_resp_and_data( cmd->afu_event, 
-					       TLX_RSP_READ_RESP, 
-					       event->afutag, 
-					       0, // resp_code - not really used for a good response
-					       0, // resp_pg_size - not used by response, 
-					       resp_dl, // for partials, dl is 1 (64 B) - need to calculate dl from size or keep dl and dp around from initial command
-					       0, // for partials, dp is 0 (the 0th part)
-					       0, // resp_addr_tag, - not used by response
-					       0, // resp_data_bdi - not used by good response
-					       event->data ) == TLX_SUCCESS ) { // data in this case is already the complete length
-		// some print messages in debug mode maybe
-	      }
 	      event->resp = TLX_RESPONSE_DONE;
 	      event->state = MEM_DONE;
-	    } else {
-	      // failed
-	    }
           } else {
 	    // unsupport read command message
 	  }
-/*		if (tlx_buffer_write(cmd->afu_event, event->tag, event->addr,
-				     CACHELINE_BYTES, event->data,
-				     event->parity) == TLX_SUCCESS) {
-			debug_msg("%s:BUFFER WRITE tag=0x%02x", cmd->afu_name,
-				  event->tag);
-			for (quadrant = 0; quadrant < 4; quadrant++) {
-				DPRINTF("DEBUG: Q%d 0x", quadrant);
-				for (byte = 0; byte < CACHELINE_BYTES / 4;
-				     byte++) {
-					DPRINTF("%02x", event->data[byte]);
-				}
-				DPRINTF("\n");
-			}
-			event->resp = TLX_RESPONSE_DONE;
-			event->state = MEM_DONE;
-			debug_cmd_buffer_write(cmd->dbg_fp, cmd->dbg_id,
-					       event->tag);
-			debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->tag,
-					 event->context, event->resp);
-		} */
 	}
 
                 if (event->state == MEM_CAS_RD) {
@@ -881,14 +833,9 @@ void handle_buffer_write(struct cmd *cmd)
 	if (event->state != MEM_IDLE)
 		return;
 
-	if (!event->buffer_activity && allow_buffer(cmd->parms)) {
-		// Buffer write with bogus data, but only once
-	        // should I skip this in the case of read_pe?
-		debug_cmd_buffer_write(cmd->dbg_fp, cmd->dbg_id, event->tag);
-	/*	tlx_buffer_write(cmd->afu_event, event->tag, event->addr,
-				 CACHELINE_BYTES, event->data, event->parity); */
-		event->buffer_activity = 1;
-	} else if (client->mem_access == NULL) {
+	// lgt removed code that would send bogus data to the afu.  doesn't happen in opencapi
+
+	if (client->mem_access == NULL) {
 	        // if read:
 		// Send read request to client, set client->mem_access
 		// to point to this event blocking any other memory
@@ -914,19 +861,7 @@ void handle_buffer_write(struct cmd *cmd)
 				   event->context);
 		  client->mem_access = (void *)event;
 		}
-                if (event->type == CMD_READ_PE) {
-		  // init data
-		  memset(event->data, 0x00, CACHELINE_BYTES);
-		  // set wed portion
-		  // event->data pointer to uint8
-		  // client->wed uint64
-		  // event->data[116:123] is wed portion
-		 // memcpy((void *)&(event->data[116]),(void *)&(client->wed), 8);
-		  //generate_cl_parity(event->data, event->parity);
-		  event->state = MEM_RECEIVED;
-		  debug_msg("%s:PROCESS ELEMENT READ tag=0x%02x handle=%d",
-			    cmd->afu_name, event->tag, event->context);
-		}
+		// lgt remove read_pe command code - no such command in opencapi
 	}
 }
 
@@ -2078,20 +2013,21 @@ void handle_response(struct cmd *cmd)
 	struct cmd_event **head;
 	struct cmd_event *event;
 	struct client *client;
+	uint8_t resp_dl;
 	int rc;
 
 	// Select a random pending response (or none)
 	client = NULL;
 	head = &cmd->list;
 	while (*head != NULL) {
-	        debug_msg( "%s:RESPONSE examine event @ 0x%016" PRIx64 ", command=0x%x, tag=0x%08x, type=0x%02x, state=0x%02x, resp=0x%x",
-			   cmd->afu_name,
-			   (*head),
-			   (*head)->command,
-			   (*head)->tag,
-			   (*head)->type,
-			   (*head)->state,
-			   (*head)->resp );
+	  //debug_msg( "%s:RESPONSE examine event @ 0x%016" PRIx64 ", command=0x%x, tag=0x%08x, type=0x%02x, state=0x%02x, resp=0x%x",
+	  //	   cmd->afu_name,
+	  //	   (*head),
+	  //	   (*head)->command,
+	  //	   (*head)->tag,
+	  //	   (*head)->type,
+	  //	   (*head)->state,
+	  //	   (*head)->resp );
 		// Fast track error responses
 	/*	if ( ( (*head)->resp == TLX_RESPONSE_PAGED ) ||
 		     ( (*head)->resp == TLX_RESPONSE_NRES ) ||
@@ -2154,25 +2090,32 @@ void handle_response(struct cmd *cmd)
 		}
 
 
-		if (((*head)->state == MEM_DONE) && !allow_reorder(cmd->parms)) {
-		        debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", drive response because MEM_DONE",
-				   cmd->afu_name, (*head) );
-			break;
+		// if the state of the event is mem_done, we can potentially stop the loop and send a response for it.
+		// if we not allowing reordering, we'll break the loop and use this event.
+		// don't allow reordering while we sort this out.
+		if ( ( (*head)->state == MEM_DONE ) ) { // && !allow_reorder(cmd->parms)) {
+		  //debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", drive response because MEM_DONE",
+		  //	   cmd->afu_name, (*head) );
+		  break;
 		}
+		
 		head = &((*head)->_next);
 	}
 
-	// Randomly decide not to drive response yet
 	event = *head;
-	if ((event == NULL) || ((event->client_state == CLIENT_VALID)
-				&& !allow_resp(cmd->parms))) {
-	//        debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 "skipped because suppressed by allow_resp", cmd->afu_name, event );
-		return;
-	}
+
+	// Randomly decide not to drive response yet - skip this for now
+	// if ( ( event == NULL ) || ( ( event->client_state == CLIENT_VALID ) && 
+	// 			    ( !allow_resp(cmd->parms) ) ) ) {
+	//      debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 "skipped because suppressed by allow_resp", cmd->afu_name, event );
+	// 	return;
+	// }
+
 	// Test for client disconnect
 	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL)) {
-	        debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 "skipped because client NULL", cmd->afu_name, event );
-		return;
+	  //debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 " skipped because event or client NULL", cmd->afu_name, event );
+	  // maybe we should free it too???
+	  return;
 	}
 
 	// Send response, remove command from list and free memory
@@ -2183,18 +2126,20 @@ void handle_response(struct cmd *cmd)
 		client->flushing = FLUSH_FLUSHING;
 		_update_pending_resps(cmd, TLX_RESPONSE_FLUSHED);
 	} */
+
  drive_resp:
 	// debug - dump the event we picked...
 	debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", command=0x%x, tag=0x%08x, type=0x%02x, state=0x%02x, resp=0x%x",
 		   cmd->afu_name,
 		   event,
 		   event->command,
-		   event->tag,
+		   event->afutag,
 		   event->type,
 		   event->state,
 		   event->resp );
 
 	// Check for pending buffer activity
+	// do we need this anymore?
 /* 	while (event == cmd->buffer_read) {
 		if (cmd->afu_event->buffer_rdata_valid) {
 			warn_msg("Application terminated while AFU write still active");
@@ -2209,20 +2154,64 @@ void handle_response(struct cmd *cmd)
 	} */
 
 	// lgt: this should probably be tlx_afu_send_resp_and_data
-	// lgt: the trick is going to be how do we deal with the various sizes of data
-	// lgt: do we transmit it all to afu_driver and let afu_driver partition it up?
-	// lgt: do we buffer it in tlx_interface somehow?
-	// lgt: the sad fact is that ocse is saving all the information to make the correct decisions and afu_driver is not.
-	// rc = tlx_response(cmd->afu_event, event->tag, event->resp, 1, 0, 0, cmd->pagesize, event->resp_extra);
+	//      the trick is going to be how do we deal with the various sizes of data
+	//      do we transmit it all to afu_driver and let afu_driver partition it up? Yes
+	//      do we buffer it in tlx_interface somehow? could be a good altenate
+	// lgt: build the appropriate response for the event we selected
 
-	/*
-	debug_msg("returning pagesize value of 0x%x and resp_extra = 0x%x" , cmd->pagesize, event->resp_extra);
+	// rc = tlx_response(cmd->afu_event, event->tag, event->resp, 1, 0, 0, cmd->pagesize, event->resp_extra);
+	if ( (event->command == AFU_CMD_PR_RD_WNITC) || (event->command == AFU_CMD_PR_RD_WNITC_N) ) {
+	    // we can just send the 64 bytes of data back
+	    // and complete the event
+	    rc = tlx_afu_send_resp_and_data( cmd->afu_event, 
+					     TLX_RSP_READ_RESP, 
+					     event->afutag, 
+					     0, // resp_code - not really used for a good response
+					     0, // resp_pg_size - not used by response, 
+					     1, // for partials, dl is 1 (64 B)
+					     0, // for partials, dp is 0 (the 0th part)
+					     0, // resp_addr_tag, - not used by response
+					     0, // resp_data_bdi - not used by response
+					     event->data ) ; // data in this case is already at the proper offset in the 64 B data packet
+	} else if ( (event->command == AFU_CMD_RD_WNITC) || (event->command == AFU_CMD_RD_WNITC_N) ) {
+	    // we can:
+	    //    send a complete response, with all the data
+	    //    send partial responses, in any order, with aligned partial data (vary dl and dp in the response
+	    //       power will likely send back chunks in <= 128 B responses...
+	    //    responses can come back in any order
+	    // I'm thinking ocse decides what response to send and whether or not to split it. 
+	    // and sends all the data associated with the selected response.
+	    // then tlx_interface/afu_driver forward the response portion and hold the data in a fifo linked list of 64 B values.
+	    // then when the afu does a resp_rd_req of some resp_rd_cnt, tlx_interaface/afu_driver just starts pumping values out of the 
+	    // fifo.  This method actually works for partial read as well as the minimum size of a split response is 64 B.
+	    // it is the afu's responsiblity to manage resp_rd_cnt correctly, and this is not information for us to check
+	    // anything other than an overrun (i.e. resp_rd_req of an empty fifo, or resp_rd_cnt exceeds the amount of data in the fifo)
+	    resp_dl = size_to_dl( event->size );
+
+	    // i don't think we can get a bad dl since we calculated size from dl in the first place...
+	    // if ( resp_dl < 0 ) {
+	    //   printf( "handle_response: invalid size\n" );
+	    //   /* die somehow */ 
+	    // }
+		      
+	    rc = tlx_afu_send_resp_and_data( cmd->afu_event, 
+					     TLX_RSP_READ_RESP, 
+					     event->afutag, 
+					     0, // resp_code - not really used for a good response
+					     0, // resp_pg_size - not used by response, 
+					     resp_dl, // for partials, dl is 1 (64 B) - need to calculate dl from size or keep dl and dp around from initial command
+					     0, // for partials, dp is 0 (the 0th part)
+					     0, // resp_addr_tag, - not used by response
+					     0, // resp_data_bdi - not used by good response
+					     event->data ) ; // data in this case is already the complete length
+	}
+	   
 	if (rc == TLX_SUCCESS) {
 		debug_msg("%s:RESPONSE event @ 0x%016" PRIx64 ", sent tag=0x%02x code=0x%x", cmd->afu_name,
-			  event, event->tag, event->resp);
+			  event, event->afutag, event->resp);
 		debug_cmd_response(cmd->dbg_fp, cmd->dbg_id, event->tag);
-		if ( ( client != NULL ) && ( event->command == TLX_COMMAND_RESTART ) )
-			client->flushing = FLUSH_NONE;
+		// if ( ( client != NULL ) && ( event->command == TLX_COMMAND_RESTART ) )
+		// 	client->flushing = FLUSH_NONE;
 		// if this was an xlat cmd, don't want to free the event so add code to check - HMP
 	        if ( ( event->type == CMD_XLAT_RD ) ||
 		     ( event->type == CMD_XLAT_WR ) ) {
@@ -2248,7 +2237,7 @@ void handle_response(struct cmd *cmd)
 		  debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", _response() faled",
 			     cmd->afu_name,
 			     event );
-	} */
+	}
 }
 
 int client_cmd(struct cmd *cmd, struct client *client)

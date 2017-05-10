@@ -160,6 +160,16 @@ module top (
    reg [511:0]     tlx_afu_resp_data_bus_top;
    reg             tlx_afu_resp_data_bdi_top;
 
+//	Table 5: TLX to AFU Response Data Interface delays
+   reg             tlx_afu_resp_data_valid_dly1;
+   reg [511:0]     tlx_afu_resp_data_bus_dly1;
+   reg             tlx_afu_resp_data_bdi_dly1;
+
+//	Table 5: TLX to AFU Response Data Interface delays
+   reg             tlx_afu_resp_data_valid_dly2;
+   reg [511:0]     tlx_afu_resp_data_bus_dly2;
+   reg             tlx_afu_resp_data_bdi_dly2;
+
 //	Table 6: TLX to AFU Command Data Interface
    reg             tlx_afu_cmd_data_valid_top;
    reg [511:0]     tlx_afu_cmd_data_bus_top;
@@ -326,9 +336,9 @@ module top (
    wire             tlx_afu_cmd_os;
 
 //	Table 5: TLX to AFU Response Data Interface
-   wire             tlx_afu_resp_data_valid;
-   wire [511:0]     tlx_afu_resp_data_bus;
-   wire             tlx_afu_resp_data_bdi;
+   reg             tlx_afu_resp_data_valid;
+   reg [511:0]     tlx_afu_resp_data_bus;
+   reg             tlx_afu_resp_data_bdi;
 
 //	Table 6: TLX to AFU Command Data Interface
    wire             tlx_afu_cmd_data_valid;
@@ -527,9 +537,11 @@ end
     assign 	tlx_afu_cmd_os			= tlx_afu_cmd_os_top;
 
 //	Table 5: TLX to AFU Response Data Interface
-    assign 	tlx_afu_resp_data_valid		= tlx_afu_resp_data_valid_top;
-    assign 	tlx_afu_resp_data_bus		= tlx_afu_resp_data_bus_top;
-    assign 	tlx_afu_resp_data_bdi		= tlx_afu_resp_data_bdi_top;
+   always @( negedge tlx_clock ) begin
+      tlx_afu_resp_data_valid		<= tlx_afu_resp_data_valid_dly1;
+      tlx_afu_resp_data_bus		<= tlx_afu_resp_data_bus_dly1;
+      tlx_afu_resp_data_bdi		<= tlx_afu_resp_data_bdi_dly1;
+   end
 
 //	Table 6: TLX to AFU Command Data Interface
     assign 	tlx_afu_cmd_data_valid		= tlx_afu_cmd_data_valid_top;
@@ -555,6 +567,20 @@ end
     assign 	afu_cfg_in_rcv_rate_capability_2	= afu_cfg_in_rcv_rate_capability_2_top;
     assign 	afu_cfg_in_rcv_rate_capability_3	= afu_cfg_in_rcv_rate_capability_3_top;
     assign 	tlx_afu_ready			= tlx_afu_ready_top;
+
+   // a block to delay the resp_data path 1 cycle
+   // todo: variable number of cycles from 1 to n
+   always @ ( negedge tlx_clock ) begin
+      tlx_afu_resp_data_valid_dly1 <= tlx_afu_resp_data_valid_top;
+      tlx_afu_resp_data_bus_dly1 <= tlx_afu_resp_data_bus_top;
+      tlx_afu_resp_data_bdi_dly1 <= tlx_afu_resp_data_bdi_top;
+   end
+
+   always @ ( negedge tlx_clock ) begin
+      tlx_afu_resp_data_valid_dly2 <= tlx_afu_resp_data_valid_dly1;
+      tlx_afu_resp_data_bus_dly2 <= tlx_afu_resp_data_bus_dly1;
+      tlx_afu_resp_data_bdi_dly2 <= tlx_afu_resp_data_bdi_dly1;
+   end
 
   always @ ( tlx_clock ) begin
     simulationTime = $time;
