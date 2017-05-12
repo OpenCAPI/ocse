@@ -355,9 +355,8 @@ int64_t sign_extend64 (uint64_t in_op)
 	return in_op;
 }
 
-// convert dl (dLengh) and pl (pLength) to a 32 bit integer
-// a size less than 0 indicates an bad combination of dl/pl
-int32_t dl_pl_to_size (uint8_t dl, uint8_t pl)
+// convert dl (dLengh) to a 32 bit integer
+int32_t dl_to_size (uint8_t dl)
 {
         uint32_t size;
 
@@ -372,33 +371,6 @@ int32_t dl_pl_to_size (uint8_t dl, uint8_t pl)
 	// size = 2 ** exponent;
 	// perhaps, but still need to check for an invalid size...
 	switch (dl) {
-	case 0:
- 	   //decode pl
-	   switch (pl) {
-	   case 0:
-	      size = 1;
-	      break;
-	   case 1:
-	      size = 2;
-	      break;
-	   case 2:
-	      size = 4;
-	      break;
-	   case 3:
-	      size = 8;
-	      break;
-	   case 4:
-	      size = 16;
-	      break;
-	   case 5:
-	      size = 32;
-	      break;
-	   default:
-	      warn_msg("Unsupported dl/pl combination: %d / %d", dl, pl);
-	      size = -1;
-	      break;
-	   }
-	   break;
 	case 1:
 	  size = 64;
 	  break;
@@ -409,11 +381,45 @@ int32_t dl_pl_to_size (uint8_t dl, uint8_t pl)
 	  size = 256;
 	  break;
 	default:
-	  warn_msg("Unsupported dl/pl combination: %d / %d", dl, pl);
+	  warn_msg("Unsupported dl: %d", dl);
 		size = -1;
 		break;
 	}
 	return size;
+}
+
+// convert pl (pLength) to a 32 bit integer
+// a size less than 0 indicates an bad combination of dl/pl
+int32_t pl_to_size (uint8_t pl)
+{
+  uint32_t size;
+
+  //decode pl
+  switch (pl) {
+  case 0:
+    size = 1;
+    break;
+  case 1:
+    size = 2;
+    break;
+  case 2:
+    size = 4;
+    break;
+  case 3:
+    size = 8;
+    break;
+  case 4:
+    size = 16;
+    break;
+  case 5:
+    size = 32;
+    break;
+  default:
+    warn_msg("Unsupported pl: %d", pl);
+    size = -1;
+    break;
+  }
+  return size;
 }
 
 // convert size to a combination of dl

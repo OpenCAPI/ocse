@@ -438,7 +438,7 @@ int tlx_afu_send_resp_and_data(struct AFU_EVENT *event,
 		event->tlx_afu_resp_data_bdi = resp_data_bdi;
 		// convert dl to size and send all the data
 	  printf("lgt: tlx_afu_send_resp_and_data: including data\n");
-		size = dl_pl_to_size( resp_dl, 0 );
+		size = dl_to_size( resp_dl );
 		memcpy(event->tlx_afu_resp_data, resp_data, size);
 		event->tlx_afu_resp_data_byte_cnt = size;
 		return TLX_SUCCESS;

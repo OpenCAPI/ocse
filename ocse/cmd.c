@@ -46,7 +46,7 @@
 #include "../common/utils.h"
 
 #define IRQ_MASK       0x00000000000007FFL
-#define CACHELINE_MASK 0xFFFFFFFFFFFFFF80L
+#define CACHELINE_MASK 0xFFFFFFFFFFFFFFC0L
 
 // Initialize cmd structure for tracking AFU command activity
 struct cmd *cmd_init(struct AFU_EVENT *afu_event, struct parms *parms,
@@ -459,18 +459,14 @@ static void _assign_actag(struct cmd *cmd, uint16_t cmd_bdf, uint32_t cmd_pasid,
 
 // Format and add memory read to command list
 static void _add_read(struct cmd *cmd, uint16_t actag, uint16_t afutag,
-		      uint8_t cmd_opcode, uint8_t *cmd_ea_or_obj, uint8_t cmd_dl, uint8_t cmd_pl)
+		      uint8_t cmd_opcode, uint8_t *cmd_ea_or_obj, uint32_t size)
 {
         int32_t context;
-        int32_t size;
         int64_t addr;
  
         // convert 68 bit ea/obj to 64 bit addr
         // for ap read commands, ea_or_obj is a 64 bit thing...
         memcpy( (void *)&addr, (void *)&(cmd_ea_or_obj[0]), sizeof(int64_t));
-
-        // decode dl/pl to get a size in bytes
-        size = dl_pl_to_size( cmd_dl, cmd_pl );
 
 	// Check command size and address
 	if (!_aligned(addr, size)) {
@@ -540,13 +536,15 @@ static void _parse_cmd(struct cmd *cmd,
 		// Memory Reads
 	case AFU_CMD_RD_WNITC:
 	case AFU_CMD_RD_WNITC_N:
+		printf("YES! AFU cmd is some sort of read!!!!\n");
+		// calculate size from dl
+		_add_read(cmd, cmd_actag, cmd_afutag, cmd_opcode, cmd_ea_or_obj, dl_to_size( cmd_dl ));
+		break;
 	case AFU_CMD_PR_RD_WNITC:
 	case AFU_CMD_PR_RD_WNITC_N:
-	        // with this organization, it is possible to get an illegal size versus the command
-	        // which will cause a seg fault during the response phase.
-	        // we might want to calculate size based on command and then call add_read with a legal cmd/size combination
 		printf("YES! AFU cmd is some sort of read!!!!\n");
-		_add_read(cmd, cmd_actag, cmd_afutag, cmd_opcode, cmd_ea_or_obj, cmd_dl, cmd_pl);
+		// calculate size from pl
+		_add_read(cmd, cmd_actag, cmd_afutag, cmd_opcode, cmd_ea_or_obj, pl_to_size( cmd_pl ));
 		break;
 	/*		// Interrupt
 	case TLX_COMMAND_INTREQ:

@@ -151,9 +151,13 @@ int32_t sign_extend(uint32_t in_op);
 //sign extend a 64b integer
 int64_t sign_extend64(uint64_t in_op);
 
-// convert dl (dLengh) and pl (pLength) to a 32 bit integer
+// convert dl (dLengh) to a 32 bit integer
 // a size less than 0 indicates an bad combination of dl/pl
-int32_t dl_pl_to_size (uint8_t dl, uint8_t pl);
+int32_t dl_to_size (uint8_t dl);
+
+// convert pl (pLength) to a 32 bit integer
+// a size less than 0 indicates an bad combination of dl/pl
+int32_t pl_to_size (uint8_t pl);
 
 // convert size to a combination of dl
 // size must be a multiple of 64...  and no greater than 256
