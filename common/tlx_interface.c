@@ -787,7 +787,7 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		return TLX_SUCCESS;
 	event->clock = 0;
 	event->tbuf[0] = 0x10;
-	if (event->afu_tlx_cmd_valid != 0) { //There are 24 bytes to xfer in this group (25 for TLX4 )
+	if (event->afu_tlx_cmd_valid != 0) { //There are 34 bytes to xfer in this group (35 for TLX4 )
 		event->tbuf[0] = event->tbuf[0] | 0x02;
 		// printf("event->tbuf[0] is 0x%2x \n", event->tbuf[0]);
 		event->tbuf[bp++] = event->afu_tlx_cmd_opcode;

@@ -258,7 +258,7 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 		head = &((*head)->_next);
 	event->_next = *head;
 	*head = event;
-	debug_msg("_add_cmd:created cmd_event @ 0x%016"PRIx64":command=0x%02x, type=0x%02x, tag=0x%02x, state=0x%03x", event, event->command, event->type, event->tag, event-> state );
+	debug_msg("_add_cmd:created cmd_event @ 0x%016"PRIx64":command=0x%02x, size=0x%04x, type=0x%02x, tag=0x%04x, state=0x%03x", event, event->command, event->size, event->type, event->afutag, event->state );
 	debug_cmd_add(cmd->dbg_fp, cmd->dbg_id, afutag, context, command);
 }
 
@@ -542,6 +542,9 @@ static void _parse_cmd(struct cmd *cmd,
 	case AFU_CMD_RD_WNITC_N:
 	case AFU_CMD_PR_RD_WNITC:
 	case AFU_CMD_PR_RD_WNITC_N:
+	        // with this organization, it is possible to get an illegal size versus the command
+	        // which will cause a seg fault during the response phase.
+	        // we might want to calculate size based on command and then call add_read with a legal cmd/size combination
 		printf("YES! AFU cmd is some sort of read!!!!\n");
 		_add_read(cmd, cmd_actag, cmd_afutag, cmd_opcode, cmd_ea_or_obj, cmd_dl, cmd_pl);
 		break;
