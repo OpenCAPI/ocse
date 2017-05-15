@@ -161,7 +161,7 @@ int32_t pl_to_size (uint8_t pl);
 
 // convert size to a combination of dl
 // size must be a multiple of 64...  and no greater than 256
-uint8_t size_to_dl (int32_t size);
+uint8_t size_to_dl (int16_t size);
 
 // dl into a number...
 int32_t decode_dl (uint8_t resp_rd_cnt);

@@ -93,7 +93,7 @@ struct cmd_event {
 	uint32_t afutag;
         uint32_t tag;  // this will go away when everything has migrated to using afutag.
 	uint32_t abt;
-	uint32_t size;
+	uint16_t size;
 	uint32_t resp;
 	uint64_t cas_op1;
 	uint64_t cas_op2;

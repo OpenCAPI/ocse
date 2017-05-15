@@ -425,14 +425,29 @@ int32_t pl_to_size (uint8_t pl)
 // convert size to a combination of dl
 // size must be a multiple of 64...  and no greater than 256
 // return -1 if size is illegal
-uint8_t size_to_dl (int32_t size)
+uint8_t size_to_dl (int16_t size)
 {
   uint8_t dl;
   if ( size % 64 != 0 ) return -1;
   
   if ( size > 256 ) return -1;
 
-  dl = size / 64;
+  switch (size) {
+  case 64:
+    size = 64;
+    dl = 1;
+    break;
+  case 128:
+    dl = 2;
+    break;
+  case 256:
+    dl = 3;
+    break;
+  default:
+    warn_msg("Unsupported size to dl conversion : %d", size);
+    dl = -1;
+    break;
+  }
 
   return dl;
 }

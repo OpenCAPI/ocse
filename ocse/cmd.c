@@ -215,7 +215,7 @@ static struct client *_get_client(struct cmd *cmd, struct cmd_event *event)
 // Add new command to list
 static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 		     uint32_t command, enum cmd_type type,
-		     uint64_t addr, uint32_t size, enum mem_state state,
+		     uint64_t addr, uint16_t size, enum mem_state state,
 		     uint32_t resp, uint8_t unlock)
 {
 	struct cmd_event **head;
@@ -739,8 +739,9 @@ void handle_buffer_write(struct cmd *cmd)
 {
 	struct cmd_event *event;
 	struct client *client;
-	uint8_t buffer[10];
+	uint8_t buffer[11];  // 1 message byte + 2 size bytes + 8 address bytes
 	uint64_t *addr;
+	uint16_t *size;
 	//int quadrant, byte;
 
 	// Make sure cmd structure is valid
@@ -816,12 +817,14 @@ void handle_buffer_write(struct cmd *cmd)
 
                 if (event->state == MEM_CAS_RD) {
 		  buffer[0] = (uint8_t) OCSE_MEMORY_READ;
-		  buffer[1] = (uint8_t) event->size;
-		  addr = (uint64_t *) & (buffer[2]);
+		  // buffer[1] = (uint8_t) event->size;  // size now consumes 2 bytes
+		  size = (uint16_t *)&(buffer[1]);
+		  *size = htons(event->size);
+		  addr = (uint64_t *) & (buffer[3]);
 		  *addr = htonll(event->addr);
 		  event->abort = &(client->abort);
-		  debug_msg("%s:MEMORY READ FOR CAS tag=0x%02x size=%d addr=0x%016"PRIx64,
-			    cmd->afu_name, event->tag, event->size, event->addr);
+		  debug_msg("%s:MEMORY READ FOR CAS afutag=0x%02x size=%d addr=0x%016"PRIx64,
+			    cmd->afu_name, event->afutag, event->size, event->addr);
 		  if (put_bytes(client->fd, 10, buffer, cmd->dbg_fp,
 				cmd->dbg_id, event->context) < 0) {
 		    client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
@@ -847,13 +850,16 @@ void handle_buffer_write(struct cmd *cmd)
 	        // set event->state to mem_received
                 if (event->type == CMD_READ) {
 		  buffer[0] = (uint8_t) OCSE_MEMORY_READ;
-		  buffer[1] = (uint8_t) event->size;
-		  addr = (uint64_t *) & (buffer[2]);
+		  // buffer[1] = (uint8_t) event->size;  // size now consumes 2 bytes
+		  // addr = (uint64_t *) & (buffer[2]);
+		  size = (uint16_t *)&(buffer[1]);
+		  *size = htons(event->size);
+		  addr = (uint64_t *) & (buffer[3]);
 		  *addr = htonll(event->addr);
 		  event->abort = &(client->abort);
 		  debug_msg("%s:MEMORY READ afutag=0x%04x size=%d addr=0x%016"PRIx64,
 			    cmd->afu_name, event->afutag, event->size, event->addr);
-		  if (put_bytes(client->fd, 10, buffer, cmd->dbg_fp,
+		  if (put_bytes(client->fd, 11, buffer, cmd->dbg_fp,
 				cmd->dbg_id, event->context) < 0) {
 		    client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		  }
@@ -902,8 +908,8 @@ void handle_buffer_read(struct cmd *cmd)
 	// Send buffer read request to AFU.  Setting cmd->buffer_read
 	// will block any more buffer read requests until buffer read
 	// data is returned and handled in handle_buffer_data().
-	debug_msg("%s:BUFFER READ tag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
-		  event->tag, event->addr);
+	debug_msg("%s:BUFFER READ afutag=0x%04x addr=0x%016"PRIx64, cmd->afu_name,
+		  event->afutag, event->addr);
 /*	if (tlx_buffer_read(cmd->afu_event, event->tag, event->addr,
 			    CACHELINE_BYTES) == TLX_SUCCESS) {
 		cmd->buffer_read = event;
@@ -1248,6 +1254,7 @@ void handle_touch(struct cmd *cmd)
 	struct client *client;
 	uint8_t buffer[10];
 	uint64_t *addr;
+	uint16_t *size;
 
 	// Make sure cmd structure is valid
 	if (cmd == NULL)
@@ -1282,8 +1289,11 @@ void handle_touch(struct cmd *cmd)
 
 	// Send memory touch request to client
 	buffer[0] = (uint8_t) OCSE_MEMORY_TOUCH;
-	buffer[1] = (uint8_t) event->size;
-	addr = (uint64_t *) & (buffer[2]);
+	//buffer[1] = (uint8_t) event->size;
+	//addr = (uint64_t *) & (buffer[2]);
+	size = (uint16_t *)&(buffer[1]);
+	*size = htons(event->size);
+	addr = (uint64_t *) & (buffer[3]);
 	*addr = htonll(event->addr & CACHELINE_MASK);
 	event->abort = &(client->abort);
 	debug_msg("%s:MEMORY TOUCH tag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
@@ -1401,6 +1411,7 @@ void handle_mem_write(struct cmd *cmd)
 	struct cmd_event *event;
 	struct client *client;
 	uint64_t *addr;
+	uint16_t *size;
 	uint8_t *buffer;
 	uint64_t offset;
 
@@ -1435,16 +1446,19 @@ void handle_mem_write(struct cmd *cmd)
 	// successful before generating a response.  The client
 	// response will cause a call to either handle_aerror() or
 	// handle_mem_return().
-	buffer = (uint8_t *) malloc(event->size + 10);
+	buffer = (uint8_t *) malloc(event->size + 11);
 	offset = event->addr & ~CACHELINE_MASK;
 	buffer[0] = (uint8_t) OCSE_MEMORY_WRITE;
-	buffer[1] = (uint8_t) event->size;
-	addr = (uint64_t *) & (buffer[2]);
+	//buffer[1] = (uint8_t) event->size;
+	//addr = (uint64_t *) & (buffer[2]);
+	size = (uint16_t *)&(buffer[1]);
+	*size = htons(event->size);
+	addr = (uint64_t *) & (buffer[3]);
 	*addr = htonll(event->addr);
 	memcpy(&(buffer[10]), &(event->data[offset]), event->size);
 	event->abort = &(client->abort);
-	debug_msg("%s:MEMORY WRITE tag=0x%02x size=%d addr=0x%016"PRIx64,
-		  cmd->afu_name, event->tag, event->size, event->addr);
+	debug_msg("%s:MEMORY WRITE tag=0x%04x size=%d addr=0x%016"PRIx64,
+		  cmd->afu_name, event->afutag, event->size, event->addr);
 	if (put_bytes(client->fd, event->size + 10, buffer, cmd->dbg_fp,
 		      cmd->dbg_id, client->context) < 0) {
 		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
@@ -1471,8 +1485,8 @@ static void _handle_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
 		printf("_handle_mem_read: before get bytes silent \n");
 		if (get_bytes_silent(fd, event->size, data, cmd->parms->timeout,
 			     event->abort) < 0) {
-	        	debug_msg("%s:_handle_mem_read failed tag=0x%02x size=%d addr=0x%016"PRIx64,
-				  cmd->afu_name, event->tag, event->size, event->addr);
+	        	debug_msg("%s:_handle_mem_read failed afutag=0x%04x size=%d addr=0x%016"PRIx64,
+				  cmd->afu_name, event->afutag, event->size, event->addr);
 			//event->resp = TLX_RESPONSE_DERROR;
 			if ((event->type == CMD_CAS_4B) || (event->type == CMD_CAS_8B))
 			//	event->resp = TLX_RESPONSE_CAS_INV;
