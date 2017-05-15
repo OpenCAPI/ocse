@@ -606,7 +606,13 @@ int afu_tlx_read_cmd_and_data(struct AFU_EVENT *event,
  		    uint8_t * cdata_bus, uint8_t * cdata_bad)
 
 {
-	if (!event->afu_tlx_cmd_valid) {
+  // in opencapi, it is possible that the afu will send a data only event...
+  // in fact, in opencapi, the data we get with a command may not be for this command
+  // so, 
+  //    we should not return an error in that case anymore
+  //    we should gather the data with a command that is waiting for it...
+  // here, we will just capture the values on the command and data interfaces
+        if (!event->afu_tlx_cmd_valid) {
 		return AFU_TLX_CMD_NOT_VALID;
 	} else {
 		event->afu_tlx_cmd_valid = 0;

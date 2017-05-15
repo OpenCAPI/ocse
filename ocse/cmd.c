@@ -660,6 +660,8 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 		return;
 
 	// Check for command from AFU
+	// maybe read command and data separately to facilitate the parse_cmd and handle_buffer_data separation a 
+	// little bit later in this routine
 	rc =  afu_tlx_read_cmd_and_data(cmd->afu_event,
   		    &cmd_opcode, &cmd_actag,
   		    &cmd_stream_id, &cmd_ea_or_obj[0],
@@ -710,7 +712,7 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 	//	return;
 	//}
 
-	// Check for duplicate afutag - not now, mayb e check for dup actag at some point??
+	// Check for duplicate afutag - not now, maybe check for dup actag at some point??
 	event = cmd->list;
 	while (event != NULL) {
 		if (event->afutag == cmd_afutag) {
@@ -721,6 +723,18 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 	}
 
 	// Parse command- 	//
+	// should we add a "parse_data" routine?  Perhaps reuse handle_buffer_data...
+	// the idea would be that we call parse cmd only if the command was valid
+	// then, we would call parse data if data is valid
+	// parse_data would search the cmd event list that is waiting for data
+	// how does it know?  dl and pl can be used to calculate the number of beats (including this one) 
+	// required to get all the data.  parse cmd set a state (DATA_PENDING) and a beat count
+	// parse data would find the DATA_PENDING, append the data to the data buffer and decrement the beat count
+	// once all the data is in, parse data would set the state to something else (MEM_RECEIVED) to trigger the 
+	// OCSE_MEMORY_WRITE message.  
+	// parse data sounds a little bit like handle_buffer_read sort of...  Actually, more like handle_buffer_data
+	// Did we have a state for collecting data from the buffer read interface before?  
+	// we could reuse that.  MEM_BUFFER was the interim state.
 	_parse_cmd(cmd, cmd_opcode, cmd_actag, cmd_stream_id, cmd_ea_or_obj, cmd_afutag, cmd_dl, cmd_pl,
 #ifdef TLX4
 		   cmd_os,
