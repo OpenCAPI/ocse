@@ -632,7 +632,7 @@ int afu_tlx_read_cmd_and_data(struct AFU_EVENT *event,
 		*cmd_bdf = event->afu_tlx_cmd_bdf;
 		*cmd_pasid = event->afu_tlx_cmd_pasid;
 		*cmd_pg_size = event->afu_tlx_cmd_pg_size;
-		cmd_data_is_valid = 0;
+		*cmd_data_is_valid = 0;
 		if (event->afu_tlx_cdata_valid) {
 	// should we return some sort of RC other than 0 if there is no data? Should calling function be
 	// smart enough to know if data is expected? Or should we set a bit to indicate that there is data
@@ -642,15 +642,45 @@ int afu_tlx_read_cmd_and_data(struct AFU_EVENT *event,
 			event->afu_tlx_cdata_valid = 0;
 			*cmd_data_is_valid = 1;
 			*cdata_bad = event->afu_tlx_cdata_bad;
-			// TODO FOR NOW WE ALWAYS COPY 8 BYTES of DATA - AFU
-			// SENDS 8 BYTES
-			memcpy(cdata_bus, event->afu_tlx_cdata_bus, 8);
+			// TODO FOR NOW WE ALWAYS COPY 64 BYTES of DATA - AFU
+			// SENDS 64 BYTES
+			memcpy(cdata_bus, event->afu_tlx_cdata_bus, 64);
 			//return TLX_SUCCESS;
 		}
 		//return AFU_TLX_CMD_NO_DATA;
 		return TLX_SUCCESS;
 	}
 }
+
+
+/* Call this from ocse to read AFU command data ONLY.  */
+
+int afu_tlx_read_cmd_data(struct AFU_EVENT *event,
+  	  	    uint8_t * cmd_data_is_valid,
+ 		    uint8_t * cdata_bus, uint8_t * cdata_bad)
+
+{
+  // in opencapi, it is possible that the afu will send a data only event...
+  // in fact, in opencapi, the data we get with a command may not be for this command
+  // so, 
+  //    we should not return an error in that case anymore
+  //    we should gather the data with a command that is waiting for it...
+  // here, we will just capture the values on the command and data interfaces
+        if (event->afu_tlx_cdata_valid) {
+		event->afu_tlx_cdata_valid = 0;
+		*cmd_data_is_valid = 1;
+		*cdata_bad = event->afu_tlx_cdata_bad;
+		// TODO FOR NOW WE ALWAYS COPY 64 BYTES of DATA - AFU
+		// SENDS 64 BYTES
+		memcpy(cdata_bus, event->afu_tlx_cdata_bus, 64);
+		return TLX_SUCCESS;
+	} else
+		*cmd_data_is_valid = 0;
+		//return AFU_TLX_CMD_NO_DATA;
+		return TLX_SUCCESS;
+	
+}
+
 
 
 

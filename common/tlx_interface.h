@@ -149,6 +149,11 @@ int afu_tlx_read_cmd_and_data(struct AFU_EVENT *event,
   	  	    uint32_t * cmd_pasid, uint8_t * cmd_pg_size, uint8_t * cmd_data_is_valid,
  		    uint8_t * cdata_bus, uint8_t * cdata_bad);
 
+/* Call this from ocse to read AFU command data ONLY.  */
+
+int afu_tlx_read_cmd_data(struct AFU_EVENT *event,
+  	  	    uint8_t * cmd_data_is_valid,
+ 		    uint8_t * cdata_bus, uint8_t * cdata_bad);
 
 /* Call this periodically to send events and clocking synchronization to AFU */
 /* The comparable function, tlx_signal_tlx_model, is not defined here bc it
