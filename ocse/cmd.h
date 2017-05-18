@@ -151,7 +151,7 @@ struct cmd *cmd_init(struct AFU_EVENT *afu_event, struct parms *parms,
 
 void handle_cmd(struct cmd *cmd,  uint32_t latency);
 
-void handle_buffer_read(struct cmd *cmd);
+void handle_afu_tlx_cnd_data_read(struct cmd *cmd);
 
 void handle_buffer_data(struct cmd *cmd, uint32_t parity_enable);
 

@@ -1300,20 +1300,26 @@ static void *_psl_loop(void *ptr)
 			break;
 		case OCSE_MEMORY_WRITE:
 			DPRINTF("AFU MEMORY WRITE\n");
-			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
+			if (get_bytes_silent(afu->fd, sizeof( size ), buffer, 1000, 0) < 0) {
 				warn_msg
 				    ("Socket failure getting memory write size");
 				_all_idle(afu);
 				break;
 			}
-			size = (uint16_t) buffer[0];
+			//size = (uint16_t) buffer[0];
+			memcpy( (char *)&size, buffer, sizeof( size ) );
+			size = ntohs(size);
+			DPRINTF( "of size=%d \n", size );
 			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
-					     -1, 0) < 0) {
+						 -1, 0) < 0) {
+				warn_msg
+				    ("Socket failure getting memory write addr");
 				_all_idle(afu);
 				break;
 			}
 			memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
 			addr = ntohll(addr);
+			DPRINTF("to addr 0x%016" PRIx64 "\n", addr);
 			if (get_bytes_silent(afu->fd, size, buffer, 1000, 0) <
 			    0) {
 				warn_msg
