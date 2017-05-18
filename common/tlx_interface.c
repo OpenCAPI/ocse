@@ -1507,17 +1507,25 @@ int afu_tlx_send_cmd(struct AFU_EVENT *event,
 }
 
 
-// TODO - DON"T CALL THIS YET - IT WON"T WORK
 /* Call this from afu to send command data to ocse   assume can only send 64B
- * @ time to FIFO ?*/
+ * @ time to FIFO */
 
-int afu_tlx_send_cmd_data(struct AFU_EVENT *event,
-		 uint8_t DATA_CMD_CONTINUATION,
-		 uint8_t cdata_bad,uint8_t cmd_pl,
-		 uint8_t cmd_dl,uint8_t * cdata_bus)
+int afu_tlx_send_cmd_data( struct AFU_EVENT *event,
+			   uint8_t cdata_bad,
+			   uint8_t * cdata_bus )
 {
-	printf("THIS FUNCTION ISN'T SUPPORTED YET \n");
-	return AFU_TLX_CMD_DATA_NOT_VALID;
+  if (event->tlx_afu_cmd_data_credits_available == 0) {
+    return TLX_AFU_NO_CREDITS;
+  }
+	
+  event->afu_tlx_cdata_valid = 1;
+  event->tlx_afu_cmd_data_credits_available -= 1;
+  printf("tlx_afu_cmd_data_credits available is %d  \n", event->tlx_afu_cmd_data_credits_available);
+  event->afu_tlx_cdata_bad = cdata_bad;
+  // TODO FOR NOW WE ALWAYS COPY 64 BYTES of DATA - AFU ALWAYS
+  // SENDS 64 BYTES
+  memcpy(event->afu_tlx_cdata_bus, cdata_bus, 64);
+  return TLX_SUCCESS;
 }
 
 

@@ -238,10 +238,7 @@ int afu_tlx_send_cmd(struct AFU_EVENT *event,
 /* Call this from afu to send command data to ocse   assume can only send 64B
  * @ time to FIFO ?*/
 
-int afu_tlx_send_cmd_data(struct AFU_EVENT *event,
-		 uint8_t DATA_CMD_CONTINUATION,
-		 uint8_t cdata_bad, uint8_t cmd_pl,
-		 uint8_t cmd_dl, uint8_t * cdata_bus);
+int afu_tlx_send_cmd_data(struct AFU_EVENT *event, uint8_t cdata_bad, uint8_t * cdata_bus);
 
 
 /* Call this on the AFU side to send a command and cmd data to ocse */
