@@ -332,7 +332,7 @@ void tlx_bfm(
   {
     if ( tlx_clock == sv_0 ) {
       // printf("lgt: tlx_bfm: clock = 0\n" );
-	//	Accessing inputs from the AFX
+      // Accessing inputs from the AFX
       c_afu_tlx_cmd_initial_credit  	= (afu_tlx_cmd_initial_credit_top->aval) & 0x1F;
       invalidVal			+= (afu_tlx_cmd_initial_credit_top->bval) & 0x1F;
       c_afu_tlx_resp_initial_credit  	= (afu_tlx_resp_initial_credit_top->aval) & 0x1F;
@@ -365,7 +365,8 @@ void tlx_bfm(
 #endif
 */
       invalidVal = 0;
-	//	Code to access the AFU->TLX command interface
+
+      //	Code to access the AFU->TLX command interface
       c_afu_tlx_cmd_valid  	= (afu_tlx_cmd_valid_top & 0x2) ? 0 : (afu_tlx_cmd_valid_top & 0x1);
       invalidVal		+= afu_tlx_cmd_valid_top & 0x2;
       c_afu_tlx_cdata_valid  	= (afu_tlx_cdata_valid_top & 0x2) ? 0 : (afu_tlx_cdata_valid_top & 0x1);
@@ -416,7 +417,12 @@ void tlx_bfm(
         printf(" The AFU-TLX Command Interface has either X or Z value \n" );
       }
 #endif
-      if(c_afu_tlx_cmd_valid & (!c_afu_tlx_cdata_valid))
+      // the logic here must change.  cmd and data are somewhat separate if data is > 64B.
+      // that is, cmd/data are concurrent on the first beat but data can come without a command
+      // but more interesting is that an non-data command may overlap with data owned by a previous 
+      // command.
+      // let's just capture command and commmand data independently
+      if(c_afu_tlx_cmd_valid)
       {
         afu_tlx_send_cmd(&event,
         	c_afu_tlx_cmd_opcode, c_afu_tlx_cmd_actag, c_afu_tlx_cmd_stream_id,
@@ -429,19 +435,9 @@ void tlx_bfm(
 		c_afu_tlx_cmd_bdf, c_afu_tlx_cmd_pasid, c_afu_tlx_cmd_pg_size
         );
       }
-      else if(c_afu_tlx_cdata_valid)
+      if(c_afu_tlx_cdata_valid)
       {
-        afu_tlx_send_cmd_and_data(&event,
-        		c_afu_tlx_cmd_opcode, c_afu_tlx_cmd_actag, c_afu_tlx_cmd_stream_id,
-  		c_afu_tlx_cmd_ea_or_obj, c_afu_tlx_cmd_afutag,
-		c_afu_tlx_cmd_dl, c_afu_tlx_cmd_pl,
-#ifdef TLX4
-		c_afu_tlx_cmd_os,
-#endif
-		c_afu_tlx_cmd_be, c_afu_tlx_cmd_flag, c_afu_tlx_cmd_endian,
-		c_afu_tlx_cmd_bdf, c_afu_tlx_cmd_pasid, c_afu_tlx_cmd_pg_size,
-		c_afu_tlx_cdata_bus, c_afu_tlx_cdata_bdi
-        );
+        afu_tlx_send_cmd_data( &event, c_afu_tlx_cdata_bdi, c_afu_tlx_cdata_bus );
       }
 
       // is an afu_tlx response (resp and/or rdata) valid
