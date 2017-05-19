@@ -964,6 +964,7 @@ void handle_afu_tlx_cmd_data_read(struct cmd *cmd)
 	struct cmd_event *event;
 	struct client *client;
 	uint64_t *addr;
+	uint64_t offset;
 	unsigned char cdata_bus[64];
 	uint8_t * dptr = cdata_bus;
 	uint8_t cmd_data_is_valid, cdata_bad;
@@ -1037,13 +1038,14 @@ void handle_afu_tlx_cmd_data_read(struct cmd *cmd)
 	debug_msg("%s:BUFFER READY TO GO TO CLIENT afutag=0x%04x addr=0x%016"PRIx64, cmd->afu_name,
 		  event->afutag, event->addr);
 	if (event->type == CMD_WRITE) {
+		offset = event->addr & ~CACHELINE_MASK;
 		buffer = (uint8_t *) malloc(event->size + 11);
 		buffer[0] = (uint8_t) OCSE_MEMORY_WRITE;
 		buffer[1] = (uint8_t) ((event->size & 0x0F00) >>8);
 		buffer[2] = (uint8_t) (event->size & 0xFF);
 		addr = (uint64_t *) & (buffer[3]);
 		*addr = htonll(event->addr);
-		memcpy(&(buffer[11]), &(event->data[0]), event->size);
+		memcpy(&(buffer[11]), &(event->data[offset]), event->size);
 		event->abort = &(client->abort);
 		debug_msg("%s: MEMORY WRITE afutag=0x%02x size=%d addr=0x%016"PRIx64" port=0x%2x",
 		  	cmd->afu_name, event->afutag, event->size, event->addr, client->fd);
