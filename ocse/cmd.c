@@ -964,7 +964,11 @@ void handle_afu_tlx_cmd_data_read(struct cmd *cmd)
 	struct cmd_event *event;
 	struct client *client;
 	uint64_t *addr;
+	unsigned char cdata_bus[64];
+	uint8_t * dptr = cdata_bus;
+	uint8_t cmd_data_is_valid, cdata_bad;
 	uint8_t *buffer;
+	int rc;
 
 	// Check that cmd struct is valid buffer read is available
 	if ((cmd == NULL) || (cmd->buffer_read == NULL))
@@ -998,9 +1002,25 @@ void handle_afu_tlx_cmd_data_read(struct cmd *cmd)
 	if (event == NULL) 
 		return;
 	if (event->state == MEM_BUFFER) {
-		printf("HEY! THIS DOESN'T WORK YET! \n");
+	rc = afu_tlx_read_cmd_data(cmd->afu_event, &cmd_data_is_valid, dptr,  &cdata_bad);
+	if (rc == TLX_SUCCESS) {
+		if (cmd_data_is_valid) {
+			debug_msg("Ready to copy another chunk of write data to buffer....and total read so far=0x%x .\n", event->dpartial);
+			if ((event->size - event->dpartial) > 64) {
+				memcpy((void *)&(event->data[event->size - event->dpartial]), (void *)&(cmd->afu_event->afu_tlx_cdata_bus), 64);
+				event->dpartial +=64;
+				event->state = MEM_BUFFER;
+			 }
+			else  {
+				memcpy((void *)&(event->data[event->size - event->dpartial]), (void *)&(cmd->afu_event->afu_tlx_cdata_bus), (event->size - event->dpartial));
+				event->state = MEM_RECEIVED;
+				}
+	
+		}
+	} else
 		return;
 
+	return;
 
         } else // event->state=MEM_RECEIVED 
 		{	if ((client = _get_client(cmd, event)) == NULL)
@@ -1478,7 +1498,7 @@ void handle_interrupt(struct cmd *cmd)
 void handle_buffer_data(struct cmd *cmd, uint32_t parity_enable)
 {
 	uint8_t *parity_check;
-	int rc;
+	int rc = 0;
 	struct cmd_event *event;
 	int quadrant, byte;
 
