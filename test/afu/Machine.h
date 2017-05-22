@@ -85,7 +85,7 @@ public:
     /* configures the machine when AFU receives an MMIO write, only modifies
      * the config array, machine reads the config right before the command
      * is sent */
-    void change_machine_config (uint32_t offset, uint32_t data);
+    void change_machine_config (uint16_t index, uint64_t data);
 
     /* returns a word from the configuration of machine depending on the
      * offset when AFU receives an MMIO read */

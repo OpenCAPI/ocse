@@ -46,7 +46,7 @@ private:
     std::vector < uint64_t > port;
     std::vector < uint32_t > afu_desc;
     std::vector < uint64_t > regs;
-    std::vector < char > mmio;
+    std::vector < uint8_t > mmio;
 
     /*  reg0x00 : [0:15]  num_ints_per_process
        [16:31] num_of_process
@@ -119,8 +119,8 @@ public:
     void set_port_reg(uint32_t offset, uint64_t data);
     uint32_t get_afu_desc_reg(uint32_t offset);
     void set_afu_desc_reg(uint32_t offset, uint32_t data);
-    void get_mmio(uint32_t offset, char *data, uint32_t size);
-    void set_mmio(uint32_t offset, char *data, uint32_t size);
+    void get_mmio_mem(uint32_t offset, char *data, uint8_t size);
+    void set_mmio_mem(uint32_t offset, char *data, uint8_t size);
 };
 
 #endif

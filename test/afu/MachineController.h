@@ -21,7 +21,7 @@ class MachineController
     class Machine;
 
     bool flushed_state;
-
+    uint64_t  machine_enable_bit;
     std::vector < Machine * >machines;
     std::map < uint32_t, Machine * >tag_to_machine;
 
@@ -58,12 +58,11 @@ public:
 
     /* call this function when AFU receives a normal MMIO write to modify
      * machines */
-    void change_machine_config (uint32_t word_address, uint64_t data,
-                                uint32_t mmio_double);
+    void change_machine_config (uint16_t index, uint16_t machine_number, uint64_t data);
 
     /* call this function when AFU receives a normal MMIO read to read machine
      * config */
-    uint64_t get_machine_config (uint32_t word_address, uint32_t mmio_double);
+    void get_machine_config (uint16_t context);
 
     /* call this function to reset all the machines */
     void reset ();
@@ -81,7 +80,9 @@ public:
     /* call this function to find out if the tag belongs to this
      * machine controller */
     bool has_tag (uint32_t tag) const;
-
+    
+    // 
+    void set_machine_enable_bit(uint8_t position);
     ~MachineController ();
 };
 

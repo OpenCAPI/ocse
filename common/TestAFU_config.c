@@ -66,8 +66,8 @@ static int _machine_base_address_index(uint16_t mach_num, int mode)
     }
 
     machine_config_base_address = mach_num << 5;
-    if (mode == DIRECTED)
-	machine_config_base_address += 0x1000;
+    //if (mode == DIRECTED)
+//	machine_config_base_address += 0x1000;
 
     return machine_config_base_address;
 }
@@ -77,22 +77,25 @@ int enable_machine(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t cont
 		   uint16_t mach_num, int mode)
 {
 	int i;
-	int machineConfig_baseaddress = _machine_base_address_index(mach_num, mode);
+	int machine_config_base_address = _machine_base_address_index(mach_num, mode);
 
 	switch (mode) {
 		case DIRECTED:
-			machineConfig_baseaddress += context * 0x1000 ;
+			machine_config_base_address += context * 0x1000 ;
 			break;
 		default:
 			break;
 	}
-
+	// initialize response code
+	machine->config[1] |= 0x000000FF00000000;
+	printf("machine config base address = 0x%x\n", machine_config_base_address);
 	for (i = 3; i >= 0; --i){
 		uint64_t data = machine->config[i];
-		if (ocxl_mmio_write64(afu, machineConfig_baseaddress + (i * 8),
+		printf("config[%d] = 0x%llx\n", i, data);
+		if (ocxl_mmio_write64(afu, machine_config_base_address + (i * 8),
 		    data))
 		{
-			printf("Failed to write data\n");
+			printf("Failed to write data config[%d]\n", i);
 			return -1;
 		}
 	}
@@ -104,6 +107,8 @@ int enable_machine(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t cont
 int poll_machine(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t context, int mode) {
 	int i;
 	int machineConfig_baseaddress = _machine_base_address_index(context, mode);
+	printf("polling address = 0x%x\n", machineConfig_baseaddress);
+	machineConfig_baseaddress = 0x0230;
 	for (i = 0; i < 2; ++i){
 		uint64_t temp;
 		if (ocxl_mmio_read64(afu, machineConfig_baseaddress + (i * 8),
@@ -139,6 +144,7 @@ int get_response(struct ocxl_afu_h *afu, MachineConfig *machine,
 		if (poll_machine(afu, machine, mach_num, mode) < 0)
 			return 0xFF;
 		get_machine_config_response_code(machine, &response);
+		printf("get_machine_config_response_code = 0x%x\n", response);
 	} while (response == 0xFF);
 	return response;
 }
@@ -354,4 +360,3 @@ void get_machine_memory_base_address(MachineConfig *machine, uint64_t* addr) {
 void get_machine_memory_size(MachineConfig *machine, uint64_t* size) {
 	*size = machine->config[3];
 }
-
