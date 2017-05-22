@@ -234,15 +234,19 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	event->size = size;
 	event->state = state;
 	event->resp = resp;
+
 	// Temporary hack for now, as we don't touch/look @ TLX_SPAP reg
 	if (event->resp == TLX_RESPONSE_CONTEXT)
 		event->resp_extra = 1;
 	else
 		event->resp_extra = 0;
+
 	event->unlock = unlock;
+
 	// make sure data buffer is big enough to hold 256B (MAX memory transfer for OpenCAPI 3.0)
 	event->data = (uint8_t *) malloc(CACHELINE_BYTES * 4);
 	memset(event->data, 0xFF, CACHELINE_BYTES * 4);
+
 	// lgt may not need cpl xfers to go and parity
 	event->cpl_xfers_to_go = 0;  //init this to 0 (used for DMA read multi completion flow)
 	event->parity = (uint8_t *) malloc(DWORDS_PER_CACHELINE / 8);
@@ -266,15 +270,16 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	if (cmd_data_is_valid) {
 		cmd->buffer_read = event;
 		printf("Getting ready to copy first chunk of write data to buffer....and size=0x%x .\n", size);
+		// alway copy 64 bytes...
+		memcpy((void *)&(event->data[0]), (void *)&(cmd->afu_event->afu_tlx_cdata_bus), 64);
 		if (size > 64) {
-			memcpy((void *)&(event->data[0]), (void *)&(cmd->afu_event->afu_tlx_cdata_bus), 64);
+		        // but if size is greater that 64, we have to gather more data
 			event->dpartial +=64;
 			event->state = MEM_BUFFER;
 		 }
 		else  {
-			memcpy((void *)&(event->data[0]), (void *)&(cmd->afu_event->afu_tlx_cdata_bus), size);
 			event->state = MEM_RECEIVED;
-			}
+		}
 	
 	}
 
@@ -534,7 +539,10 @@ static void _add_write(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 	
 	// Writes will be added to the list and will next be processed
 	// in the function handle_buffer_read(), now known as handle_afu_tlx_cmd_data_read
-	 
+
+	// int i;
+	// printf("_add_write:addr=0x%016" PRIx64 " size=%d; cmd->afu_event->afu_tlx_cdata_bus=0x", addr, size); for (i=0;i<64;i++) printf("%02x",cmd->afu_event->afu_tlx_cdata_bus[i]); printf("\n");
+
 	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_WRITE, addr, size,
 		 MEM_IDLE, TLX_RESPONSE_DONE, 0, cmd_data_is_valid);
 	printf("MADE IT BACK FROM ADD CMD IN ADD WRITE !\n");
@@ -597,7 +605,7 @@ static void _parse_cmd(struct cmd *cmd,
 		break;
 	case AFU_CMD_PR_RD_WNITC:
 	case AFU_CMD_PR_RD_WNITC_N:
-		printf("YES! AFU cmd is some sort of read!!!!\n");
+		printf("YES! AFU cmd is some sort of partial read!!!!\n");
 		// calculate size from pl
 		_add_read(cmd, cmd_actag, cmd_afutag, cmd_opcode, cmd_ea_or_obj, pl_to_size( cmd_pl ));
 		break;
@@ -605,12 +613,12 @@ static void _parse_cmd(struct cmd *cmd,
 	case AFU_CMD_DMA_W:
 	case AFU_CMD_DMA_W_N:
 		printf("YES! AFU cmd is some sort of write!!!!\n");
-		_add_write(cmd, cmd_actag, cmd_afutag, cmd_opcode, cmd_ea_or_obj, dl_to_size(cmd_dl), cmd_data_is_valid);
+		_add_write(cmd, cmd_actag, cmd_afutag, cmd_opcode, cmd_ea_or_obj, dl_to_size( cmd_dl ), cmd_data_is_valid);
 		break;
 	case AFU_CMD_DMA_PR_W:
 	case AFU_CMD_DMA_PR_W_N:
-		printf("YES! AFU cmd is some sort of write!!!!\n");
-		_add_write(cmd, cmd_actag, cmd_afutag, cmd_opcode, cmd_ea_or_obj, pl_to_size( cmd_pl), cmd_data_is_valid);
+		printf("YES! AFU cmd is some sort of partial write!!!!\n");
+		_add_write(cmd, cmd_actag, cmd_afutag, cmd_opcode, cmd_ea_or_obj, pl_to_size( cmd_pl ), cmd_data_is_valid);
 		break;
 		// Memory Writes with Byte Enable - Let's deal with this later.....
 	//case AFU_CMD_DMA_W_BE;
@@ -747,7 +755,11 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
   	  	    &cmd_pasid, &cmd_pg_size, &cmd_data_is_valid,
  		    dptr, &cdata_bad);
 
-
+	// int i;
+	// printf( "handle_cmd:cmd->afu_event->afu_tlx_cdata_bus=0x" ); for (i=0; i<64; i++) printf("%02x",cmd->afu_event->afu_tlx_cdata_bus[i]); printf("\n");
+	// printf( "handle_cmd:dptr=0x" ); for (i=0; i<64; i++) printf("%02x",dptr[i]); printf("\n");
+	// printf( "handle_cmd:cdata_bus=0x" ); for (i=0; i<64; i++) printf("%02x",cdata_bus[i]); printf("\n");
+	
 	//rc = tlx_get_command(cmd->afu_event, &command, &command_parity, &tag,
 	//		     &tag_parity, &address, &address_parity, &size,
 	//		     &abort, &handle, &cpagesize
@@ -756,8 +768,13 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 	if (rc != TLX_SUCCESS) 
 		return;
 
-	debug_msg("%s:COMMAND actag=0x%02x afutag=0x%04x cmd=0x%x BDF=0x%x addr=0x%016"PRIx64 " cmd_data_is_valid= 0x%x ", cmd->afu_name,
-		  cmd_actag, cmd_afutag, cmd_opcode, cmd_bdf, cmd_pasid, cmd_data_is_valid);
+	//	debug_msg( "%s:COMMAND actag=0x%02x afutag=0x%04x cmd=0x%x BDF=0x%x addr=0x%016"PRIx64 " cmd_data_is_valid= 0x%x ", 
+	debug_msg( "%s:COMMAND actag=0x%02x afutag=0x%04x cmd=0x%x cmd_data_is_valid= 0x%x ", 
+		   cmd->afu_name,
+		   cmd_actag, 
+		   cmd_afutag, 
+		   cmd_opcode, 
+		   cmd_data_is_valid );
 
 	// Is AFU running?
 /*	if (*(cmd->ocl_state) != OCSE_RUNNING) {
