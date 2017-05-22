@@ -46,7 +46,7 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
     memory_base_address = config[2];
     memory_size = config[3];
 
-    //uint16_t command_code = (config[0] >> 48) & 0x1FFF;
+    uint16_t command_code = (config[0] >> 48) & 0x1FFF;
     bool command_address_parity = get_command_address_parity ();
     bool command_code_parity = get_command_code_parity ();
     bool command_tag_parity = get_command_tag_parity ();
@@ -54,40 +54,21 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
 
     if (command)
         delete command;
-/*
+    printf("command code = 0x%x\n", command_code);
+
     switch (command_code) {
-    case TLX_COMMAND_READ_CL_S:
-    case TLX_COMMAND_READ_CL_M:
-    case TLX_COMMAND_READ_CL_LCK:
-    case TLX_COMMAND_READ_CL_RES:
-    case TLX_COMMAND_READ_CL_NA:
-    case TLX_COMMAND_READ_PNA:
-    case TLX_COMMAND_READ_PE:
+    case AFU_CMD_PR_RD_WNITC:
+    case AFU_CMD_DMA_PR_W:
 	command = 
 	    new LoadCommand (command_code, command_address_parity,
 			     command_code_parity, command_tag_parity,
 			     buffer_read_parity);
 	break;
-    case TLX_COMMAND_WRITE_MI:
-    case TLX_COMMAND_WRITE_MS:
-    case TLX_COMMAND_WRITE_UNLOCK:
-    case TLX_COMMAND_WRITE_C:
-    case TLX_COMMAND_WRITE_INJ:
-    case TLX_COMMAND_WRITE_NA:
+    case AFU_CMD_DMA_W:
 	command = new StoreCommand ( command_code, command_address_parity,
 		command_code_parity, command_tag_parity, buffer_read_parity);
 	break;
-    case TLX_COMMAND_INTREQ:
-    case TLX_COMMAND_RESTART:
-    case TLX_COMMAND_FLUSH:
-    case TLX_COMMAND_TOUCH_I:
-    case TLX_COMMAND_TOUCH_S:
-    case TLX_COMMAND_TOUCH_M:
-    case TLX_COMMAND_PUSH_I:
-    case TLX_COMMAND_PUSH_S:
-    case TLX_COMMAND_EVICT_I:
-    case TLX_COMMAND_LOCK:
-    case TLX_COMMAND_UNLOCK:
+    case AFU_CMD_INTRP_REQ:
         command =
             new OtherCommand (command_code, command_address_parity,
                               command_code_parity, command_tag_parity,
@@ -98,7 +79,7 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
         ("MachineController::Machine::read_machine_config(): command code 0x%x is currently not supported",
          command_code);
     }
-*/
+
 }
 
 void
@@ -152,32 +133,9 @@ MachineController::Machine::get_buffer_read_parity () const
 }
 
 void
-MachineController::Machine::change_machine_config (uint32_t offset,
-        uint32_t data)
+MachineController::Machine::change_machine_config (uint16_t index, uint64_t data)
 {
-    if (offset >= SIZE_CONFIG_TABLE * 2)
-        error_msg
-        ("Machine::change_machine_config config table offset exceeded size of config table");
-
-    // read only
-    if (offset == 3) {
-        return;
-    }
-    // lower 12 bits read only
-    else if (offset == 2) {
-        config[offset / 2] =
-            (config[offset / 2] & 0x00000FFFFFFFFFFFLL) |
-            ((uint64_t) (data & 0xFFFFF000) << 32);
-    }
-    else {
-        if (offset % 2 == 1)
-            config[offset / 2] =
-                (config[offset / 2] & 0xFFFFFFFF00000000LL) | data;
-        else
-            config[offset / 2] =
-                (config[offset / 2] & 0x00000000FFFFFFFFLL) | ((uint64_t) data
-                        << 32);
-    }
+    config[index] = data;
 }
 
 uint32_t MachineController::Machine::get_machine_config (uint32_t offset)
@@ -209,8 +167,7 @@ bool MachineController::Machine::attempt_new_command (AFU_EVENT * afu_event,
     if ((!command || command->is_completed ()) && delay == 0) {
         debug_msg("Machine::attempt_new_command: read_machine_config");
 	read_machine_config (afu_event);
-	//afu_event->dma0_req_size = memory_size;
-	//debug_msg("MachineController::Machine::dma0_req_size = 0x%x", afu_event->dma0_req_size);
+	
         // randomly generates address within the range
         uint64_t
         address_offset =
@@ -218,7 +175,7 @@ bool MachineController::Machine::attempt_new_command (AFU_EVENT * afu_event,
                     1);
 	debug_msg("Machine::attempt_new_command: command->send_command");
         command->send_command (afu_event, tag,
-                               memory_base_address + address_offset,
+                               memory_base_address,
                                command_size, abort, context);
 
         record_command (error_state, cycle);
@@ -282,7 +239,9 @@ MachineController::Machine::is_enabled () const
 {
     bool enable_always = ((config[0] >> 63) == 0x1);
     bool enable_once = (((config[0] >> 62) & 0x1) == 0x1);
-
+  
+//    if(enable_always)
+//     printf("machine is enabled = 0x%d\n", enable_always);
     return enable_always || enable_once;
 }
 
