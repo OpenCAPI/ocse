@@ -487,6 +487,8 @@ static void _add_read(struct cmd *cmd, uint16_t actag, uint16_t afutag,
         int32_t context;
         int64_t addr;
  
+	
+	debug_msg("_add_read:entered" );
         // convert 68 bit ea/obj to 64 bit addr
         // for ap read commands, ea_or_obj is a 64 bit thing...
         memcpy( (void *)&addr, (void *)&(cmd_ea_or_obj[0]), sizeof(int64_t));
@@ -501,6 +503,7 @@ static void _add_read(struct cmd *cmd, uint16_t actag, uint16_t afutag,
         // convert actag to a context - search the client array contained in cmd for a client with matching actag
 	context = _find_client_by_actag(cmd, actag);
 
+	debug_msg("_add_read:calling _add_cmd context=%d; command=0x%02x; addr=0x%016"PRIx64"; size=0x%04x; afutag=0x%04x", context, cmd_opcode, addr, size, afutag );
 	// Reads will be added to the list and will next be processed
 	// in the function handle_buffer_write()
 	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_READ, addr, size,
