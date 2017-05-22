@@ -94,8 +94,10 @@ static struct client *_find_client_by_pasid_and_bdf(struct cmd *cmd, uint16_t cm
   // cmd->client[i]->pasid and bdr, right?
   int32_t i;
 
+  debug_msg("_find_client_by_pasid_and_bdf: seeking client with bdf=0x%04x; pasid=0x%08x", cmd_bdf, cmd_pasid );
   for (i = 0; i < cmd->max_clients; i++) {
     if (cmd->client[i] != NULL) {
+      debug_msg("_find_client_by_pasid_and_bdf: client i=%d; bdf=0x%04x; pasid=0x%08x", cmd->client[i]->bdf, cmd->client[i]->pasid );
       if ( ( cmd->client[i]->bdf == cmd_bdf ) && (cmd->client[i]->pasid == cmd_pasid ) ) {
 	  return cmd->client[i];
       }
@@ -474,6 +476,7 @@ static void _assign_actag(struct cmd *cmd, uint16_t cmd_bdf, uint32_t cmd_pasid,
   client = _find_client_by_pasid_and_bdf(cmd, cmd_bdf, cmd_pasid);
   if (client == NULL) {
     // some kind of error and return...  no way to respond to afu, so just a message???
+    debug_msg("_assign_actag: client not found with bdf=0x%04x; pasid=0x%08x", cmd_bdf, cmd_pasid );
     return;
   }
   client->actag = actag;
