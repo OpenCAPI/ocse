@@ -202,7 +202,12 @@ AFU::start ()
         else if (state == WAITING_FOR_LAST_RESPONSES) {
             //debug_msg("AFU: waiting for last responses");
             bool all_machines_completed = true;
-
+	    uint32_t  response;
+	    uint32_t  offset;
+	  
+	    response = 0x00000000;
+	    offset  = 0x1008 + 0x1000 * afu_event.afu_tlx_cmd_pasid;
+	    descriptor.set_mmio_mem(offset, (char*)&response, 4);
             for (std::map < uint16_t, MachineController * >::iterator it =
                         context_to_mc.begin (); it != context_to_mc.end (); ++it)
             {
@@ -296,8 +301,10 @@ AFU::request_assign_actag()
 {
     uint8_t ea[12];
 
-    afu_event.afu_tlx_cmd_actag = 0x1;
+    afu_event.afu_tlx_cmd_actag = 0x01;
     afu_event.afu_tlx_cmd_afutag = 0x10;
+    printf("AFU: assign actag BDF = 0x%x PASID = 0x%x\n", afu_event.afu_tlx_cmd_bdf,
+    afu_event.afu_tlx_cmd_pasid);
     if(afu_tlx_send_cmd(&afu_event,
 		 AFU_CMD_ASSIGN_ACTAG, afu_event.afu_tlx_cmd_actag,
   	 	 0, ea, afu_event.afu_tlx_cmd_afutag, 1, 3,
@@ -426,10 +433,14 @@ AFU::resolve_tlx_afu_resp()
 	case TLX_RSP_RET_TLX_CREDITS:
 	case TLX_RSP_TOUCH_RESP:
 	case TLX_RSP_READ_RESP:
-	    debug_msg("AFU: calling afu_tlx_cmd_data_read_req");
+	    debug_msg("AFU: calling afu_tlx_resp_data_read_req");
 	    cmd_rd_req = 0x1;	
 	    cmd_rd_cnt = 0x1; 	// 0=512B, 1=64B, 2=128B
-	    afu_tlx_cmd_data_read_req(&afu_event, cmd_rd_req, cmd_rd_cnt);
+	    if(afu_tlx_resp_data_read_req(&afu_event, cmd_rd_req, cmd_rd_cnt) != TLX_SUCCESS) {
+		error_msg("AFU: FAILED tlx_afu_read_resp");
+	    }
+	    debug_msg("AFU: set state to WAIT_FOR_LAST_RESPONSE");
+	    state = WAITING_FOR_LAST_RESPONSES;
 	    break;
 	case TLX_RSP_UGRADE_RESP:
 	case TLX_RSP_READ_FAILED:
@@ -581,7 +592,7 @@ AFU::tlx_afu_config_write()
 	data_size = 4;
 	byte_offset = 0x0000003F & afu_event.tlx_afu_cmd_pa;
 	if(TagManager::request_tlx_credit(RESP_DATA_CREDIT) &&
-	   TagManager::request_tlx_credit(RESP_CREDIT)) {
+	   (TagManager::request_tlx_credit(RESP_CREDIT))) {
 	    if(tlx_afu_read_cmd_data(&afu_event, &cmd_data_bdi, afu_event.tlx_afu_cmd_data_bus) !=
 		TLX_SUCCESS) {
 	   	printf("AFU: Failed tlx_afu_read_cmd_data\n");

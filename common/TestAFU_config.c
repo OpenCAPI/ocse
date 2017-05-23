@@ -21,6 +21,7 @@
  */
 
 #include <stdio.h>
+#include <unistd.h>	//sleep 
 #include "TestAFU_config.h"
 
 // Initialize all machine config registers
@@ -87,7 +88,7 @@ int enable_machine(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t cont
 			break;
 	}
 	// initialize response code
-	machine->config[1] |= 0x000000FF00000000;
+	//machine->config[1] |= 0x000000FF00000000;
 	printf("machine config base address = 0x%x\n", machine_config_base_address);
 	for (i = 3; i >= 0; --i){
 		uint64_t data = machine->config[i];
@@ -108,7 +109,7 @@ int poll_machine(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t contex
 	int i;
 	int machineConfig_baseaddress = _machine_base_address_index(context, mode);
 	printf("polling address = 0x%x\n", machineConfig_baseaddress);
-	machineConfig_baseaddress = 0x0230;
+	//machineConfig_baseaddress = 0x0230;
 	for (i = 0; i < 2; ++i){
 		uint64_t temp;
 		if (ocxl_mmio_read64(afu, machineConfig_baseaddress + (i * 8),

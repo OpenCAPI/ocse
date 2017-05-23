@@ -93,7 +93,7 @@ LoadCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     uint8_t  cmd_flag, cmd_endian, cmd_pg_size;
     uint16_t  cmd_bdf, cmd_actag, cmd_afutag;
     uint16_t cmd_pasid;
-    int  rc;
+    int  rc, i;
     uint8_t  ea_addr[9];
 
     memcpy((void*)&ea_addr, (void*) &address, sizeof(uint64_t));
@@ -118,6 +118,7 @@ LoadCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     //Command::completed = false;
 
     debug_msg("calling afu_tlx_send_cmd with command = 0x%x and paddress = 0x%x cmd_actag = 0x%x", Command::code, address, cmd_actag);
+    debug_msg("ACTAG = 0x%x BDF = 0x%x PASID = 0x%x", cmd_actag, cmd_bdf, cmd_pasid);
     rc = afu_tlx_send_cmd(afu_event, Command::code, cmd_actag, cmd_stream_id,
 	ea_addr, cmd_afutag, cmd_dl, cmd_pl,
 #ifdef	TLX4
@@ -128,6 +129,9 @@ LoadCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
    
     Command::state = WAITING_DATA;
     Command::tag = new_tag;
+    printf("data = 0x");
+    for(i=0; i<9; i++)
+    	printf("%02x",(uint8_t)ea_addr[i]);
     printf("Command: send command exit\n");
 }
 
