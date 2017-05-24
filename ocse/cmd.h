@@ -159,6 +159,8 @@ void handle_mem_write(struct cmd *cmd);
 
 void handle_buffer_write(struct cmd *cmd);
 
+void handle_afu_tlx_cmd_data_read(struct cmd *cmd);
+
 void handle_touch(struct cmd *cmd);
 
 void handle_interrupt(struct cmd *cmd);

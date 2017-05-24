@@ -271,16 +271,17 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	// TODO check to see if data is bad...if so, what???
 	if (cmd_data_is_valid) {
 		cmd->buffer_read = event;
-		printf("Getting ready to copy first chunk of write data to buffer....and size=0x%x .\n", size);
+		printf("Getting ready to copy first chunk of write data to buffer & add=0x%016"PRIx64" & size=0x%x .\n", event->addr, size);
 		// alway copy 64 bytes...
 		memcpy((void *)&(event->data[0]), (void *)&(cmd->afu_event->afu_tlx_cdata_bus), 64);
 		if (size > 64) {
 		        // but if size is greater that 64, we have to gather more data
-			event->dpartial +=64;
+			event->dpartial =64;
 			event->state = MEM_BUFFER;
 		 }
 		else  {
 			event->state = MEM_RECEIVED;
+			event->dpartial =0;
 		}
 	
 	}
@@ -551,7 +552,6 @@ static void _add_write(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 
 	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_WRITE, addr, size,
 		 MEM_IDLE, TLX_RESPONSE_DONE, 0, cmd_data_is_valid);
-	printf("MADE IT BACK FROM ADD CMD IN ADD WRITE !\n");
 }
 
 /* static void _add_write(struct cmd *cmd, uint32_t handle, uint32_t tag, */
@@ -731,10 +731,10 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 {
 	struct cmd_event *event;
 	uint64_t cmd_be;
-	uint32_t cmd_pasid, command, size, abort, handle;
+	uint32_t cmd_pasid;
 	uint16_t cmd_actag, cmd_afutag, cmd_bdf;
 	uint8_t  cmd_ea_or_obj[9]; 
-	uint8_t  cmd_opcode, cmd_stream_id, cmd_dl, cmd_pl, cmd_flag, cmd_endian, cmd_pg_size, cmd_data_is_valid, cdata_bad, fail;
+	uint8_t  cmd_opcode, cmd_stream_id, cmd_dl, cmd_pl, cmd_flag, cmd_endian, cmd_pg_size, cmd_data_is_valid, cdata_bad;
 #ifdef TLX4
 	uint8_t cmd_os;
 #endif
@@ -997,14 +997,14 @@ void handle_afu_tlx_cmd_data_read(struct cmd *cmd)
 	// Check that cmd struct is valid buffer read is available
 	if ((cmd == NULL) || (cmd->buffer_read == NULL))
 		return;
-	printf("IN handle_afu_tlx_cmd_data \n");
+	//printf("IN handle_afu_tlx_cmd_data \n");
 	//First, let's look to see if any one is in MEM_BUFFER state...data still coming over the interface (should only be ONE @time)
 	// or if anyone is in MEM_RECEIVED...all data is here & ready to go (should only be ONE of these @time)
 	event = cmd->list;
 	while (event != NULL) {
 		if ((event->type == CMD_WRITE) && 
 			((event->state == MEM_RECEIVED) || (event->state == MEM_BUFFER))) { 
- 	printf("Here in handle_afu_tlx_cmd_data_read  and we have a write cmd to process\n");
+ 	//printf("Handle_afu_tlx_cmd_data_read  and we have a write cmd to process\n");
 		   // (event->state == MEM_TOUCHED) &&
 		   // ((event->client_state != CLIENT_VALID) ||
 		   //  !allow_reorder(cmd->parms))) {
@@ -1025,18 +1025,24 @@ void handle_afu_tlx_cmd_data_read(struct cmd *cmd)
 	//if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
 	if (event == NULL) 
 		return;
+			int i;
 	if (event->state == MEM_BUFFER) {
 	rc = afu_tlx_read_cmd_data(cmd->afu_event, &cmd_data_is_valid, dptr,  &cdata_bad);
 	if (rc == TLX_SUCCESS) {
 		if (cmd_data_is_valid) {
-			debug_msg("Ready to copy another chunk of write data to buffer....and total read so far=0x%x .\n", event->dpartial);
+			debug_msg("Copy another chunk of write data to buffer & addr=0x%016"PRIx64"& total read so far=0x%x .\n", event->addr, event->dpartial);
 			if ((event->size - event->dpartial) > 64) {
-				memcpy((void *)&(event->data[event->size - event->dpartial]), (void *)&(cmd->afu_event->afu_tlx_cdata_bus), 64);
+				memcpy((void *)&(event->data[event->dpartial]), (void *)&(cmd->afu_event->afu_tlx_cdata_bus), 64);
+			debug_msg("SHOULD BE INTERMEDIATE COPY");
+			for ( i = 0; i < 64; i++ ) printf("%02x",cmd->afu_event->afu_tlx_cdata_bus[i]); printf( "\n" ); 
+
 				event->dpartial +=64;
 				event->state = MEM_BUFFER;
 			 }
 			else  {
-				memcpy((void *)&(event->data[event->size - event->dpartial]), (void *)&(cmd->afu_event->afu_tlx_cdata_bus), (event->size - event->dpartial));
+				memcpy((void *)&(event->data[event->dpartial]), (void *)&(cmd->afu_event->afu_tlx_cdata_bus), (event->size - event->dpartial));
+			debug_msg("SHOULD BE FINAL COPY and event->dpartial=0x%x", event->dpartial);
+			for ( i = 0; i < 64; i++ ) printf("%02x",cmd->afu_event->afu_tlx_cdata_bus[i]); printf( "\n" ); 
 				event->state = MEM_RECEIVED;
 				}
 	
@@ -1061,14 +1067,18 @@ void handle_afu_tlx_cmd_data_read(struct cmd *cmd)
 	debug_msg("%s:BUFFER READY TO GO TO CLIENT afutag=0x%04x addr=0x%016"PRIx64, cmd->afu_name,
 		  event->afutag, event->addr);
 	if (event->type == CMD_WRITE) {
-		offset = event->addr & ~CACHELINE_MASK;
 		buffer = (uint8_t *) malloc(event->size + 11);
 		buffer[0] = (uint8_t) OCSE_MEMORY_WRITE;
 		buffer[1] = (uint8_t) ((event->size & 0x0F00) >>8);
 		buffer[2] = (uint8_t) (event->size & 0xFF);
 		addr = (uint64_t *) & (buffer[3]);
 		*addr = htonll(event->addr);
-		memcpy(&(buffer[11]), &(event->data[offset]), event->size);
+		if (event->size <=32) {
+			offset = event->addr & ~CACHELINE_MASK;
+			debug_msg("partial write: size=0x%x and offset=0x%x", event->size, offset);
+			memcpy(&(buffer[11]), &(event->data[offset]), event->size);
+		} else
+			memcpy(&(buffer[11]), &(event->data[0]), event->size);
 		event->abort = &(client->abort);
 		debug_msg("%s: MEMORY WRITE afutag=0x%02x size=%d addr=0x%016"PRIx64" port=0x%2x",
 		  	cmd->afu_name, event->afutag, event->size, event->addr, client->fd);
