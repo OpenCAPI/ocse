@@ -281,7 +281,7 @@ int afu_tlx_resp_data_read_req(struct AFU_EVENT *event,
 
 
 /* Call this from AFU to read data on the response data interface */
-int tlx_adu_read_resp_data(struct AFU_EVENT *event,
+int tlx_afu_read_resp_data(struct AFU_EVENT *event,
 		 uint8_t * resp_data_bdi,uint8_t * resp_data);
 
 
