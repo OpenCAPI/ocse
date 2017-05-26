@@ -20,7 +20,7 @@ class AFU
 {
 private:
     enum AFU_State
-    { IDLE, RESET, READY, RUNNING, WAITING_FOR_LAST_RESPONSES };
+    { IDLE, RESET, READY, RUNNING, WAITING_FOR_DATA, WAITING_FOR_LAST_RESPONSES, HALT };
 
     AFU_EVENT afu_event;
     Descriptor descriptor;
@@ -35,6 +35,7 @@ private:
     AFU_State config_state;
     AFU_State mem_state;
 
+    uint8_t  memory[128];
     uint64_t global_configs[3];	// stores MMIO registers for global configurations
     uint8_t  tlx_afu_cmd_max_credit;
     uint8_t  tlx_afu_data_max_credit;
