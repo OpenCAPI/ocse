@@ -137,12 +137,14 @@ AFU::start ()
 	    debug_msg("AFU: Process TLX response 0x%x", afu_event.tlx_afu_resp_opcode);
 	    resolve_tlx_afu_resp();
 	    afu_event.afu_tlx_resp_credit = 1;	// return TLX resp credit
+	    afu_event.tlx_afu_resp_valid = 0;
 	}
 	// process tlx response data
 	if(afu_event.tlx_afu_resp_data_valid && mem_state == WAITING_FOR_DATA) {
 	    debug_msg("AFU: Process TLX response data");
 	    resolve_tlx_afu_resp();
 	    afu_event.tlx_afu_resp_data_credit = 1;	// return TLX resp data credit
+	    afu_event.tlx_afu_resp_data_valid = 0;
 	}
 	// configuration write response
 	if (afu_event.tlx_afu_cmd_data_valid && config_state == READY) {
@@ -269,7 +271,7 @@ AFU::reset_machine_controllers ()
 
 }
 
-// get machine context from mmio
+// get machine context from mmio and create new MachineController
 bool 
 AFU::get_machine_context()
 {
@@ -291,6 +293,7 @@ AFU::get_machine_context()
 	    context_to_mc[context] = new MachineController(context);
 	    highest_priority_mc = context_to_mc.end();
 	    mc = context_to_mc[context];
+	    printf("AFU: context_to_mc = 0x%p\n", mc);
 	    for(i=0; i< 4; i++) {
 		descriptor.get_mmio_mem(mmio_base+i*8, (char*)&data, size);
 		mc->change_machine_config(i, machine_number, data);
@@ -305,9 +308,13 @@ void
 AFU::request_assign_actag()
 {
     uint8_t ea[12];
+    uint32_t afutag;
+
+    TagManager::request_tag(&afutag);
 
     afu_event.afu_tlx_cmd_actag = 0x01;
-    afu_event.afu_tlx_cmd_afutag = 0x10;
+    afu_event.afu_tlx_cmd_afutag = afutag;
+    printf("AFU: afu_tag = 0x%x", afutag);
     printf("AFU: assign actag BDF = 0x%x PASID = 0x%x\n", afu_event.afu_tlx_cmd_bdf,
     afu_event.afu_tlx_cmd_pasid);
     if(afu_tlx_send_cmd(&afu_event,
@@ -426,6 +433,7 @@ AFU::resolve_tlx_afu_resp()
     uint32_t resp_addr_tag;
     uint8_t  cmd_rd_req, cmd_rd_cnt;
     uint8_t  resp_data_bdi;
+    uint8_t  cdata_bad;
     uint8_t  i;
 
     resp_data_bdi = afu_event.tlx_afu_resp_data_bdi;
@@ -434,9 +442,12 @@ AFU::resolve_tlx_afu_resp()
 	tlx_afu_read_resp_data(&afu_event, &resp_data_bdi, memory);
 	debug_msg("AFU: set mem_state = IDLE");
 	mem_state = IDLE;
+//	debug_msg("AFU: set state = READY");
+//	state = READY;
 	printf("MEMORY: = 0x");
 	for(i=0; i<8; i++)
-	    printf("%02x", (char)memory[i]);
+	    printf("%02x", (uint8_t)memory[i]);
+	printf("\n");
     }
     else {
     	tlx_afu_read_resp(&afu_event, &tlx_resp_opcode, &resp_afutag, 
@@ -468,6 +479,17 @@ AFU::resolve_tlx_afu_resp()
 	case TLX_RSP_READ_FAILED:
 	case TLX_RSP_CL_RD_RESP:
 	case TLX_RSP_WRITE_RESP:
+	    printf("AFU: received response write\n");
+	    printf("memory = 0x");
+	    for(i=0; i<9; i++) {
+		memory[i]=i;
+	 	printf("%02x", (uint8_t)i);
+	    }
+	    printf("\n");
+	    cdata_bad = 0;
+	    afu_tlx_send_cmd_data(&afu_event, cdata_bad, memory);
+
+	    break;
 	case TLX_RSP_WRITE_FAILED:
 	case TLX_RSP_MEM_FLUSH_DONE:
 	case TLX_RSP_INTRP_RESP:
