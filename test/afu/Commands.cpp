@@ -1,6 +1,7 @@
 #include <stdlib.h>
-
 #include "Commands.h"
+
+extern uint8_t memory[128];
 
 Command::Command (uint16_t c, bool comm_addr_par, bool comm_code_par, bool comm_tag_par, bool buff_read_par):code (c), completed (true), state (IDLE),
     command_address_parity (comm_addr_par), command_code_parity (comm_code_par),
@@ -170,14 +171,14 @@ StoreCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     uint8_t  cmd_stream_id;
     uint8_t  cmd_dl, cmd_pl;
     uint64_t cmd_be;
-    uint8_t  cmd_flag, cmd_endian, cmd_pg_size;
+    uint8_t  cmd_flag, cmd_endian, cmd_pg_size, cdata_bad;
     uint16_t  cmd_bdf, cmd_actag, cmd_afutag;
     uint16_t cmd_pasid;
     int  rc;
-    uint8_t  ea_addr[9];
+    uint8_t  ea_addr[9], i;
 
     memcpy((void*)&ea_addr, (void*) &address, sizeof(uint64_t));
-
+    
     cmd_dl = 0x01;	// 1=64 bytes, 2=128 bytes, 3=256 bytes
     cmd_pl = 0x03;	// 0=1B, 1=2B, 2=4B, 3=8B, 4=16B, 5=32B
     cmd_bdf = afu_event->afu_tlx_cmd_bdf;
@@ -189,21 +190,31 @@ StoreCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     cmd_pg_size = afu_event->afu_tlx_cmd_pg_size;
     cmd_actag = afu_event->afu_tlx_cmd_actag;
     cmd_afutag = afu_event->afu_tlx_cmd_afutag;
+    cdata_bad = 0;
 
     printf("StoreCommand: sending command = 0x%x\n", Command::code);
+    printf("memory = 0x");
+    for(i=0; i<9; i++) {
+	memory[i] = i;
+	printf("%02x", (uint8_t)i);
+    }
+    printf("\n");
+    memcpy(afu_event->afu_tlx_cdata_bus, memory, 64);
+
 //    if (Command::state != IDLE)
 //        error_msg
 //        ("StoreCommand: Attempting to send command before previous command is completed");
 
 //    Command::completed = false;
-    debug_msg("calling afu_tlx_send_cmd with command = 0x%x and paddress = 0x%x cmd_actag = 0x%x", Command::code, address, cmd_actag);
+    debug_msg("calling afu_tlx_send_cmd_and_data with command = 0x%x and paddress = 0x%x cmd_actag = 0x%x", Command::code, address, cmd_actag);
     debug_msg("ACTAG = 0x%x BDF = 0x%x PASID = 0x%x", cmd_actag, cmd_bdf, cmd_pasid);
-    rc = afu_tlx_send_cmd(afu_event, Command::code, cmd_actag, cmd_stream_id,
+    rc = afu_tlx_send_cmd_and_data(afu_event, Command::code, cmd_actag, cmd_stream_id,
 	ea_addr, cmd_afutag, cmd_dl, cmd_pl,
 #ifdef	TLX4
 	cmd_os,
 #endif
-	cmd_be, cmd_flag, cmd_endian, cmd_bdf, cmd_pasid, cmd_pg_size);
+	cmd_be, cmd_flag, cmd_endian, cmd_bdf, cmd_pasid, cmd_pg_size,
+	afu_event->afu_tlx_cdata_bus, cdata_bad);
     printf("Commands: rc = 0x%x\n", rc);
 
     Command::state = WAITING_READ;

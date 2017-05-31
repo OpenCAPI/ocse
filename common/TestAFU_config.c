@@ -92,7 +92,7 @@ int enable_machine(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t cont
 	printf("machine config base address = 0x%x\n", machine_config_base_address);
 	for (i = 3; i >= 0; --i){
 		uint64_t data = machine->config[i];
-		printf("config[%d] = 0x%llx\n", i, data);
+		printf("config[%d] = 0x%"PRIx64"\n", i, data);
 		if (ocxl_mmio_write64(afu, machine_config_base_address + (i * 8),
 		    data))
 		{

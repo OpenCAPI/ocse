@@ -16,6 +16,8 @@ extern "C" {
 #define RIGHT	1
 #define LEFT	0
 
+uint8_t memory[128];
+
 class AFU
 {
 private:
@@ -35,7 +37,7 @@ private:
     AFU_State config_state;
     AFU_State mem_state;
 
-    uint8_t  memory[128];
+//    uint8_t  memory[128];
     uint64_t global_configs[3];	// stores MMIO registers for global configurations
     uint8_t  tlx_afu_cmd_max_credit;
     uint8_t  tlx_afu_data_max_credit;
