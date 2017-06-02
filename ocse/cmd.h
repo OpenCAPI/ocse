@@ -41,6 +41,10 @@ enum cmd_type {
 	CMD_READ_PE,
 	CMD_CAS_4B,
 	CMD_CAS_8B,
+	CMD_WR_BE,
+	CMD_AMO_RD,
+	CMD_AMO_RW,
+	CMD_AMO_WR,
 	CMD_CAIA2,
 	CMD_XLAT_RD,
 	CMD_XLAT_WR,
@@ -64,10 +68,12 @@ enum mem_state {
 	MEM_CAS_RD,
 	MEM_CAS_WR,
 	MEM_RECEIVED,
+	AMO_MEM_RESP,
 	DMA_ITAG_REQ,
 	DMA_ITAG_RET,
 	DMA_PENDING,
 	DMA_PARTIAL,
+	AMO_OP_REQ,
 	DMA_OP_REQ,
 	DMA_SEND_STS,
 	DMA_MEM_REQ,
@@ -93,7 +99,7 @@ struct cmd_event {
 	uint32_t afutag;
         uint32_t tag;  // this will go away when everything has migrated to using afutag.
 	uint32_t abt;
-	uint16_t size;
+	uint32_t size;
 	uint32_t resp;
 	uint64_t cas_op1;
 	uint64_t cas_op2;
@@ -103,10 +109,11 @@ struct cmd_event {
 	uint32_t port;
 	uint32_t itag;
 	uint32_t utag;
-	uint32_t dsize;
+	//uint32_t dsize;
 	uint32_t dtype;
 	uint32_t dpartial;
-	uint32_t atomic_op;
+	uint64_t wr_be;
+	uint8_t cmd_flag;
 	uint32_t sent_sts;
 	uint32_t cpl_type;
 	uint32_t cpl_size;
@@ -173,7 +180,7 @@ void handle_response(struct cmd *cmd);
 
 void handle_caia2_cmds(struct cmd *cmd);
 void handle_dma0_read(struct cmd *cmd);
-void handle_dma0_write(struct cmd *cmd);
+void handle_write_be_or_amo(struct cmd *cmd);
 void handle_dma0_sent_sts(struct cmd *cmd);
 
 

@@ -261,11 +261,11 @@ static void _handle_read(struct ocxl_afu_h *afu, uint64_t addr, uint16_t size)
 }
 
 static void _handle_write_be(struct ocxl_afu_h *afu, uint64_t addr, uint16_t size,
-			     uint8_t * data, unint64_t be)
+			     uint8_t * data, uint64_t be)
 {
 	uint8_t buffer;
-	uin64_t enable;
-	uin64_t be_copy;
+	uint64_t enable;
+	uint64_t be_copy;
 
 	if (!afu)
 		fatal_msg("NULL afu passed to libocxl.c:_handle_write_be");
@@ -396,9 +396,8 @@ static void _handle_ack(struct ocxl_afu_h *afu)
 	afu->mmio.state = LIBOCXL_REQ_IDLE;
 }
 
-#ifdef PSL9
 
-static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t addr,
+static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_size, uint64_t addr,
 			  uint8_t function_code, uint64_t op1, uint64_t op2)
 {
 
@@ -421,7 +420,13 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 		DPRINTF("READ from invalid addr @ 0x%016" PRIx64 "\n", addr);
 		return;
 	}
-	// select op_1 & op_2 based on op_size & addr [60:61]
+	
+	// Size is now a uint16_t and it represents the size of the data buffer
+	//  size = 4 means single op and op_size = 4
+	//  size = 8 could mean single op & op_size=8 OR two ops and op_size = 4
+	//  size = 16 means two ops and op_size = 8
+	// Need to pull ops out of buffer that got passed in 
+	// If we determine op size, can create that and might make it easier for porting existing code
 	// lgt and possibly the endian hint - not coded yet
 	op_ptr = (int) (addr & 0x000000000000000c);
 	// at this point, op1 and op2 are memcpy's of the data that sent over ddata
@@ -429,7 +434,7 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 	// if we use int ops, we'll get defacto byte swapping as we go.  that might not be what we want
 	switch (op_ptr) {
 		case 0x0:
-			if (op_size == 4) {
+			if ((op_size == 4) && (amo_op != OCSE_AMO_RD)) { // only amo_wr & amo_rw have immediate data
 			        // OP1 is in ((__u8 *)(&op1))[0 to 3]
 			        // OP2 is in ((__u8 *)(&op2))[0 to 3]
 			        // don't shift as the 32bits we want are already le on the left,
@@ -440,14 +445,14 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 				memcpy( (void *)&op_2, (void *)&op2, op_size);
 				// printf(" case 0: op_1 is %08"PRIx32 "\n", op_1);
 				// printf(" case 0: op_2 is %08"PRIx32 "\n", op_2);
-			} else if (op_size == 8) {
+			} else if ((op_size == 8) && (amo_op != OCSE_AMO_RD)) {
 				op_1l = op1;
 				op_2l = op2;
 				// printf(" case 0: op_1l is %016"PRIx64 "\n", op_1l);
 			}
 			break;
 		case 0x4:
-			if (op_size == 4) {
+			if ((op_size == 4) && (amo_op != OCSE_AMO_RD)) { // only amo_wr & amo_rw have immediate data
 			        // OP1 is in (__u8 *)(&op1)[4 to 7]
 			        // OP2 is in (__u8 *)(&op2)[4 to 7]
 			        // if the ops are really be, we have to handle them differently
@@ -471,23 +476,23 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 			}
 			break;
 		case 0x8:
-			if (op_size == 4) {
+			if ((op_size == 4) && (amo_op != OCSE_AMO_RD)) { // only amo_wr & amo_rw have immediate data
 			        // OP1 is in (__u8 *)(&op2)[0 to 3] !!!
 			        // OP2 is in (__u8 *)(&op1)[0 to 3] !!!
 				// op_1 = (uint32_t) (op1 >>32);
 				// op_2 = (uint32_t) (op2 >> 32);
-				memcpy( (void *)&op_1, (void *)&op2, op_size);
-				memcpy( (void *)&op_2, (void *)&op1, op_size);
+				memcpy( (void *)&op_1, (void *)&op1, op_size);
+				memcpy( (void *)&op_2, (void *)&op2, op_size);
 				// printf(" case 8: op_1 is %08"PRIx32 "\n", op_1);
 				// printf(" case 8: op_2 is %08"PRIx32 "\n", op_2);
-			} else if (op_size == 8) {
+			} else if ((op_size == 8) && (amo_op != OCSE_AMO_RD)) {
 				op_1l = op2;
 				op_2l = op1;
 	                        // printf(" case 8: op_1l is %016"PRIx64 "\n", op_1l);
 			}
 			break;
 		case 0xc:
-			if (op_size == 4) {
+			if ((op_size == 4) && (amo_op != OCSE_AMO_RD)) { // only amo_wr & amo_rw have immediate data
 			        // OP1 is in (__u8 *)(&op2)[4 to 7] !!!
 			        // OP2 is in (__u8 *)(&op1)[4 to 7] !!!
 				// op_1 = (uint32_t) op2;
@@ -512,6 +517,7 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 	}
 
 	atomic_op = function_code;
+	//TODO Here is where I stopped updating this function from CAPI2 to OPEN CAPI
 	// Remove and read atomic_le from bit7 of data[0]
 	// if atomic_le == 1, afu is le, so no data issues (ocse is always le).
 	// if atomic_le == 0, we have to swap op1/op2 data before ops, and also swap
@@ -988,7 +994,6 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t op_size, uint64_t ad
 }
 
 
-#endif /* ifdef PSL9 */
 
 static void _req_max_int(struct ocxl_afu_h *afu)
 {
@@ -1160,11 +1165,11 @@ static void *_psl_loop(void *ptr)
 {
 	struct ocxl_afu_h *afu = (struct ocxl_afu_h *)ptr;
 	uint8_t buffer[MAX_LINE_CHARS];
-	// uint8_t op_size, function_code;
-	uint64_t addr;
+	uint8_t op_size, function_code, amo_op;
+	uint64_t addr, wr_be;
 	uint16_t size;
 	uint32_t value, lvalue;
-	uint64_t llvalue; //, op1, op2;
+	uint64_t llvalue, op1, op2;
 	int rc;
 
 	if (!afu)
@@ -1378,48 +1383,38 @@ static void *_psl_loop(void *ptr)
 		// add the case for ocse_memory_be_write
 		// need to size, addr and data as above in ocse_memory_write
 	        // and then need to get byte enable in manner similar to addr (maybe)
-#ifdef PSL9
-		case OCSE_DMA0_RD:
-			DPRINTF("AFU DMA0 MEMORY READ\n");
-			if (get_bytes_silent(afu->fd, 2, buffer, 1000, 0) < 0) {
+		case OCSE_WR_BE:
+			DPRINTF("AFU MEMORY WRITE BE\n");
+			if (get_bytes_silent(afu->fd, sizeof(size), buffer, 1000, 0) < 0) {
 				warn_msg
-				    ("Socket failure getting memory read size");
+				    ("Socket failure getting memory write be size");
 				_all_idle(afu);
 				break;
 			}
-			size = (uint16_t) buffer[0];
-			size = ((size << 8) | buffer[1]);
+			memcpy( (char *)&size, buffer, sizeof( size ) );
+			size = ntohs(size);
+			DPRINTF( "of size=%d \n", size );
 			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
 					     -1, 0) < 0) {
 				warn_msg
-				    ("Socket failure getting memory read addr");
+				    ("Socket failure getting memory write be addr");
 				_all_idle(afu);
 				break;
 			}
 			memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
 			addr = ntohll(addr);
-			_handle_read(afu, addr, size);
-			break;
-
-
-		case OCSE_DMA0_WR:
-			DPRINTF("AFU DMA0 MEMORY WRITE\n");
-			if (get_bytes_silent(afu->fd, 2, buffer, 1000, 0) < 0) {
-				warn_msg
-				    ("Socket failure getting memory write size");
-				_all_idle(afu);
-				break;
-			}
-			//size = (uint8_t) buffer[0];
-			size = (uint16_t) buffer[0];
-			size = ((size << 8) | buffer[1]);
+			DPRINTF("to addr 0x%016" PRIx64 "\n", addr);
 			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
 					     -1, 0) < 0) {
+				warn_msg
+				    ("Socket failure getting memory write be byte enable");
 				_all_idle(afu);
 				break;
 			}
-			memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
-			addr = ntohll(addr);
+			memcpy((char *)&wr_be, (char *)buffer, sizeof(uint64_t));
+			wr_be = ntohll(wr_be);
+			DPRINTF("byte enable mask= 0x%016" PRIx64 "\n", wr_be);
+
 			if (get_bytes_silent(afu->fd, size, buffer, 1000, 0) <
 			    0) {
 				warn_msg
@@ -1427,47 +1422,91 @@ static void *_psl_loop(void *ptr)
 				_all_idle(afu);
 				break;
 			}
-			_handle_write(afu, addr, size, buffer);
+			_handle_write_be(afu, addr, size, buffer, wr_be);
 			break;
 
-		case OCSE_DMA0_WR_AMO:
-			DPRINTF("AFU DMA0 MEMORY WRITE AMO \n");
-			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
+		case OCSE_AMO_WR:
+		case OCSE_AMO_RW:
+			DPRINTF("AFU AMO_WRITE OR AMO_READ/WRITE\n");
+			amo_op = buffer[0];
+			if (get_bytes_silent(afu->fd, sizeof(size), buffer, 1000, 0) < 0) {
 				warn_msg
-				    ("Socket failure getting memory write size");
+				    ("Socket failure getting amo_wr or amo_rw size");
 				_all_idle(afu);
 				break;
 			}
-			op_size = (uint8_t) buffer[0];
+			memcpy( (char *)&size, buffer, sizeof( size ) );
+			size = ntohs(size);
+			DPRINTF( "of size=%d \n", size );
 			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
 					     -1, 0) < 0) {
+				warn_msg
+				    ("Socket failure getting amo_wr or amo_rw addr");
 				_all_idle(afu);
 				break;
 			}
 			memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
-	//printf(" addr is 0x%016" PRIx64 "\n", addr);
 			addr = ntohll(addr);
-	//printf(" addr is 0x%016" PRIx64 "\n", addr);
-			if (get_bytes_silent(afu->fd, (17 * sizeof(uint8_t)), buffer,
+			DPRINTF("to addr 0x%016" PRIx64 "\n", addr);
+				if (get_bytes_silent(afu->fd, 17, buffer,
 					     -1, 0) < 0) {
+				warn_msg
+				    ("Socket failure getting amo_wr or amo_rw cmd_flag and op1/op2 data");
 				_all_idle(afu);
 				break;
 			}
 			function_code = (uint8_t) buffer[0];
+			DPRINTF("amo_wr or amo_rw cmd_flag= 0x%x\n", function_code);
+
+			// TODO FIX THIS TO CORRECTLY EXTRACT OP_1 and OP_2 if needed !!!
 			memcpy((char *)&op1, (char *)&buffer[1], sizeof(uint64_t));
 			debug_msg("op1 bytes 1-8 are 0x%016" PRIx64, op1);
 			//op1 = ntohll (op1);
 			//printf("op1 bytes 1-8 are 0x%016" PRIx64 " \n", op1);
 			memcpy((char *)&op2, (char *)&buffer[9], sizeof(uint64_t));
 			debug_msg("op2 bytes 1-8 are 0x%016" PRIx64, op2);
-			//op2 = ntohll (op2);
-			//printf("op2 bytes 1-8 are 0x%016" PRIx64 " \n", op2);
+			
+			_handle_DMO_OPs(afu, amo_op, op_size, addr, function_code, op1, op2);
+			break;
 
-			_handle_DMO_OPs(afu, op_size, addr, function_code, op1, op2);
+		case OCSE_AMO_RD:
+			DPRINTF("AFU AMO READ \n");
+			amo_op = buffer[0];
+			if (get_bytes_silent(afu->fd, sizeof(size), buffer, 1000, 0) < 0) {
+				warn_msg
+				    ("Socket failure getting amo_rd size");
+				_all_idle(afu);
+				break;
+			}
+			memcpy( (char *)&size, buffer, sizeof( size ) );
+			size = ntohs(size);
+			DPRINTF( "of size=%d \n", size );
+			op_size = (uint8_t) size;
+			DPRINTF( "of op_size=%d \n", op_size );
+			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
+					     -1, 0) < 0) {
+				warn_msg
+				    ("Socket failure getting amo_rd addr");
+				_all_idle(afu);
+				break;
+			}
+			memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
+			addr = ntohll(addr);
+			DPRINTF("to addr 0x%016" PRIx64 "\n", addr);
+			if (get_bytes_silent(afu->fd, 1, buffer,
+					     -1, 0) < 0) {
+				warn_msg
+				    ("Socket failure getting amo_rd cmd_flag");
+				_all_idle(afu);
+				break;
+			}
+			function_code = (uint8_t) buffer[0];
+			DPRINTF("amo_rd cmd_flag= 0x%x\n", function_code);
+
+			_handle_DMO_OPs(afu, amo_op, op_size, addr, function_code, 0, 0);
 			break;
 
 
-#endif /* ifdef PSL9 */
 		case OCSE_MEMORY_TOUCH:
 			DPRINTF("AFU MEMORY TOUCH\n");
 			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {

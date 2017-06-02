@@ -117,6 +117,7 @@ static int32_t _find_client_by_actag(struct cmd *cmd, uint16_t cmd_actag)
   for (i = 0; i < cmd->max_clients; i++) {
     if (cmd->client[i] != NULL) {
       if ( cmd->client[i]->actag == cmd_actag ) {
+  	  debug_msg("_find_client_by_actag:  client with actag=0x%04x; i=0x%x", cmd_actag, i );
 	  return i;
       }
     }
@@ -218,7 +219,8 @@ static struct client *_get_client(struct cmd *cmd, struct cmd_event *event)
 static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 		     uint32_t command, enum cmd_type type,
 		     uint64_t addr, uint16_t size, enum mem_state state,
-		     uint32_t resp, uint8_t unlock , uint8_t cmd_data_is_valid)
+		     uint32_t resp, uint8_t unlock , uint8_t cmd_data_is_valid,
+		     uint64_t wr_be, uint8_t cmd_flag)
 
 {
 	struct cmd_event **head;
@@ -236,6 +238,8 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	event->size = size;
 	event->state = state;
 	event->resp = resp;
+	event->wr_be = wr_be;
+	event->cmd_flag = cmd_flag;
 
 	// Temporary hack for now, as we don't touch/look @ TLX_SPAP reg
 	if (event->resp == TLX_RESPONSE_CONTEXT)
@@ -317,7 +321,7 @@ static void _add_other(struct cmd *cmd, uint16_t actag, uint32_t afutag,
  
         context = _find_client_by_actag(cmd, actag);
 	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_OTHER, 0, 0, MEM_DONE,
-		 resp, 0, 0);
+		 resp, 0, 0, 0, 0);
 }
 
 // Check address alignment
@@ -376,44 +380,6 @@ static int _aligned(uint64_t addr, uint32_t size)
 /* 			type = CMD_CAS_8B; */
 /* 			state = MEM_IDLE; */
 /* 			break; */
-/* 		case TLX_COMMAND_XLAT_RD_P0: */
-/* 	rc =  afu_tlx_read_cmd_and_data(cmd->afu_event, */
-/*   		    &cmd_opcode, &cmd_actag, */
-/*   		    &cmd_stream_id, &cmd_ea_or_obj, */
-/*  		    &cmd_afutag, &cmd_dl, */
-/*   		    &cmd_pl, */
-/* #ifdef TLX4 */
-/* 		    &cmd_os, */
-/* #endif */
-/* 		    &cmd_be, &cmd_flag, */
-/*  		    &cmd_endian, &cmd_bdf, */
-/*   	  	    &cmd_pasid, &cmd_pg_size, &cmd_data_is_valid, */
-/*  		    dptr, &cdata_bad); */
-/* 			type = CMD_XLAT_RD; */
-/* 			state = DMA_ITAG_REQ; */
-/* 			break; */
-/* 		case TLX_COMMAND_XLAT_WR_P0: */
-/* 			type = CMD_XLAT_WR; */
-/* 			state = DMA_ITAG_REQ; */
-/* 			break; */
-/* 		case TLX_COMMAND_XLAT_RD_TOUCH: */
-/* 			type = CMD_XLAT_RD_TOUCH; */
-/* 			//state = DMA_ITAG_REQ; */
-/* 			state = MEM_IDLE; */
-/* 			break; */
-/* 		case TLX_COMMAND_XLAT_WR_TOUCH: */
-/* 			type = CMD_XLAT_WR_TOUCH; */
-/* 			//state = DMA_ITAG_REQ; */
-/* 			state = MEM_IDLE; */
-/* 			break; */
-/* 		case TLX_COMMAND_ITAG_ABRT_RD: */
-/* 			type = CMD_ITAG_ABRT_RD; */
-/* 			state = DMA_ITAG_REQ; */
-/* 			break; */
-/* 		case TLX_COMMAND_ITAG_ABRT_WR: */
-/* 			type = CMD_ITAG_ABRT_WR; */
-/* 			state = DMA_ITAG_REQ; */
-/* 			break; */
 /* 		default: */
 /* 			warn_msg("Unsupported command 0x%04x", cmd); */
 /* 			break; */
@@ -438,36 +404,6 @@ static int _aligned(uint64_t addr, uint32_t size)
 /* 		 CACHELINE_BYTES, MEM_IDLE, TLX_RESPONSE_DONE, unlock); */
 /* } */
 
-// Format and add unlock to command list
-/* static void _add_unlock(struct cmd *cmd, uint32_t handle, uint32_t tag, */
-/* 			uint32_t command, uint32_t abort) */
-/* { */
-/* 	_add_cmd(cmd, handle, tag, command, abort, CMD_OTHER, 0, 0, MEM_DONE, */
-/* 		 TLX_RESPONSE_DONE, 0); */
-/* } */
-
-// format a read_pe command and add it to the command list
-/* static void _add_read_pe(struct cmd *cmd, uint32_t handle, uint32_t tag, */
-/* 		      uint32_t command, uint32_t abort, uint64_t addr, */
-/* 		      uint32_t size) */
-/* { */
-/*         // ultimately, this generates a return on the write buffer interface of the cacheline representing the pe */
-/*         // pe struct is basically all 0 except for WED */
-/*         // what parms does read_pe really need? */
-/*         // maybe only the handle and the tag */
-/*         // Check command size and address - not used in read_pe */
-/* 	// if (!_aligned(addr, size)) { */
-/* 	// 	_add_other(cmd, handle, tag, command, abort, */
-/* 	//		   TLX_RESPONSE_FAILED); */
-/* 	//	return; */
-/* 	// } */
-/* 	// Reads will be added to the list and will next be processed */
-/* 	// in the function handle_buffer_write() */
-/* 	// should this just call handle_buffer_write_pe??? */
-/*         //printf( "in _add_read_pe \n" ); */
-/* 	_add_cmd(cmd, handle, tag, command, abort, CMD_READ_PE, addr, size, */
-/* 		 MEM_IDLE, TLX_RESPONSE_DONE, 0); */
-/* } */
 
 // Format and add memory read to command list
 static void _assign_actag(struct cmd *cmd, uint16_t cmd_bdf, uint32_t cmd_pasid, uint16_t actag)
@@ -507,27 +443,66 @@ static void _add_read(struct cmd *cmd, uint16_t actag, uint16_t afutag,
         // convert actag to a context - search the client array contained in cmd for a client with matching actag
 	context = _find_client_by_actag(cmd, actag);
 
-	debug_msg("_add_read:calling _add_cmd context=%d; command=0x%02x; addr=0x%016"PRIx64"; size=0x%04x; afutag=0x%04x", context, cmd_opcode, addr, size, afutag );
+	debug_msg("_add_read:calling _add_cmd context=%d; command=0x%02x; addr=0x%016"PRIx64"; size=0x%04x; afutag=0x%04x", 
+		context, cmd_opcode, addr, size, afutag );
 	// Reads will be added to the list and will next be processed
 	// in the function handle_buffer_write()
 	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_READ, addr, size,
-		 MEM_IDLE, TLX_RESPONSE_DONE, 0, 0);
+		 MEM_IDLE, TLX_RESPONSE_DONE, 0, 0, 0, 0);
 }
 
-// Format and add memory write to command list
-static void _add_write(struct cmd *cmd, uint16_t actag, uint16_t afutag,
-		      uint8_t cmd_opcode, uint8_t *cmd_ea_or_obj, uint32_t size, uint8_t cmd_data_is_valid)
+// Format and add AMO read or write to command list
+static void _add_amo(struct cmd *cmd, uint16_t actag, uint16_t afutag,
+		      uint8_t cmd_opcode, enum cmd_type type, uint8_t *cmd_ea_or_obj, 
+		      uint8_t cmd_pl, uint8_t cmd_data_is_valid, uint8_t cmd_flag)
 {
-        int32_t context;
+        int32_t context, size, sizecheck;
         int64_t addr;
  
         // convert 68 bit ea/obj to 64 bit addr
         // for ap write commands, ea_or_obj is a 64 bit thing...
         memcpy( (void *)&addr, (void *)&(cmd_ea_or_obj[0]), sizeof(int64_t));
+	// check cmd_pl  size. Only certain values are valid
+	// TODO NOTE: Expect to get 64B un data buffer, with 16B of data payload starting
+	// at address offset. When data goes over to libocxl we extract and send 16B ALWAYS
+	// for AMO_WR and AMO_RW unless told elsewise. AMO_RD has no immediate data
 
-
+  	switch (cmd_pl) {
+  		case 2: 
+  		case 3:
+			if ((cmd_opcode == AFU_CMD_AMO_RW) || (cmd_opcode == AFU_CMD_AMO_RW_N))  {
+				if (cmd_flag >= 0x8)  {
+					warn_msg("AMO_RW has invalid cmd_pl:%d", cmd_pl);
+					size= -1;
+				}
+			} 
+			if (cmd_pl == 2)
+				sizecheck = 4;
+			else sizecheck = 8;
+			break;
+ 
+  		case 6:
+  		case 7:	
+			if ((cmd_opcode == AFU_CMD_AMO_W) || (cmd_opcode == AFU_CMD_AMO_W_N))  {
+				warn_msg("AMO_WR has invalid cmd_pl:%d", cmd_pl);
+				size= -1;
+			}
+			if (cmd_pl == 6)
+				sizecheck = 4;
+			else sizecheck = 8;
+    			break;
+  		default:
+    			warn_msg("AMO with Unsupported pl: %d", cmd_pl);
+    			size = -1;
+    			break;
+  		}
+	if ( size == -1) {
+	  _add_other(cmd, actag, afutag, cmd_opcode,
+			   TLX_RESPONSE_FAILED);
+		return;
+	}
 	// Check command size and address
-	if (!_aligned(addr, size)) {
+	if (!_aligned(addr, sizecheck )) {
 	  _add_other(cmd, actag, afutag, cmd_opcode,
 			   TLX_RESPONSE_FAILED);
 		return;
@@ -541,34 +516,56 @@ static void _add_write(struct cmd *cmd, uint16_t actag, uint16_t afutag,
         // convert actag to a context - search the client array contained in cmd for a client with matching actag
 	context = _find_client_by_actag(cmd, actag);
 
-	// Command data comes over with the command, so now we need to read it from event and put it in buffer??
-	// Then, next step is to make the memory write request?
+	// Command data comes over with the command for amo_rw and amo_w, so now we need to read it from event
+	// Then, next step is to send over to client/libocxl for processing
 	
-	// Writes will be added to the list and will next be processed
-	// in the function handle_buffer_read(), now known as handle_afu_tlx_cmd_data_read
-
-	// int i;
-	// printf("_add_write:addr=0x%016" PRIx64 " size=%d; cmd->afu_event->afu_tlx_cdata_bus=0x", addr, size); for (i=0;i<64;i++) printf("%02x",cmd->afu_event->afu_tlx_cdata_bus[i]); printf("\n");
-
-	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_WRITE, addr, size,
-		 MEM_IDLE, TLX_RESPONSE_DONE, 0, cmd_data_is_valid);
+	_add_cmd(cmd, context, afutag, cmd_opcode, type, addr, size,
+		 MEM_IDLE, TLX_RESPONSE_DONE, 0, cmd_data_is_valid, 0, cmd_flag);
 }
 
-/* static void _add_write(struct cmd *cmd, uint32_t handle, uint32_t tag, */
-/* 		       uint32_t command, uint32_t abort, uint64_t addr, */
-/* 		       uint32_t size, uint8_t unlock) */
-/* { */
-/* 	// Check command size and address */
-/* 	if (!_aligned(addr, size)) { */
-/* 		_add_other(cmd, handle, tag, command, abort, */
-/* 			   TLX_RESPONSE_FAILED); */
-/* 		return; */
-/* 	} */
-/* 	// Writes will be added to the list and will next be processed */
-/* 	// in the function handle_touch() */
-/* 	_add_cmd(cmd, handle, tag, command, abort, CMD_WRITE, addr, size, */
-/* 		 MEM_IDLE, TLX_RESPONSE_DONE, unlock); */
-/* } */
+
+
+// Format and add memory write to command list
+static void _add_write(struct cmd *cmd, uint16_t actag, uint16_t afutag,
+		      uint8_t cmd_opcode, uint8_t *cmd_ea_or_obj, 
+		      uint32_t size, uint8_t cmd_data_is_valid, uint64_t cmd_be)
+{
+        int32_t context;
+        int64_t addr;
+ 
+        // convert 68 bit ea/obj to 64 bit addr
+        // for ap write commands, ea_or_obj is a 64 bit thing...
+        memcpy( (void *)&addr, (void *)&(cmd_ea_or_obj[0]), sizeof(int64_t));
+
+	// Check command size and address
+	if (!_aligned(addr, size)) {
+	  _add_other(cmd, actag, afutag, cmd_opcode,
+			   TLX_RESPONSE_FAILED);
+		return;
+	}
+	// Also need to check with libocxl to be sure the address AFU sent us is in user's space
+	// TODO create new OCSE_ADDR_VALID cmd, send to lib0cxl, set status to MEM_CHECK and 
+	// wait for response.
+
+        // convert actag to a context - search the client array contained in cmd for a client with matching actag
+	context = _find_client_by_actag(cmd, actag);
+
+	// Command data comes over with the command, so read it from event and put it in buffer in add_cmd
+	// Then, next step is to make the memory write request?
+	
+	// Longer Writes will be added to the list and will next be processed
+	// in handle_afu_tlx_cmd_data_read
+	// TODO add CAPI4 BE opcodes to if
+	debug_msg("_add_write:calling _add_cmd context=%d; command=0x%02x; addr=0x%016"PRIx64"; size=0x%04x; afutag=0x%04x", 
+		context, cmd_opcode, addr, size, afutag );
+	if ((cmd_opcode == AFU_CMD_DMA_W_BE) || (cmd_opcode == AFU_CMD_DMA_W_BE_N))
+		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_WR_BE, addr, size,
+			 MEM_IDLE, TLX_RESPONSE_DONE, 0, cmd_data_is_valid, cmd_be, 0);
+	else
+		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_WRITE, addr, size,
+			 MEM_IDLE, TLX_RESPONSE_DONE, 0, cmd_data_is_valid, 0, 0);
+}
+
 
 // Determine what type of command to add to list
 static void _parse_cmd(struct cmd *cmd,
@@ -607,72 +604,62 @@ static void _parse_cmd(struct cmd *cmd,
 	case AFU_CMD_RD_WNITC_N:
 		printf("YES! AFU cmd is some sort of read!!!!\n");
 		// calculate size from dl
-		_add_read(cmd, cmd_actag, cmd_afutag, cmd_opcode, cmd_ea_or_obj, dl_to_size( cmd_dl ));
+		_add_read(cmd, cmd_actag, cmd_afutag, cmd_opcode,
+			 cmd_ea_or_obj, dl_to_size( cmd_dl ));
 		break;
 	case AFU_CMD_PR_RD_WNITC:
 	case AFU_CMD_PR_RD_WNITC_N:
 		printf("YES! AFU cmd is some sort of partial read!!!!\n");
 		// calculate size from pl
-		_add_read(cmd, cmd_actag, cmd_afutag, cmd_opcode, cmd_ea_or_obj, pl_to_size( cmd_pl ));
+		_add_read(cmd, cmd_actag, cmd_afutag, cmd_opcode, 
+			 cmd_ea_or_obj, pl_to_size( cmd_pl ));
 		break;
 		// Memory Writes
 	case AFU_CMD_DMA_W:
 	case AFU_CMD_DMA_W_N:
 		printf("YES! AFU cmd is some sort of write!!!!\n");
-		_add_write(cmd, cmd_actag, cmd_afutag, cmd_opcode, cmd_ea_or_obj, dl_to_size( cmd_dl ), cmd_data_is_valid);
+		_add_write(cmd, cmd_actag, cmd_afutag, cmd_opcode, 
+			  cmd_ea_or_obj, dl_to_size( cmd_dl ), cmd_data_is_valid, 0);
 		break;
 	case AFU_CMD_DMA_PR_W:
 	case AFU_CMD_DMA_PR_W_N:
 		printf("YES! AFU cmd is some sort of partial write!!!!\n");
-		_add_write(cmd, cmd_actag, cmd_afutag, cmd_opcode, cmd_ea_or_obj, pl_to_size( cmd_pl ), cmd_data_is_valid);
+		_add_write(cmd, cmd_actag, cmd_afutag, cmd_opcode,
+			  cmd_ea_or_obj, pl_to_size( cmd_pl ), cmd_data_is_valid, 0);
 		break;
-		// Memory Writes with Byte Enable - Let's deal with this later.....
-	//case AFU_CMD_DMA_W_BE;
-	//case AFU_CMD_DMA_W_BE_N;
-	//	printf("YES! AFU cmd is some sort of write w/BE!!!!\n");
-	//	_add_write_be(cmd, cmd_actag, cmd_afutag, cmd_opcode, cmd_ea_or_obj, cmd_be, cmd_data_is_valid);
-	//	break;
+		// Memory Writes with Byte Enable 
+	case AFU_CMD_DMA_W_BE:
+	case AFU_CMD_DMA_W_BE_N:
+		printf("YES! AFU cmd is some sort of write w/BE!!!!\n");
+		_add_write(cmd, cmd_actag, cmd_afutag, cmd_opcode, 
+			  cmd_ea_or_obj, 64, cmd_data_is_valid, cmd_be);
+		break;
+		// AMO reads and writes
+	case AFU_CMD_AMO_RD:
+	case AFU_CMD_AMO_RD_N:
+		printf("YES! AFU cmd is some sort of AMO read!!!!\n");
+		_add_amo(cmd, cmd_actag, cmd_afutag, cmd_opcode, CMD_AMO_RD, 
+			  cmd_ea_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag);
+		break;
+	case AFU_CMD_AMO_RW:
+	case AFU_CMD_AMO_RW_N:
+		printf("YES! AFU cmd is some sort of AMO read/write!!!!\n");
+		_add_amo(cmd, cmd_actag, cmd_afutag, cmd_opcode, CMD_AMO_RW, 
+			  cmd_ea_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag);
+		break;
+	case AFU_CMD_AMO_W:
+	case AFU_CMD_AMO_W_N:
+		printf("YES! AFU cmd is some sort of AMO read or write!!!!\n");
+		_add_amo(cmd, cmd_actag, cmd_afutag, cmd_opcode, CMD_AMO_WR, 
+			  cmd_ea_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag);
+		break;
+
 	/*		// Interrupt
 	case TLX_COMMAND_INTREQ:
 		_add_interrupt(cmd, handle, tag, command, abort, irq);
 		break;
 		// Restart
-	case TLX_COMMAND_RESTART:
-		_add_other(cmd, handle, tag, command, abort, TLX_RESPONSE_DONE);
-		break;
-		// Cacheline lock
-	case TLX_COMMAND_LOCK:
-		_update_pending_resps(cmd, TLX_RESPONSE_NLOCK);
-		cmd->locked = 1;
-		cmd->lock_addr = addr & CACHELINE_MASK;
-		_add_touch(cmd, handle, tag, command, abort, addr, size, 0);
-		break;
-		// Memory Reads
-	case TLX_COMMAND_READ_CL_LCK:
-		_update_pending_resps(cmd, TLX_RESPONSE_NLOCK);
-		_update_pending_resps(cmd, TLX_RESPONSE_NLOCK);
-		cmd->locked = 1;
-		cmd->lock_addr = addr & CACHELINE_MASK;
-	case TLX_COMMAND_READ_CL_RES:
-		if (!cmd->locked)
-		cmd->res_addr = addr & CACHELINE_MASK;
-		// Cacheline unlock
-	case TLX_COMMAND_UNLOCK:
-		_add_unlock(cmd, handle, tag, command, abort);
-		break;
 		// Memory Writes
-	case TLX_COMMAND_WRITE_UNLOCK:
-		unlock = 1;
-	case TLX_COMMAND_WRITE_C:
-		if (!unlock)
-			cmd->res_addr = 0L;
-	case TLX_COMMAND_WRITE_MI:
-	case TLX_COMMAND_WRITE_MS:
-	case TLX_COMMAND_WRITE_INJ:
-		if (!(latency % 2) || (latency > 3))
-			error_msg("Write with invalid br_lat=%d", latency);
-		_add_write(cmd, handle, tag, command, abort, addr, size,
-			   unlock);
 		break;
 		// Treat these as memory touch to test for valid addresses
 	case TLX_COMMAND_EVICT_I:
@@ -807,7 +794,7 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 	//	return;
 	//}
 
-	// Check for duplicate afutag - not now, maybe check for dup actag at some point??
+	// Check for duplicate afutag 
 	event = cmd->list;
 	while (event != NULL) {
 		if (event->afutag == cmd_afutag) {
@@ -1100,28 +1087,35 @@ void handle_afu_tlx_cmd_data_read(struct cmd *cmd)
 	} */
 }
 
-// Handle  pending dma0 write - check is done here to make sure that
-// dma transaction stays within a 4k page. If not, simulation ends w/error.
-// Transactions up to 512B are supported.
-void handle_dma0_write(struct cmd *cmd)
+// Handle  pending write_be or atomic op - send them to client for execution
+// client will return response value for some AMO ops (state will be set to AMO_MEM_RESP)
+void handle_write_be_or_amo(struct cmd *cmd)
 {
 	struct cmd_event **head;
 	struct cmd_event *event;
 	struct client *client;
-	uint64_t *addr;
+	uint64_t offset;
+	uint8_t count;
+	uint64_t *addr, *wr_be;
+	uint16_t *size;
 	uint8_t *buffer;
 
 	// Check that cmd struct is valid
 	if (cmd == NULL)
 		return;
 
-	// Send any ready write data to client immediately
+	// Send any ready write_be or AMO cmds to client immediately
 	head = &cmd->list;
 	while (*head != NULL) {
-		if ((((*head)->type == CMD_DMA_WR) || ((*head)->type == CMD_DMA_WR_AMO)) &&
-		    ((*head)->state == DMA_OP_REQ))
+		if ((((*head)->type == CMD_WR_BE) || ((*head)->type == CMD_AMO_WR) ||
+		    ((*head)->type == CMD_AMO_RW)) &&
+		    ((*head)->state == MEM_RECEIVED))
 			break;
-	if (((*head)->type == CMD_DMA_WR_AMO) && ((*head)->state == DMA_MEM_RESP))
+		if (((*head)->type == CMD_AMO_RD)  && 
+		   ((*head)->state == AMO_OP_REQ))
+			break;
+		if ((((*head)->type == CMD_AMO_RD) || ((*head)->type == CMD_AMO_RW)) && 
+		   ((*head)->state == AMO_MEM_RESP))
  			goto amo_wb;
 
 		head = &((*head)->_next);
@@ -1134,74 +1128,108 @@ void handle_dma0_write(struct cmd *cmd)
 		return;
 	// Check that memory request can be driven to client
 	if (client->mem_access != NULL) {
-		printf("client->mem_access NOT NULL!!!!! \n");
+		debug_msg("Can't send to client bc client->mem_access not NULL...retry later");
 		return;
 	}
-	// check to make sure transaction will stay within a 4K boundary
-	if ((event->addr+0x1000) <= (event->addr+(uint64_t)event->dsize))
-		error_msg ("TRANSACTION CROSSES 4K BOUNDARY - WILL CAUSE PCI BUS ERROR!!!! boundary= 0x%016"PRIx64" last byte= 0x%016"PRIx64,
-			 (event->addr+0x1000), (event->addr +event->dsize));
-	else
-		debug_msg ("TRANSACTION IS GOOD TO GO !!!! boundary= 0x%016"PRIx64" last byte= 0x%016"PRIx64,
-			 (event->addr+0x1000), (event->addr +event->dsize));
-	debug_msg("%s:DMA0 WRITE BUFFER itag=0x%02x addr=0x%016"PRIx64" port=0x%2x", cmd->afu_name,
-		  event->itag, event->addr, client->fd);
-	// Send data to client and clear event to allow
-	// the next buffer read to occur.  The request will now await
-	// confirmation from the client that the memory write was
+	// Send cmd & data (if available) to client/libocxl to process
+	// The request will now await confirmation from the client that the memory write/op was
 	// successful before generating a response.
-	if (event->type == CMD_DMA_WR) {
-		buffer = (uint8_t *) malloc(event->dsize + 11);
-		buffer[0] = (uint8_t) OCSE_DMA0_WR;
-		buffer[1] = (uint8_t) ((event->dsize & 0x0F00) >>8);
-		buffer[2] = (uint8_t) (event->dsize & 0xFF);
+	if (event->type == CMD_WR_BE) {
+		buffer = (uint8_t *) malloc(event->size + 19);
+		buffer[0] = (uint8_t) OCSE_WR_BE;
+		size = (uint16_t *)&(buffer[1]);
+		*size = htons(event->size); //value of size alwayz 64 for this cmd
 		addr = (uint64_t *) & (buffer[3]);
 		*addr = htonll(event->addr);
-		memcpy(&(buffer[11]), &(event->data[0]), event->dsize);
+		wr_be = (uint64_t *) & (buffer[11]);
+		*wr_be = htonll(event->wr_be);
+		memcpy(&(buffer[19]), &(event->data[0]), event->size);
 		event->abort = &(client->abort);
-		debug_msg("%s:DMA0 MEMORY WRITE utag=0x%02x size=%d addr=0x%016"PRIx64" port=0x%2x",
-		  	cmd->afu_name, event->utag, event->dsize, event->addr, client->fd);
-		if (put_bytes(client->fd, event->dsize + 11, buffer, cmd->dbg_fp,
-		      cmd->dbg_id, client->context) < 0) {
+		debug_msg("%s:WRITE_BE wr_be=0x%016"PRIx64" size=%d addr=0x%016"PRIx64" port=0x%2x",
+		  	cmd->afu_name, event->wr_be, event->size, event->addr, client->fd);
+		if (put_bytes(client->fd, event->size + 19, buffer, cmd->dbg_fp,
+		      cmd->dbg_id, client->context) < 0) 
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
-		}
-	} else { // event->type == CMD_DMA_WR_AMO
-		buffer = (uint8_t *) malloc(27);
-		buffer[0] = (uint8_t) OCSE_DMA0_WR_AMO;
-		buffer[1] = (uint8_t) event->dsize;
-		addr = (uint64_t *) & (buffer[2]);
+	} else if (event->type == CMD_AMO_WR || event->type == CMD_AMO_RW) { //these have data from cdata_bus
+		// TODO NOTE: we get 64B in data buffer and we extract and send 16B, starting at addr offset
+		// amo_wr  and amo_rw op_size will be either 4 or 8;only certain amo_rw cmds will have two 
+		// immediate operands but we don't care here, we're sending 16B to libocxl no matter what is in it.
+		count = (uint8_t) event->size;
+		switch (count) {
+			case 2:
+				event->size = 4;
+				break;
+			case 3:
+				event->size = 8;
+				break;
+			case 6:
+				event->size = 4;
+				break;
+			case 7:
+				event->size = 8;
+				break;
+			}
+			
+		offset = event->addr & ~CACHELINE_MASK;
+			buffer = (uint8_t *) malloc(28);
+		if (event->type == CMD_AMO_WR) 
+			buffer[0] = (uint8_t) OCSE_AMO_WR;
+		 else // (event->type == CMD_AMO_RW)
+			buffer[0] = (uint8_t) OCSE_AMO_RW;
+		size = (uint16_t *)&(buffer[1]);
+		*size = htons(event->size);
+		addr = (uint64_t *) & (buffer[3]);
 		*addr = htonll(event->addr);
-		buffer[10] = event->atomic_op;
-		memcpy(&(buffer[11]), &(event->data[0]), 16);
+		buffer[11] = event->cmd_flag;
+		memcpy(&(buffer[12]), &(event->data[offset]), 16);
 		event->abort = &(client->abort);
-		debug_msg("%s:DMA0 MEMORY WRITE for AMO utag=0x%02x size=%d addr=0x%016"PRIx64" port=0x%2x",
-		  	cmd->afu_name, event->utag, event->dsize, event->addr, client->fd);
-		if (put_bytes(client->fd, 27, buffer, cmd->dbg_fp,
-		      cmd->dbg_id, client->context) < 0) {
+
+		debug_msg("%s:AMO_WR or AMO_RW cmd_flag=0x%02x size=%d addr=0x%016"PRIx64" port=0x%2x",
+		  	cmd->afu_name, event->cmd_flag, event->size, event->addr, client->fd);
+		if (put_bytes(client->fd, sizeof(buffer), buffer, cmd->dbg_fp,
+		      cmd->dbg_id, client->context) < 0) 
+			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	} else if (event->type == CMD_AMO_RD ) {  //these have no data, use just memory ops. Still need op_size though
+		//we still call it size here and will convert it on the other side
+		if (event->size == 2)
+			event->size =4;
+		else event->size = 8;
+		buffer = (uint8_t *) malloc(12); //or 13??
+		buffer[0] = (uint8_t) OCSE_AMO_RD;
+		size = (uint16_t *)&(buffer[1]);
+		*size = htons(event->size);
+		addr = (uint64_t *) & (buffer[3]);
+		*addr = htonll(event->addr);
+		buffer[11] = event->cmd_flag;
+		event->abort = &(client->abort);
+
+		debug_msg("%s:AMO_RD cmd_flag=0x%02x size=%d addr=0x%016"PRIx64" port=0x%2x",
+		  	cmd->afu_name, event->cmd_flag, event->size, event->addr, client->fd);
+		if (put_bytes(client->fd, 12, buffer, cmd->dbg_fp,
+		      cmd->dbg_id, client->context) < 0) 
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		}
-	}
 
-	// create a separate function to do the sent utag status
-	event->state = DMA_SEND_STS;
+
 	client->mem_access = (void *)event;
 	return;
 
 amo_wb: event = *head;
-debug_msg ("event->atomic_op = 0x%x ", event->atomic_op);
-	if ((event->atomic_op & 0x3f) < 0x20) {
+// TODO update this for new AMO_RD and AMO_RW write back
+//debug_msg ("event->opcode = 0x%x ", event->opcode);
+//	if ((event->opcode & 0x3f) < 0x20) {
 	//randomly decide not to return data yet
-		if (!allow_resp(cmd->parms))
-			return;
+//		if (!allow_resp(cmd->parms))
+//			return;
 
 		event->cpl_type = 4; //always 4 for atomic completion response
-		event->cpl_byte_count = event->dsize; // not valid for AMO but we do it anyway for debug
+		event->cpl_byte_count = event->size; // not valid for AMO but we do it anyway for debug
 		event->cpl_laddr = (uint32_t) (event->cpl_laddr & 0x000000000000000C);
 		debug_msg("%s:DMA0 AMO FETCH DATA WB  utag=0x%02x size=%d addr=0x%016"PRIx64 ,
-		  	cmd->afu_name, event->utag, event->dsize, event->addr);
+		  	cmd->afu_name, event->utag, event->size, event->addr);
 
 /*		if (tlx_dma0_cpl_bus_write(cmd->afu_event, event->utag, event->cpl_type,
-			event->dsize, event->cpl_laddr, event->cpl_byte_count,
+			event->size, event->cpl_laddr, event->cpl_byte_count,
 			event->data) == TLX_SUCCESS) {
 			debug_msg("%s:DMA0 CPL BUS WRITE utag=0x%02x", cmd->afu_name,
 				  event->utag);
@@ -1212,221 +1240,12 @@ debug_msg ("event->atomic_op = 0x%x ", event->atomic_op);
 			} else
 				printf ("looks like we didn't have success writing cpl data? \n");
 */
-		}
+	//	}
 		return;
 
 }
 
 
-// Send UTAG SENT via DMA port back to AFU
-void handle_dma0_sent_sts(struct cmd *cmd)
-{
-	struct cmd_event **head;
-	struct cmd_event *event;
-	struct client *client;
-
-	// Check that cmd struct is valid
-	if (cmd == NULL)
-		return;
-
-	// look for any pending sent_utag_sts to send to AFU
-	head = &cmd->list;
-	while (*head != NULL) {
-		if ((((*head)->type == CMD_DMA_WR) || ((*head)->type == CMD_DMA_WR_AMO)) &&
-		    ((*head)->state == DMA_SEND_STS))
-			break;
-		head = &((*head)->_next);
-	}
-	event = *head;
-
-	// Test for client disconnect or nothing to do....
-	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
-		return;
-
-	event->sent_sts = 0x1;
-/* 	if (tlx_dma0_sent_utag(cmd->afu_event, event->utag, event->sent_sts)
-				      == TLX_SUCCESS) {
-		debug_msg("%s:DMA0 SENT UTAG STS, state now DMA_MEM_RESP FOR DMA_WR utag=0x%02x",
-			 cmd->afu_name, event->utag);
-		//state goes to MEM_DONE when Memory ACK is received back from client
-		event->state = DMA_MEM_RESP;
-
-	} else
-		debug_msg("%s:DMA0 SENT UTAG STS not SENT, still DMA_SEND_STS FOR DMA_WR utag=0x%02x",
-		 cmd->afu_name, event->utag); */
-}
-
-// Handle randomly selected pending DMA0 read, send request to client for real data
-//  or do final write to AFU w/valid data after it is received from client.
-void handle_dma0_read(struct cmd *cmd)
-{
-	struct cmd_event *event;
-	struct client *client;
-	uint8_t buffer[10];
-	uint64_t *addr;
-	//int quadrant, byte;
-
-	// Make sure cmd structure is valid
-	if (cmd == NULL)
-		return;
-
-
-	// Randomly select a pending dma0 read (or none)
-	event = cmd->list;
-	while (event != NULL) {
-	        if ((event->type == CMD_DMA_RD) &&
-		    (event->state == DMA_CPL_PARTIAL) &&
-		    ((event->client_state != CLIENT_VALID) ||
-		     !allow_reorder(cmd->parms))) {
-			break;
-		}
-	        if ((event->type == CMD_DMA_RD) &&
-		    (event->state != DMA_CPL_SENT) &&
-		    ((event->client_state != CLIENT_VALID) ||
-		     !allow_reorder(cmd->parms))) {
-			break;
-		}
-		event = event->_next;
-	}
-
-	// Test for client disconnect
-	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
-		return;
-	// After the client returns data with a call to the function
-	// _handle_mem_read() issue dma0 completion bus
-	// write with valid data and
-	// prepare for response.
-	if ((event->state == DMA_CPL_PARTIAL) || (event->state == DMA_MEM_RESP)) {
-	//randomly decide not to return data yet only if this isn't a multi-cycle cpl in progress
-		if ((event->state == DMA_MEM_RESP) && (!allow_resp(cmd->parms)))
-			return;
-
-		if (event->cpl_xfers_to_go == 0) {
-			if (event->state == DMA_MEM_RESP)  {  //start of transaction
-				event->cpl_byte_count = event->dsize;
-				event->cpl_laddr = (uint32_t) (event->addr & 0x00000000000003FF);
-			}
-		/*	if (event->cpl_byte_count <= 128) { // Single cycle single completion flow
-				event->cpl_type = 0; //always 0 for read up to 128bytes
-				event->cpl_size = event->cpl_byte_count;;
-				//event->cpl_byte_count = event->dsize;
-				//event->cpl_laddr = (uint32_t) (event->addr & 0x00000000000003FF);
-				if (tlx_dma0_cpl_bus_write(cmd->afu_event, event->utag, event->cpl_type,
-					event->cpl_size, event->cpl_laddr, event->cpl_byte_count,
-					event->data) == TLX_SUCCESS) {
-						debug_msg("%s:DMA0 CPL BUS WRITE utag=0x%02x", cmd->afu_name,
-				  		event->utag);
-						int line = 0;
-						for (quadrant = 0; quadrant < 4; quadrant++) {
-							DPRINTF("DEBUG: Q%d 0x", quadrant);
-							for (byte = line; byte < line+32; byte++) {
-								DPRINTF("%02x", event->data[byte]);
-							}
-							DPRINTF("\n");
-							line +=32;
-						}
-					event->resp = TLX_RESPONSE_DONE;
-					event->state = DMA_CPL_SENT;
-				}  */
-			} else	if (event->cpl_byte_count <= 512) { //Multi cycle single completion flow
-			// need way to lock DMA bus so nothing else goes out over it until this transaction completes? TODO
-					event->cpl_xfers_to_go = 1;
-					event->cpl_type = 0; //always 0 for first xfer of 128bytes
-					event->cpl_size = 128;
-					//event->cpl_byte_count = event->dsize;
-					//event->cpl_laddr = (uint32_t) (event->addr & 0x00000000000003FF);
-				/*	if (tlx_dma0_cpl_bus_write(cmd->afu_event, event->utag, event->cpl_type,
-						event->cpl_size, event->cpl_laddr, event->cpl_byte_count,
-						event->data) == TLX_SUCCESS) {
-							debug_msg("%s:DMA0 CPL BUS WRITE utag=0x%02x", cmd->afu_name,
-				  			event->utag);
-							int line = 0;
-							for (quadrant = 0; quadrant < 4; quadrant++) {
-								DPRINTF("DEBUG: Q%d 0x", quadrant);
-								for (byte = line; byte < line+32; byte++) {
-									DPRINTF("%02x", event->data[byte]);
-								}
-								DPRINTF("\n");
-								line +=32;
-							}
-					event->state = DMA_CPL_PARTIAL;
-					}
-				} else
-					error_msg ("ERROR: REQ FOR DMA xfer > 512B we should not be here!!!"); */
-			} else  {  //  second pass thru
-				// be sure to unlock the DMA bus after this gets loaded into afu_event struct TODO
-				event->cpl_xfers_to_go = 0;
-				event->cpl_type = 1; //1 for last cycle, nothing valid but cpl_type, data and utag
-				// tlx_dma0_cpl_bus_write will make adjustments to correct cpl_size & laddr
-				event->cpl_size = event->dsize;
-				event->cpl_byte_count = event->dsize;
-				event->cpl_laddr = (uint32_t) (event->addr & 0x00000000000003FF);
-			/*	if (tlx_dma0_cpl_bus_write(cmd->afu_event, event->utag, event->cpl_type,
-					event->cpl_size, event->cpl_laddr, event->cpl_byte_count,
-					event->data) == TLX_SUCCESS) {
-						debug_msg("%s:DMA0 CPL BUS WRITE utag=0x%02x", cmd->afu_name,
-				  		event->utag);
-						int line = 128;
-						for (quadrant = 0; quadrant < 4; quadrant++) {
-							DPRINTF("DEBUG: Q%d 0x", quadrant);
-							for (byte = line; byte < line+32; byte++) {
-								DPRINTF("%02x", event->data[byte]);
-							}
-							DPRINTF("\n");
-							line +=32;
-						}
-				} */
-				if (event->cpl_byte_count == event->cpl_size) {  //this was last transfer
-					event->resp = TLX_RESPONSE_DONE;
-					event->state = DMA_CPL_SENT;
-					}
-				else  { //dec byte count, inc addr for next transfer
-					event->cpl_byte_count -= 256;
-					if (event->cpl_byte_count < 128)// last transfer will be single cycle
-						event->cpl_size = event->cpl_byte_count;
-					event->cpl_laddr +=256;
-
-				}
-		}
-	}
-
-	if (event->state != DMA_OP_REQ)
-		return;
-
-	if (client->mem_access == NULL) {
-	        // if read:
-		// Send read request to client, set client->mem_access
-		// to point to this event blocking any other memory
-		// accesses to client until data is returned by call
-		// to the _handle_mem_read() function.
-                if (event->type == CMD_DMA_RD) {
-		  buffer[0] = (uint8_t) OCSE_DMA0_RD;
-		  buffer[1] = (uint8_t) ((event->dsize & 0x0F00) >>8);
-		  buffer[2] = (uint8_t) (event->dsize & 0xFF);
-		 // buffer[1] = (uint8_t) event->dsize;
-		  addr = (uint64_t *) & (buffer[3]);
-		  *addr = htonll(event->addr);
-		  event->abort = &(client->abort);
-		  debug_msg("%s:DMA0 MEMORY READ utag=0x%02x size=%d addr=0x%016"PRIx64" port = 0x%2x",
-			    cmd->afu_name, event->utag, event->dsize, event->addr, client->fd);
-		  if (put_bytes(client->fd, 11, buffer, cmd->dbg_fp,
-				cmd->dbg_id, event->context) < 0) {
-		    client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
-		  }
-		// Now need to send UTAG SENT via DMA port back to AFU
-/*	if (tlx_dma0_sent_utag(cmd->afu_event, event->utag, event->sent_sts)
-				      == TLX_SUCCESS) {
-			debug_msg("%s:DMA0 SENT UTAG STS, state now DMA_MEM_REQ FOR DMA_RD utag=0x%02x", cmd->afu_name,
-				  event->utag);
-
-		  event->state = DMA_MEM_REQ;
-		 // debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->tag,
-		//		   event->context);
-		  client->mem_access = (void *)event;
-                    } */
-		}
- 	}
-}
 
 
 // Handle randomly selected memory touch
@@ -1687,13 +1506,13 @@ static void _handle_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
 		event->state = MEM_RECEIVED;
 	}
         // have to expect data back from some AMO ops
-	else if ((event->type == CMD_DMA_RD) || (event->type == CMD_DMA_WR_AMO)) {
-		// Client is returning data from DMA memory read
-                // printf( "_handle_mem_read: CMD_DMA_RD or CMD_DMA_WR_AMO \n" );
-		if (get_bytes_silent(fd, event->dsize, data, cmd->parms->timeout,
+	else if ((event->type == CMD_AMO_RD) || (event->type == CMD_AMO_RW)) {
+		// Client is returning data from AMO memory read
+                // printf( "_handle_mem_read: CMD_AMO_RD or CMD_AMP_RW \n" );
+		if (get_bytes_silent(fd, event->size, data, cmd->parms->timeout,
 			     event->abort) < 0) {
 	        	debug_msg("%s:_handle_dma0_mem_read failed tag=0x%02x size=%d addr=0x%016"PRIx64,
-				  cmd->afu_name, event->tag, event->dsize, event->addr);
+				  cmd->afu_name, event->tag, event->size, event->addr);
 			//event->resp = TLX_RESPONSE_DERROR;
 			event->state = MEM_DONE;
 			debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->tag,
@@ -1702,7 +1521,7 @@ static void _handle_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
 		}
 		// DMA return data goes at offset 0 in the event data instead of some other offset.
                 // should we clear event->data first?
-		memcpy((void *)event->data, (void *)&data, event->dsize);
+		memcpy((void *)event->data, (void *)&data, event->size);
 		event->state = DMA_MEM_RESP;
 
 	}
@@ -1808,18 +1627,20 @@ void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd)
 	}
 
 	_update_age(cmd, event->addr);
+	// TODO update this entire section to work for new AMO_RD and AMO_RW that return data!!
 	if ((event->type == CMD_READ) ||
 		 (((event->type == CMD_CAS_4B) || (event->type == CMD_CAS_8B)) && event->state != MEM_CAS_WR))
 		_handle_mem_read(cmd, event, fd);
- 	// have to account for AMO fetch cmds with returned data
+ 	// have to account for AMO RD or RW cmds with returned data
  	else if (event->type == CMD_DMA_RD)
 		_handle_mem_read(cmd, event, fd);
- 	else if (event->type == CMD_DMA_WR_AMO) {
-                 if ((event->atomic_op & 0x3f) < 0x20)
-			_handle_mem_read(cmd, event, fd);
-		 else
-			event->state = MEM_DONE;
-		}
+	// TODO FIX THIS FOR OCSE AMO returns~~~
+ 	//else if (event->type == CMD_DMA_WR_AMO) {
+        //         if ((event->opcode & 0x3f) < 0x20)
+	//		_handle_mem_read(cmd, event, fd);
+	//	 else
+	//		event->state = MEM_DONE;
+	//	}
 	else if ((event->type == CMD_CAS_4B) || (event->type == CMD_CAS_8B))
 			event->state = MEM_DONE;
 
@@ -1918,7 +1739,7 @@ void _handle_cas_op(struct cmd *cmd, struct cmd_event *event)
 				event->resp = TLX_RESPONSE_COMP_EQ;
 			event->state = MEM_DONE;
 			debug_msg("HANDLE_CAS_OP CAS_E_8B NOT EQUAL or CAS_NE_8B IS EQUAL");
-
+              }
 	} */
 }
 
@@ -1943,21 +1764,6 @@ void handle_caia2_cmds(struct cmd *cmd)
 	//first look for  CAS commands
 		if (((*head)->type == CMD_CAS_4B) || ((*head)->type == CMD_CAS_8B))
 			break;
-	// next look for xlat read/write requests
-		if ((((*head)->type == CMD_XLAT_RD) &&
-		    ((*head)->state == DMA_ITAG_REQ)) |
-		 (((*head)->type == CMD_XLAT_WR) &&
-		    ((*head)->state == DMA_ITAG_REQ)))
-			break;
-	//next look for itag read/write abort requests
-		if ((((*head)->type == CMD_ITAG_ABRT_RD) && ((*head)->state == MEM_TOUCHED)) |
-		  (((*head)->type == CMD_ITAG_ABRT_WR) && ((*head)->state == MEM_TOUCHED)))
-			break;
-	//next look for itag read/write touch requests
-		if ((((*head)->type == CMD_XLAT_RD_TOUCH) && ((*head)->state != MEM_DONE)) |
-		  (((*head)->type == CMD_XLAT_WR_TOUCH) && ((*head)->state != MEM_DONE)))
-			break;
-	// finally look for incoming DMA op requests
 		if (((*head)->state == DMA_PENDING) || ((*head)->state == DMA_PARTIAL))
 			goto dmaop_chk;
 		head = &((*head)->_next);
@@ -1989,122 +1795,6 @@ void handle_caia2_cmds(struct cmd *cmd)
 				//printf("HANDLE_CAIA2_CMDS calling handle cas op \n");
 				_handle_cas_op(cmd, event);}
 			break;
-		case TLX_COMMAND_XLAT_RD_P0:
-			need_a_tag = 1;
-			while (need_a_tag == 1)  {
-				this_itag = (rand() % 256);
-				head = &cmd->list;
-				while (*head != NULL) {
-					if ((*head)->itag == this_itag)
-						break;
-					head = &((*head)->_next);
-					}
-				if (*head == NULL)   // didn't find this tag so okay to use
-					break;
-				 else debug_msg("itag already in use!! Have to choose another value");
-				}
-
-			event->itag = this_itag;
-			event->port = 0;
-			//printf("in handle_caia2 for xlat_rd, address is 0x%016"PRIX64 "\n", event->addr);
-			cmd->afu_event->response_dma0_itag = event->itag;
-			cmd->afu_event->response_dma0_itag_parity = generate_parity(event->itag, ODD_PARITY);
-			info_msg("dma0_itag for read is 0x%x", event->itag);
-			event->state = DMA_ITAG_RET;
-			break;
-		case TLX_COMMAND_XLAT_WR_P0:
-			need_a_tag = 1;
-			while (need_a_tag == 1)  {
-				this_itag = ((rand() % 256) + 256);
-				head = &cmd->list;
-				while (*head != NULL) {
-					if ((*head)->itag == this_itag)
-						break;
-					head = &((*head)->_next);
-					}
-				if (*head == NULL)   // didn't find this tag so okay to use
-					break;
-				else debug_msg("itag already in use!! Have to choose another value");
-				}
-
-			event->itag = this_itag;
-			event->port = 0;
-			//printf("in handle_caia2 for xlat_wr, address is 0x%016"PRIX64 "\n", event->addr);
-			cmd->afu_event->response_dma0_itag = event->itag;
-			cmd->afu_event->response_dma0_itag_parity = generate_parity(event->itag, ODD_PARITY);
-			info_msg("dma0_itag for write is 0x%x", event->itag);
-			event->state = DMA_ITAG_RET;
-			break;
-		case TLX_COMMAND_ITAG_ABRT_RD:
-			// if tag is in reserved state, go ahead and abort
-			// otherwise, send back FAIL and warn msg
-			this_itag = event->addr;
-			debug_msg("NOW IN TLX_COMMAND_ITAG_ABRT_RD with this_itag = 0x%x ", this_itag);
-			// Look for a matching itag to process immediately
-			// check to see if dma op already started
-			head = &cmd->list;
-			while (*head != NULL) {
-				debug_msg ("in handle_caia2_cmds, processing ITAG abt read : head->type is %2x, head->state is 0x%x, head->itag is 0x%3x ", (*head)->type, (*head)->state, (*head)->itag);
-				if (((*head)->state == DMA_ITAG_RET) &&
-		    			((*head)->itag == this_itag))
-					break;
-				if (((*head)->state == DMA_PENDING) &&
-		    			((*head)->itag == this_itag))
-					break;
-				head = &((*head)->_next);
-			}
-			if (*head == NULL) {  // didn't find this tag OR didn;t find in abortable state so fail
-				event->resp = TLX_RESPONSE_FAILED;
-				event->state = MEM_DONE;
-				warn_msg("WRONG TAG or STATE: failed attempt to abort read dma0_itag 0x%x", event->itag);
-				return;
-				}
-				// adjust credits count in tlx_interface, not here
-				(*head)->state = MEM_DONE;
-				event->resp = TLX_RESPONSE_DONE;
-				event->state = MEM_DONE;
-				info_msg("dma0_itag  0x%x for read aborted", this_itag);
-				break;
-		case TLX_COMMAND_ITAG_ABRT_WR:
-			// if tag is in reserved state, go ahead and abort
-			// otherwise, send back FAIL and warn msg
-			this_itag = event->addr;
-			debug_msg("NOW IN TLX_COMMAND_ITAG_ABRT_WR with this_itag = 0x%x ", this_itag);
-			// Look for a matching itag to process immediately
-			// check to see if dma op already started
-			head = &cmd->list;
-			while (*head != NULL) {
-				debug_msg ("in handle_caia2_cmds, processing ITAG abt write : head->type is %2x, head->state is 0x%x, head->itag is 0x%3x ", (*head)->type, (*head)->state, (*head)->itag);
-				if (((*head)->state == DMA_ITAG_RET) &&
-		    			((*head)->itag == this_itag))
-					break;
-				if (((*head)->state == DMA_PENDING) &&
-		    			((*head)->itag == this_itag))
-					break;
-				head = &((*head)->_next);
-			}
-			if (*head == NULL) {  // didn't find this tag OR not in abortable state so fail
-				event->resp = TLX_RESPONSE_FAILED;
-				event->state = MEM_DONE;
-				warn_msg("WRONG TAG or STATE: failed attempt to abort write dma0_itag 0x%x", event->itag);
-				return;
-				}
-				// will adjust credits count in tlx_interface, not here
-				(*head)->state = MEM_DONE;
-		   		event->resp = TLX_RESPONSE_DONE;
-				event->state = MEM_DONE;
-				info_msg("dma0_itag  0x%x for write aborted", this_itag);
-				break;
-		case TLX_COMMAND_XLAT_RD_TOUCH:
-		   	event->resp = TLX_RESPONSE_DONE;
-			event->state = MEM_DONE;
-			info_msg("XLAT_RD_TOUCH command doesn't return itag");
-			break;
-		case TLX_COMMAND_XLAT_WR_TOUCH:
-		   	event->resp = TLX_RESPONSE_DONE;
-			event->state = MEM_DONE;
-			info_msg("XLAT_WR_TOUCH command doesn't return itag ");
-			break;
 		default:
 			warn_msg("Unsupported command 0x%04x", cmd);
 			break;
@@ -2114,8 +1804,6 @@ void handle_caia2_cmds(struct cmd *cmd)
 //here we search list of events to find one that has matching ITAG, then process
 	dmaop_chk: event = *head;
 	/*	if (cmd->afu_event->dma0_dvalid == 1)  {
-	if (event == NULL)
-		printf ("why is event null but dma0_dvalid ??? \n");
 	this_itag = cmd->afu_event->dma0_req_itag;
 	// Look for a matching itag to process immediately
 	head = &cmd->list;
@@ -2134,73 +1822,24 @@ void handle_caia2_cmds(struct cmd *cmd)
 		event->itag = cmd->afu_event->dma0_req_itag;
 		event->utag = cmd->afu_event->dma0_req_utag;
 		event->dtype = cmd->afu_event->dma0_req_type;
-		event->dsize = cmd->afu_event->dma0_req_size;
+		event->size = cmd->afu_event->dma0_req_size;
 		// If DMA read, set up for subsequent handle_dma_mem_read
-		if (event->dtype == DMA_DTYPE_RD_REQ) {
-			event->state = DMA_OP_REQ;
-			event->type = CMD_DMA_RD;
-		// check to make sure transaction will stay within a 4K boundary
-		if ((event->addr+0x1000) <= (event->addr+(uint64_t)event->dsize))
-			warn_msg("TRANSACTION WILL BE FRAGMENTED, it crosses 4K boundary!!! boundary= 0x%016"PRIx64" last byte= 0x%016"PRIx64,
-			(event->addr+0x1000), (event->addr +event->dsize));
-		else
-			debug_msg("TRANSACTION IS GOOD TO GO !!!! boundary= 0x%016"PRIx64" last byte= 0x%016"PRIx64,
-			 (event->addr+0x1000), (event->addr +event->dsize));
-			}
 		// If DMA write, pull data in and set up for subsequent handle dma_mem_write
 		// ALSO send over any AMO cmds that come across as dma wr
-		if ((event->dtype == DMA_DTYPE_WR_REQ_128) && (event->dsize <= 128))  {
-			debug_msg("copy to event buffer for write dma data  <= 128B type 1");
-			event->state = DMA_OP_REQ;
-			event->type = CMD_DMA_WR;
-		  	memcpy((void *)&(event->data[0]), (void *)&(cmd->afu_event->dma0_req_data), event->dsize);
-			debug_msg("%s:DMA0_VALID itag=0x%02x utag=0x%02x addr=0x%016"PRIx64" type = 0x%02x size=0x%02x", cmd->afu_name,
-		  		event->itag, event->utag, event->addr, event->dtype, event->dsize);
-			}
-		if ((event->dtype == DMA_DTYPE_WR_REQ_128) && (event->dsize > 128))  {
-			debug_msg("FIRST copy to event buffer for write dma data  > 128B type 1");
-			event->state = DMA_PARTIAL;
-			event->type = CMD_DMA_WR;
-		  	memcpy((void *)&(event->data[0]), (void *)&(cmd->afu_event->dma0_req_data), 128);
-			event->dpartial = 128;
-			debug_msg("%s:DMA0_VALID itag=0x%02x utag=0x%02x addr=0x%016"PRIx64" type = 0x%02x total xfeed =0x%02x", cmd->afu_name,
-		  		event->itag, event->utag, event->addr, event->dtype, event->dpartial);
-			}
-		if ((event->dtype == DMA_DTYPE_WR_REQ_MORE) && ((event->dsize - event->dpartial) > 128))  {
-			debug_msg("copy to event buffer for write dma data  > 128B type 2");
-			event->state = DMA_PARTIAL;
-			event->type = CMD_DMA_WR;
-		  	memcpy((void *)&(event->data[event->dpartial]), (void *)&(cmd->afu_event->dma0_req_data), 128);
-			event->dpartial += 128;
-			debug_msg("%s:DMA0_VALID itag=0x%02x utag=0x%02x addr=0x%016"PRIx64" type = 0x%02x total xfered =0x%02x", cmd->afu_name,
-		  		event->itag, event->utag, event->addr, event->dtype, event->dpartial);
-			}
-		if ((event->dtype == DMA_DTYPE_WR_REQ_MORE) && ((event->dsize - event->dpartial) <= 128))  {
-			debug_msg("FINAL copy to event buffer for write dma data  > 128B type 2");
-			event->state = DMA_OP_REQ;
-			event->type = CMD_DMA_WR;
-		  	memcpy((void *)&(event->data[event->dsize - event->dpartial]), (void *)&(cmd->afu_event->dma0_req_data),
-				 (event->dsize - event->dpartial));
-			event->dpartial += (event->dsize - event->dpartial);;
-			debug_msg("%s:DMA0_VALID itag=0x%02x utag=0x%02x addr=0x%016"PRIx64" type = 0x%02x total xfered =0x%02x", cmd->afu_name,
-		  		event->itag, event->utag, event->addr, event->dtype, event->dpartial);
-			}
-		if ((event->dtype == DMA_DTYPE_ATOMIC) && (event->type == CMD_XLAT_RD))
-			error_msg("%s:INVALID REQ: DMA AMO W/XLAT_RD ITAG ITAG = 0x%3x DTYPE = %d ", cmd->afu_name, this_itag, event->dtype);
+
 		if ((event->dtype == DMA_DTYPE_ATOMIC) && (event->type == CMD_XLAT_WR))  {
 			event->state = DMA_OP_REQ;
 			event->type = CMD_DMA_WR_AMO;
-			event->atomic_op = cmd->afu_event->dma0_atomic_op;
+			event->opcode = cmd->afu_event->dma0_opcode;
 		  	memcpy((void *)&(event->data[0]), (void *)&(cmd->afu_event->dma0_req_data), 16);
 			debug_msg("%s:DMA0_VALID itag=0x%02x utag=0x%02x addr=0x%016"PRIx64" type = 0x%02x size=0x%02x", cmd->afu_name,
-		  		event->itag, event->utag, event->addr, event->dtype, event->dsize);
+		  		event->itag, event->utag, event->addr, event->dtype, event->size);
 			}
 
 		} else {
 		error_msg("%s: DMA REQUEST RECEIVED WITH UNKNOWN/INVALID ITAG = 0x%3x", cmd->afu_name, this_itag); }
 	cmd->afu_event->dma0_dvalid = 0;
 	} */
-//printf("cmd->afu_event->dma0_dvalid is 0x%2x \n", cmd->afu_event->dma0_dvalid);
    	return;
 }
 
@@ -2239,7 +1878,7 @@ void handle_response(struct cmd *cmd)
 		// OR (dma write and it was AMO and we've sent cpl resp)
 		// OR (itag was aborted),  we can remove this event
 		if ( ( ( (*head)->type == CMD_DMA_WR )     && ( (*head)->state == MEM_DONE ) ) ||
-		     ( ( (*head)->type == CMD_DMA_WR_AMO ) && ( (*head)->state == MEM_DONE ) ) ||
+		     ( ( (*head)->type == CMD_AMO_WR ) && ( (*head)->state == MEM_DONE ) ) ||
 		     ( ( (*head)->type == CMD_XLAT_WR )    && ( (*head)->state == MEM_DONE ) ) ) {
 			//  update dma0_wr_credits IF CMD_DMA_WR or CMD_DMA_WR_AM0
 			//if ((*head)->type != CMD_XLAT_WR)
@@ -2290,7 +1929,7 @@ void handle_response(struct cmd *cmd)
 		// if the state of the event is mem_done, we can potentially stop the loop and send a response for it.
 		// if we not allowing reordering, we'll break the loop and use this event.
 		// don't allow reordering while we sort this out.
-		if ( ( (*head)->state == MEM_DONE ) ) { // && !allow_reorder(cmd->parms)) {
+		if ( ( (*head)->state == MEM_DONE ) ) { // && !allow_reorder(cmd->parms)) 
 		  //debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", drive response because MEM_DONE",
 		  //	   cmd->afu_name, (*head) );
 		  break;
