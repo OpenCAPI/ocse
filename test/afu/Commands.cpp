@@ -109,8 +109,8 @@ LoadCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     cmd_pasid = afu_event->afu_tlx_cmd_pasid;
     cmd_pg_size = afu_event->afu_tlx_cmd_pg_size;
     cmd_actag = afu_event->afu_tlx_cmd_actag;
-    cmd_afutag = afu_event->afu_tlx_cmd_afutag;
-
+    //cmd_afutag = afu_event->afu_tlx_cmd_afutag;
+    cmd_afutag = new_tag;
     printf("LoadCommand: sending command = 0x%x\n", Command::code);
     //if (Command::state != IDLE)
     //    error_msg
@@ -175,8 +175,10 @@ StoreCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     uint16_t  cmd_bdf, cmd_actag, cmd_afutag;
     uint16_t cmd_pasid;
     int  rc;
+    uint32_t afutag;
     uint8_t  ea_addr[9], i;
 
+    
     memcpy((void*)&ea_addr, (void*) &address, sizeof(uint64_t));
     
     cmd_dl = 0x01;	// 1=64 bytes, 2=128 bytes, 3=256 bytes
@@ -189,7 +191,8 @@ StoreCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     cmd_pasid = afu_event->afu_tlx_cmd_pasid;
     cmd_pg_size = afu_event->afu_tlx_cmd_pg_size;
     cmd_actag = afu_event->afu_tlx_cmd_actag;
-    cmd_afutag = afu_event->afu_tlx_cmd_afutag;
+    //cmd_afutag = afu_event->afu_tlx_cmd_afutag;
+    cmd_afutag = new_tag;
     cdata_bad = 0;
 
     printf("StoreCommand: sending command = 0x%x\n", Command::code);
