@@ -88,6 +88,7 @@ static void _attach(struct ocl *ocl, struct client *client)
 	 ack = OCSE_ATTACH;
 	 }
 	ocl->attached_clients++;
+	ocl->state = OCSE_RUNNING;
 	info_msg( "Attached client context %d: current attached clients = %d: client type = %c\n", client->context, ocl->attached_clients, client->type );
 
 	// NO LONGER for master and slave send llcmd add
@@ -148,6 +149,9 @@ static void _detach(struct ocl *ocl, struct client *client)
 	ocl->attached_clients--;
 	info_msg( "Detatched a client: current attached clients = %d\n", ocl->attached_clients );
 	//  we *really* free the client struct and it's contents back in ocl_loop
+	if (ocl->attached_clients == 0) {
+	  ocl->state = OCSE_IDLE;
+	}
 
 }
 
