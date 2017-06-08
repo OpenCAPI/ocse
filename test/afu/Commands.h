@@ -1,13 +1,12 @@
 #ifndef __commands_h__
 #define __commands_h__
-
 #include <stdint.h>
 
 extern "C" {
 #include "tlx_interface.h"
 #include "utils.h"
 }
-
+extern uint8_t memory[128];
 /* Command class - the base class of the three types of command: load, store, and others */
 class Command
 {

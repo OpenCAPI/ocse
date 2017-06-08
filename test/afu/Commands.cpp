@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include "Commands.h"
 
-extern uint8_t memory[128];
+//extern uint8_t memory[128];
 
 Command::Command (uint16_t c, bool comm_addr_par, bool comm_code_par, bool comm_tag_par, bool buff_read_par):code (c), completed (true), state (IDLE),
     command_address_parity (comm_addr_par), command_code_parity (comm_code_par),
@@ -195,8 +195,7 @@ StoreCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     printf("StoreCommand: sending command = 0x%x\n", Command::code);
     printf("memory = 0x");
     for(i=0; i<9; i++) {
-	memory[i] = i;
-	printf("%02x", (uint8_t)i);
+	printf("%02x", memory[i]);
     }
     printf("\n");
     memcpy(afu_event->afu_tlx_cdata_bus, memory, 64);

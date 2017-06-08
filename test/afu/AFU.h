@@ -4,6 +4,7 @@
 #include "Descriptor.h"
 #include "TagManager.h"
 #include "MachineController.h"
+#include "Commands.h"
 
 extern "C" {
 #include "tlx_interface.h"
@@ -16,7 +17,7 @@ extern "C" {
 #define RIGHT	1
 #define LEFT	0
 
-uint8_t memory[128];
+//uint8_t memory[128];
 
 class AFU
 {
@@ -36,7 +37,7 @@ private:
     AFU_State state;
     AFU_State config_state;
     AFU_State mem_state;
-
+    uint8_t *status_address;
 //    uint8_t  memory[128];
     uint64_t global_configs[3];	// stores MMIO registers for global configurations
     uint8_t  tlx_afu_cmd_max_credit;
@@ -53,6 +54,8 @@ private:
     void byte_shift(unsigned char* array, uint8_t size, uint8_t offset, uint8_t direction);
     void resolve_control_event ();
     void resolve_response_event (uint32_t cycle);
+    void write_app_status(uint8_t *address, uint32_t data);
+    void read_app_status(uint8_t *address);
     void set_seed ();
     void set_seed (uint32_t);
     bool afu_is_enabled();
@@ -64,7 +67,7 @@ private:
 
     bool get_mmio_read_parity ();
     bool set_jerror_not_run;
-
+    
 public:
     /* constructor sets up descriptor from config file, establishes server socket connection
        and waits for client to connect */
