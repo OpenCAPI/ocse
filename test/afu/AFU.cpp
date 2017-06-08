@@ -194,26 +194,18 @@ AFU::start ()
         // generate commands, initial read_resp_completed=0; write_resp_completed=0
 	// initial cmd_ready=1; next_cmd=0;
         else if (state == RUNNING) {
-	    if(read_resp_completed ||  write_resp_completed) {
+	    if((read_resp_completed ||  write_resp_completed) &&
+		!(next_cmd) && !(next_cmd) && !(cmd_ready)) {
+		printf("AFU: writing app status\n");
 	  	write_app_status(status_address, 0x00);
 		read_resp_completed = 0;
 		write_resp_completed = 0;
 		next_cmd = 1;
-//		status_updated = 1;
 	    }
-//	    else if (status_updated) {
-//		if(status_data[0] == 0x0) {
-//		    status_updated = 0;
-//		    next_cmd = 1;
-//		}
-//		else {
-//		    status_updated = 1;
-//		}
-//	    }
 	    else if(next_cmd) {
-		debug_msg("AFU: reading status from app");
+		debug_msg("AFU: reading app status");
 		read_app_status(status_address);
-		debug_msg("AFU: read status data = 0x%x", status_data[0]);
+		debug_msg("AFU: status data = 0x%x", status_data[0]);
 		if(status_data[0] == 0xff) {
 		    debug_msg("AFU: get next cmd from app");
 		    next_cmd = 0;
@@ -919,11 +911,11 @@ AFU::write_app_status(uint8_t *address, uint32_t data)
     TagManager::request_tag(&cmd_afutag);
 
     memcpy((void*)&ea_addr, (void*)&address, sizeof(uint64_t));
-    printf("AFU: write_app_status address = 0x%p and data = 0x%x\n", address, data);
+    printf("AFU: status address = 0x%p and data = 0x%x\n", address, data);
     printf("AFU: afutag = 0x%x\n", cmd_afutag);
     //cmd_op=0x20, dl=0x01, pl=0x02
     memcpy(afu_event.afu_tlx_cdata_bus, &data, 64);
-    printf("write_app_status memcpy\n");
+
     afu_tlx_send_cmd_and_data(&afu_event, 0x20, afu_event.afu_tlx_cmd_actag, 
 	afu_event.afu_tlx_cmd_stream_id, ea_addr, 
 	(uint16_t)cmd_afutag, 0x01, 0x03,
@@ -946,7 +938,8 @@ AFU::read_app_status(uint8_t *address)
     TagManager::request_tag(&cmd_afutag);
 
     memcpy((void*)&ea_addr, (void*)&address, sizeof(uint64_t));
-    printf("AFU: read_app_status address = 0x%p\n", address);
+    printf("AFU: status address = 0x%p\n", address);
+    printf("AFU: afutag = 0x%x\n", cmd_afutag);
     status_resp_valid = 1;
     // cmd_opcode=0x12, dl=00, pl=03
     afu_tlx_send_cmd(&afu_event, 0x12, afu_event.afu_tlx_cmd_actag,
