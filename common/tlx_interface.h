@@ -149,6 +149,11 @@ int afu_tlx_read_cmd_and_data(struct AFU_EVENT *event,
   	  	    uint32_t * cmd_pasid, uint8_t * cmd_pg_size, uint8_t * cmd_data_is_valid,
  		    uint8_t * cdata_bus, uint8_t * cdata_bad);
 
+/* Call this from ocse to read AFU command data ONLY.  */
+
+int afu_tlx_read_cmd_data(struct AFU_EVENT *event,
+  	  	    uint8_t * cmd_data_is_valid,
+ 		    uint8_t * cdata_bus, uint8_t * cdata_bad);
 
 /* Call this periodically to send events and clocking synchronization to AFU */
 /* The comparable function, tlx_signal_tlx_model, is not defined here bc it
@@ -238,10 +243,7 @@ int afu_tlx_send_cmd(struct AFU_EVENT *event,
 /* Call this from afu to send command data to ocse   assume can only send 64B
  * @ time to FIFO ?*/
 
-int afu_tlx_send_cmd_data(struct AFU_EVENT *event,
-		 uint8_t DATA_CMD_CONTINUATION,
-		 uint8_t cdata_bad, uint8_t cmd_pl,
-		 uint8_t cmd_dl, uint8_t * cdata_bus);
+int afu_tlx_send_cmd_data(struct AFU_EVENT *event, uint8_t cdata_bad, uint8_t * cdata_bus);
 
 
 /* Call this on the AFU side to send a command and cmd data to ocse */
@@ -279,7 +281,7 @@ int afu_tlx_resp_data_read_req(struct AFU_EVENT *event,
 
 
 /* Call this from AFU to read data on the response data interface */
-int tlx_adu_read_resp_data(struct AFU_EVENT *event,
+int tlx_afu_read_resp_data(struct AFU_EVENT *event,
 		 uint8_t * resp_data_bdi,uint8_t * resp_data);
 
 

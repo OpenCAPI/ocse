@@ -215,6 +215,8 @@ Descriptor::get_vsec_reg(uint32_t vsec_offset)
     else if(offset < 0x1000) {	// read vsec reg
     	vsec_data = vsec[offset];
     }
+    debug_msg("Descriptor:get_vsec_reg");
+    debug_msg("offset = 0x%x data = 0x%x", offset, vsec_data);
     //else if (offset >= 0x1000) {
 //	vsec_data = port[offset];
 //    }
@@ -230,7 +232,9 @@ Descriptor::set_vsec_reg(uint32_t vsec_offset, uint32_t vsec_data)
     } 
     else if(vsec_offset > 0x1000) {
 	set_port_reg(vsec_offset, vsec_data);
-    } 
+    }
+    debug_msg("Descriptor:set_vsec_reg");
+    debug_msg("offset = 0x%x data = 0x%x", vsec_offset, vsec_data); 
 }
 
 uint64_t
@@ -286,6 +290,7 @@ Descriptor::get_mmio_mem(uint32_t offset, char *data, uint8_t size)
 {
     uint8_t i;
     debug_msg("Descriptor:get_mmio_mem");
+    offset = offset & 0x0007FFFF;
     if(offset > 0x4000) {
 	error_msg("Descriptor:get_mmio address out of range\n");
     }

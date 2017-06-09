@@ -160,6 +160,16 @@ module top (
    reg [511:0]     tlx_afu_resp_data_bus_top;
    reg             tlx_afu_resp_data_bdi_top;
 
+//	Table 5: TLX to AFU Response Data Interface delays
+   reg             tlx_afu_resp_data_valid_dly1;
+   reg [511:0]     tlx_afu_resp_data_bus_dly1;
+   reg             tlx_afu_resp_data_bdi_dly1;
+
+//	Table 5: TLX to AFU Response Data Interface delays
+   reg             tlx_afu_resp_data_valid_dly2;
+   reg [511:0]     tlx_afu_resp_data_bus_dly2;
+   reg             tlx_afu_resp_data_bdi_dly2;
+
 //	Table 6: TLX to AFU Command Data Interface
    reg             tlx_afu_cmd_data_valid_top;
    reg [511:0]     tlx_afu_cmd_data_bus_top;
@@ -326,9 +336,9 @@ module top (
    wire             tlx_afu_cmd_os;
 
 //	Table 5: TLX to AFU Response Data Interface
-   wire             tlx_afu_resp_data_valid;
-   wire [511:0]     tlx_afu_resp_data_bus;
-   wire             tlx_afu_resp_data_bdi;
+   reg             tlx_afu_resp_data_valid;
+   reg [511:0]     tlx_afu_resp_data_bus;
+   reg             tlx_afu_resp_data_bdi;
 
 //	Table 6: TLX to AFU Command Data Interface
    wire             tlx_afu_cmd_data_valid;
@@ -502,59 +512,75 @@ end
 
 // Pass Through Signals
   // Table 1: TLX to AFU Response Interface
-    assign #2	tlx_afu_resp_valid		= tlx_afu_resp_valid_top;
-    assign #2	tlx_afu_resp_opcode		= tlx_afu_resp_opcode_top;
-    assign #2	tlx_afu_resp_afutag		= tlx_afu_resp_afutag_top;
-    assign #2	tlx_afu_resp_code		= tlx_afu_resp_code_top;
-    assign #2	tlx_afu_resp_pg_size		= tlx_afu_resp_pg_size_top;
-    assign #2	tlx_afu_resp_dl			= tlx_afu_resp_dl_top;
-    assign #2	tlx_afu_resp_dp			= tlx_afu_resp_dp_top;
-    assign #2	tlx_afu_resp_host_tag		= tlx_afu_resp_host_tag_top;
-    assign #2	tlx_afu_resp_addr_tag		= tlx_afu_resp_addr_tag_top;
-    assign #2	tlx_afu_resp_cache_state	= tlx_afu_resp_cache_state_top;
+    assign 	tlx_afu_resp_valid		= tlx_afu_resp_valid_top;
+    assign 	tlx_afu_resp_opcode		= tlx_afu_resp_opcode_top;
+    assign 	tlx_afu_resp_afutag		= tlx_afu_resp_afutag_top;
+    assign 	tlx_afu_resp_code		= tlx_afu_resp_code_top;
+    assign 	tlx_afu_resp_pg_size		= tlx_afu_resp_pg_size_top;
+    assign 	tlx_afu_resp_dl			= tlx_afu_resp_dl_top;
+    assign 	tlx_afu_resp_dp			= tlx_afu_resp_dp_top;
+    assign 	tlx_afu_resp_host_tag		= tlx_afu_resp_host_tag_top;
+    assign 	tlx_afu_resp_addr_tag		= tlx_afu_resp_addr_tag_top;
+    assign 	tlx_afu_resp_cache_state	= tlx_afu_resp_cache_state_top;
 
 //	Table 3: TLX to AFU Command Interface
-    assign #2	tlx_afu_cmd_valid		= tlx_afu_cmd_valid_top;
-    assign #2	tlx_afu_cmd_opcode		= tlx_afu_cmd_opcode_top;
-    assign #2	tlx_afu_cmd_capptag		= tlx_afu_cmd_capptag_top;
-    assign #2	tlx_afu_cmd_dl			= tlx_afu_cmd_dl_top;
-    assign #2	tlx_afu_cmd_pl			= tlx_afu_cmd_pl_top;
-    assign #2	tlx_afu_cmd_be			= tlx_afu_cmd_be_top;
-    assign #2	tlx_afu_cmd_end			= tlx_afu_cmd_end_top;
-    assign #2	tlx_afu_cmd_t			= tlx_afu_cmd_t_top;
-    assign #2	tlx_afu_cmd_pa			= tlx_afu_cmd_pa_top;
-    assign #2	tlx_afu_cmd_flag		= tlx_afu_cmd_flag_top;
-    assign #2	tlx_afu_cmd_os			= tlx_afu_cmd_os_top;
+    assign 	tlx_afu_cmd_valid		= tlx_afu_cmd_valid_top;
+    assign 	tlx_afu_cmd_opcode		= tlx_afu_cmd_opcode_top;
+    assign 	tlx_afu_cmd_capptag		= tlx_afu_cmd_capptag_top;
+    assign 	tlx_afu_cmd_dl			= tlx_afu_cmd_dl_top;
+    assign 	tlx_afu_cmd_pl			= tlx_afu_cmd_pl_top;
+    assign 	tlx_afu_cmd_be			= tlx_afu_cmd_be_top;
+    assign 	tlx_afu_cmd_end			= tlx_afu_cmd_end_top;
+    assign 	tlx_afu_cmd_t			= tlx_afu_cmd_t_top;
+    assign 	tlx_afu_cmd_pa			= tlx_afu_cmd_pa_top;
+    assign 	tlx_afu_cmd_flag		= tlx_afu_cmd_flag_top;
+    assign 	tlx_afu_cmd_os			= tlx_afu_cmd_os_top;
 
 //	Table 5: TLX to AFU Response Data Interface
-    assign #2	tlx_afu_resp_data_valid		= tlx_afu_resp_data_valid_top;
-    assign #2	tlx_afu_resp_data_bus		= tlx_afu_resp_data_bus_top;
-    assign #2	tlx_afu_resp_data_bdi		= tlx_afu_resp_data_bdi_top;
+   always @( negedge tlx_clock ) begin
+      tlx_afu_resp_data_valid		<= tlx_afu_resp_data_valid_dly1;
+      tlx_afu_resp_data_bus		<= tlx_afu_resp_data_bus_dly1;
+      tlx_afu_resp_data_bdi		<= tlx_afu_resp_data_bdi_dly1;
+   end
 
 //	Table 6: TLX to AFU Command Data Interface
-    assign #2	tlx_afu_cmd_data_valid		= tlx_afu_cmd_data_valid_top;
-    assign #2	tlx_afu_cmd_data_bus		= tlx_afu_cmd_data_bus_top;
-    assign #2	tlx_afu_cmd_data_bdi		= tlx_afu_cmd_data_bdi_top;
+    assign 	tlx_afu_cmd_data_valid		= tlx_afu_cmd_data_valid_top;
+    assign 	tlx_afu_cmd_data_bus		= tlx_afu_cmd_data_bus_top;
+    assign 	tlx_afu_cmd_data_bdi		= tlx_afu_cmd_data_bdi_top;
 
 //	Table 7: TLX Framer credit interface
-    assign #2	tlx_afu_resp_credit			= tlx_afu_resp_credit_top;
-    assign #2	tlx_afu_resp_data_credit		= tlx_afu_resp_data_credit_top;
-    assign #2	tlx_afu_cmd_credit			= tlx_afu_cmd_credit_top;
-    assign #2	tlx_afu_cmd_data_credit		= tlx_afu_cmd_data_credit_top;
-    assign #2	tlx_afu_cmd_resp_initial_credit	= tlx_afu_cmd_resp_initial_credit_top;
-    assign #2	tlx_afu_data_initial_credit		= tlx_afu_data_initial_credit_top;
+    assign 	tlx_afu_resp_credit			= tlx_afu_resp_credit_top;
+    assign 	tlx_afu_resp_data_credit		= tlx_afu_resp_data_credit_top;
+    assign 	tlx_afu_cmd_credit			= tlx_afu_cmd_credit_top;
+    assign 	tlx_afu_cmd_data_credit		= tlx_afu_cmd_data_credit_top;
+    assign 	tlx_afu_cmd_resp_initial_credit	= tlx_afu_cmd_resp_initial_credit_top;
+    assign 	tlx_afu_data_initial_credit		= tlx_afu_data_initial_credit_top;
 
   // These signals do not appear on the RefDesign Doc. However it is present
   // on the TLX spec
-    assign #2	afu_cfg_in_rcv_tmpl_capability_0	= afu_cfg_in_rcv_tmpl_capability_0_top;
-    assign #2	afu_cfg_in_rcv_tmpl_capability_1	= afu_cfg_in_rcv_tmpl_capability_1_top;
-    assign #2	afu_cfg_in_rcv_tmpl_capability_2	= afu_cfg_in_rcv_tmpl_capability_2_top;
-    assign #2	afu_cfg_in_rcv_tmpl_capability_3	= afu_cfg_in_rcv_tmpl_capability_3_top;
-    assign #2	afu_cfg_in_rcv_rate_capability_0	= afu_cfg_in_rcv_rate_capability_0_top;
-    assign #2	afu_cfg_in_rcv_rate_capability_1	= afu_cfg_in_rcv_rate_capability_1_top;
-    assign #2	afu_cfg_in_rcv_rate_capability_2	= afu_cfg_in_rcv_rate_capability_2_top;
-    assign #2	afu_cfg_in_rcv_rate_capability_3	= afu_cfg_in_rcv_rate_capability_3_top;
-    assign #2	tlx_afu_ready			= tlx_afu_ready_top;
+    assign 	afu_cfg_in_rcv_tmpl_capability_0	= afu_cfg_in_rcv_tmpl_capability_0_top;
+    assign 	afu_cfg_in_rcv_tmpl_capability_1	= afu_cfg_in_rcv_tmpl_capability_1_top;
+    assign 	afu_cfg_in_rcv_tmpl_capability_2	= afu_cfg_in_rcv_tmpl_capability_2_top;
+    assign 	afu_cfg_in_rcv_tmpl_capability_3	= afu_cfg_in_rcv_tmpl_capability_3_top;
+    assign 	afu_cfg_in_rcv_rate_capability_0	= afu_cfg_in_rcv_rate_capability_0_top;
+    assign 	afu_cfg_in_rcv_rate_capability_1	= afu_cfg_in_rcv_rate_capability_1_top;
+    assign 	afu_cfg_in_rcv_rate_capability_2	= afu_cfg_in_rcv_rate_capability_2_top;
+    assign 	afu_cfg_in_rcv_rate_capability_3	= afu_cfg_in_rcv_rate_capability_3_top;
+    assign 	tlx_afu_ready			= tlx_afu_ready_top;
+
+   // a block to delay the resp_data path 1 cycle
+   // todo: variable number of cycles from 1 to n
+   always @ ( negedge tlx_clock ) begin
+      tlx_afu_resp_data_valid_dly1 <= tlx_afu_resp_data_valid_top;
+      tlx_afu_resp_data_bus_dly1 <= tlx_afu_resp_data_bus_top;
+      tlx_afu_resp_data_bdi_dly1 <= tlx_afu_resp_data_bdi_top;
+   end
+
+   always @ ( negedge tlx_clock ) begin
+      tlx_afu_resp_data_valid_dly2 <= tlx_afu_resp_data_valid_dly1;
+      tlx_afu_resp_data_bus_dly2 <= tlx_afu_resp_data_bus_dly1;
+      tlx_afu_resp_data_bdi_dly2 <= tlx_afu_resp_data_bdi_dly1;
+   end
 
   always @ ( tlx_clock ) begin
     simulationTime = $time;

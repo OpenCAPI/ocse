@@ -88,6 +88,7 @@ static void _attach(struct ocl *ocl, struct client *client)
 	 ack = OCSE_ATTACH;
 	 }
 	ocl->attached_clients++;
+	ocl->state = OCSE_RUNNING;
 	info_msg( "Attached client context %d: current attached clients = %d: client type = %c\n", client->context, ocl->attached_clients, client->type );
 
 	// NO LONGER for master and slave send llcmd add
@@ -148,6 +149,9 @@ static void _detach(struct ocl *ocl, struct client *client)
 	ocl->attached_clients--;
 	info_msg( "Detatched a client: current attached clients = %d\n", ocl->attached_clients );
 	//  we *really* free the client struct and it's contents back in ocl_loop
+	if (ocl->attached_clients == 0) {
+	  ocl->state = OCSE_IDLE;
+	}
 
 }
 
@@ -163,12 +167,14 @@ static void _handle_afu(struct ocl *ocl)
 	/*if (ocl->mmio->list !=NULL) {
 	 handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
 	} */
-	 	handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
-	if (ocl->cmd != NULL) {
-		handle_response(ocl->cmd);
-		handle_cmd(ocl->cmd, ocl->latency);
-		handle_interrupt(ocl->cmd);
+        handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
 
+	if (ocl->cmd != NULL) {
+	  handle_response(ocl->cmd);  // sends response and data (if required)
+	  handle_buffer_write(ocl->cmd);  // just finishes up the read command structures
+	  handle_cmd(ocl->cmd, ocl->latency);
+	  handle_afu_tlx_cmd_data_read(ocl->cmd);  // just fills up the write command structures
+	  handle_interrupt(ocl->cmd);
 	}
 }
 

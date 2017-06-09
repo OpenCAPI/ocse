@@ -41,8 +41,9 @@ typedef struct ConfigParam
     uint16_t	context;
     uint16_t	command;
     uint16_t	command_size;
-    uint16_t	min_delay;
-    uint16_t	max_delay;
+    uint16_t	machine_number;
+//    uint16_t	max_delay;
+    uint32_t	status_address;
     uint64_t	mem_base_address;
     uint64_t	mem_size;
     uint8_t	enable_always;
@@ -55,23 +56,20 @@ void init_machine(MachineConfig *machine);
 int config_machine(MachineConfig *machine, MachineConfigParam configparam);
 
 // Function to write config to AFU MMIO space
-int enable_machine(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t context, 
-	uint16_t mach_num, int mode);
+int enable_machine(struct ocxl_afu_h *afu, MachineConfig *machine, MachineConfigParam param, int mode);
 
 // Function to set most commonly used elements and write to AFU MMIO space
-int config_and_enable_machine(struct ocxl_afu_h *afu, MachineConfig *machine, MachineConfigParam param, 
-		uint16_t mach_num, int mode);
+int config_and_enable_machine(struct ocxl_afu_h *afu, MachineConfig *machine, MachineConfigParam param, int mode);
 
 // Function to read config from AFU
-int poll_machine(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t index, int mode);
+int poll_machine(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t context, int mode);
 
 // Wait for response from AFU machine
-int get_response(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t mach_num, int mode);
+int get_response(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t context, int mode);
 
 // Function to set most commonly used elements, write to AFU MMIO space and
 // wait for command completion
-int config_enable_and_run_machine(struct ocxl_afu_h *afu, MachineConfig *machine, MachineConfigParam param,
-		uint16_t mach_num, int mode);
+int config_enable_and_run_machine(struct ocxl_afu_h *afu, MachineConfig *machine, MachineConfigParam param, int mode);
 
 // Enable always field is bits[0] of double-word 0
 void set_machine_config_enable_always(MachineConfig* machine);
@@ -88,29 +86,32 @@ void set_machine_config_command_code(MachineConfig* machine, uint16_t code);
 // Context field is the second 16 bits of double-word 0
 void set_machine_config_context(MachineConfig* machine, uint16_t context);
 
-// Min delay field is the next to last 16 bits of double-word 0
-void set_machine_config_min_delay(MachineConfig* machine, uint16_t min_delay);
+// Machine number field
+void set_machine_config_machine_number(MachineConfig* machine, uint16_t machine_number);
+
+// Status address
+void set_machine_config_status_address(MachineConfig* machine, uint32_t status_address);
 
 // Max delay field is the last 16 bits of double-word 0
-void set_machine_config_max_delay(MachineConfig* machine, uint16_t max_delay);
+//void set_machine_config_max_delay(MachineConfig* machine, uint16_t max_delay);
 
 // Abort field is bits[0:2] of double-word 1
-void set_machine_config_abort(MachineConfig * machine, uint8_t abort);
+//void set_machine_config_abort(MachineConfig * machine, uint8_t abort);
 
 // Size field is bits[4:15] of double-word 1
-void set_machine_config_command_size(MachineConfig * machine, uint16_t size);
+//void set_machine_config_command_size(MachineConfig * machine, uint16_t size);
 
 // Address parity inject field is bit[16] of double-word 1
-void set_machine_config_command_address_parity(MachineConfig * machine, uint8_t inject);
+//void set_machine_config_command_address_parity(MachineConfig * machine, uint8_t inject);
 
 // Address parity inject field is bit[17] of double-word 1
-void set_machine_config_command_code_parity(MachineConfig * machine, uint8_t inject);
+//void set_machine_config_command_code_parity(MachineConfig * machine, uint8_t inject);
 
 // Tag parity inject field is bit[18] of double-word 1
-void set_machine_config_command_tag_parity(MachineConfig * machine, uint8_t inject);
+//void set_machine_config_command_tag_parity(MachineConfig * machine, uint8_t inject);
 
 // Buffer read parity inject field is bit[18] of double-word 1
-void set_machine_config_buffer_read_parity(MachineConfig * machine, uint8_t inject);
+//void set_machine_config_buffer_read_parity(MachineConfig * machine, uint8_t inject);
 
 // Base address of the memory space the AFU machine operate in
 void set_machine_memory_base_address(MachineConfig * machine, uint64_t addr);
@@ -131,28 +132,28 @@ void get_machine_config_command_code(MachineConfig *machine, uint16_t* command_c
 void get_machine_config_context(MachineConfig *machine, uint16_t* context);
 
 // Max delay field is the next to last 16 bits of double-word 0
-void get_machine_config_min_delay(const MachineConfig *machine, uint16_t* min_delay);
+//void get_machine_config_min_delay(const MachineConfig *machine, uint16_t* min_delay);
 
 // Max delay field is the last 16 bits of double-word 0
-void get_machine_config_max_delay(const MachineConfig *machine, uint16_t* max_delay);
+//void get_machine_config_max_delay(const MachineConfig *machine, uint16_t* max_delay);
 
 // Abort field is bits[1:3] of double-word 1
-void get_machine_config_abort(MachineConfig *machine, uint8_t* abort);
+//void get_machine_config_abort(MachineConfig *machine, uint8_t* abort);
 
 // Size field is bits[4:15] of double-word 1
-void get_machine_config_command_size(MachineConfig *machine, uint16_t* size);
+//void get_machine_config_command_size(MachineConfig *machine, uint16_t* size);
 
 // Address parity inject field is bit[16] of double-word 1
-void get_machine_config_command_address_parity(MachineConfig *machine, uint8_t* inject);
+//void get_machine_config_command_address_parity(MachineConfig *machine, uint8_t* inject);
 
 // Command code parity inject field is bit[17] of double-word 1
-void get_machine_config_command_code_parity(MachineConfig *machine, uint8_t* inject);
+//void get_machine_config_command_code_parity(MachineConfig *machine, uint8_t* inject);
 
 // Command tag parity inject field is bit[18] of double-word 1
-void get_machine_config_command_tag_parity(MachineConfig *machine, uint8_t* inject);
+//void get_machine_config_command_tag_parity(MachineConfig *machine, uint8_t* inject);
 
 // Buffer read parity inject field is bit[19] of double-word 1
-void get_machine_config_buffer_read_parity(MachineConfig *machine, uint8_t* inject);
+//void get_machine_config_buffer_read_parity(MachineConfig *machine, uint8_t* inject);
 
 // Idling field is bit[23] of double-word 1
 void get_machine_config_machine_idling(MachineConfig *machine, uint8_t* idling);

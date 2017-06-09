@@ -21,6 +21,7 @@
  */
 
 #include <stdio.h>
+#include <unistd.h>	//sleep 
 #include "TestAFU_config.h"
 
 // Initialize all machine config registers
@@ -41,9 +42,8 @@ int config_machine(MachineConfig *machine, MachineConfigParam configparam)
 	}
 	set_machine_config_context(machine, configparam.context);
 	set_machine_config_command_code(machine, configparam.command);
-	set_machine_config_command_size(machine, configparam.command_size);
-	set_machine_config_min_delay(machine, configparam.min_delay);
-	set_machine_config_max_delay(machine, configparam.max_delay);
+	set_machine_config_machine_number(machine, configparam.machine_number);
+	set_machine_config_status_address(machine, configparam.status_address);
 	set_machine_memory_base_address(machine, configparam.mem_base_address);
 	set_machine_memory_size(machine, configparam.mem_size);
 	if (configparam.enable_always){
@@ -56,28 +56,32 @@ int config_machine(MachineConfig *machine, MachineConfigParam configparam)
 }
 
 // Helper function to calculate AFU machine register MMIO space offset
-static int _machine_base_address_index(uint16_t mach_num, int mode)
+static int _machine_base_address_index(uint16_t machine_number, int mode)
 {
 	int machine_config_base_address;
 
-    if(mach_num < 0 || mach_num > 63) {
+    if(machine_number < 0 || machine_number > 63) {
 	printf("Failed: machine number is out of range\n");
 	return -1;
     }
 
-    machine_config_base_address = mach_num << 5;
-//    if (mode == DIRECTED)
+    machine_config_base_address = machine_number << 5;
+    //if (mode == DIRECTED)
 //	machine_config_base_address += 0x1000;
 
     return machine_config_base_address;
 }
 
 // Function to write config to AFU MMIO space
-int enable_machine(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t context,
-		   uint16_t mach_num, int mode)
+int enable_machine(struct ocxl_afu_h *afu, MachineConfig *machine, MachineConfigParam param, int mode)
 {
 	int i;
-	int machine_config_base_address = _machine_base_address_index(mach_num, mode);
+	uint16_t machine_number;
+	uint16_t context;
+
+ 	context = param.context;
+	machine_number = param.machine_number;
+	int machine_config_base_address = _machine_base_address_index(machine_number, mode);
 
 	switch (mode) {
 		case DIRECTED:
@@ -86,13 +90,16 @@ int enable_machine(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t cont
 		default:
 			break;
 	}
+	// initialize response code
+	//machine->config[1] |= 0x000000FF00000000;
 	printf("machine config base address = 0x%x\n", machine_config_base_address);
 	for (i = 3; i >= 0; --i){
 		uint64_t data = machine->config[i];
+		printf("config[%d] = 0x%"PRIx64"\n", i, data);
 		if (ocxl_mmio_write64(afu, machine_config_base_address + (i * 8),
 		    data))
 		{
-			printf("Failed to write data\n");
+			printf("Failed to write data config[%d]\n", i);
 			return -1;
 		}
 	}
@@ -103,7 +110,10 @@ int enable_machine(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t cont
 // Function to read config from AFU
 int poll_machine(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t context, int mode) {
 	int i;
+
 	int machineConfig_baseaddress = _machine_base_address_index(context, mode);
+	printf("polling address = 0x%x\n", machineConfig_baseaddress);
+
 	for (i = 0; i < 2; ++i){
 		uint64_t temp;
 		if (ocxl_mmio_read64(afu, machineConfig_baseaddress + (i * 8),
@@ -119,41 +129,45 @@ int poll_machine(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t contex
 }
 
 // Function to set most commonly used elements and write to AFU MMIO space
-int config_and_enable_machine(struct ocxl_afu_h *afu, MachineConfig *machine, MachineConfigParam param, 
-			uint16_t mach_num, int mode)
+int config_and_enable_machine(struct ocxl_afu_h *afu, MachineConfig *machine, 
+		MachineConfigParam param, int mode)
 {
 	if (config_machine(machine, param))
 		return -1;
-	if (enable_machine(afu, machine, param.context, mach_num, mode))
+	if (enable_machine(afu, machine, param, mode))
 		return -1;
 	return 0;
 }
 
 // Wait for response from AFU machine
-int get_response(struct ocxl_afu_h *afu, MachineConfig *machine,
-		 uint16_t mach_num, int mode)
+int get_response(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t context, int mode)
 {
 	uint8_t response;
 
 	do {
-		if (poll_machine(afu, machine, mach_num, mode) < 0)
+		if (poll_machine(afu, machine, context, mode) < 0)
 			return 0xFF;
 		get_machine_config_response_code(machine, &response);
+		printf("get_machine_config_response_code = 0x%x\n", response);
 	} while (response == 0xFF);
+    response = 0;
 	return response;
 }
 
 // Function to set most commonly used elements, write to AFU MMIO space and
 // wait for command completion
-int config_enable_and_run_machine(struct ocxl_afu_h *afu, MachineConfig *machine, MachineConfigParam param,
-		uint16_t mach_num, int mode)
+int config_enable_and_run_machine(struct ocxl_afu_h *afu, MachineConfig *machine, 
+			MachineConfigParam param, int mode)
 {
 	int rc;
+	uint16_t context;
 
-	if (config_and_enable_machine(afu, machine, param, mach_num, mode) < 0)
+	context = param.context;
+
+	if (config_and_enable_machine(afu, machine, param, mode) < 0)
 		return -1;
 
-	rc = get_response(afu, machine, mach_num, mode);
+	rc = get_response(afu, machine, context, mode);
 	if (rc==0xFF)
 		return -1;
 
@@ -193,53 +207,59 @@ void set_machine_config_context(MachineConfig* machine, uint16_t context) {
 	machine->config[0] |= ((uint64_t)context << 32);
 }
 
-// Min delay field is the next to last 16 bits of double-word 0
-void set_machine_config_min_delay(MachineConfig* machine, uint16_t min_delay) {
+// Machine number field is the next to last 16 bits of double-word 0
+void set_machine_config_machine_number(MachineConfig* machine, uint16_t machine_number) {
 	machine->config[0] &= ~0x00000000FFFF0000LL;
-	machine->config[0] |= ((uint64_t)min_delay << 16);
+	machine->config[0] |= ((uint64_t)machine_number << 16);
+}
+
+// Machine status address
+void set_machine_config_status_address(MachineConfig* machine, uint32_t status_address) {
+	machine->config[1] &= ~0xFFFFFFFF00000000LL;
+	machine->config[1] |= ((uint64_t)status_address << 32);
 }
 
 // Max delay field is the last 16 bits of double-word 0
-void set_machine_config_max_delay(MachineConfig* machine, uint16_t max_delay) {
-	machine->config[0] &= ~0x000000000000FFFFLL;
-	machine->config[0] |= max_delay;
-}
+//void set_machine_config_max_delay(MachineConfig* machine, uint16_t max_delay) {
+//	machine->config[0] &= ~0x000000000000FFFFLL;
+//	machine->config[0] |= max_delay;
+//}
 
 // Abort field is bits[0:2] of double-word 1
-void set_machine_config_abort(MachineConfig * machine, uint8_t abort) {
-	machine->config[1] &= ~0x7000000000000000LL;
-	machine->config[1] |= ((uint64_t)abort << 60);
-}
+//void set_machine_config_abort(MachineConfig * machine, uint8_t abort) {
+//	machine->config[1] &= ~0x7000000000000000LL;
+//	machine->config[1] |= ((uint64_t)abort << 60);
+//}
 
 // Size field is bits[4:15] of double-word 1
-void set_machine_config_command_size(MachineConfig * machine, uint16_t size) {
-	machine->config[1] &= ~0x0FFF000000000000LL;
-	machine->config[1] |= ((uint64_t)size << 48);
-}
+//void set_machine_config_command_size(MachineConfig * machine, uint16_t size) {
+//	machine->config[1] &= ~0x0FFF000000000000LL;
+//	machine->config[1] |= ((uint64_t)size << 48);
+//}
 
 // Address parity inject field is bit[16] of double-word 1
-void set_machine_config_command_address_parity(MachineConfig * machine, uint8_t inject) {
-	machine->config[1] &= ~0x0000800000000000LL;
-	machine->config[1] |= ((uint64_t)inject << 47);
-}
+//void set_machine_config_command_address_parity(MachineConfig * machine, uint8_t inject) {
+//	machine->config[1] &= ~0x0000800000000000LL;
+//	machine->config[1] |= ((uint64_t)inject << 47);
+//}
 
 // Address parity inject field is bit[17] of double-word 1
-void set_machine_config_command_code_parity(MachineConfig * machine, uint8_t inject) {
-	machine->config[1] &= ~0x0000400000000000LL;
-	machine->config[1] |= ((uint64_t)inject << 46);
-}
+//void set_machine_config_command_code_parity(MachineConfig * machine, uint8_t inject) {
+//	machine->config[1] &= ~0x0000400000000000LL;
+//	machine->config[1] |= ((uint64_t)inject << 46);
+//}
 
 // Tag parity inject field is bit[18] of double-word 1
-void set_machine_config_command_tag_parity(MachineConfig * machine, uint8_t inject) {
-	machine->config[1] &= ~0x0000200000000000LL;
-	machine->config[1] |= ((uint64_t)inject << 45);
-}
+//void set_machine_config_command_tag_parity(MachineConfig * machine, uint8_t inject) {
+//	machine->config[1] &= ~0x0000200000000000LL;
+//	machine->config[1] |= ((uint64_t)inject << 45);
+//}
 
 // Buffer read parity inject field is bit[18] of double-word 1
-void set_machine_config_buffer_read_parity(MachineConfig * machine, uint8_t inject) {
-	machine->config[1] &= ~0x0000100000000000LL;
-	machine->config[1] |= ((uint64_t)inject << 44);
-}
+//void set_machine_config_buffer_read_parity(MachineConfig * machine, uint8_t inject) {
+//	machine->config[1] &= ~0x0000100000000000LL;
+//	machine->config[1] |= ((uint64_t)inject << 44);
+//}
 
 // Base address of the memory space the AFU machine operate in
 void set_machine_memory_base_address(MachineConfig * machine, uint64_t addr) {
@@ -276,44 +296,44 @@ void get_machine_config_context(MachineConfig *machine, uint16_t* context) {
 }
 
 // Max delay field is the next to last 16 bits of double-word 0
-void get_machine_config_min_delay(const MachineConfig *machine, uint16_t* min_delay) {
-	*min_delay = (uint16_t)((machine->config[0] & 0x00000000FFFF0000LL) >> 16);
+void get_machine_config_machine_number(const MachineConfig *machine, uint16_t* machine_number) {
+	*machine_number = (uint16_t)((machine->config[0] & 0x00000000FFFF0000LL) >> 16);
 }
 
 // Max delay field is the last 16 bits of double-word 0
-void get_machine_config_max_delay(const MachineConfig *machine, uint16_t* max_delay) {
-	*max_delay = (uint16_t)((machine->config[0]) & 0x000000000000FFFFLL);
-}
+//void get_machine_config_max_delay(const MachineConfig *machine, uint16_t* max_delay) {
+//	*max_delay = (uint16_t)((machine->config[0]) & 0x000000000000FFFFLL);
+//}
 
 // Abort field is bits[1:3] of double-word 1
-void get_machine_config_abort(MachineConfig *machine, uint8_t* abort) {
-	*abort = (uint16_t)((machine->config[1] & 0x7000000000000000LL) >> 60);
-}
+//void get_machine_config_abort(MachineConfig *machine, uint8_t* abort) {
+//	*abort = (uint16_t)((machine->config[1] & 0x7000000000000000LL) >> 60);
+//}
 
 // Size field is bits[4:15] of double-word 1
-void get_machine_config_command_size(MachineConfig *machine, uint16_t* size) {
-	*size = (uint16_t)((machine->config[1] & 0x0FFF000000000000LL) >> 48);
-}
+//void get_machine_config_command_size(MachineConfig *machine, uint16_t* size) {
+//	*size = (uint16_t)((machine->config[1] & 0x0FFF000000000000LL) >> 48);
+//}
 
 // Address parity inject field is bit[16] of double-word 1
-void get_machine_config_command_address_parity(MachineConfig *machine, uint8_t* inject) {
-	*inject = (uint16_t)((machine->config[1] & 0x0000800000000000LL) >> 47);
-}
+//void get_machine_config_command_address_parity(MachineConfig *machine, uint8_t* inject) {
+//	*inject = (uint16_t)((machine->config[1] & 0x0000800000000000LL) >> 47);
+//}
 
 // Command code parity inject field is bit[17] of double-word 1
-void get_machine_config_command_code_parity(MachineConfig *machine, uint8_t* inject) {
-	*inject = (uint16_t)((machine->config[1] & 0x0000400000000000LL) >> 46);
-}
+//void get_machine_config_command_code_parity(MachineConfig *machine, uint8_t* inject) {
+//	*inject = (uint16_t)((machine->config[1] & 0x0000400000000000LL) >> 46);
+//}
 
 // Command tag parity inject field is bit[18] of double-word 1
-void get_machine_config_command_tag_parity(MachineConfig *machine, uint8_t* inject) {
-	*inject = (uint16_t)((machine->config[1] & 0x0000200000000000LL) >> 45);
-}
+//void get_machine_config_command_tag_parity(MachineConfig *machine, uint8_t* inject) {
+//	*inject = (uint16_t)((machine->config[1] & 0x0000200000000000LL) >> 45);
+//}
 
 // Buffer read parity inject field is bit[19] of double-word 1
-void get_machine_config_buffer_read_parity(MachineConfig *machine, uint8_t* inject) {
-	*inject= (uint16_t)((machine->config[1] & 0x0000100000000000LL) >> 44);
-}
+//void get_machine_config_buffer_read_parity(MachineConfig *machine, uint8_t* inject) {
+//	*inject= (uint16_t)((machine->config[1] & 0x0000100000000000LL) >> 44);
+//}
 
 // Idling field is bit[23] of double-word 1
 void get_machine_config_machine_idling(MachineConfig *machine, uint8_t* idling) {
@@ -354,4 +374,3 @@ void get_machine_memory_base_address(MachineConfig *machine, uint64_t* addr) {
 void get_machine_memory_size(MachineConfig *machine, uint64_t* size) {
 	*size = machine->config[3];
 }
-

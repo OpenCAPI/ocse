@@ -261,6 +261,9 @@ static struct client *_client_connect(int *fd, char *ip)
 	client->timeout = timeout;
 	client->flushing = FLUSH_NONE;
 	client->state = CLIENT_INIT;
+	
+	// lgt quick fix for bdf
+	client->bdf = 0xcdef;
 
 	// Return acknowledge to client
 	ack[0] = OCSE_CONNECT;
@@ -334,6 +337,8 @@ static int _client_associate(struct client *client, uint8_t id, char afu_type)
 			++clients;
 		if ((context < 0) && (ocl->client[i] == NULL)) {
 			client->context = context = i;
+			// lgt quick fix for pasid
+			client->pasid = i; //???
 			client->state = CLIENT_VALID;
 			client->pending = 0;
 			ocl->client[i] = client;

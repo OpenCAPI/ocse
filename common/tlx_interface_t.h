@@ -223,6 +223,32 @@
 #define AFU_CMD_READ_EXCLUSIVE_T	0xe8 	// TLX4 only
 #define AFU_CMD_READ_SHARED_T		0xe9 	// TLX4 only
 
+/* TEMP PATCH UNTIL CMDS GET TRANSLATED FROM AMO_ARMW* TO AFU_CMD_AMO* in LIBOCXL */
+#define AMO_ARMWF_ADD	 0x00
+#define AMO_ARMWF_XOR	 0x01
+#define AMO_ARMWF_OR	 0x02
+#define AMO_ARMWF_AND	 0x03
+#define AMO_ARMWF_CAS_MAX_U	 0x04
+#define AMO_ARMWF_CAS_MAX_S	 0x05
+#define AMO_ARMWF_CAS_MIN_U	 0x06
+#define AMO_ARMWF_CAS_MIN_S	 0x07
+#define AMO_ARMWF_CAS_U	 0x08
+#define AMO_ARMWF_CAS_E	 0x11
+#define AMO_ARMWF_CAS_NE	 0x10
+#define AMO_ARMWF_INC_B	 0x18
+#define AMO_ARMWF_INC_E	 0x19
+#define AMO_ARMWF_DEC_B	 0x1c
+#define AMO_ARMW_ADD	 0x20
+#define AMO_ARMW_XOR	 0x21
+#define AMO_ARMW_OR	 0x22
+#define AMO_ARMW_AND	 0x23
+#define AMO_ARMW_CAS_MAX_U	 0x24
+#define AMO_ARMW_CAS_MAX_S	 0x25
+#define AMO_ARMW_CAS_MIN_U	 0x26
+#define AMO_ARMW_CAS_MIN_S	 0x27
+#define AMO_ARMW_CAS_T	 0x38
+
+
 
 /* TL CAPP responses (from host to AFU)  */
 #define TLX_RSP_NOP 0
@@ -259,6 +285,11 @@
 /* Create one of these structures to interface to an AFU model and use the functions below to manipulate it */
 
 /* *INDENT-OFF* */
+struct RDATA_PKT {
+  uint8_t rdata[64];
+  struct RDATA_PKT *_next;
+};
+
 struct AFU_EVENT {
   int sockfd;                             /* socket file descriptor */
   uint32_t proto_primary;                 /* socket protocol version 1st number */
@@ -321,15 +352,21 @@ struct AFU_EVENT {
   // TLX to AFU Repsonse DATA Interface (table 5)
   // CAPP to AP (host to afu) data responses (generally to ap/capp read commands)
   uint8_t tlx_afu_resp_data_valid;         /* 1 bit response data valid */
-  unsigned char tlx_afu_resp_data[64];     /* 512 bit (64 byte) response data */
+  unsigned char tlx_afu_resp_data[256];    /* upto 256 B of data may come back with a response - we should maybe make sure this is little endian order */
+                                           /* we don't send this directly on...   */
   uint8_t tlx_afu_resp_data_bdi;           /* 1 bit bad data indicator */
   uint8_t afu_tlx_resp_rd_req;             /* 1 bit response to a read request */
   uint8_t afu_tlx_resp_rd_cnt;             /* 3 bit encoded read count */
 
+  // response data fifo to buffer responses for later resp_rd_req
+  struct RDATA_PKT *rdata_head;
+  struct RDATA_PKT *rdata_tail;
+  uint32_t rdata_rd_cnt;
+
   // TLX to AFU command DATA Interface (table 6)
   // CAPP to AP (host to afu) data (generally to capp/ap write commands)
   uint8_t tlx_afu_cmd_data_valid;          /* 1 bit command from host valid */
-  unsigned char tlx_afu_cmd_data_bus[64];  /* 512 bit (64 byte) command data */
+  unsigned char tlx_afu_cmd_data_bus[64];  /* 512 bit (64 byte) command data - we should maybe make sure this is little endian order */
   uint8_t tlx_afu_cmd_data_bdi;            /* 1 bit bad data indicator */
   uint8_t afu_tlx_cmd_rd_req;              /* 1 bit read request */
   uint8_t afu_tlx_cmd_rd_cnt;              /* 3 bit encoded read count */

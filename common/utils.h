@@ -32,8 +32,8 @@
 
 #define ODD_PARITY 1
 #define BYTES_PER_DWORD 8
-#define DWORDS_PER_CACHELINE 16
-#define CACHELINE_BYTES 128
+#define DWORDS_PER_CACHELINE 8
+#define CACHELINE_BYTES 64
 #define TLX_IDLE_CYCLES 200
 
 #define OCSE_VERSION_MAJOR	0x03
@@ -61,14 +61,15 @@
 #define OCSE_AFU_ERROR		0x14
 #define OCSE_MMIO_EBREAD	0x15
 #define OCSE_VSEC_INFO		0x16
-#define OCSE_DMA0_RD		0x21
-#define OCSE_DMA0_WR		0x22
-#define OCSE_DMA0_WR_AMO	0x23
-#define OCSE_GLOBAL_MMIO_MAP	        0x24
-#define OCSE_GLOBAL_MMIO_READ64	        0x25
-#define OCSE_GLOBAL_MMIO_WRITE64	0x26
-#define OCSE_GLOBAL_MMIO_READ32	        0x27
-#define OCSE_GLOBAL_MMIO_WRITE32	0x28
+#define OCSE_WR_BE		0x21
+#define OCSE_AMO_RD		0x22
+#define OCSE_AMO_RW		0x23
+#define OCSE_AMO_WR		0x24
+#define OCSE_GLOBAL_MMIO_MAP	        0x25
+#define OCSE_GLOBAL_MMIO_READ64	        0x26
+#define OCSE_GLOBAL_MMIO_WRITE64	0x27
+#define OCSE_GLOBAL_MMIO_READ32	        0x28
+#define OCSE_GLOBAL_MMIO_WRITE32	0x29
 #define MAX_INT32 0x7fffffffU
 #define MIN_INT32 0x80000000U
 #define MAX_UINT32 0xffffffffU
@@ -150,5 +151,23 @@ int32_t sign_extend(uint32_t in_op);
 
 //sign extend a 64b integer
 int64_t sign_extend64(uint64_t in_op);
+
+// convert dl (dLengh) to a 32 bit integer
+// a size less than 0 indicates an bad combination of dl/pl
+int32_t dl_to_size (uint8_t dl);
+
+// convert pl (pLength) to a 32 bit integer
+// a size less than 0 indicates an bad combination of dl/pl
+int32_t pl_to_size (uint8_t pl);
+
+// convert size to a combination of dl
+// size must be a multiple of 64...  and no greater than 256
+uint8_t size_to_dl (int16_t size);
+
+// dl into a number...
+int32_t decode_dl (uint8_t resp_rd_cnt);
+
+// resp_rd_cnt into a number...
+int32_t decode_rd_cnt (uint8_t resp_rd_cnt);
 
 #endif				/* _UTILS_H_ */

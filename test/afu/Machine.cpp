@@ -175,7 +175,7 @@ bool MachineController::Machine::attempt_new_command (AFU_EVENT * afu_event,
                     1);
 	debug_msg("Machine::attempt_new_command: command->send_command");
         command->send_command (afu_event, tag,
-                               memory_base_address + address_offset,
+                               memory_base_address,
                                command_size, abort, context);
 
         record_command (error_state, cycle);

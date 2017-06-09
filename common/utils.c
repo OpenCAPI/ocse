@@ -355,3 +355,145 @@ int64_t sign_extend64 (uint64_t in_op)
 	return in_op;
 }
 
+// convert dl (dLengh) to a 32 bit integer
+int32_t dl_to_size (uint8_t dl)
+{
+        uint32_t size;
+
+	// might need to add cmd_opcode to flag some sizes as reserved in some cases
+	// or a different routine needs be called for "amo" ops
+
+	// can I just combine dl and pl into a single "exponent" and and do a 2**e sort of thing?
+	// like:
+	// exponent = dl;
+	// exponent = exponent << 2;
+	// exponent = exponent + pl;
+	// size = 2 ** exponent;
+	// perhaps, but still need to check for an invalid size...
+	switch (dl) {
+	case 1:
+	  size = 64;
+	  break;
+	case 2:
+	  size = 128;
+	  break;
+	case 3:
+	  size = 256;
+	  break;
+	default:
+	  warn_msg("Unsupported dl: %d", dl);
+		size = -1;
+		break;
+	}
+	return size;
+}
+
+// convert pl (pLength) to a 32 bit integer
+// a size less than 0 indicates an bad combination of dl/pl
+int32_t pl_to_size (uint8_t pl)
+{
+  uint32_t size;
+
+  //decode pl
+  switch (pl) {
+  case 0:
+    size = 1;
+    break;
+  case 1:
+    size = 2;
+    break;
+  case 2:
+    size = 4;
+    break;
+  case 3:
+    size = 8;
+    break;
+  case 4:
+    size = 16;
+    break;
+  case 5:
+    size = 32;
+    break;
+  default:
+    warn_msg("Unsupported pl: %d", pl);
+    size = -1;
+    break;
+  }
+  return size;
+}
+
+// convert size to a combination of dl
+// size must be a multiple of 64...  and no greater than 256
+// return -1 if size is illegal
+uint8_t size_to_dl (int16_t size)
+{
+  uint8_t dl;
+  if ( size % 64 != 0 ) return -1;
+  
+  if ( size > 256 ) return -1;
+
+  switch (size) {
+  case 64:
+    size = 64;
+    dl = 1;
+    break;
+  case 128:
+    dl = 2;
+    break;
+  case 256:
+    dl = 3;
+    break;
+  default:
+    warn_msg("Unsupported size to dl conversion : %d", size);
+    dl = -1;
+    break;
+  }
+
+  return dl;
+}
+
+// dl into a number...
+// map the dl encode into a number of chunks
+int32_t decode_dl (uint8_t dl)
+{
+  uint32_t chunks = 0;
+  switch (dl) {
+  case 1:
+  case 2:
+    chunks = dl;
+    break;
+  case 3:
+    chunks = 4;
+    break;
+  default:
+    printf( "decode_dl: bad dl\n" );
+  }
+  return chunks;
+}
+
+// resp_rd_cnt into a number...
+// map the rd_cnt encode into a number of chunks
+int32_t decode_rd_cnt (uint8_t rd_cnt)
+{
+  uint32_t chunks = 0;
+  switch (rd_cnt) {
+  case 0:
+    chunks = 8;
+    break;
+  case 1:
+  case 2:
+  case 5:
+  case 6:
+  case 7:
+    chunks = rd_cnt;
+    break;
+  case 3:
+    chunks = 4;
+    break;
+  case 4:
+    chunks = 3;
+    break;
+  }
+  return chunks;
+}
+

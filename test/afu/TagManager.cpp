@@ -14,8 +14,7 @@ bool TagManager::request_tag (uint32_t * new_tag)
 {
 
     if (max_credits == 0)
-        warn_msg("TagManager: attempting to request tag when maximum available credit is 0. \
-                  Did you forget to set room? ");
+        warn_msg("TagManager: attempting to request tag when maximum available credit is 0. Did you forget to set room? ");
 
     // no more available credits
     if (num_credits == 0)
@@ -104,7 +103,7 @@ TagManager::request_tlx_credit(uint8_t type)
 	case CMD_CREDIT:
 	   if(cmd_credit > 0) {
 		cmd_credit--;
-		debug_msg("TagManager: request cmd credit = %d", cmd_credit);
+		debug_msg("TagManager: Request: cmd credit = %d", cmd_credit);
 	    }
 	    else {
 		error_msg("TagManager: No Command credit available");
@@ -114,7 +113,7 @@ TagManager::request_tlx_credit(uint8_t type)
 	case RESP_CREDIT:
 	    if(resp_credit > 0) {
 		resp_credit--;
-		debug_msg("TagManager: request resp credit = %d", resp_credit);
+		debug_msg("TagManager: Request: resp credit = %d", resp_credit);
 	    }
 	    else {
 		error_msg("TagManager: No Response credit available");
@@ -124,7 +123,7 @@ TagManager::request_tlx_credit(uint8_t type)
 	case CMD_DATA_CREDIT:
 	    if(cmd_data_credit > 0) {
 		cmd_data_credit--;
-		debug_msg("TagManager: request cmd data credit = %d", cmd_data_credit);
+		debug_msg("TagManager: Request: cmd data credit = %d", cmd_data_credit);
 	    }
 	    else {
 		error_msg("TagManager: No Command Data credit available");
@@ -134,7 +133,7 @@ TagManager::request_tlx_credit(uint8_t type)
 	case RESP_DATA_CREDIT:
 	    if(resp_data_credit > 0) {
 		resp_data_credit--;
-		debug_msg("TagManager: request resp data credit = %d", resp_data_credit);
+		debug_msg("TagManager: Request: resp data credit = %d", resp_data_credit);
 	    }
 	    else {
 		error_msg("TagManager: No Response Data credit available");
@@ -154,19 +153,19 @@ TagManager::release_tlx_credit(uint8_t type)
     switch(type) {
 	case CMD_CREDIT:
 	    cmd_credit++;
-	    debug_msg("TagManager: release cmd_credit = %d", cmd_credit);
+	    debug_msg("TagManager: Release: cmd_credit = %d", cmd_credit);
 	    break;
 	case RESP_CREDIT:
 	    resp_credit++;
-	    debug_msg("TagManager: release resp_credit = %d", resp_credit);
+	    debug_msg("TagManager: Release: resp_credit = %d", resp_credit);
 	    break;
 	case CMD_DATA_CREDIT:
 	    cmd_data_credit++;
-	    debug_msg("TagManager: release cmd_data_credit = %d", cmd_data_credit);
+	    debug_msg("TagManager: Release: cmd_data_credit = %d", cmd_data_credit);
 	    break;
 	case RESP_DATA_CREDIT:
 	    resp_data_credit++;
-	    debug_msg("TagManager: release resp_data_credit = %d", resp_data_credit);
+	    debug_msg("TagManager: Release: resp_data_credit = %d", resp_data_credit);
 	    break;
 	default:
 	    break;
