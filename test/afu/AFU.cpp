@@ -23,6 +23,7 @@ uint8_t cmd_ready = 1;
 uint8_t status_data[8];
 uint8_t status_resp_valid = 0;
 uint8_t status_updated = 0;
+uint8_t insert_cycle = 0;
 
 AFU::AFU (int port, string filename, bool parity, bool jerror):
     descriptor (filename),
@@ -197,10 +198,17 @@ AFU::start ()
 	    if((read_resp_completed ||  write_resp_completed) &&
 		!(next_cmd) && !(next_cmd) && !(cmd_ready)) {
 		printf("AFU: writing app status\n");
-	  	write_app_status(status_address, 0x00);
-		read_resp_completed = 0;
-		write_resp_completed = 0;
-		next_cmd = 1;
+	   	if(!insert_cycle) {
+	  	    write_app_status(status_address, 0x00);
+		    insert_cycle = 1;
+		}
+		else {
+		    printf("insert cycle\n");
+		    insert_cycle = 0;
+		    read_resp_completed = 0;
+		    write_resp_completed = 0;
+		    next_cmd = 1;
+		}
 	    }
 	    else if(next_cmd) {
 		debug_msg("AFU: reading app status");
