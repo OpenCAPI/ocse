@@ -144,6 +144,7 @@ int main(int argc, char *argv[])
     status[0] = 0xff;
     config_param.command = AFU_CMD_DMA_W;
     config_param.mem_base_address = (uint64_t)wcacheline;
+    config_param.mem_size = 64;
     printf("wcacheline = 0x%p\n", wcacheline);
     printf("command = 0x%x\n",config_param.command);
     printf("wcache address = 0x%"PRIx64"\n", config_param.mem_base_address);

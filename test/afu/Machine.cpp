@@ -45,7 +45,31 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
 
     memory_base_address = config[2];
     memory_size = config[3];
-
+    switch(memory_size) {
+	case 1:
+	    afu_event->afu_tlx_cmd_pl = 0;
+	    break;
+	case 2:
+	    afu_event->afu_tlx_cmd_pl = 1;
+	    break;
+	case 4:
+	    afu_event->afu_tlx_cmd_pl = 2;
+	    break;
+	case 8: 
+	     afu_event->afu_tlx_cmd_pl = 3;
+	    break;
+	case 16:
+	     afu_event->afu_tlx_cmd_pl = 4;
+	    break;
+	case 64:
+	     afu_event->afu_tlx_cmd_dl = 1;
+	    break;
+	case 128:
+	     afu_event->afu_tlx_cmd_dl = 2;
+	    break;
+	default:
+	    break;
+    }
     uint16_t command_code = (config[0] >> 48) & 0x1FFF;
     bool command_address_parity = get_command_address_parity ();
     bool command_code_parity = get_command_code_parity ();
@@ -58,13 +82,16 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
 
     switch (command_code) {
     case AFU_CMD_PR_RD_WNITC:
-    case AFU_CMD_DMA_PR_W:
-	command = 
-	    new LoadCommand (command_code, command_address_parity,
-			     command_code_parity, command_tag_parity,
-			     buffer_read_parity);
+    case AFU_CMD_RD_WNITC:
+	printf("Machine: rd_wnitc pl = 0x%x and dl = 0x%x\n", afu_event->afu_tlx_cmd_pl,
+		afu_event->afu_tlx_cmd_dl);
+	command = new LoadCommand (command_code, command_address_parity,
+			     command_code_parity, command_tag_parity, buffer_read_parity);
 	break;
+    case AFU_CMD_DMA_PR_W:	
     case AFU_CMD_DMA_W:
+	printf("Machine: dma_w: pl = 0x%x and dl = 0x%x\n", afu_event->afu_tlx_cmd_pl,
+		afu_event->afu_tlx_cmd_dl);
 	command = new StoreCommand ( command_code, command_address_parity,
 		command_code_parity, command_tag_parity, buffer_read_parity);
 	break;
@@ -169,10 +196,10 @@ bool MachineController::Machine::attempt_new_command (AFU_EVENT * afu_event,
 	read_machine_config (afu_event);
 	
         // randomly generates address within the range
-        uint64_t
-        address_offset =
-            (rand () % (memory_size - (command_size - 1))) & ~(command_size -
-                    1);
+        //uint64_t
+        //address_offset =
+        //    (rand () % (memory_size - (command_size - 1))) & ~(command_size -
+        //            1);
 	debug_msg("Machine::attempt_new_command: command->send_command");
         command->send_command (afu_event, tag,
                                memory_base_address,
