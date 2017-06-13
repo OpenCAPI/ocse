@@ -166,13 +166,6 @@ AFU::start ()
 	    info_msg("AFU: calling tlx_pr_wr_mem");
 	    tlx_pr_wr_mem();
  	}
-	
-	// enable AFU
-	if(afu_is_enabled() && state == IDLE) {
-	    debug_msg("AFU is enabled");
-	    debug_msg("AFU: set state = READY");
-	    state = READY;
-	}
 
 	//  reset AFU
 	if(afu_is_reset()) {
@@ -192,9 +185,9 @@ AFU::start ()
 	// get machine context and create new MachineController
 	else if(state == READY) {
 	    if(get_machine_context()) {
-  	   	printf("AFU: request afu assign actag\n");
-	  	  request_assign_actag();
-		    printf("AFU: set state = RUNNING\n");
+		printf("AFU: request afu assign actag\n");
+		request_assign_actag();
+	    	printf("AFU: set state = RUNNING\n");
 	    	state = RUNNING;
 	    }
 	}
@@ -559,7 +552,7 @@ AFU::resolve_tlx_afu_resp()
 	    }
 	    printf("\n");
 	    cdata_bad = 0;
-	    //afu_tlx_send_cmd_data(&afu_event, cdata_bad, memory);
+	    afu_tlx_send_cmd_data(&afu_event, cdata_bad, memory);
 	    write_resp_completed = 1;
 	    break;
 	case TLX_RSP_WRITE_FAILED:
@@ -922,7 +915,7 @@ AFU::write_app_status(uint8_t *address, uint32_t data)
 {
     uint8_t ea_addr[9];
     uint32_t cmd_afutag;
-    int rc;
+
     TagManager::request_tag(&cmd_afutag);
 
     memcpy((void*)&ea_addr, (void*)&address, sizeof(uint64_t));
@@ -931,7 +924,7 @@ AFU::write_app_status(uint8_t *address, uint32_t data)
     //cmd_op=0x20, dl=0x01, pl=0x02
     memcpy(afu_event.afu_tlx_cdata_bus, &data, 64);
 
-    rc = afu_tlx_send_cmd_and_data(&afu_event, 0x20, afu_event.afu_tlx_cmd_actag, 
+    afu_tlx_send_cmd_and_data(&afu_event, 0x20, afu_event.afu_tlx_cmd_actag, 
 	afu_event.afu_tlx_cmd_stream_id, ea_addr, 
 	(uint16_t)cmd_afutag, 0x01, 0x03,
 #ifdef	TLX4
@@ -941,7 +934,7 @@ AFU::write_app_status(uint8_t *address, uint32_t data)
 	afu_event.afu_tlx_cmd_endian, afu_event.afu_tlx_cmd_bdf,
 	afu_event.afu_tlx_cmd_pasid, afu_event.afu_tlx_cmd_pg_size, 
 	afu_event.afu_tlx_cdata_bus, afu_event.afu_tlx_cdata_bad);
-    printf("rc = 0x%x\n", rc);
+
 }
 
 void

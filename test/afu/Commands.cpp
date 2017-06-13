@@ -99,10 +99,8 @@ LoadCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
 
     memcpy((void*)&ea_addr, (void*) &address, sizeof(uint64_t));
 
-    //cmd_dl = 0x00;	// 1=64 bytes, 2=128 bytes, 3=256 bytes
-    //cmd_pl = 0x03;	// 0=1B, 1=2B, 2=4B, 3=8B, 4=16B, 5=32B
-    cmd_dl = afu_event->afu_tlx_cmd_dl;
-    cmd_pl = afu_event->afu_tlx_cmd_pl;
+    cmd_dl = 0x00;	// 1=64 bytes, 2=128 bytes, 3=256 bytes
+    cmd_pl = 0x03;	// 0=1B, 1=2B, 2=4B, 3=8B, 4=16B, 5=32B
     cmd_bdf = afu_event->afu_tlx_cmd_bdf;
     cmd_stream_id = afu_event->afu_tlx_cmd_stream_id;
     cmd_be = afu_event->afu_tlx_cmd_be;
@@ -183,10 +181,8 @@ StoreCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     
     memcpy((void*)&ea_addr, (void*) &address, sizeof(uint64_t));
     
-    //cmd_dl = 0x01;	// 1=64 bytes, 2=128 bytes, 3=256 bytes
-    //cmd_pl = 0x03;	// 0=1B, 1=2B, 2=4B, 3=8B, 4=16B, 5=32B
-    cmd_dl = afu_event->afu_tlx_cmd_dl;
-    cmd_pl = afu_event->afu_tlx_cmd_pl;
+    cmd_dl = 0x01;	// 1=64 bytes, 2=128 bytes, 3=256 bytes
+    cmd_pl = 0x03;	// 0=1B, 1=2B, 2=4B, 3=8B, 4=16B, 5=32B
     cmd_bdf = afu_event->afu_tlx_cmd_bdf;
     cmd_stream_id = afu_event->afu_tlx_cmd_stream_id;
     cmd_be = afu_event->afu_tlx_cmd_be;
