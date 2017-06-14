@@ -1674,9 +1674,8 @@ int tlx_afu_read_resp_data(struct AFU_EVENT *event,
 	} else {
 		event->tlx_afu_resp_data_valid = 0;
 		* resp_data_bdi = event->tlx_afu_resp_data_bdi;
-		// TODO FOR NOW WE ALWAYS COPY 8 BYTES of DATA -OCSE
-		// SENDS 8 BYTES
-		memcpy(resp_data, event->tlx_afu_resp_data, 8);
+		// OCSE always sends 64 BYTES
+		memcpy(resp_data, event->tlx_afu_resp_data, 64);
 		return TLX_SUCCESS;
 		}
 }
