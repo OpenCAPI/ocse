@@ -2093,11 +2093,12 @@ struct ocxl_afu_h *ocxl_afu_open_dev(char *path)
 	return _ocse_open(&fd, afu_map, major, minor, afu_type);
 }
 
-struct ocxl_afu_h *ocxl_afu_open_h(struct ocxl_afu_h *afu, enum ocxl_views view)
+struct ocxl_afu_h *ocxl_afu_open_h(struct ocxl_afu_h *afu)
 {
 	uint8_t major, minor;
 	uint16_t mask;
 	char afu_type;
+	enum ocxl_views view = OCXL_VIEW_SLAVE;
 
 	if (afu == NULL) {
 		errno = EINVAL;
@@ -2182,8 +2183,7 @@ int ocxl_afu_opened(struct ocxl_afu_h *afu)
 	return afu->opened;
 }
 
-//int ocxl_afu_attach(struct ocxl_afu_h *afu, uint64_t wed)
-int ocxl_afu_attach(struct ocxl_afu_h *afu)
+int ocxl_afu_attach(struct ocxl_afu_h *afu, uint64_t amr)
 {
 	if (!afu) {
 		errno = EINVAL;
@@ -2202,8 +2202,8 @@ int ocxl_afu_attach(struct ocxl_afu_h *afu)
 		return -1;
 	}
 	// Perform OCSE attach
-	// lgt - dont need to send wed remove this later
-	// afu->attach.wed = wed;
+	// lgt - dont need to send amr
+	// we don't model the change in permissions
 	afu->attach.state = LIBOCXL_REQ_REQUEST;
 	while (afu->attach.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();

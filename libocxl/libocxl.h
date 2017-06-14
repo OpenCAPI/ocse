@@ -38,6 +38,7 @@ extern "C" {
  */
 struct ocxl_adapter_h;
 struct ocxl_afu_h;
+struct ocxl_irq_h;
 struct ocxl_ioctl_start_work;
 
 /*
@@ -52,10 +53,10 @@ struct ocxl_ioctl_start_work;
 // return the next opencapi adapter in the system - null if the are no more
 struct ocxl_adapter_h *ocxl_adapter_next(struct ocxl_adapter_h *adapter);
 
-// return the device path name of the adapter at this adapter handle
+// return the basename of the device at this adapter handle
 char *ocxl_adapter_dev_name(struct ocxl_adapter_h *adapter);
 
-// free the adapter?  
+// free the adapter and its associated data structures and memory buffers  
 void ocxl_adapter_free(struct ocxl_adapter_h *adapter);
 
 // a loop that will allow you to visit each adapter in the system - the user must program the body of the for loop including the enclosing {}'s
@@ -85,7 +86,7 @@ struct ocxl_afu_h *ocxl_adapter_afu_next(struct ocxl_adapter_h *adapter,
 // return the next opencapi afu in the system - null if the are no more
 struct ocxl_afu_h *ocxl_afu_next(struct ocxl_afu_h *afu);
 
-// return the device path name of the opencapi afu at this afu handle
+// return the basename of the device the opencapi afu at this afu handle
 char *ocxl_afu_dev_name(struct ocxl_afu_h *afu);
 
 // a loop that will allow you to visit each afu on a given adapter in the system - the user must program the body of the for loop including the enclosing {}'s
@@ -95,6 +96,16 @@ char *ocxl_afu_dev_name(struct ocxl_afu_h *afu);
 // a loop that will allow you to visit each afu in the system - the user must program the body of the for loop including the enclosing {}'s
 #define ocxl_for_each_afu(afu) \
 	for (afu = ocxl_afu_next(NULL); afu; afu = ocxl_afu_next(afu))
+
+// return the afu name at this afu handle
+char *ocxl_afu_name(struct ocxl_afu_h *afu);
+
+// return the next opencapi afu in the system with the name afu_name - null if the are no more
+struct ocxl_afu_h *ocxl_name_afu_next(char *afu_name, struct ocxl_afu_h *afu);
+
+// a loop that will allow you to visit each afu of name afu_name in the system - the user must program the body of the for loop including the enclosing {}'s
+#define ocxl_for_each_name_afu(afu_name, afu) \
+        for (afu = ocxl_name_afu_next(afu_name, NULL); afu; afu = ocxl_name_afu_next(NULL, afu))
 
 // do we still have the notion of master and slave modes of the afu?  We do not have dedicated anymore.
 enum ocxl_views {
@@ -108,9 +119,8 @@ enum ocxl_views {
  * descriptor that has already been opened. The AFU file descriptor will be
  * closed by ocxl_afu_free() regardless of how it was opened.
  */
-// struct ocxl_afu_h *ocxl_afu_open_by_name(char *name);  // a new routine that leverages the "name space" of a device
 struct ocxl_afu_h *ocxl_afu_open_dev(char *path);
-struct ocxl_afu_h *ocxl_afu_open_h(struct ocxl_afu_h *afu, enum ocxl_views view);
+struct ocxl_afu_h *ocxl_afu_open_h(struct ocxl_afu_h *afu);
 //struct ocxl_afu_h * ocxl_afu_fd_to_h(int fd);
 void ocxl_afu_free(struct ocxl_afu_h *afu);
 int ocxl_afu_opened(struct ocxl_afu_h *afu);
@@ -127,7 +137,8 @@ int ocxl_work_set_amr(struct ocxl_ioctl_start_work *work, __u64 amr);
 int ocxl_work_set_num_irqs(struct ocxl_ioctl_start_work *work, __s16 num_irqs);
 int ocxl_work_set_wed(struct ocxl_ioctl_start_work *work, __u64 wed);
 
-int ocxl_afu_attach(struct ocxl_afu_h *afu);
+  int ocxl_afu_attach(struct ocxl_afu_h *afu, uint64_t amr); // new
+  // old - int ocxl_afu_attach(struct ocxl_afu_h *afu);
   //int ocxl_afu_attach(struct ocxl_afu_h *afu, uint64_t wed);
   //int ocxl_afu_attach_work(struct ocxl_afu_h *afu,
   //			struct ocxl_ioctl_start_work *work);
@@ -182,6 +193,7 @@ enum ocxl_image {
 // this list will change based on the definitions in the pcie 0 header and vsec's supported for opencapi
 int ocxl_get_api_version(struct ocxl_afu_h *afu, long *valp);
 int ocxl_get_api_version_compatible(struct ocxl_afu_h *afu, long *valp);
+int ocxl_get_num_irqs(struct ocxl_afu_h *afu, long *valp);
 int ocxl_get_irqs_max(struct ocxl_afu_h *afu, long *valp);
 int ocxl_set_irqs_max(struct ocxl_afu_h *afu, long value);
 int ocxl_get_irqs_min(struct ocxl_afu_h *afu, long *valp);
@@ -204,6 +216,19 @@ int ocxl_get_psl_revision(struct ocxl_adapter_h *adapter, long *valp);
 /*
  * Events (interrupts)
  */
+// returns an interrupt handle describing the a new interrupt of the given afu
+struct ocxl_irq_h *ocxl_afu_new_irq(struct ocxl_afu_h *afu);
+
+// returns an interrupt handle describing the next interrupt of the given afu
+struct ocxl_irq_h *ocxl_afu_irq_next(struct ocxl_afu_h *afu, struct ocxl_irq_h *irq);
+
+// free the data structures of an afu interrupt
+void ocxl_irq_free(struct ocxl_irq_h *irq );
+
+// a loop that will allow you to visit each interrupt allocated for a given afu - the user must program the body of the for loop including the enclosing {}'s
+#define ocxl_for_each_afu_irq(afu, irq) \
+        for (irq = ocxl_afu_irq_next(afu, NULL); irq; irq = ocxl_afu_irq_next(NULL, irq))
+
 int ocxl_event_pending(struct ocxl_afu_h *afu);
 int ocxl_read_event(struct ocxl_afu_h *afu, struct ocxl_event *event);
 int ocxl_read_expected_event(struct ocxl_afu_h *afu, struct ocxl_event *event,
