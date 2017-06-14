@@ -380,7 +380,7 @@ int tlx_afu_send_resp_data(struct AFU_EVENT *event,
 			return AFU_TLX_RD_CNT_WRONG;
 
 	event->tlx_afu_resp_data_bdi = resp_data_bdi;
-	memcpy(event->tlx_afu_resp_data, resp_data, 8);
+	memcpy(event->tlx_afu_resp_data, resp_data, resp_byte_cnt);
 	event->tlx_afu_resp_data_valid = 1;
 	event->tlx_afu_resp_data_byte_cnt = resp_byte_cnt;
 	printf("resp_rd_cnt is 0x%2x \n", event->afu_tlx_resp_rd_cnt);
@@ -1667,15 +1667,19 @@ int afu_tlx_resp_data_read_req(struct AFU_EVENT *event,
 /* Call this from AFU to read ocse (CAPP/TL) response data. This reads just tlx_afu resp data interface */
 
 int tlx_afu_read_resp_data(struct AFU_EVENT *event,
-		  uint8_t * resp_data_bdi,uint8_t * resp_data)
+		  uint8_t * resp_data_bdi, uint8_t * resp_data)
 {
 	if (!event->tlx_afu_resp_data_valid) {
 		return TLX_AFU_RESP_DATA_NOT_VALID;
 	} else {
 		event->tlx_afu_resp_data_valid = 0;
 		* resp_data_bdi = event->tlx_afu_resp_data_bdi;
-		// OCSE always sends 64 BYTES
-		memcpy(resp_data, event->tlx_afu_resp_data, 64);
+		// host side uses tlx_afu_send_resp_data or tlx_afu_send_resp_and_data 
+		// to put upto 256 B in event->tlx_afu_resp_data
+		// we don't specify a size in the api, so we have to pull the full buffer
+		// and allow the reader to use the prior tlx_afu_read_resp to know how much 
+		// of the buffer to use
+		memcpy(resp_data, event->tlx_afu_resp_data, 256);
 		return TLX_SUCCESS;
 		}
 }
