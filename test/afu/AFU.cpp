@@ -166,13 +166,6 @@ AFU::start ()
 	    info_msg("AFU: calling tlx_pr_wr_mem");
 	    tlx_pr_wr_mem();
  	}
-	
-	// enable AFU
-	if(afu_is_enabled() && state == IDLE) {
-	    debug_msg("AFU is enabled");
-	    debug_msg("AFU: set state = READY");
-	    state = READY;
-	}
 
 	//  reset AFU
 	if(afu_is_reset()) {
@@ -192,9 +185,9 @@ AFU::start ()
 	// get machine context and create new MachineController
 	else if(state == READY) {
 	    if(get_machine_context()) {
-  	   	printf("AFU: request afu assign actag\n");
-	  	  request_assign_actag();
-		    printf("AFU: set state = RUNNING\n");
+		printf("AFU: request afu assign actag\n");
+		request_assign_actag();
+	    	printf("AFU: set state = RUNNING\n");
 	    	state = RUNNING;
 	    }
 	}
