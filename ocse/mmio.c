@@ -89,10 +89,12 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 	  //        provide more verification coverage
 	  if (global == 1) {
 	    // global mmio offset + offset
-	    event->cmd_PA = mmio->cfg.global_MMIO_offset + addr;
+	    // TODO offset is NOW 64b, comprised of offset_high & offset_low
+	    event->cmd_PA = mmio->cfg.global_MMIO_offset_low + addr;
 	  } else {
 	    // per pasid mmio offset + (client context * stride) + offset
-	    event->cmd_PA = mmio->cfg.pp_MMIO_offset + (mmio->cfg.pp_MMIO_stride * client->context) + addr;
+	    // TODO offset is NOW 64b, comprised of offset_high & offset_low
+	    event->cmd_PA = mmio->cfg.pp_MMIO_offset_low + (mmio->cfg.pp_MMIO_stride * client->context) + addr;
 	  }
 	}
 	// event->addr = addr;
@@ -232,10 +234,8 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	mmio->cfg.OCAPI_TL_REVID = event204->cmd_data;
 	free(event204);
 
-	//lgt actag moved to afu control dvsec 0x18, 0x1c
-	//lgt now has a base, supported and enabled values similar to pasid
 	_wait_for_done(&(event20c->state), lock);
-	mmio->cfg.OCAPI_TL_ACTAG = event20c->cmd_data;
+	mmio->cfg.OCAPI_TL_VERS = event20c->cmd_data;
 	free(event20c);
 
 	_wait_for_done(&(event224->state), lock);
@@ -304,14 +304,16 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	free(event514);
 
 	_wait_for_done(&(event518->state), lock);
-	mmio->cfg.AFU_CTL_INTS_PER_PASID_18 = event518->cmd_data;
-	debug_msg("AFU_CTL_INTS_PER_PASID IS 0x%x ", mmio->cfg.AFU_CTL_INTS_PER_PASID_18);
-	mmio->cfg.num_ints_per_process =  (event518->cmd_data & 0x0000ffff); 
-	// Use as num_ints_per_process
+	mmio->cfg.AFU_CTL_ACTAG_LEN_EN_S = event518->cmd_data;
+	debug_msg("AFU_CTL_ACTAG_LEN_EN_S IS 0x%x ", mmio->cfg.AFU_CTL_ACTAG_LEN_EN_S);
+	// TODO  setting bits[27:16] to set # of actags allowed
+	//mmio->cfg.num_ints_per_process =  (event518->cmd_data & 0x0000ffff); 
+	// WHAT DO WE NOW Use as num_ints_per_process????
 	free(event518);
 
 	_wait_for_done(&(event51c->state), lock);
-	mmio->cfg.AFU_CTL_INT_CMD_BASE_1C = event51c->cmd_data;
+	mmio->cfg.AFU_CTL_ACTAG_BASE = event51c->cmd_data;
+	// TODO  setting bits[11:0] to set actag base
 	free(event51c);
 
 	// To read AFU descriptor values, first write to cmd_pa + 0x40c with
@@ -319,6 +321,10 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	// Next, read cmd_pa + 0x40c and test bit[31]
 	// if 0, read again
 	// if 1, read cmd_pa+0x410 to get afu descriptor data
+	// New (5/9/17) Cofig spec has updated Global & PerProcess MMIO fields, now
+	// PerPASID MMIO Offset low & Bar (0x30), PerPASID MMIO Offset high (0x34)
+	// and PerPASID MMIO Size (0x38)
+
 
 	event40c = _add_event(mmio, NULL, 0, 0, 0, cmd_pa+0x40c, 1, 0x000028);
 	printf("Just sent config_wr, will wait for read_req then send data \n");
@@ -338,14 +344,35 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	free(event40c);
 	event410 = _add_cfg(mmio, 1, 0, cmd_pa + 0x410, 0L);
         _wait_for_done(&(event410->state), lock);
-	// first read gives us per process MMIO offset & per process MMIO BAR
-	mmio->cfg.pp_MMIO_offset = (event410->cmd_data & 0xFFFFFFF0);
-	debug_msg("per process MMIO offset is 0x%x ", mmio->cfg.pp_MMIO_offset);
-	mmio->cfg.pp_MMIO_BAR = (event410->cmd_data & 0x0000000F);
+	// first read gives us per pasid MMIO offset low & per pasid MMIO BAR
+	mmio->cfg.pp_MMIO_offset_low = (event410->cmd_data & 0xFFFFFFF8);
+	debug_msg("per process MMIO offset is 0x%x ", mmio->cfg.pp_MMIO_offset_low);
+	mmio->cfg.pp_MMIO_BAR = (event410->cmd_data & 0x00000007);
 	debug_msg("per process MMIO BAR is 0x%x ", mmio->cfg.pp_MMIO_BAR);
 	free(event410);
+	event40c = _add_event(mmio, NULL, 0, 0, 0, cmd_pa+0x40c, 1, 0x000034);
+	printf("Just sent config_wr, will wait for read_req then send data \n");
+        _wait_for_done(&(event40c->state), lock);
+	free(event40c);
 
-	event40c = _add_event(mmio, NULL, 0, 0, 0, cmd_pa+0x40c, 1, 0x00002c);
+	printf("sent config write now do config read \n");
+	event40c = _add_cfg(mmio, 1, 0, cmd_pa + 0x40c, 0L);
+        _wait_for_done(&(event40c->state), lock);
+	// Uncomment the while statement to get multiple reads on 0x2ac
+	while ((event40c->cmd_data & AFU_DESC_DATA_VALID) == 0) {
+		event40c = _add_cfg(mmio, 1, 0, cmd_pa + 0x40c, 0L);
+        	_wait_for_done(&(event40c->state), lock);
+	}
+	free(event40c);
+
+	event410 = _add_cfg(mmio, 1, 0, cmd_pa + 0x410, 0L);
+        _wait_for_done(&(event410->state), lock);
+	// second read gives us per process MMIO stride
+	mmio->cfg.pp_MMIO_offset_high = event410->cmd_data;
+	debug_msg("per process MMIO offset_high is 0x%x ", mmio->cfg.pp_MMIO_offset_high);
+	free(event410);
+
+	event40c = _add_event(mmio, NULL, 0, 0, 0, cmd_pa+0x40c, 1, 0x000038);
 	printf("Just sent config_wr, will wait for read_req then send data \n");
         _wait_for_done(&(event40c->state), lock);
 	free(event40c);
@@ -384,8 +411,6 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	debug_msg("AFU_CTL_EN_RST_INDEX is 0x%x ", mmio->cfg.AFU_CTL_EN_RST_INDEX_8);
 	free(event508);
 
-	// Eventually write INTS_PER_PASID ENABLE when ready to use interrupts
-	//
 	// Test read after write to make sure test_afu is working
 
 	event508 = _add_event(mmio, NULL, 0, 0, 0, cmd_pa+0x508, 1, (mmio->cfg.AFU_CTL_EN_RST_INDEX_8 | 0x02000000));
