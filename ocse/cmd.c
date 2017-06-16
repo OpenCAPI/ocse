@@ -293,12 +293,17 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 }
 
 // Format and add interrupt to command list
-/* static void _add_interrupt(struct cmd *cmd, uint32_t handle, uint32_t tag, */
-/* 			   uint32_t command, uint32_t abort, uint16_t irq) */
-/* { */
-/* 	uint32_t resp = TLX_RESPONSE_DONE; */
-/* 	enum cmd_type type = CMD_INTERRUPT; */
 
+ static void _add_interrupt(struct cmd *cmd, uint16_t actag, uint16_t afutag, 
+ 			   uint8_t cmd_opcode, uint8_t *cmd_ea_or_obj, uint8_t cmd_flag) 
+ { 
+ 	//uint32_t resp = TLX_RSP_INTRP_RESP; 
+ 	uint32_t resp= 0; //FOR NOW, always a good response
+ 	enum cmd_type type = CMD_INTERRUPT; 
+        int32_t context;
+ 
+        context = _find_client_by_actag(cmd, actag);
+ 
 /* 	if (!irq || (irq > cmd->client[handle]->max_irqs)) { */
 /* 		warn_msg("AFU issued interrupt with illegal source id"); */
 /* 		resp = TLX_RESPONSE_FAILED; */
@@ -309,9 +314,10 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 /* 	if (!cmd->irq) */
 /* 		cmd->irq = irq; */
 /*  int_done: */
-/* 	_add_cmd(cmd, handle, tag, command, abort, type, (uint64_t) irq, 0, */
-/* 		 MEM_IDLE, resp, 0); */
-/* } */
+// setting MEM_IDLE will tell handle_interrupt to send req to libocxl 
+	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_INTERRUPT, 0, 0, MEM_IDLE,
+		 resp, 0, 0, 0, 0);
+ } 
 
 // Format and add misc. command to list
 static void _add_other(struct cmd *cmd, uint16_t actag, uint32_t afutag,
@@ -654,10 +660,15 @@ static void _parse_cmd(struct cmd *cmd,
 			  cmd_ea_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag);
 		break;
 
-	/*		// Interrupt
-	case TLX_COMMAND_INTREQ:
-		_add_interrupt(cmd, handle, tag, command, abort, irq);
+		// Interrupt
+	case AFU_CMD_INTRP_REQ:
+	//case AFU_CMD_INTRP_REQ_D: // not sure POWER supports this one?
+		printf("YES! AFU cmd is some sort of INTERRUPT REQUEST!!!!\n");
+		_add_interrupt(cmd, cmd_actag, cmd_afutag, cmd_opcode,
+			  cmd_ea_or_obj, cmd_flag);
+	// TODO what about stream_id ?
 		break;
+/*
 		// Restart
 		// Memory Writes
 		break;
@@ -1337,11 +1348,14 @@ void handle_interrupt(struct cmd *cmd)
 
 	// Send interrupt to client
 	buffer[0] = OCSE_INTERRUPT;
-	irq = htons(cmd->irq);
-	memcpy(&(buffer[1]), &irq, 2);
+	//irq = htons(cmd->irq);
+	//memcpy(&(buffer[1]), &irq, 2);
+	memcpy(&(buffer[1]), &event->cmd_flag, 1);
+	memcpy(&(buffer[2]), &event->addr, 8);
+	// do we still need this event->abort???
 	event->abort = &(client->abort);
-	debug_msg("%s:INTERRUPT irq=%d", cmd->afu_name, cmd->irq);
-	if (put_bytes(client->fd, 3, buffer, cmd->dbg_fp, cmd->dbg_id,
+	debug_msg("%s:INTERRUPT cmd_flag=%d addr=0x%016"PRIx64, event->context, event->cmd_flag, event->addr);
+	if (put_bytes(client->fd, 10, buffer, cmd->dbg_fp, cmd->dbg_id,
 		      event->context) < 0) {
 		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 	}
@@ -2045,7 +2059,11 @@ void handle_response(struct cmd *cmd)
 					     0, // resp_addr_tag, - not used by response
 					     0, // resp_data_bdi - not used by good response
 					     event->data ) ; // data in this case is already the complete length
-	}
+	} else if (event->command == AFU_CMD_INTRP_REQ ) {
+  		rc = tlx_afu_send_resp( cmd->afu_event,TLX_RSP_INTRP_RESP,event->afutag, 
+					     event->resp, // resp_code - right now always a good response
+					     0, 0, 0, 0);
+		}
 	   
 	if (rc == TLX_SUCCESS) {
 		debug_msg("%s:RESPONSE event @ 0x%016" PRIx64 ", sent tag=0x%02x code=0x%x", cmd->afu_name,

@@ -142,10 +142,17 @@ static int _handle_dsi(struct ocxl_afu_h *afu, uint64_t addr)
 
 static int _handle_interrupt(struct ocxl_afu_h *afu)
 {
-	uint64_t irq;
-	uint8_t size;
-	uint8_t data[64];
-	uint8_t data_valid;
+  // LGT idea
+	/* uint64_t irq; */
+	/* uint8_t size; */
+	/* uint8_t data[64]; */
+	/* uint8_t data_valid; */
+  // HMP idea
+	uint16_t size, irq;
+	//uint8_t data[sizeof(irq)];
+	uint64_t addr;
+	uint8_t cmd_flag;
+	uint8_t adata[sizeof(addr)];
 	int i;
 
 	if (!afu) fatal_msg("_handle_interrupt:NULL afu passed");
@@ -162,32 +169,54 @@ static int _handle_interrupt(struct ocxl_afu_h *afu)
 	// ? bytes of data size
 	// size bytes of data
 
-	if (get_bytes_silent(afu->fd, sizeof(data_valid), &data_valid, 1000, 0) < 0) {
-		warn_msg("Socket failure getting interrupt data valid");
-		_all_idle(afu);
-		return -1;
-	}
-	if (get_bytes_silent(afu->fd, sizeof(irq), (uint8_t *)&irq, 1000, 0) < 0) {
-		warn_msg("Socket failure getting IRQ");
-		_all_idle(afu);
-		return -1;
-	}
-	// memcpy(&irq, data, sizeof(irq));
-	irq = ntohs(irq);
+	// LGT idea
+	/* if (get_bytes_silent(afu->fd, sizeof(data_valid), &data_valid, 1000, 0) < 0) { */
+	/* 	warn_msg("Socket failure getting interrupt data valid"); */
+	/* 	_all_idle(afu); */
+	/* 	return -1; */
+	/* } */
+	/* if (get_bytes_silent(afu->fd, sizeof(irq), (uint8_t *)&irq, 1000, 0) < 0) { */
+	/* 	warn_msg("Socket failure getting IRQ"); */
+	/* 	_all_idle(afu); */
+	/* 	return -1; */
+	/* } */
+	/* // memcpy(&irq, data, sizeof(irq)); */
+	/* irq = ntohs(irq); */
 	
-	// this might not be required as intrp_req.d is not allowed in Power
-	if (data_valid) {
-	  if (get_bytes_silent(afu->fd, sizeof(size), &size, 1000, 0) < 0) {
-	    warn_msg("Socket failure getting interrupt data size");
-	    _all_idle(afu);
-	    return -1;
-	  }
-	  if (get_bytes_silent(afu->fd, size, data, 1000, 0) < 0) {
-	    warn_msg("Socket failure getting data");
-	    _all_idle(afu);
-	    return -1;
-	  }	  
+	/* // this might not be required as intrp_req.d is not allowed in Power */
+	/* if (data_valid) { */
+	/*   if (get_bytes_silent(afu->fd, sizeof(size), &size, 1000, 0) < 0) { */
+	/*     warn_msg("Socket failure getting interrupt data size"); */
+	/*     _all_idle(afu); */
+	/*     return -1; */
+	/*   } */
+	/*   if (get_bytes_silent(afu->fd, size, data, 1000, 0) < 0) { */
+	/*     warn_msg("Socket failure getting data"); */
+	/*     _all_idle(afu); */
+	/*     return -1; */
+	/*   }	   */
+	/* } */
+
+	// HMP idea
+	//buffer[0] = OCSE_INTERRUPT (already read)
+	//buffer[1] =event->cmd_flag
+	//buffer[2] = event->addr 
+
+	if (get_bytes_silent(afu->fd, 1, &cmd_flag, 1000, 0) < 0) {
+		warn_msg("Socket failure getting cmd_flags");
+		_all_idle(afu);
+		return -1;
 	}
+	if (get_bytes_silent(afu->fd, sizeof(addr), adata, 1000, 0) < 0) {
+		warn_msg("Socket failure getting address");
+		_all_idle(afu);
+		return -1;
+	}
+	memcpy(&addr, adata, sizeof(addr));
+	addr = ntohs(addr);
+	printf("OK, interrupt request made it over socket to client!!\n");
+	// TODO Update the rest of this to actually search for address and then do 
+	// whatever is needed if it's valid.....
 
 	// Only track a single interrupt at a time
 	// but what about a second afu_interrupt to a different irq address?  should that be saved or coalecsed?
@@ -1300,16 +1329,17 @@ static void *_psl_loop(void *ptr)
 		case OCSE_QUERY: {
     		        // update to reflect opencapi configuration information
 		        // right now we only save the cr_device and cr_vendor
-		        size = sizeof(uint32_t) + // OCAPI_TL_ACTAG
+		        size = sizeof(uint32_t) + // AFU_CTL_ACTAG_LEN_EN_S
 			       sizeof(uint16_t) + // max_irqs
 			  sizeof(uint32_t) + // OCAPI_TL_MAXAFU
 			  sizeof(uint32_t) + // AFU_INFO_REVID
 			  sizeof(uint32_t) + // AFU_CTL_PASID_BASE
-			  sizeof(uint32_t) + // AFU_CTL_INTS_PER_PASID
+			  sizeof(uint32_t) + // AFU_CTL_ACTAG_BASE
 			  sizeof(uint16_t) + // cr_device
 			  sizeof(uint16_t) + // cr_vendor
 			  sizeof(uint32_t) + // AFU_CTL_EN_RST_INDEX
-			  sizeof(uint32_t) + // pp_MMIO_offset
+			  sizeof(uint32_t) + // pp_MMIO_offset_high
+			  sizeof(uint32_t) + // pp_MMIO_offset_low
 			  sizeof(uint32_t) + // pp_MMIO_BAR
 			  sizeof(uint32_t) ; // pp_MMIO_stride
 			if (get_bytes_silent(afu->fd, size, buffer, 1000, 0) <
@@ -1331,7 +1361,7 @@ static void *_psl_loop(void *ptr)
 			// mmio offset, stride
 			// number of pasid s and offset
 			// and stuff
-			memcpy((char *)&value, (char *)&(buffer[0]), 4); // OCAPI_TL_ACTAG
+			memcpy((char *)&value, (char *)&(buffer[0]), 4); // AFU_CTL_ACTAG_LEN_EN_S
 			//afu->irqs_min = (long)(value);
 			memcpy((char *)&value, (char *)&(buffer[4]), 2); // max_irqs
 			//afu->irqs_max = (long)(value);
@@ -1341,7 +1371,7 @@ static void *_psl_loop(void *ptr)
 			//afu->mmio_len = (long)(llvalue & 0x00ffffffffffffff);
                 	memcpy((char *)&llvalue, (char *)&(buffer[14]), 4); // AFU_CTL_PASID_BASE
 			//afu->mmio_off = (long)(llvalue);
-                	memcpy((char *)&llvalue, (char *)&(buffer[18]), 4); // AFU_CTL_INTS_PER_PASID
+                	memcpy((char *)&llvalue, (char *)&(buffer[18]), 4); // AFU_CTL_ACTAG_BASE
 			//afu->eb_len = (long)(llvalue);
                 	memcpy((char *)&value, (char *)&(buffer[22]), 2); // cr_device
 			afu->cr_device = value;
@@ -1349,8 +1379,10 @@ static void *_psl_loop(void *ptr)
 			afu->cr_vendor = value;
                         memcpy((char *)&lvalue, (char *)&(buffer[26]), 4); // AFU_CTL_EN_RST_INDEX
 			//afu->cr_class = ntohl(lvalue);
-                        memcpy((char *)&lvalue, (char *)&(buffer[30]), 4); // pp_MMIO_offset
-			//afu->pp_MMIO_offset = ntohl(lvalue);
+                        memcpy((char *)&lvalue, (char *)&(buffer[30]), 4); // pp_MMIO_offset_high
+			//afu->pp_MMIO_offset_high = ntohl(lvalue);
+                        memcpy((char *)&lvalue, (char *)&(buffer[30]), 4); // pp_MMIO_offset_low
+			//afu->pp_MMIO_offset_low = ntohl(lvalue);
                         memcpy((char *)&lvalue, (char *)&(buffer[34]), 4); // pp_MMIO_BAR
 			//afu->pp_MMIO_BAR = ntohl(lvalue);
                         memcpy((char *)&lvalue, (char *)&(buffer[38]), 4); // pp_MMIO_stride
