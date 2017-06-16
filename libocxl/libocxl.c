@@ -142,22 +142,56 @@ static int _handle_dsi(struct ocxl_afu_h *afu, uint64_t addr)
 
 static int _handle_interrupt(struct ocxl_afu_h *afu)
 {
-	uint16_t size, irq;
-	uint8_t data[sizeof(irq)];
+	uint64_t irq;
+	uint8_t size;
+	uint8_t data[64];
+	uint8_t data_valid;
 	int i;
 
-	if (!afu)
-		fatal_msg("NULL afu passed to libocxl.c:_handle_interrupt");
+	if (!afu) fatal_msg("_handle_interrupt:NULL afu passed");
+
 	DPRINTF("AFU INTERRUPT\n");
-	if (get_bytes_silent(afu->fd, sizeof(irq), data, 1000, 0) < 0) {
+
+	// in opencapi, we should get a 64 bit address (and maybe data)
+	// we should find that address in the afu's irq list
+	// if we find it, we should put some stuff(?) in the event array
+
+	// propose
+	// byte to say if there is data
+	// 8 bytes of address aka irq
+	// ? bytes of data size
+	// size bytes of data
+
+	if (get_bytes_silent(afu->fd, sizeof(data_valid), &data_valid, 1000, 0) < 0) {
+		warn_msg("Socket failure getting interrupt data valid");
+		_all_idle(afu);
+		return -1;
+	}
+	if (get_bytes_silent(afu->fd, sizeof(irq), (uint8_t *)&irq, 1000, 0) < 0) {
 		warn_msg("Socket failure getting IRQ");
 		_all_idle(afu);
 		return -1;
 	}
-	memcpy(&irq, data, sizeof(irq));
+	// memcpy(&irq, data, sizeof(irq));
 	irq = ntohs(irq);
+	
+	// this might not be required as intrp_req.d is not allowed in Power
+	if (data_valid) {
+	  if (get_bytes_silent(afu->fd, sizeof(size), &size, 1000, 0) < 0) {
+	    warn_msg("Socket failure getting interrupt data size");
+	    _all_idle(afu);
+	    return -1;
+	  }
+	  if (get_bytes_silent(afu->fd, size, data, 1000, 0) < 0) {
+	    warn_msg("Socket failure getting data");
+	    _all_idle(afu);
+	    return -1;
+	  }	  
+	}
 
 	// Only track a single interrupt at a time
+	// but what about a second afu_interrupt to a different irq address?  should that be saved or coalecsed?
+	// this code would coalesce them
 	pthread_mutex_lock(&(afu->event_lock));
 	i = 0;
 	while (afu->events[i] != NULL) {
@@ -174,8 +208,8 @@ static int _handle_interrupt(struct ocxl_afu_h *afu)
 	afu->events[i] = (struct ocxl_event *)calloc(1, size);
 	afu->events[i]->header.type = OCXL_EVENT_AFU_INTERRUPT;
 	afu->events[i]->header.size = size;
-	afu->events[i]->header.process_element = afu->context;
-	afu->events[i]->irq.irq = irq;
+	afu->events[i]->header.process_element = afu->context; // might not need this
+	afu->events[i]->irq.irq = irq;  // saves only low order bits of irq for now...
 
 	do {
 		i = write(afu->pipe[1], &(afu->events[i]->header.type), 1);
@@ -1693,8 +1727,8 @@ static struct ocxl_afu_h *_new_afu(uint16_t afu_map, uint16_t position, int fd)
 		afu_mask >>= 1;
 		++minor;
 	}
-	afu = (struct ocxl_afu_h *)
-	    calloc(1, sizeof(struct ocxl_afu_h));
+
+	afu = (struct ocxl_afu_h *)calloc(1, sizeof(struct ocxl_afu_h));
 	if (afu == NULL) {
 		errno = ENOMEM;
 		return NULL;
@@ -1820,6 +1854,7 @@ static struct ocxl_afu_h *_ocse_open(int *fd, uint16_t afu_map, uint8_t major,
 	}
 	free(buffer);
 
+	afu->irq = NULL;
 	afu->_head = afu;
 	afu->adapter = major;
 	afu->id = (char *)malloc(7);
@@ -2057,6 +2092,30 @@ char *ocxl_afu_dev_name(struct ocxl_afu_h *afu)
 	return afu->id;
 }
 
+char *ocxl_afu_name(struct ocxl_afu_h *afu)
+{
+	if (!afu) {
+		errno = EINVAL;
+		return NULL;
+	}
+	// FIXME - needs to return the value extracted from the afu descriptor dvsec
+	// a name like IBM,MC
+	return afu->id;
+}
+
+struct ocxl_afu_h *ocxl_name_afu_next(char *afu_name, struct ocxl_afu_h *afu)
+{
+  // use ocxl_afu_next to loop through all the afus
+  // use ocxl_afu_name to get the name of the current afu
+  // if the name matches, return this afu
+  // if not, try the next afu
+  ocxl_for_each_afu(afu)
+  {
+    if ( strcmp( afu->id, afu_name ) ) break;
+  }
+  return afu;
+}
+
 struct ocxl_afu_h *ocxl_afu_open_dev(char *path)
 {
 	uint16_t afu_map;
@@ -2268,6 +2327,17 @@ int ocxl_get_api_version_compatible(struct ocxl_afu_h *afu, long *valp)
 	return 0;
 }
 
+int ocxl_get_num_irqs(struct ocxl_afu_h *afu, long *valp)
+{
+	if (!afu) {
+		warn_msg("ocxl_get_irqs_max: No AFU given");
+		errno = ENODEV;
+		return -1;
+	}
+	*valp = 0; // FIXME - return the number of interrupts discovered in afu descriptor or something like that;
+	return 0;
+}
+
 int ocxl_get_irqs_max(struct ocxl_afu_h *afu, long *valp)
 {
 	if (!afu) {
@@ -2305,6 +2375,110 @@ int ocxl_set_irqs_max(struct ocxl_afu_h *afu, long value)
 	return 0;
 }
 
+
+struct ocxl_irq_h *ocxl_afu_new_irq(struct ocxl_afu_h *afu)
+{
+  // create an irq link it to the afu and return the address of the irq to the caller
+  struct ocxl_irq_h *new_irq;
+  struct ocxl_irq_h *current_irq;
+
+        if (!afu) {
+		warn_msg("ocxl_afu_new_irq: No AFU given");
+		errno = ENODEV;
+		return NULL;
+	}
+
+	new_irq = (struct ocxl_irq_h *)malloc( sizeof(struct ocxl_irq_h) );
+
+	if (!new_irq) {
+	        // allocation failed
+		errno = ENOMEM;
+		warn_msg("ocxl_afu_new_irq: insufficient memory");
+		return NULL;
+	}
+
+	new_irq->_next = NULL;
+	new_irq->afu = afu;
+
+	// add new irq to the end of the afu's list of irqs
+	if (afu->irq == NULL) {
+	  // this is the first new irq
+	  afu->irq = new_irq;
+	  return new_irq;
+	}
+
+	// scan the list for the last irq
+	current_irq = afu->irq;
+	while (current_irq->_next != NULL) {
+	    current_irq = current_irq->_next;
+	}
+	// we have the last one now
+	current_irq->_next = new_irq;
+
+	return new_irq;
+}
+
+struct ocxl_irq_h *ocxl_afu_irq_next(struct ocxl_afu_h *afu, struct ocxl_irq_h *irq)
+{
+  // given an afu, and a null irq, return the address of the first irq
+  // if given an irq handle, get the next(?) one on the afu.
+  // how is order managed?  new irqs are appended...
+        if (!irq) {
+	  // maybe this is the first call
+	  if (!afu) {
+		warn_msg("ocxl_afu_irq_next: no current irq and no AFU given");
+		errno = ENODEV;
+		return NULL;
+	  }
+	  // return the first irq in the afu;
+	  return afu->irq;
+	} 
+	
+	// return the next irq in the list
+	return irq->_next;
+}
+
+void ocxl_irq_free(struct ocxl_irq_h *irq)
+{
+  // remove this irq from it's afu and free the storage
+  struct ocxl_afu_h *afu;
+  struct ocxl_irq_h *current_irq;
+
+        if (!irq) {
+		warn_msg("ocxl_irq_free: No irq given");
+		errno = ENODEV;
+		return;
+	}
+
+	afu = irq->afu;
+
+	// find this irq in the list on the afu
+	if (afu->irq == irq) {
+	  // irq is the first in the list
+	  afu->irq = irq->_next;
+	  free( irq );
+	  return;
+	}
+
+	current_irq = afu->irq;
+	// the current irq is not it, take a peek a the next irq
+	while (current_irq->_next != NULL) {
+	  if (current_irq->_next == irq) {
+	    // the next irq is the one we are looking for
+	    // make the current irq skip over it and free it
+	    current_irq->_next = irq->_next;
+	    free( irq );
+	    return;
+	  } else {
+	    // the next irq is not it, so make it the current irq
+	    current_irq = current_irq->_next;
+	  }
+	}
+
+	// if we get here, we didn't find irq in the afu!
+	warn_msg("ocxl_irq_free: irq not found in afu");
+	return;
+}
 
 int ocxl_event_pending(struct ocxl_afu_h *afu)
 {
