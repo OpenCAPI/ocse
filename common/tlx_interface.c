@@ -380,7 +380,7 @@ int tlx_afu_send_resp_data(struct AFU_EVENT *event,
 			return AFU_TLX_RD_CNT_WRONG;
 
 	event->tlx_afu_resp_data_bdi = resp_data_bdi;
-	memcpy(event->tlx_afu_resp_data, resp_data, 8);
+	memcpy(event->tlx_afu_resp_data, resp_data, resp_byte_cnt);
 	event->tlx_afu_resp_data_valid = 1;
 	event->tlx_afu_resp_data_byte_cnt = resp_byte_cnt;
 	printf("resp_rd_cnt is 0x%2x \n", event->afu_tlx_resp_rd_cnt);
@@ -1676,7 +1676,7 @@ int tlx_afu_read_resp_data(struct AFU_EVENT *event,
 		* resp_data_bdi = event->tlx_afu_resp_data_bdi;
 		// TODO FOR NOW WE ALWAYS COPY 8 BYTES of DATA -OCSE
 		// SENDS 8 BYTES
-		memcpy(resp_data, event->tlx_afu_resp_data, 8);
+		memcpy(resp_data, event->tlx_afu_resp_data, 256);
 		return TLX_SUCCESS;
 		}
 }

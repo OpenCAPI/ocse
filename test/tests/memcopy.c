@@ -116,7 +116,7 @@ int main(int argc, char *argv[])
     config_param.context = 0;
     config_param.enable_always = 1;
     config_param.mem_size = CACHELINE;
-    config_param.command = AFU_CMD_PR_RD_WNITC;
+    config_param.command = AFU_CMD_RD_WNITC;
     config_param.mem_base_address = (uint64_t)rcacheline;
     config_param.machine_number = 0;
     config_param.status_address = (uint32_t)status;
@@ -143,6 +143,7 @@ int main(int argc, char *argv[])
     printf("Attempt Write command\n");
     status[0] = 0xff;
     config_param.command = AFU_CMD_DMA_W;
+    config_param.mem_size = 64;
     config_param.mem_base_address = (uint64_t)wcacheline;
     printf("wcacheline = 0x%p\n", wcacheline);
     printf("command = 0x%x\n",config_param.command);
