@@ -1667,15 +1667,18 @@ int afu_tlx_resp_data_read_req(struct AFU_EVENT *event,
 /* Call this from AFU to read ocse (CAPP/TL) response data. This reads just tlx_afu resp data interface */
 
 int tlx_afu_read_resp_data(struct AFU_EVENT *event,
-		  uint8_t * resp_data_bdi,uint8_t * resp_data)
+		  uint8_t * resp_data_bdi, uint8_t * resp_data)
 {
 	if (!event->tlx_afu_resp_data_valid) {
 		return TLX_AFU_RESP_DATA_NOT_VALID;
 	} else {
 		event->tlx_afu_resp_data_valid = 0;
 		* resp_data_bdi = event->tlx_afu_resp_data_bdi;
-		// TODO FOR NOW WE ALWAYS COPY 8 BYTES of DATA -OCSE
-		// SENDS 8 BYTES
+		// host side uses tlx_afu_send_resp_data or tlx_afu_send_resp_and_data 
+		// to put upto 256 B in event->tlx_afu_resp_data
+		// we don't specify a size in the api, so we have to pull the full buffer
+		// and allow the reader to use the prior tlx_afu_read_resp to know how much 
+		// of the buffer to use
 		memcpy(resp_data, event->tlx_afu_resp_data, 256);
 		return TLX_SUCCESS;
 		}
