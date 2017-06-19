@@ -604,9 +604,12 @@ end
 // mcp3 release of 12/Jun does not have this port  afu_cfg_xmit_rate_config_1_top        <= afu_cfg_xmit_rate_config_1;
 // mcp3 release of 12/Jun does not have this port  afu_cfg_xmit_rate_config_2_top        <= afu_cfg_xmit_rate_config_2;
 // mcp3 release of 12/Jun does not have this port  afu_cfg_xmit_rate_config_3_top        <= afu_cfg_xmit_rate_config_3;
-   cfg0_tlx_initial_credit_top		<= cfg0_tlx_initial_credit;
+   cfg0_tlx_initial_credit_top		<= cfg0_tlx_initial_credit; // new
+   cfg0_tlx_credit_return_top		<= cfg0_tlx_credit_return;  // new lgt
   end
 
+    assign 	reset_n		= !reset;
+   
 // Pass Through Signals
   // Table 1: TLX to AFU Response Interface
     assign 	tlx_afu_resp_valid		= tlx_afu_resp_valid_top;
@@ -841,7 +844,7 @@ end
   mcp3_device a0 (
     .clock_tlx(tlx_clock),
     .clock_afu(afu_clock),
-    .reset_n(reset),
+    .reset_n(reset_n),
   // Table 1: TLX to AFU Response Interface
     .tlx_afu_resp_valid               (tlx_afu_resp_valid),
     .tlx_afu_resp_opcode              (tlx_afu_resp_opcode),
