@@ -47,10 +47,13 @@ static int clk_afu_cmd_dat_val;
 uint8_t		c_reset = 1;
 uint8_t		c_reset_d1 = 1;
 uint8_t		c_reset_d2 = 1;
+uint8_t		c_config_cmd_data_valid = 0;
 uint8_t		c_afu_tlx_cmd_credit;
+uint8_t		c_cfg0_tlx_credit_return;
 uint8_t		c_afu_tlx_cmd_initial_credit;
 uint8_t		c_afu_tlx_resp_credit;
 uint8_t		c_afu_tlx_resp_initial_credit;
+uint8_t		c_cfg0_tlx_initial_credit;
 
 uint8_t		c_afu_tlx_cmd_valid;
 uint8_t		c_afu_tlx_cmd_opcode;
@@ -81,11 +84,16 @@ uint8_t		c_afu_tlx_rdata_valid;
 uint8_t		c_afu_tlx_rdata_bus[CACHELINE_BYTES];
 uint8_t		c_afu_tlx_rdata_bdi;
 
+uint8_t		c_cfg0_tlx_resp_valid;
+uint8_t		c_cfg0_tlx_rdata_offset;
+
 uint8_t		c_afu_tlx_cmd_rd_req_top;
 uint8_t		c_afu_tlx_cmd_rd_cnt_top;
 
 uint8_t		c_afu_tlx_resp_rd_req_top;
 uint8_t		c_afu_tlx_resp_rd_cnt_top;
+uint32_t	c_tlx_afu_cmd_data_del;
+uint8_t		c_tlx_afu_cmd_bdi_del;
 //
 //
 // Local Methods
@@ -130,7 +138,7 @@ int getMyCacheLine(const svLogicVecVal *myLongSignal, uint8_t myCacheData[CACHEL
     if(myLongSignal[i].bval !=0){ errorVal=1; }
     p32BitCacheWords[j] = myLongSignal[i].aval;
 //    p32BitCacheWords[j] = htonl(p32BitCacheWords[j]);		// since ocse is dealing with AFU with little endian mode, removing this adjustments
-    p32BitCacheWords[j] = (p32BitCacheWords[j]);
+//    p32BitCacheWords[j] = (p32BitCacheWords[j]);
   }
   if(errorVal!=0){return 1;}
   return 0;
@@ -235,7 +243,7 @@ void tlx_bfm(
 			svLogicVecVal	*tlx_afu_resp_addr_tag_top,
 			svLogicVecVal	*tlx_afu_resp_cache_state_top,
 
-				//	Table 2: TLX Response Credit Interface	// TODO: Process Credit interface
+				//	Table 2: TLX Response Credit Interface
 			const svLogic	afu_tlx_resp_credit_top,
 		const svLogicVecVal	*afu_tlx_resp_initial_credit_top,
 
@@ -252,7 +260,7 @@ void tlx_bfm(
 			svLogicVecVal	*tlx_afu_cmd_flag_top,
 			svLogic		*tlx_afu_cmd_os_top,
 
-				//	Table 4: TLX Command Credit Interface	// TODO: Process Credit interface
+				//	Table 4: TLX Command Credit Interface
 			const svLogic	afu_tlx_cmd_credit_top,
 		const svLogicVecVal	*afu_tlx_cmd_initial_credit_top,
 
@@ -270,7 +278,7 @@ void tlx_bfm(
 			const svLogic	afu_tlx_cmd_rd_req_top,
 		const svLogicVecVal	*afu_tlx_cmd_rd_cnt_top,
 
-				//	Table 7: TLX Framer credit interface	// TODO: Process Credit interface
+				//	Table 7: TLX Framer credit interface
 			svLogic		*tlx_afu_resp_credit_top,
 			svLogic		*tlx_afu_resp_data_credit_top,
 			svLogic		*tlx_afu_cmd_credit_top,
@@ -309,16 +317,34 @@ void tlx_bfm(
 		const svLogicVecVal	*afu_tlx_rdata_bus_top,
 			const svLogic	afu_tlx_rdata_bdi_top,
 
-// These signals do not appear on the RefDesign Doc. However it is present on the TLX spec
-			svLogic		*afu_cfg_in_rcv_tmpl_capability_0_top,
-			svLogic		*afu_cfg_in_rcv_tmpl_capability_1_top,
-			svLogic		*afu_cfg_in_rcv_tmpl_capability_2_top,
-			svLogic		*afu_cfg_in_rcv_tmpl_capability_3_top,
-			svLogicVecVal	*afu_cfg_in_rcv_rate_capability_0_top,
-			svLogicVecVal	*afu_cfg_in_rcv_rate_capability_1_top,
-			svLogicVecVal	*afu_cfg_in_rcv_rate_capability_2_top,
-			svLogicVecVal	*afu_cfg_in_rcv_rate_capability_3_top,
-			svLogic		*tlx_afu_ready_top
+			svLogic		*tlx_afu_ready_top,
+			svLogic		*tlx_cfg0_in_rcv_tmpl_capability_0_top,
+			svLogic		*tlx_cfg0_in_rcv_tmpl_capability_1_top,
+			svLogic		*tlx_cfg0_in_rcv_tmpl_capability_2_top,
+			svLogic		*tlx_cfg0_in_rcv_tmpl_capability_3_top,
+			svLogicVecVal	*tlx_cfg0_in_rcv_rate_capability_0_top,
+			svLogicVecVal	*tlx_cfg0_in_rcv_rate_capability_1_top,
+			svLogicVecVal	*tlx_cfg0_in_rcv_rate_capability_2_top,
+			svLogicVecVal	*tlx_cfg0_in_rcv_rate_capability_3_top,
+				// Config Interface	Introduced for the drop of Jun 12, 2017
+			svLogic		*tlx_cfg0_valid_top,
+			svLogicVecVal	*tlx_cfg0_opcode_top,
+			svLogicVecVal	*tlx_cfg0_pa_top,
+			svLogic		*tlx_cfg0_t_top,
+			svLogicVecVal	*tlx_cfg0_pl_top,
+			svLogicVecVal	*tlx_cfg0_capptag_top,
+			svLogicVecVal	*tlx_cfg0_data_bus_top,
+			svLogic		*tlx_cfg0_data_bdi_top,
+			svLogic		*tlx_cfg0_resp_ack_top,				// TODO: get the relevant method to send back the ACK
+   		const svLogicVecVal	*cfg0_tlx_initial_credit_top,
+  			const svLogic	cfg0_tlx_credit_return_top,
+   			const svLogic	cfg0_tlx_resp_valid_top	,
+		   const svLogicVecVal	*cfg0_tlx_resp_opcode_top,
+		   const svLogicVecVal	*cfg0_tlx_resp_capptag_top,
+		   const svLogicVecVal	*cfg0_tlx_resp_code_top	,
+		   const svLogicVecVal	*cfg0_tlx_rdata_offset_top,
+		   const svLogicVecVal	*cfg0_tlx_rdata_bus_top	,
+   			const svLogic	cfg0_tlx_rdata_bdi_top
             )
 {
 //  int change = 0;
@@ -337,10 +363,13 @@ void tlx_bfm(
       invalidVal			+= (afu_tlx_cmd_initial_credit_top->bval) & 0x1F;
       c_afu_tlx_resp_initial_credit  	= (afu_tlx_resp_initial_credit_top->aval) & 0x1F;
       invalidVal			+= (afu_tlx_resp_initial_credit_top->bval) & 0x1F;
+      c_cfg0_tlx_initial_credit  	= (cfg0_tlx_initial_credit_top->aval) & 0x1F;
+      invalidVal			+= (cfg0_tlx_initial_credit_top->bval) & 0x1F;
       if(!c_reset)
       {
         afu_tlx_send_initial_credits (&event, c_afu_tlx_cmd_initial_credit, c_afu_tlx_resp_initial_credit);
         tlx_afu_read_initial_credits (&event, &c_afu_tlx_cmd_initial_credit, &c_afu_tlx_resp_initial_credit);
+// TODO: get the method to exchange the initial Config Commmand credits
       }
 #ifdef DEBUG1
       if(invalidVal != 0)
@@ -355,6 +384,9 @@ void tlx_bfm(
     invalidVal			+= afu_tlx_resp_credit_top & 0x2;
     c_afu_tlx_cmd_credit  	= (afu_tlx_cmd_credit_top & 0x2) ? 0 : (afu_tlx_cmd_credit_top & 0x1);
     invalidVal			+= afu_tlx_cmd_credit_top & 0x2;
+// TODO: check for the CFG credit handling, as well as cmd credit handling
+    c_cfg0_tlx_credit_return  	= (cfg0_tlx_credit_return_top & 0x2) ? 0 : (cfg0_tlx_credit_return_top & 0x1);
+    invalidVal			+= cfg0_tlx_credit_return_top & 0x2;
     afu_tlx_read_initial_credits (&event, &c_afu_tlx_resp_credit, &c_afu_tlx_resp_initial_credit);
 #ifdef DEBUG1
     if(invalidVal != 0)
@@ -444,23 +476,43 @@ void tlx_bfm(
       // if yes, call the appropiate tlx_interface routine to send a response or a response with data to "host"
       invalidVal = 0;
       c_afu_tlx_resp_valid  	= (afu_tlx_resp_valid_top & 0x2) ? 0 : (afu_tlx_resp_valid_top & 0x1);
-      invalidVal			= afu_tlx_resp_valid_top & 0x2;
+      invalidVal		= afu_tlx_resp_valid_top & 0x2;
       c_afu_tlx_rdata_valid  	= (afu_tlx_rdata_valid_top & 0x2) ? 0 : (afu_tlx_rdata_valid_top & 0x1);
-      invalidVal			+= afu_tlx_rdata_valid_top & 0x2;
+      invalidVal		+= afu_tlx_rdata_valid_top & 0x2;
+      c_cfg0_tlx_resp_valid  	= (cfg0_tlx_resp_valid_top & 0x2) ? 0 : (cfg0_tlx_resp_valid_top & 0x1);
+      invalidVal		+= cfg0_tlx_resp_valid_top & 0x2;
       if(c_afu_tlx_resp_valid)
       {
         c_afu_tlx_resp_opcode	= (afu_tlx_resp_opcode_top->aval) & 0xFF;
         invalidVal		+= (afu_tlx_resp_opcode_top->bval) & 0xFF;
-        c_afu_tlx_resp_dl		= (afu_tlx_resp_dl_top->aval) & 0x3;
+        c_afu_tlx_resp_dl	= (afu_tlx_resp_dl_top->aval) & 0x3;
         invalidVal		+= (afu_tlx_resp_dl_top->bval) & 0x3;
         c_afu_tlx_resp_capptag	= (afu_tlx_resp_capptag_top->aval) & 0xFFFF;
         invalidVal		+= (afu_tlx_resp_capptag_top->bval) & 0xFFFF;
-        c_afu_tlx_resp_dp		= (afu_tlx_resp_dp_top->aval) & 0x3;
+        c_afu_tlx_resp_dp	= (afu_tlx_resp_dp_top->aval) & 0x3;
         invalidVal		+= (afu_tlx_resp_dp_top->bval) & 0x3;
         c_afu_tlx_resp_code	= (afu_tlx_resp_code_top->aval) & 0xF;
         invalidVal		+= (afu_tlx_resp_code_top->bval) & 0xF;
         printf("%08lld: ", (long long) c_sim_time);
         printf(" The AFU-TLX Response Valid, with opcode: 0x%x \n",  c_afu_tlx_resp_opcode);
+      }
+      if(c_cfg0_tlx_resp_valid)
+      {
+        c_afu_tlx_resp_opcode	= (cfg0_tlx_resp_opcode_top->aval) & 0xFF;
+        invalidVal		+= (cfg0_tlx_resp_opcode_top->bval) & 0xFF;
+        c_afu_tlx_resp_dl	= 0;
+        c_afu_tlx_resp_capptag	= (cfg0_tlx_resp_capptag_top->aval) & 0xFFFF;
+        invalidVal		+= (cfg0_tlx_resp_capptag_top->bval) & 0xFFFF;
+        c_afu_tlx_resp_dp	= 0;
+        c_afu_tlx_resp_code	= (cfg0_tlx_resp_code_top->aval) & 0xF;
+        invalidVal		+= (cfg0_tlx_resp_code_top->bval) & 0xF;
+        c_cfg0_tlx_rdata_offset	= (cfg0_tlx_rdata_offset_top->aval) & 0xF;
+        invalidVal		+= (cfg0_tlx_rdata_offset_top->bval) & 0xF;
+        invalidVal		+= getMyByteArray(cfg0_tlx_rdata_bus_top, 4, &c_afu_tlx_rdata_bus[c_cfg0_tlx_rdata_offset]);
+        c_afu_tlx_rdata_bdi  	= (cfg0_tlx_rdata_bdi_top & 0x2) ? 0 : (cfg0_tlx_rdata_bdi_top & 0x1);
+        invalidVal		+= cfg0_tlx_rdata_bdi_top & 0x2;
+        printf("%08lld: ", (long long) c_sim_time);
+        printf(" The AFU-TLX Config Response Valid, with opcode: 0x%x \n",  c_afu_tlx_resp_opcode);
       }
       if(c_afu_tlx_rdata_valid)
       {
@@ -487,7 +539,7 @@ void tlx_bfm(
         		c_afu_tlx_resp_dp, c_afu_tlx_resp_code
         );
       }
-      else if(c_afu_tlx_rdata_valid)
+      else if(c_afu_tlx_rdata_valid || c_cfg0_tlx_resp_valid)
       {
         int resp_code = afu_tlx_send_resp_and_data(&event,
         		c_afu_tlx_resp_opcode, c_afu_tlx_resp_dl, c_afu_tlx_resp_capptag,
@@ -591,30 +643,63 @@ void tlx_bfm(
       	if (!clk_afu_resp_val)
     		*tlx_afu_resp_valid_top = 0;
       }
+      if(c_config_cmd_data_valid)
+      {
+	//TODO:	setDpiSignal32(tlx_cfg0_data_bus_top, c_tlx_afu_cmd_data_del, 32);
+	//TODO:	*tlx_cfg0_data_bdi_top = c_tlx_afu_cmd_bdi_del;
+      }
+      else
+      {
+	//TODO:	setDpiSignal32(tlx_cfg0_data_bus_top, 0, 32);
+	//TODO:	*tlx_cfg0_data_bdi_top = 0;
+      }
       if(event.tlx_afu_cmd_valid)
       {
-        setDpiSignal32(tlx_afu_cmd_opcode_top, event.tlx_afu_cmd_opcode, 8);
-        setDpiSignal32(tlx_afu_cmd_capptag_top, event.tlx_afu_cmd_capptag, 16);
-        setDpiSignal32(tlx_afu_cmd_dl_top, event.tlx_afu_cmd_dl, 2);
-        setDpiSignal32(tlx_afu_cmd_pl_top, event.tlx_afu_cmd_pl, 3);
-        setDpiSignal64(tlx_afu_cmd_be_top, event.tlx_afu_cmd_be);
-        *tlx_afu_cmd_end_top = (event.tlx_afu_cmd_end) & 0x1;
-        *tlx_afu_cmd_t_top = (event.tlx_afu_cmd_t) & 0x1;
-        setDpiSignal64(tlx_afu_cmd_pa_top, event.tlx_afu_cmd_pa);
+        uint32_t tlx_cmd_opcode = event.tlx_afu_cmd_opcode;
+        if((tlx_cmd_opcode == 0xE0) || (tlx_cmd_opcode == 0xE1))		// if the command is a config_read (0xE0) or a config_write, the tlx uses a dfferent interface to send the command to the AFU
+        {
+          setDpiSignal32(tlx_cfg0_opcode_top, event.tlx_afu_cmd_opcode, 8);
+          setDpiSignal64(tlx_cfg0_pa_top, event.tlx_afu_cmd_pa);
+          *tlx_cfg0_t_top = (event.tlx_afu_cmd_t) & 0x1;
+          setDpiSignal32(tlx_cfg0_pl_top, event.tlx_afu_cmd_pl, 3);
+          setDpiSignal32(tlx_cfg0_capptag_top, event.tlx_afu_cmd_capptag, 16);
+// TODO: I need the config write data entry. This should be driven one cycle after the valid on the AFU interface       c_tlx_afu_cmd_data_del = event.tlx_afu_cmd_bus;   	// check with Lance
+// TODO: I need the config write bdi entry. This should be driven one cycle after the valid on the AFU interface        c_tlx_afu_cmd_bdi_del = (event.tlx_afu_cmd_bdi) & 0x1;   
+          *tlx_cfg0_valid_top = 1;
+          clk_afu_cmd_val = CLOCK_EDGE_DELAY;
+          printf("%08lld: ", (long long) c_sim_time);
+          printf(" The TLX-AFU Config Cmd with OPCODE=0x%x \n",  event.tlx_afu_cmd_opcode);
+          event.tlx_afu_cmd_valid = 0;
+          c_config_cmd_data_valid = 1;
+        }
+        else
+        {
+          setDpiSignal32(tlx_afu_cmd_opcode_top, event.tlx_afu_cmd_opcode, 8);
+          setDpiSignal32(tlx_afu_cmd_capptag_top, event.tlx_afu_cmd_capptag, 16);
+          setDpiSignal32(tlx_afu_cmd_dl_top, event.tlx_afu_cmd_dl, 2);
+          setDpiSignal32(tlx_afu_cmd_pl_top, event.tlx_afu_cmd_pl, 3);
+          setDpiSignal64(tlx_afu_cmd_be_top, event.tlx_afu_cmd_be);
+          *tlx_afu_cmd_end_top = (event.tlx_afu_cmd_end) & 0x1;
+          *tlx_afu_cmd_t_top = (event.tlx_afu_cmd_t) & 0x1;
+          setDpiSignal64(tlx_afu_cmd_pa_top, event.tlx_afu_cmd_pa);
 #ifdef TLX4
-        setDpiSignal32(tlx_afu_cmd_flag_top, event.tlx_afu_cmd_flag, 4);
-        *tlx_afu_cmd_os_top = (event.tlx_afu_cmd_os) & 0x1;
+          setDpiSignal32(tlx_afu_cmd_flag_top, event.tlx_afu_cmd_flag, 4);
+          *tlx_afu_cmd_os_top = (event.tlx_afu_cmd_os) & 0x1;
 #endif
-        *tlx_afu_cmd_valid_top = 1;
-        clk_afu_cmd_val = CLOCK_EDGE_DELAY;
-        printf("%08lld: ", (long long) c_sim_time);
-        printf(" The TLX-AFU Cmd with OPCODE=0x%x \n",  event.tlx_afu_cmd_opcode);
-        event.tlx_afu_cmd_valid = 0;
+          *tlx_afu_cmd_valid_top = 1;
+          clk_afu_cmd_val = CLOCK_EDGE_DELAY;
+          printf("%08lld: ", (long long) c_sim_time);
+          printf(" The TLX-AFU Cmd with OPCODE=0x%x \n",  event.tlx_afu_cmd_opcode);
+          event.tlx_afu_cmd_valid = 0;
+        }
       }
       if (clk_afu_cmd_val) {
     	--clk_afu_cmd_val;
-    	if (!clk_afu_cmd_val)
+    	if (!clk_afu_cmd_val){
     		*tlx_afu_cmd_valid_top = 0;
+    		*tlx_cfg0_valid_top = 0;
+                c_config_cmd_data_valid = 0;
+      	}
       }
       if(event.rdata_rd_cnt > 0)
       {
