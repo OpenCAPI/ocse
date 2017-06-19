@@ -74,6 +74,8 @@
 #define AFU_TLX_RESP_NO_DATA 35
 #define AFU_TLX_NO_CREDITS 40
 #define AFU_TLX_RD_CNT_WRONG 41
+#define CFG_TLX_NO_CREDITS 42
+#define CFG_TLX_NOT_CFG_CMD 43
 #define TLX_RESPONSE_FAILED 15
 #define TLX_RESPONSE_CONTEXT 17
 #define TLX_BAD_SOCKET 16	/* The socket connection could not be established */
@@ -308,6 +310,7 @@ struct AFU_EVENT {
   uint8_t  tlx_afu_resp_credits_available;
   uint8_t  tlx_afu_resp_data_credits_available;
   uint8_t  tlx_afu_cmd_data_credits_available;
+  uint8_t  cfg_tlx_credits_available;
   uint16_t  tlx_afu_cmd_data_byte_cnt;	/*  used for socket transfer only */
   uint16_t  tlx_afu_resp_data_byte_cnt;	/*  used for socket transfer only */
   // TLX to AFU Repsonse Interface (table 1)
@@ -344,10 +347,15 @@ struct AFU_EVENT {
   uint8_t tlx_afu_cmd_flag;               /* 4 bit command flag for atomic memory ops - OCAPI 4 */
   uint8_t tlx_afu_cmd_os;                 /* 1 bit command ordered segment - OCAPI 4 */
 #endif
+  // In real design, this is on the config cmd bus
+  uint8_t tlx_cfg_resp_ack;		  /* 1 bit signal to AFU after taking cfg resp from interface */
 
   // TLX Command Credit Interface (table 4)
   uint8_t afu_tlx_cmd_credit;              /* 1 bit return a credit to tlx */
-  uint8_t afu_tlx_cmd_initial_credit;      /* 7 bit initial number of credits that the afu is providing to tlx for consumption - when is this valid? */
+  uint8_t afu_tlx_cmd_initial_credit;      /* 7 bit initial number of credits that the afu is providing to tlx for consumption valid? */
+  // In real design, these are on separate bus, along with signals used for config rd/config wr cmds
+  uint8_t cfg_tlx_credit_return;              /* 1 bit return a credit to tlx for config cmds */
+  uint8_t cfg_tlx_initial_credit;      /* 4 bit initial number of credits that the afu is providing to tlx for consumption */
 
   // TLX to AFU Repsonse DATA Interface (table 5)
   // CAPP to AP (host to afu) data responses (generally to ap/capp read commands)

@@ -53,6 +53,7 @@ int tlx_afu_send_initial_credits(struct AFU_EVENT *event,
 
 int afu_tlx_read_initial_credits(struct AFU_EVENT *event,
 		uint8_t * afu_tlx_cmd_initial_credit,
+		uint8_t * cfg_tlx_initial_credit,
 		uint8_t * afu_tlx_resp_initial_credit);
 
 
@@ -112,23 +113,31 @@ int tlx_afu_send_cmd_data(struct AFU_EVENT *event,
 		 uint8_t cmd_data_bdi,uint8_t * cmd_data);
 
 
-/* Call this from ocse to send both command & command data to tlx/afu */
+/* Call this from ocse to send config command & config_wr data to tlx/afu */
 
-int tlx_afu_send_cmd_and_data(struct AFU_EVENT *event,
+int tlx_afu_send_cfg_cmd_and_data(struct AFU_EVENT *event,
 		 uint8_t tlx_cmd_opcode,
 		 uint16_t cmd_capptag, uint8_t cmd_dl,
 		 uint8_t cmd_pl, uint64_t cmd_be,
 		 uint8_t cmd_end, uint8_t cmd_t,
-		 uint64_t cmd_pa,
 #ifdef TLX4
 		 uint8_t cmd_os, uint8_t cmd_flag,
 #endif
+		 uint64_t cmd_pa,
+		 uint8_t cmd_byte_cnt,
 		 uint8_t cmd_data_bdi, uint8_t * cmd_data);
 
 
 /* Call this from ocse to read AFU response. This reads both afu_tlx resp AND resp data interfaces */
 
 int afu_tlx_read_resp_and_data(struct AFU_EVENT *event,
+		    uint8_t * afu_resp_opcode, uint8_t * resp_dl,
+		    uint16_t * resp_capptag, uint8_t * resp_dp,
+		    uint8_t * resp_data_is_valid, uint8_t * resp_code, uint8_t * rdata_bus, uint8_t * rdata_bad);
+
+/* Call this from ocse to read AFU cfg response. This reads both afu_tlx resp AND resp data interfaces */
+
+int afu_tlx_read_cfg_resp_and_data(struct AFU_EVENT *event,
 		    uint8_t * afu_resp_opcode, uint8_t * resp_dl,
 		    uint16_t * resp_capptag, uint8_t * resp_dp,
 		    uint8_t * resp_data_is_valid, uint8_t * resp_code, uint8_t * rdata_bus, uint8_t * rdata_bad);
@@ -186,6 +195,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event);
 
 int afu_tlx_send_initial_credits(struct AFU_EVENT *event,
 		uint8_t afu_tlx_cmd_initial_credit,
+		uint8_t cfg_tlx_initial_credit,
 		uint8_t afu_tlx_resp_initial_credit);
 
 

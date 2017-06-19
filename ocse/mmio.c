@@ -157,6 +157,7 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 
 	printf("In read_descriptor and WON'T BE ABLE TO SEND CMD UNTIL AFU GIVES US INITIAL CREDIT!!\n");
 	uint8_t   afu_tlx_cmd_credits_available;
+	uint8_t   cfg_tlx_credits_available;
 	uint8_t   afu_tlx_resp_credits_available;
 	#define AFU_DESC_DATA_VALID 0x80000000
 
@@ -165,12 +166,13 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	 //&afu_tlx_resp_credits_available) != TLX_SUCCESS)
 	//	printf("NO CREDITS FROM AFU!!\n");
 	while (afu_tlx_read_initial_credits(mmio->afu_event, &afu_tlx_cmd_credits_available,
-	 &afu_tlx_resp_credits_available) != TLX_SUCCESS){
+	 &cfg_tlx_credits_available, &afu_tlx_resp_credits_available) != TLX_SUCCESS){
 	  //infinite loop
 	  sleep(1);
 	}
-	printf("afu_tlx_cmd_credits_available is %d, afu_tlx_resp_credits_available is %d \n",
-		afu_tlx_cmd_credits_available, afu_tlx_resp_credits_available);
+	printf("afu_tlx_cmd_credits_available= %d, cfg_tlx_credits_available= %d, afu_tlx_resp_credits_availabler= %d \n",
+		afu_tlx_cmd_credits_available, cfg_tlx_credits_available,
+		afu_tlx_resp_credits_available);
 
  	struct mmio_event *event00, *event110, *event114, *event200, *event204,
 	    *event20c, *event224, *event26c, *event300, *event304, *event308,
@@ -432,7 +434,7 @@ void send_mmio(struct mmio *mmio)
 {
 	struct mmio_event *event;
 	char type[7];
-	unsigned char ddata[17];
+	//unsigned char ddata[17];
 	unsigned char null_buff[64] = {0};
 	unsigned char tdata_bus[64];
 	char data[17];
@@ -451,27 +453,26 @@ void send_mmio(struct mmio *mmio)
 	if (event->cfg) {
 		sprintf(type, "CONFIG");
 	// Attempt to send config_rd or config_wr to AFU
-		if (event->rnw && tlx_afu_send_cmd(mmio->afu_event,
-			TLX_CMD_CONFIG_READ, 0xdead, 0, 2, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
-			debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type,
-			  	event->dw ? 64 : 32, event->cmd_PA);
-			debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
-				event->rnw, event->dw, event->cmd_PA);
-			event->state = OCSE_PENDING;
-		}
-
-		if (!event->rnw) { // CONFIG write - two part operation
+		if (event->rnw) { //for config reads, no data to send
+			if ( tlx_afu_send_cfg_cmd_and_data(mmio->afu_event,
+			TLX_CMD_CONFIG_READ, 0xdead, 0, 2, 0, 0, 0, event->cmd_PA,
+			0,0,0) == TLX_SUCCESS) {
+				debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type,
+			  	 	event->dw ? 64 : 32, event->cmd_PA);
+				debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
+					event->rnw, event->dw, event->cmd_PA);
+				event->state = OCSE_PENDING;
+			}
+		} else { //for config writes and we ALWAYS send 32BYTES of data
 			// restricted by spec to pL of 1, 2, or 4 bytes HOWEVER
-			// We now have to offset the data into a 64B buffer and send it
-			if (event->state == OCSE_RD_RQ_PENDING) {
-				memcpy(tdata_bus, null_buff, 64); //not sure if we always have to do this, but better safe than...
-				uint8_t * dptr = tdata_bus;;
-				//memcpy(ddata, &(event->cmd_data), 4);
-				// FOR NOW we only do 4B config writes
-			  	offset = event->cmd_PA & 0x000000000000003F ;
-				memcpy(dptr +offset, &(event->cmd_data), 4);
-				//if (tlx_afu_send_cmd_data(mmio->afu_event, 4, 0, dptr) == TLX_SUCCESS) {
-				if (tlx_afu_send_cmd_data(mmio->afu_event, 64, 0, dptr) == TLX_SUCCESS) {
+			// We now have to offset the data into a 32B buffer and send it
+			memcpy(tdata_bus, null_buff, 32); //not sure if we always have to do this, but better safe than...
+			uint8_t * dptr = tdata_bus;;
+			 offset = event->cmd_PA & 0x000000000000002F ;
+			memcpy(dptr +offset, &(event->cmd_data), 4);
+			if ( tlx_afu_send_cfg_cmd_and_data(mmio->afu_event,
+				TLX_CMD_CONFIG_WRITE, 0xbeef, 0, 2, 0, 0, 0, event->cmd_PA,
+				32,0,dptr) == TLX_SUCCESS) {
 					if (event->dw)
 						sprintf(data, "%016" PRIx64, event->cmd_data);
 					else
@@ -482,13 +483,9 @@ void send_mmio(struct mmio *mmio)
 					debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
 						event->rnw, event->dw, event->cmd_PA);
 					event->state = OCSE_PENDING;
-					printf("got rd_req and sent data, now wait for cmd resp from AFU \n");
 				}
-       	 		} else if ( tlx_afu_send_cmd(mmio->afu_event,
-				TLX_CMD_CONFIG_WRITE, 0xbeef,0, 2, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
-					event->state = OCSE_RD_RQ_PENDING;
-					printf("sent wr cmd, now wait for rd_req from AFU \n"); }
-		}
+			}
+
        	}  else   {  // if not a CONFIG, then must be MMIO rd/wr
 		sprintf(type, "MMIO");
 
