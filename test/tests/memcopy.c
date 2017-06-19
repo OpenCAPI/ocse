@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
     
     // attach device
     printf("Attaching device ...\n");
-    rc = ocxl_afu_attach(mafu_h);
+    rc = ocxl_afu_attach(mafu_h, 0);
     if(rc != 0) {
 	perror("cxl_afu_attach:"MDEVICE);
 	return rc;

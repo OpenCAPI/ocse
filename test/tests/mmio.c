@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
     
     // attach device
     printf("Attaching device ...\n");
-    rc = ocxl_afu_attach(mafu_h);
+    rc = ocxl_afu_attach(mafu_h, 0);
     if(rc != 0) {
 	perror("cxl_afu_attach:"MDEVICE);
 	return rc;
@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
 	goto done;
     }
     wed = 0x0102030405060708;
-    printf("WED data = 0x%016lx WED address = 0x%x\n", wed, &wed);
+    printf("WED data = 0x%016lx WED address = 0x%016lx\n", wed, (long)&wed);
     printf("Attempt mmio write\n");
     if(ocxl_mmio_write64(mafu_h, 0x08, wed) != 0) {
 	printf("FAILED: ocxl_mmio_write64\n");
@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
     printf("RESULT = 0x%016lx\n", result);
     
     wed = 0x0a0b0c0d0e0f1122;
-    printf("WED data = 0x%016lx WED address = 0x%x\n", wed, &wed);
+    printf("WED data = 0x%016lx WED address = 0x%016lx\n", wed, (long)&wed);
     printf("Attempt mmio write\n");
     if(ocxl_mmio_write32(mafu_h, 0x20, wed) != 0) {
 	printf("FAILED: ocxl_mmio_write32\n");
