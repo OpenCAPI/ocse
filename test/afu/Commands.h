@@ -6,7 +6,7 @@ extern "C" {
 #include "tlx_interface.h"
 #include "utils.h"
 }
-extern uint8_t memory[128];
+extern uint8_t memory[256];
 /* Command class - the base class of the three types of command: load, store, and others */
 class Command
 {

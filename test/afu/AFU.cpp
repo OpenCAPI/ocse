@@ -15,12 +15,12 @@ using std::vector;
 #define CONTEXT_SIZE 0x400
 #define CONTEXT_MASK (CONTEXT_SIZE - 1)
 
-uint8_t memory[128];
+uint8_t memory[256];
 uint8_t next_cmd = 0;
 uint8_t read_resp_completed = 0;
 uint8_t write_resp_completed = 0;
 uint8_t cmd_ready = 1;
-uint8_t status_data[8];
+uint8_t status_data[256];
 uint8_t status_resp_valid = 0;
 uint8_t status_updated = 0;
 uint8_t insert_cycle = 0;
@@ -501,7 +501,7 @@ AFU::resolve_tlx_afu_resp()
 //	debug_msg("AFU: set state = READY");
 //	state = READY;
 	printf("memory: = 0x");
-	for(i=0; i<8; i++)
+	for(i=0; i<64; i++)
 	    printf("%02x", (uint8_t)memory[i]);
 	printf("\n");
     }
@@ -546,7 +546,7 @@ AFU::resolve_tlx_afu_resp()
 	case TLX_RSP_WRITE_RESP:
 	    printf("AFU: received response write\n");
 	    printf("memory = 0x");
-	    for(i=0; i<9; i++) {
+	    for(i=0; i<64; i++) {
 		//memory[i]=i;
 	 	printf("%02x", (uint8_t)memory[i]);
 	    }
