@@ -564,11 +564,11 @@ int tlx_afu_send_cfg_cmd_and_data(struct AFU_EVENT *event,
 		event->tlx_afu_cmd_data_valid = 1;
 		event->tlx_afu_cmd_data_byte_cnt = cmd_byte_cnt;
 		event->tlx_afu_cmd_data_bdi = cmd_data_bdi;
-		if (event->tlx_afu_cmd_data_byte_cnt != 32)
+		if (event->tlx_afu_cmd_data_byte_cnt != 4)
 			printf("INVALID cmd_data_byte_cnt is 0x%2x \n", event->tlx_afu_cmd_data_byte_cnt);
-		// WE ALWAYS SEND 32 BYTES of DATA - OCSE ALWAYS
-		// SENDS 32 BYTES
-		memcpy(event->tlx_afu_cmd_data_bus, cmd_data, 32);
+		// WE ALWAYS SEND 4 BYTES of DATA - OCSE ALWAYS
+		// SENDS 4 BYTES
+		memcpy(event->tlx_afu_cmd_data_bus, cmd_data, 4);
 	}
 	return TLX_SUCCESS;
 }

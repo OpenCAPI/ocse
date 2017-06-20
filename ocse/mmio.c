@@ -468,17 +468,14 @@ void send_mmio(struct mmio *mmio)
 			// We now have to offset the data into a 32B buffer and send it
 			memcpy(tdata_bus, null_buff, 32); //not sure if we always have to do this, but better safe than...
 			uint8_t * dptr = tdata_bus;;
-			 offset = event->cmd_PA & 0x000000000000002F ;
+			 offset = event->cmd_PA & 0x0000000000000003 ;
 			memcpy(dptr +offset, &(event->cmd_data), 4);
 			if ( tlx_afu_send_cfg_cmd_and_data(mmio->afu_event,
 				TLX_CMD_CONFIG_WRITE, 0xbeef, 0, 2, 0, 0, 0, event->cmd_PA,
-				32,0,dptr) == TLX_SUCCESS) {
-					if (event->dw)
-						sprintf(data, "%016" PRIx64, event->cmd_data);
-					else
+				4,0,dptr) == TLX_SUCCESS) {
 						sprintf(data, "%08" PRIx32, (uint32_t) event->cmd_data);
 					debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s offset=0x%x",
-						mmio->afu_name, type, event->dw ? 64 : 32,
+						mmio->afu_name, type,  32,
 			  			event->cmd_PA, data, offset);
 					debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
 						event->rnw, event->dw, event->cmd_PA);
