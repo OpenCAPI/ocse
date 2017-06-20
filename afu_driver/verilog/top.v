@@ -606,6 +606,13 @@ end
 // mcp3 release of 12/Jun does not have this port  afu_cfg_xmit_rate_config_3_top        <= afu_cfg_xmit_rate_config_3;
    cfg0_tlx_initial_credit_top		<= cfg0_tlx_initial_credit; // new
    cfg0_tlx_credit_return_top		<= cfg0_tlx_credit_return;  // new lgt
+   cfg0_tlx_resp_valid_top              <= cfg0_tlx_resp_valid;
+   cfg0_tlx_resp_opcode_top             <= cfg0_tlx_resp_opcode;
+   cfg0_tlx_resp_capptag_top            <= cfg0_tlx_resp_capptag;
+   cfg0_tlx_resp_code_top               <= cfg0_tlx_resp_code;
+   cfg0_tlx_rdata_offset_top            <= cfg0_tlx_rdata_offset;
+   cfg0_tlx_rdata_bus_top               <= cfg0_tlx_rdata_bus;
+   cfg0_tlx_rdata_bdi_top               <= cfg0_tlx_rdata_bdi;
   end
 
     assign 	reset_n		= !reset;

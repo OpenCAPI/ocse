@@ -367,9 +367,8 @@ void tlx_bfm(
       invalidVal			+= (cfg0_tlx_initial_credit_top->bval) & 0x1F;
       if(!c_reset)
       {
-        afu_tlx_send_initial_credits (&event, c_afu_tlx_cmd_initial_credit, c_afu_tlx_resp_initial_credit);
+        afu_tlx_send_initial_credits (&event, c_afu_tlx_cmd_initial_credit, c_cfg0_tlx_initial_credit, c_afu_tlx_resp_initial_credit);
         tlx_afu_read_initial_credits (&event, &c_afu_tlx_cmd_initial_credit, &c_afu_tlx_resp_initial_credit);
-// TODO: get the method to exchange the initial Config Commmand credits
       }
 #ifdef DEBUG1
       if(invalidVal != 0)
