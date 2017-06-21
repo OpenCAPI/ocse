@@ -539,8 +539,8 @@ int tlx_afu_send_cfg_cmd_and_data(struct AFU_EVENT *event,
 	// Even if this is cfg cmd w/o data, don't send it on socket if data is pending for prev cmd
 	if ((event->tlx_afu_cmd_valid ==1) || (event->tlx_afu_cmd_data_valid == 1)) 
 		return TLX_AFU_DOUBLE_CMD_AND_DATA;
-  	if ((tlx_cmd_opcode != TLX_CMD_CONFIG_READ) || (tlx_cmd_opcode != TLX_CMD_CONFIG_WRITE)) {
-		printf(" TRYING TO SEND NON CONFIG CMD w/cfg send \n");
+  	if ((tlx_cmd_opcode != TLX_CMD_CONFIG_READ) && (tlx_cmd_opcode != TLX_CMD_CONFIG_WRITE)) {
+		printf(" TRYING TO SEND NON CONFIG CMD w/cfg send - opcode = 0x%x \n", tlx_cmd_opcode);
 		return (CFG_TLX_NOT_CFG_CMD);
 	}
 	if (event->afu_tlx_cmd_credits_available == 0)

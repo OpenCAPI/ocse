@@ -644,13 +644,13 @@ void tlx_bfm(
       }
       if(c_config_cmd_data_valid)
       {
-	//TODO:	setDpiSignal32(tlx_cfg0_data_bus_top, c_tlx_afu_cmd_data_del, 32);
-	//TODO:	*tlx_cfg0_data_bdi_top = c_tlx_afu_cmd_bdi_del;
+	setDpiSignal32(tlx_cfg0_data_bus_top, c_tlx_afu_cmd_data_del, 32);
+	*tlx_cfg0_data_bdi_top = c_tlx_afu_cmd_bdi_del;
       }
       else
       {
-	//TODO:	setDpiSignal32(tlx_cfg0_data_bus_top, 0, 32);
-	//TODO:	*tlx_cfg0_data_bdi_top = 0;
+	setDpiSignal32(tlx_cfg0_data_bus_top, 0, 32);
+	*tlx_cfg0_data_bdi_top = 0;
       }
       if(event.tlx_afu_cmd_valid)
       {
@@ -662,14 +662,17 @@ void tlx_bfm(
           *tlx_cfg0_t_top = (event.tlx_afu_cmd_t) & 0x1;
           setDpiSignal32(tlx_cfg0_pl_top, event.tlx_afu_cmd_pl, 3);
           setDpiSignal32(tlx_cfg0_capptag_top, event.tlx_afu_cmd_capptag, 16);
-// TODO: I need the config write data entry. This should be driven one cycle after the valid on the AFU interface       c_tlx_afu_cmd_data_del = event.tlx_afu_cmd_bus;   	// check with Lance
-// TODO: I need the config write bdi entry. This should be driven one cycle after the valid on the AFU interface        c_tlx_afu_cmd_bdi_del = (event.tlx_afu_cmd_bdi) & 0x1;   
           *tlx_cfg0_valid_top = 1;
           clk_afu_cmd_val = CLOCK_EDGE_DELAY;
           printf("%08lld: ", (long long) c_sim_time);
           printf(" The TLX-AFU Config Cmd with OPCODE=0x%x \n",  event.tlx_afu_cmd_opcode);
           event.tlx_afu_cmd_valid = 0;
-          c_config_cmd_data_valid = 1;
+          if(event.tlx_afu_cmd_data_valid)
+	  {
+	    c_tlx_afu_cmd_data_del = *event.tlx_afu_cmd_data_bus;   	// check with Lance
+	    c_tlx_afu_cmd_bdi_del = (event.tlx_afu_cmd_data_bdi) & 0x1;   
+	    c_config_cmd_data_valid = 1;
+	  }
         }
         else
         {
@@ -741,6 +744,7 @@ void tlx_bfm(
       *tlx_afu_resp_data_credit_top 	= (event.tlx_afu_resp_data_credit) & 0x1;
       *tlx_afu_cmd_credit_top	 	= (event.tlx_afu_cmd_credit) & 0x1;
       *tlx_afu_cmd_data_credit_top	= (event.tlx_afu_cmd_data_credit) & 0x1;
+      *tlx_cfg0_resp_ack_top		= (event.tlx_cfg_resp_ack) & 0x1;
       setDpiSignal32(tlx_afu_cmd_resp_initial_credit_top, event.tlx_afu_cmd_resp_initial_credit, 3);
       setDpiSignal32(tlx_afu_data_initial_credit_top, event.tlx_afu_data_initial_credit, 4);
       *tlx_afu_ready_top			= 1;	// TODO: need to check this
