@@ -169,7 +169,7 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	 &cfg_tlx_credits_available, &afu_tlx_resp_credits_available) != TLX_SUCCESS){
 	  //infinite loop
 	  sleep(1);
-	}
+	} 
 	printf("afu_tlx_cmd_credits_available= %d, cfg_tlx_credits_available= %d, afu_tlx_resp_credits_availabler= %d \n",
 		afu_tlx_cmd_credits_available, cfg_tlx_credits_available,
 		afu_tlx_resp_credits_available);

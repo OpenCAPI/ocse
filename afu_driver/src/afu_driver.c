@@ -538,11 +538,21 @@ void tlx_bfm(
         		c_afu_tlx_resp_dp, c_afu_tlx_resp_code
         );
       }
-      else if(c_afu_tlx_rdata_valid || c_cfg0_tlx_resp_valid)
+      else if(c_afu_tlx_rdata_valid)
       {
         int resp_code = afu_tlx_send_resp_and_data(&event,
         		c_afu_tlx_resp_opcode, c_afu_tlx_resp_dl, c_afu_tlx_resp_capptag,
         		c_afu_tlx_resp_dp, c_afu_tlx_resp_code, c_afu_tlx_rdata_valid,
+        		c_afu_tlx_rdata_bus, c_afu_tlx_rdata_bdi
+        );
+        printf("%08lld: ", (long long) c_sim_time);
+        printf(" The AFU-TLX Response Data transferred thru method and the resp code is %d \n",  resp_code);
+      }
+      else if(c_cfg0_tlx_resp_valid)
+      {
+        int resp_code = afu_cfg_send_resp_and_data(&event,
+        		c_afu_tlx_resp_opcode, c_afu_tlx_resp_dl, c_afu_tlx_resp_capptag,
+        		c_afu_tlx_resp_dp, c_afu_tlx_resp_code, 4, c_cfg0_tlx_resp_valid,
         		c_afu_tlx_rdata_bus, c_afu_tlx_rdata_bdi
         );
         printf("%08lld: ", (long long) c_sim_time);
