@@ -456,7 +456,7 @@ void send_mmio(struct mmio *mmio)
 		if (event->rnw) { //for config reads, no data to send
 			if ( tlx_afu_send_cfg_cmd_and_data(mmio->afu_event,
 			TLX_CMD_CONFIG_READ, 0xdead, 0, 2, 0, 0, 0, event->cmd_PA,
-			0,0,0) == TLX_SUCCESS) {
+			0,0) == TLX_SUCCESS) {
 				debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type,
 			  	 	event->dw ? 64 : 32, event->cmd_PA);
 				debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
@@ -472,7 +472,7 @@ void send_mmio(struct mmio *mmio)
 			memcpy(dptr +offset, &(event->cmd_data), 4);
 			if ( tlx_afu_send_cfg_cmd_and_data(mmio->afu_event,
 				TLX_CMD_CONFIG_WRITE, 0xbeef, 0, 2, 0, 0, 0, event->cmd_PA,
-				4,0,dptr) == TLX_SUCCESS) {
+				0,dptr) == TLX_SUCCESS) {
 						sprintf(data, "%08" PRIx32, (uint32_t) event->cmd_data);
 					debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s offset=0x%x",
 						mmio->afu_name, type,  32,
@@ -547,8 +547,10 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 	char type[7];
 	uint8_t afu_resp_opcode, resp_dl,resp_dp, resp_data_is_valid, resp_code, rdata_bad;
 	uint16_t resp_capptag;
+	uint16_t cfg_read_data;
 	uint8_t *  rdata;
 	unsigned char   rdata_bus[64];
+	unsigned char   cfg_rdata_bus[4];
 	int offset, length;
 
 	// handle config and mmio responses
@@ -559,11 +561,20 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 	rdata = rdata_bus;
 
 	// needs to be modified to return 64 bytes and extract the 4/8 we want?
+	
+	if (mmio->list->cfg) {
+		rdata = cfg_rdata_bus;
+		rc = afu_tlx_read_cfg_resp_and_data (mmio->afu_event,
+		    &afu_resp_opcode, &resp_dl,
+		    resp_capptag, &resp_dp,
+		    &resp_data_is_valid, &resp_code, rdata_bus, &rdata_bad);
+	} else {
+
 	rc = afu_tlx_read_resp_and_data(mmio->afu_event,
 	 	&afu_resp_opcode, &resp_dl,
 	   	&resp_capptag, &resp_dp,
 	    	&resp_data_is_valid, &resp_code, rdata_bus, &rdata_bad);
-
+	}
 	if (rc == TLX_SUCCESS) {
 	  // should we scan the mmio list looking for a matching CAPPtag here? Not yet, assume in order responses
 	  // but we can check it...
@@ -585,23 +596,36 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 				resp_capptag, resp_code);
 
 			if (resp_data_is_valid) {
-			  // extract data from address aligned offset in vector
-			  offset = mmio->list->cmd_PA & 0x000000000000003F ;
-			  if (mmio->list->cmd_pL == 0x02) {
-			    length = 4;
-			  } else {
-			    length = 8;
-			  }
-			  memcpy(&read_data, &rdata_bus[offset], length);
-			  debug_msg("%s:%s CMD RESP offset=%d length=%d data=0x%x code=0x%x", mmio->afu_name, type, offset, length,
-				    read_data, resp_code );
+				if (mmio->list->cfg) {
+					//TODO data is only 4B, for now don't put into uint64_t, put in uint16_t 
+					//we will fix this lateri and use cfg_resp_data_byte cnt!
+					length = 4;
+			  		memcpy(&cfg_read_data, &rdata_bus, length);
+			  		debug_msg("%s:%s CFG CMD RESP  length=%d data=0x%x code=0x%x", mmio->afu_name, type, 
+				                  cfg_read_data, resp_code );
+				} else {
+			  		// extract data from address aligned offset in vector
+			 		 offset = mmio->list->cmd_PA & 0x000000000000003F ;
+			  		if (mmio->list->cmd_pL == 0x02) {
+			   			 length = 4;
+			  		} else {
+			   	 		length = 8;
+			  		}
+			  		memcpy(&read_data, &rdata_bus[offset], length);
+			  		debug_msg("%s:%s CMD RESP offset=%d length=%d data=0x%x code=0x%x", mmio->afu_name, type, offset, length,
+				    		read_data, resp_code );
+					}
 			} else {
 				debug_msg("%s:%s CMD RESP code=0x%x", mmio->afu_name, type, resp_code);
 				}
 
 		// Keep data for MMIO reads
-		if (mmio->list->rnw)
-				mmio->list->cmd_data = read_data;
+		if (mmio->list->rnw) {
+				if (mmio->list->cfg)
+					mmio->list->cmd_data = (uint64_t) (cfg_read_data);
+				else
+					mmio->list->cmd_data = read_data;
+			}
 		mmio->list->state = OCSE_DONE;
 		mmio->list = mmio->list->_next;
 		}

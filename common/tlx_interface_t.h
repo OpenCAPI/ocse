@@ -313,6 +313,7 @@ struct AFU_EVENT {
   uint8_t  cfg_tlx_credits_available;
   uint16_t  tlx_afu_cmd_data_byte_cnt;	/*  used for socket transfer only */
   uint16_t  tlx_afu_resp_data_byte_cnt;	/*  used for socket transfer only */
+  uint16_t  afu_cfg_resp_data_byte_cnt;	/*  used for socket transfer only */
   // TLX to AFU Repsonse Interface (table 1)
   // CAPP to AP (host to afu) responses (generally to ap/capp commands and data)
   uint8_t tlx_afu_resp_valid;             /* 1 bit valid respoonse from tlx */
@@ -378,6 +379,9 @@ struct AFU_EVENT {
   uint8_t tlx_afu_cmd_data_bdi;            /* 1 bit bad data indicator */
   uint8_t afu_tlx_cmd_rd_req;              /* 1 bit read request */
   uint8_t afu_tlx_cmd_rd_cnt;              /* 3 bit encoded read count */
+  uint8_t tlx_cfg_cmd_data_valid;          /* 1 bit config command data from host valid */
+  uint8_t tlx_cfg_cmd_data_bdi;            /* 1 bit bad config data indicator */
+  unsigned char tlx_cfg_cmd_data_bus[4];  /* 32 bit (4 byte) config cmd data  */
 
   // TLX Framer Command Interface (table 7)
   uint8_t tlx_afu_resp_credit;             /* 1 bit tlx returning a response credit to the afu */
@@ -420,6 +424,9 @@ struct AFU_EVENT {
   uint8_t afu_tlx_rdata_valid;            /* 6 bit response data is valid */
   unsigned char afu_tlx_rdata_bus[64];    /* 512 bit response data */
   uint8_t afu_tlx_rdata_bad;              /* 1 bit response data is bad */
+  unsigned char afu_cfg_rdata_bus[4];  	  /* 32 bit (4 byte) config response data  */
+  uint8_t afu_cfg_rdata_valid;            /* 6 bit config response data is valid */
+  uint8_t afu_cfg_rdata_bad;              /* 1 bit config response data is bad */
 
   // TLX Framer Template Configuration (table 10)
   uint8_t afu_cfg_xmit_tmpl_config_0;     /* 1 bit xmit template enable - default */
