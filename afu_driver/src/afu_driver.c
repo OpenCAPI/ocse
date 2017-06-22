@@ -42,6 +42,7 @@ static int clk_afu_resp_val;
 static int clk_afu_cmd_val;
 static int clk_afu_resp_dat_val;
 static int clk_afu_cmd_dat_val;
+static int credits_initialized = 0;
 
 // inputs from AFX
 uint8_t		c_reset = 1;
@@ -367,8 +368,14 @@ void tlx_bfm(
       invalidVal			+= (cfg0_tlx_initial_credit_top->bval) & 0x1F;
       if(!c_reset)
       {
-        afu_tlx_send_initial_credits (&event, c_afu_tlx_cmd_initial_credit, c_cfg0_tlx_initial_credit, c_afu_tlx_resp_initial_credit);
-        tlx_afu_read_initial_credits (&event, &c_afu_tlx_cmd_initial_credit, &c_afu_tlx_resp_initial_credit);
+	if (credits_initialized == 0 ) {
+	  printf("sending initial credits to tlx cmd = %d, cfg = %d, resp = %d\n", c_afu_tlx_cmd_initial_credit, c_cfg0_tlx_initial_credit, c_afu_tlx_resp_initial_credit );
+	  afu_tlx_send_initial_credits (&event, c_afu_tlx_cmd_initial_credit, c_cfg0_tlx_initial_credit, c_afu_tlx_resp_initial_credit);
+	  printf("reading initial credits from tlx\n" );
+	  tlx_afu_read_initial_credits (&event, &c_afu_tlx_cmd_initial_credit, &c_afu_tlx_resp_initial_credit);
+	  printf("initial credits from tlx cmd = %d, resp = %d\n", c_afu_tlx_cmd_initial_credit, c_afu_tlx_resp_initial_credit );
+	  credits_initialized = 1;
+	}
       }
 #ifdef DEBUG1
       if(invalidVal != 0)
@@ -377,6 +384,26 @@ void tlx_bfm(
         printf(" The AFU-TLX Cmd Credit Interface has either X or Z value \n" );
       }
 #endif
+
+      // credit managment - return credits, if any, to tlx
+      // cfg interface credit
+      printf( "credit management\n" );
+      invalidVal = 0;
+      c_cfg0_tlx_credit_return  	= (cfg0_tlx_credit_return_top & 0x2) ? 0 : (cfg0_tlx_credit_return_top & 0x1);
+      if(invalidVal != 0) {
+	printf("%08lld: ", (long long) c_sim_time);
+	printf(" The CFG-TLX Credit return value has either X or Z value \n" );
+      } else {
+	if (c_cfg0_tlx_credit_return == 1 ) {
+	  printf( "returning cfg credit\n" );
+	  event.cfg_tlx_credit_return = 1;
+	  event.afu_tlx_credit_req_valid = 1;
+	} else {
+	  printf( "no cfg credit to return\n" );
+	  event.cfg_tlx_credit_return = 0;
+	}
+      }
+      
 /*
     invalidVal = 0;
     c_afu_tlx_resp_credit  	= (afu_tlx_resp_credit_top & 0x2) ? 0 : (afu_tlx_resp_credit_top & 0x1);
