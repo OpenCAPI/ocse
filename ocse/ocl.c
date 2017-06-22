@@ -164,10 +164,10 @@ static void _handle_afu(struct ocl *ocl)
 	//uint8_t *buffer;
 	//int i;
 	//size_t size;
-	/*if (ocl->mmio->list !=NULL) {
+	if (ocl->mmio->list !=NULL) {
 	 handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
-	} */
-        handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
+	} 
+        //handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
 
 	if (ocl->cmd != NULL) {
 	  handle_response(ocl->cmd);  // sends response and data (if required)
