@@ -303,6 +303,8 @@ int tlx_afu_send_initial_credits(struct AFU_EVENT *event,
 		uint8_t tlx_afu_data_initial_credit)
 
 {
+        printf( "lgt:tlx_afu_send_initial_credits\n" );
+
 	event->tlx_afu_cmd_resp_initial_credit = tlx_afu_cmd_resp_initial_credit;
 	event->tlx_afu_data_initial_credit = tlx_afu_data_initial_credit;
 	event->tlx_afu_credit_valid = 1;
@@ -317,7 +319,7 @@ int afu_tlx_read_initial_credits(struct AFU_EVENT *event,
 		uint8_t * cfg_tlx_initial_credit,
 		uint8_t * afu_tlx_resp_initial_credit)
 {
-	//printf("in afu_tlx_read_initial_credits \n");
+	printf("lgt:afu_tlx_read_initial_credits \n");
 	if (!event->afu_tlx_credit_req_valid)
 		return AFU_TLX_NO_CREDITS;
 	* afu_tlx_cmd_initial_credit = event->afu_tlx_cmd_initial_credit;
@@ -1570,6 +1572,7 @@ int afu_tlx_send_initial_credits(struct AFU_EVENT *event,
 		uint8_t afu_tlx_resp_initial_credit)
 
 {
+        printf( "lgt:afu_tlx_send_initial_credits\n" );
 	event->afu_tlx_cmd_initial_credit = afu_tlx_cmd_initial_credit;
 	event->cfg_tlx_initial_credit = cfg_tlx_initial_credit;
 	event->afu_tlx_resp_initial_credit = afu_tlx_resp_initial_credit;
@@ -1584,6 +1587,7 @@ int tlx_afu_read_initial_credits(struct AFU_EVENT *event,
 		uint8_t * tlx_afu_data_initial_credit)
 
 {
+        printf( "lgt:tlx_afu_read_initial_credits\n" );
 	if (!event->tlx_afu_credit_valid)
 		return TLX_AFU_NO_CREDITS;
 	*tlx_afu_cmd_resp_initial_credit = event->tlx_afu_cmd_resp_initial_credit;
