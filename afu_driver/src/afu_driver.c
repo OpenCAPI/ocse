@@ -679,21 +679,14 @@ void tlx_bfm(
       	if (!clk_afu_resp_val)
     		*tlx_afu_resp_valid_top = 0;
       }
-      if(c_config_cmd_data_valid)
-      {
-	setDpiSignal32(tlx_cfg0_data_bus_top, c_tlx_afu_cmd_data_del, 32);
-	*tlx_cfg0_data_bdi_top = c_tlx_afu_cmd_bdi_del;
-      }
-      else
-      {
-	setDpiSignal32(tlx_cfg0_data_bus_top, 0, 32);
-	*tlx_cfg0_data_bdi_top = 0;
-      }
+
+      // try moving the config data drive to just after the command drive (from here)
+
       if(event.tlx_afu_cmd_valid)
       {
-        uint32_t tlx_cmd_opcode = event.tlx_afu_cmd_opcode;
-        if((tlx_cmd_opcode == 0xE0) || (tlx_cmd_opcode == 0xE1))		// if the command is a config_read (0xE0) or a config_write, the tlx uses a dfferent interface to send the command to the AFU
+        if ( ( event.tlx_afu_cmd_opcode == 0xE0 ) || ( event.tlx_afu_cmd_opcode == 0xE1 ) )		// if the command is a config_read (0xE0) or a config_write, the tlx uses a dfferent interface to send the command to the AFU
         {
+	  printf( "lgt:tlx_afu_cmd_valid:config read or config write.  opcode=0x%02x\n", event.tlx_afu_cmd_opcode );
           setDpiSignal32(tlx_cfg0_opcode_top, event.tlx_afu_cmd_opcode, 8);
           setDpiSignal64(tlx_cfg0_pa_top, event.tlx_afu_cmd_pa);
           *tlx_cfg0_t_top = (event.tlx_afu_cmd_t) & 0x1;
@@ -704,11 +697,21 @@ void tlx_bfm(
           printf("%08lld: ", (long long) c_sim_time);
           printf(" The TLX-AFU Config Cmd with OPCODE=0x%x \n",  event.tlx_afu_cmd_opcode);
           event.tlx_afu_cmd_valid = 0;
-          if(event.tlx_afu_cmd_data_valid)
-	  {
-	    c_tlx_afu_cmd_data_del = *event.tlx_afu_cmd_data_bus;   	// check with Lance
+	  printf( "lgt:tlx_afu_cmd__valid: data valid signals: tlx_cfg_cmd_data_valid = %d, tlx_afu_cmd_data_valid = %d\n", event.tlx_cfg_cmd_data_valid, event.tlx_afu_cmd_data_valid );
+          if(event.tlx_afu_cmd_data_valid) {
+	    printf( "lgt:tlx_afu_cmd_data_valid: received data from tlx.  raw data=0x" );
+	    for ( i=0; i<4; i++ ) {
+	      printf( "%02x", event.tlx_afu_cmd_data_bus[i] );
+	    }
+	    printf( "\n" );
+	    c_tlx_afu_cmd_data_del = *event.tlx_afu_cmd_data_bus;   	// lgt use data from tlx_cfg part of event. or not
+	    printf( "lgt:tlx_afu_cmd_data_valid: received data from tlx.  copied data=0x%08x\n", c_tlx_afu_cmd_data_del );
 	    c_tlx_afu_cmd_bdi_del = (event.tlx_afu_cmd_data_bdi) & 0x1;   
 	    c_config_cmd_data_valid = 1;
+	    printf( "lgt:tlx_afu_cmd_data_valid: set config_cmd_data_valid=%d\n", c_config_cmd_data_valid );
+	    // just try to drive it and not reset it.
+            setDpiSignal32(tlx_cfg0_data_bus_top, c_tlx_afu_cmd_data_del, 32); // lgt might need to delay these in top.v
+	    *tlx_cfg0_data_bdi_top = c_tlx_afu_cmd_bdi_del;
 	  }
         }
         else
@@ -719,7 +722,7 @@ void tlx_bfm(
           setDpiSignal32(tlx_afu_cmd_pl_top, event.tlx_afu_cmd_pl, 3);
           setDpiSignal64(tlx_afu_cmd_be_top, event.tlx_afu_cmd_be);
           *tlx_afu_cmd_end_top = (event.tlx_afu_cmd_end) & 0x1;
-//          *tlx_afu_cmd_t_top = (event.tlx_afu_cmd_t) & 0x1;
+	  // *tlx_afu_cmd_t_top = (event.tlx_afu_cmd_t) & 0x1; // no longer on command interface
           setDpiSignal64(tlx_afu_cmd_pa_top, event.tlx_afu_cmd_pa);
 #ifdef TLX4
           setDpiSignal32(tlx_afu_cmd_flag_top, event.tlx_afu_cmd_flag, 4);
@@ -731,6 +734,19 @@ void tlx_bfm(
           printf(" The TLX-AFU Cmd with OPCODE=0x%x \n",  event.tlx_afu_cmd_opcode);
           event.tlx_afu_cmd_valid = 0;
         }
+
+	// try moving the config data drive to just after the command drive (to here)
+	// printf( "lgt:tlx_bfm:config_cmd_data_valid=%d\n", c_config_cmd_data_valid );
+	//	if(c_config_cmd_data_valid) {
+	//	  printf( "lgt:config_cmd_data_valid=%d,driving tlx_cfg0_data_bus_top\n", c_config_cmd_data_valid );
+	//	  setDpiSignal32(tlx_cfg0_data_bus_top, c_tlx_afu_cmd_data_del, 32); // lgt might need to delay these in top.v
+	//	  *tlx_cfg0_data_bdi_top = c_tlx_afu_cmd_bdi_del;
+	//	} else {
+	//	  printf( "lgt:config_cmd_data_valid=%d,clearing tlx_cfg0_data_bus_top\n", c_config_cmd_data_valid );
+	//	  setDpiSignal32(tlx_cfg0_data_bus_top, 0, 32);
+	//	  *tlx_cfg0_data_bdi_top = 0;
+	//	}
+
       }
       if (clk_afu_cmd_val) {
     	--clk_afu_cmd_val;
@@ -738,6 +754,7 @@ void tlx_bfm(
     		*tlx_afu_cmd_valid_top = 0;
     		*tlx_cfg0_valid_top = 0;
                 c_config_cmd_data_valid = 0;
+		printf( "lgt:tlx_afu_cmd_data_valid: after a delay reset config_cmd_data_valid=%d\n", c_config_cmd_data_valid );
       	}
       }
       if(event.rdata_rd_cnt > 0)
@@ -763,13 +780,16 @@ void tlx_bfm(
       }
       if(event.tlx_afu_cmd_data_valid)
       {
-        *tlx_afu_cmd_data_bdi_top = (event.tlx_afu_cmd_data_bdi) & 0x1;
-        setMyCacheLine(tlx_afu_cmd_data_bus_top, event.tlx_afu_cmd_data_bus);
-        *tlx_afu_cmd_data_valid_top = 1;
-        clk_afu_cmd_dat_val = CLOCK_EDGE_DELAY;
-        event.tlx_afu_cmd_data_valid = 0;
-        printf("%08lld: ", (long long) c_sim_time);
-        printf(" The TLX-AFU Command with Data Available \n");
+	// except for config read and config write
+	if ( ( event.tlx_afu_cmd_opcode != 0xE0 ) && ( event.tlx_afu_cmd_opcode != 0xE1 ) ) { // if the command is a not config_read (0xE0) and not a config wreite
+	  *tlx_afu_cmd_data_bdi_top = (event.tlx_afu_cmd_data_bdi) & 0x1;
+	  setMyCacheLine(tlx_afu_cmd_data_bus_top, event.tlx_afu_cmd_data_bus);
+	  *tlx_afu_cmd_data_valid_top = 1;
+	  clk_afu_cmd_dat_val = CLOCK_EDGE_DELAY;
+	  event.tlx_afu_cmd_data_valid = 0;
+	  printf("%08lld: ", (long long) c_sim_time);
+	  printf(" The TLX-AFU Command with Data Available \n");
+	}
       }
       if (clk_afu_cmd_dat_val) {
     	--clk_afu_cmd_dat_val;
