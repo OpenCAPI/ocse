@@ -563,11 +563,17 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 	// needs to be modified to return 64 bytes and extract the 4/8 we want?
 	
 	if (mmio->list->cfg) {
-		rdata = cfg_rdata_bus;
-		rc = afu_tlx_read_cfg_resp_and_data (mmio->afu_event,
-		    &afu_resp_opcode, &resp_dl,
-		    resp_capptag, &resp_dp,
-		    &resp_data_is_valid, &resp_code, rdata_bus, &rdata_bad);
+		if (mmio->list->rnw) {
+			rdata = cfg_rdata_bus;
+			rc = afu_tlx_read_cfg_resp_and_data (mmio->afu_event,
+		    	&afu_resp_opcode, &resp_dl,&resp_capptag, 0xdead, &resp_dp,
+		   	&resp_data_is_valid, &resp_code, rdata_bus, &rdata_bad);
+		} else {
+			rc = afu_tlx_read_cfg_resp_and_data (mmio->afu_event,
+		    	&afu_resp_opcode, &resp_dl,&resp_capptag, 0xbeef, &resp_dp,
+		   	&resp_data_is_valid, &resp_code, 0, 0);
+		}
+
 	} else {
 
 	rc = afu_tlx_read_resp_and_data(mmio->afu_event,
@@ -616,6 +622,9 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 				    		read_data, resp_code );
 					}
 			} else {
+				if ((afu_resp_opcode == 2) && (resp_capptag == 0xdead))
+					printf("CFG RD FAILED! afu_resp_opcode = 0x%x and resp_code = 0x%x \n",
+						afu_resp_opcode, resp_code);
 				debug_msg("%s:%s CMD RESP code=0x%x", mmio->afu_name, type, resp_code);
 				}
 

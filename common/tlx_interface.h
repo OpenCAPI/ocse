@@ -155,7 +155,7 @@ int afu_tlx_read_resp_and_data(struct AFU_EVENT *event,
 
 int afu_tlx_read_cfg_resp_and_data(struct AFU_EVENT *event,
 		    uint8_t * afu_resp_opcode, uint8_t * resp_dl,
-		    uint16_t  resp_capptag, uint8_t * resp_dp,
+		    uint16_t  * resp_capptag, uint16_t requested_capptag, uint8_t * resp_dp,
 		    uint8_t * resp_data_is_valid, uint8_t * resp_code, uint8_t * rdata_bus, uint8_t * rdata_bad);
 
 
