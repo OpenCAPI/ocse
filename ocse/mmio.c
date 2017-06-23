@@ -174,7 +174,7 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 		afu_tlx_cmd_credits_available, cfg_tlx_credits_available,
 		afu_tlx_resp_credits_available);
 
- 	struct mmio_event *event00, *event110, *event114, *event200, *event204,
+ 	struct mmio_event *event00, *event100, *event104, *event200, *event204,
 	    *event20c, *event224, *event26c, *event300, *event304, *event308,
 	    *event400, *event404, *event408, *event40c, *event410,
 	    *event500, *event504, *event508, *event50c, *event510, *event514,
@@ -184,8 +184,8 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	cmd_pa = 0x0000000050010000; // per Lance, only need BDF for config (0x5001)
 	// Queue mmio reads - these go out in order, gated (eventually) by credits
 	event00 = _add_cfg(mmio, 1, 0, cmd_pa, 0L);
-	event110 = _add_cfg(mmio, 1, 0, cmd_pa + 0x110, 0L);
-	event114 = _add_cfg(mmio, 1, 0, cmd_pa + 0x114, 0L);
+	event100 = _add_cfg(mmio, 1, 0, cmd_pa + 0x100, 0L);
+	event104 = _add_cfg(mmio, 1, 0, cmd_pa + 0x104, 0L);
 	event200 = _add_cfg(mmio, 1, 0, cmd_pa + 0x200, 0L);
 	event204 = _add_cfg(mmio, 1, 0, cmd_pa + 0x204, 0L);
 	event20c = _add_cfg(mmio, 1, 0, cmd_pa + 0x20c, 0L);
@@ -219,13 +219,13 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	free(event00);
 
 	// Read Process Addr Space ID (PASID) Extended Capability
-	_wait_for_done(&(event110->state), lock);
-	mmio->cfg.PASID_CP = event110->cmd_data;
-	free(event110);
+	_wait_for_done(&(event100->state), lock);
+	mmio->cfg.PASID_CP = event100->cmd_data;
+	free(event100);
 
-	_wait_for_done(&(event114->state), lock);
-	mmio->cfg.PASID_CTL_STS = event114->cmd_data;
-	free(event114);
+	_wait_for_done(&(event104->state), lock);
+	mmio->cfg.PASID_CTL_STS = event104->cmd_data;
+	free(event104);
 
 	// Read OpenCAPI Transport Layer DVSEC
 	_wait_for_done(&(event200->state), lock);
