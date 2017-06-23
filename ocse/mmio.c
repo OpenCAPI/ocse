@@ -181,6 +181,7 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	    *event518, *event51c;
 
 	uint64_t cmd_pa;
+	//cmd_pa = 0x0000000050000000; // per Lance, only need BDF for config (0x5001)
 	cmd_pa = 0x0000000050010000; // per Lance, only need BDF for config (0x5001)
 	// Queue mmio reads - these go out in order, gated (eventually) by credits
 	event00 = _add_cfg(mmio, 1, 0, cmd_pa, 0L);
