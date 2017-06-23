@@ -95,6 +95,7 @@ uint8_t		c_afu_tlx_resp_rd_req_top;
 uint8_t		c_afu_tlx_resp_rd_cnt_top;
 uint32_t	c_tlx_afu_cmd_data_del;
 uint8_t		c_tlx_afu_cmd_bdi_del;
+uint8_t		c_cfg_resp_ack_pending = 0;
 //
 //
 // Local Methods
@@ -518,7 +519,7 @@ void tlx_bfm(
         printf("%08lld: ", (long long) c_sim_time);
         printf(" The AFU-TLX Response Valid, with opcode: 0x%x \n",  c_afu_tlx_resp_opcode);
       }
-      if(c_cfg0_tlx_resp_valid)
+      if(c_cfg0_tlx_resp_valid && (c_cfg_resp_ack_pending == 0))
       {
         c_afu_tlx_resp_opcode	= (cfg0_tlx_resp_opcode_top->aval) & 0xFF;
         invalidVal		+= (cfg0_tlx_resp_opcode_top->bval) & 0xFF;
@@ -533,8 +534,10 @@ void tlx_bfm(
         invalidVal		+= getMyByteArray(cfg0_tlx_rdata_bus_top, 4, &c_afu_tlx_rdata_bus[c_cfg0_tlx_rdata_offset]);
         c_afu_tlx_rdata_bdi  	= (cfg0_tlx_rdata_bdi_top & 0x2) ? 0 : (cfg0_tlx_rdata_bdi_top & 0x1);
         invalidVal		+= cfg0_tlx_rdata_bdi_top & 0x2;
-        printf("%08lld: ", (long long) c_sim_time);
-        printf(" The AFU-TLX Config Response Valid, with opcode: 0x%x \n",  c_afu_tlx_resp_opcode);
+      }
+      else if(!c_cfg0_tlx_resp_valid )
+      {
+	c_cfg_resp_ack_pending = 0;
       }
       if(c_afu_tlx_rdata_valid)
       {
@@ -569,17 +572,18 @@ void tlx_bfm(
         		c_afu_tlx_rdata_bus, c_afu_tlx_rdata_bdi
         );
         printf("%08lld: ", (long long) c_sim_time);
-        printf(" The AFU-TLX Response Data transferred thru method and the resp code is %d \n",  resp_code);
+        printf(" The AFU-TLX Command Response Data transferred thru method and the resp code is %d \n",  resp_code);
       }
-      else if(c_cfg0_tlx_resp_valid)
+      else if(c_cfg0_tlx_resp_valid && (c_cfg_resp_ack_pending == 0))
       {
+	c_cfg_resp_ack_pending = 1;
         int resp_code = afu_cfg_send_resp_and_data(&event,
         		c_afu_tlx_resp_opcode, c_afu_tlx_resp_dl, c_afu_tlx_resp_capptag,
         		c_afu_tlx_resp_dp, c_afu_tlx_resp_code, 4, c_cfg0_tlx_resp_valid,
         		c_afu_tlx_rdata_bus, c_afu_tlx_rdata_bdi
         );
         printf("%08lld: ", (long long) c_sim_time);
-        printf(" The AFU-TLX Response Data transferred thru method and the resp code is %d \n",  resp_code);
+        printf(" The AFU-TLX Command Response Data transferred thru method - OPCODE = 0x%x the method's resp code is %x \n",  c_afu_tlx_resp_opcode, resp_code);
       }
       invalidVal = 0;
       c_afu_tlx_cmd_rd_req_top  	= (afu_tlx_cmd_rd_req_top & 0x2) ? 0 : (afu_tlx_cmd_rd_req_top & 0x1);
@@ -778,7 +782,10 @@ void tlx_bfm(
       *tlx_afu_cmd_credit_top	 	= (event.tlx_afu_cmd_credit) & 0x1;
       *tlx_afu_cmd_data_credit_top	= (event.tlx_afu_cmd_data_credit) & 0x1;
       *tlx_cfg0_resp_ack_top		= (event.tlx_cfg_resp_ack) & 0x1;
-      if(event.tlx_cfg_resp_ack != 0) event.tlx_cfg_resp_ack = 0;
+      if(event.tlx_cfg_resp_ack != 0)
+      {
+        event.tlx_cfg_resp_ack = 0;
+      }
       setDpiSignal32(tlx_afu_cmd_resp_initial_credit_top, event.tlx_afu_cmd_resp_initial_credit, 3);
       setDpiSignal32(tlx_afu_data_initial_credit_top, event.tlx_afu_data_initial_credit, 4);
       *tlx_afu_ready_top			= 1;	// TODO: need to check this
