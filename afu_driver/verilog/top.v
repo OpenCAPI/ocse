@@ -220,6 +220,7 @@ module top (
 // mcp3 release of 12/Jun does not have this port  reg [3:0]       afu_cfg_in_rcv_rate_capability_2_top;
 // mcp3 release of 12/Jun does not have this port  reg [3:0]       afu_cfg_in_rcv_rate_capability_3_top;
    reg             tlx_afu_ready_top;
+   reg       [4:0] ro_device_top;
    reg             tlx_cfg0_in_rcv_tmpl_capability_0_top;
    reg             tlx_cfg0_in_rcv_tmpl_capability_1_top;
    reg             tlx_cfg0_in_rcv_tmpl_capability_2_top;
@@ -528,7 +529,7 @@ initial begin
     tlx_cfg0_data_bus_top			<= 32'b0;
     tlx_cfg0_data_bdi_top			<= 0;
     tlx_cfg0_resp_ack_top			<= 0;
-
+    ro_device_top				<= 5'b0;			//Updated per Jeff R's note of 23/Jun/2017
 end
 
   // Clock generation
@@ -674,6 +675,7 @@ end
 // mcp3 release of 12/Jun does not have this port   assign 	afu_cfg_in_rcv_rate_capability_2	= afu_cfg_in_rcv_rate_capability_2_top;
 // mcp3 release of 12/Jun does not have this port   assign 	afu_cfg_in_rcv_rate_capability_3	= afu_cfg_in_rcv_rate_capability_3_top;
     assign 	tlx_afu_ready				= tlx_afu_ready_top;
+    assign 	ro_device				= ro_device_top;
     assign 	tlx_cfg0_in_rcv_tmpl_capability_0	= tlx_cfg0_in_rcv_tmpl_capability_0_top;
     assign 	tlx_cfg0_in_rcv_tmpl_capability_1	= tlx_cfg0_in_rcv_tmpl_capability_1_top;
     assign 	tlx_cfg0_in_rcv_tmpl_capability_2	= tlx_cfg0_in_rcv_tmpl_capability_2_top;

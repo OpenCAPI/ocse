@@ -782,6 +782,7 @@ void tlx_bfm(
       *tlx_afu_cmd_credit_top	 	= (event.tlx_afu_cmd_credit) & 0x1;
       *tlx_afu_cmd_data_credit_top	= (event.tlx_afu_cmd_data_credit) & 0x1;
       *tlx_cfg0_resp_ack_top		= (event.tlx_cfg_resp_ack) & 0x1;
+      if(event.tlx_cfg_resp_ack != 0) event.tlx_cfg_resp_ack = 0;
       setDpiSignal32(tlx_afu_cmd_resp_initial_credit_top, event.tlx_afu_cmd_resp_initial_credit, 3);
       setDpiSignal32(tlx_afu_data_initial_credit_top, event.tlx_afu_data_initial_credit, 4);
       *tlx_afu_ready_top			= 1;	// TODO: need to check this
