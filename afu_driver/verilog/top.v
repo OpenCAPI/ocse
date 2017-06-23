@@ -51,7 +51,7 @@ module top (
 				inout [2:0]       tlx_afu_cmd_pl_top,
 				inout [63:0]      tlx_afu_cmd_be_top,
 				inout             tlx_afu_cmd_end_top,
-				inout             tlx_afu_cmd_t_top,
+//				inout             tlx_afu_cmd_t_top,
 				inout [63:0]      tlx_afu_cmd_pa_top,
 				inout [3:0]       tlx_afu_cmd_flag_top,
 				inout             tlx_afu_cmd_os_top,
@@ -149,7 +149,8 @@ module top (
 		   		input   [3:0]		cfg0_tlx_resp_code_top	,
 		   		input   [3:0]		cfg0_tlx_rdata_offset_top,
 		   		input  [31:0]		cfg0_tlx_rdata_bus_top	,
-   				input			cfg0_tlx_rdata_bdi_top
+   				input			cfg0_tlx_rdata_bdi_top,
+				inout   [4:0]		ro_device_top
                                        );
 
    parameter RESET_CYCLES = 9;
@@ -176,7 +177,7 @@ module top (
    reg [2:0]       tlx_afu_cmd_pl_top;
    reg [63:0]      tlx_afu_cmd_be_top;
    reg             tlx_afu_cmd_end_top;
-   reg             tlx_afu_cmd_t_top;
+//   reg             tlx_afu_cmd_t_top;
    reg [63:0]      tlx_afu_cmd_pa_top;
    reg [3:0]       tlx_afu_cmd_flag_top;
    reg             tlx_afu_cmd_os_top;
@@ -383,7 +384,7 @@ module top (
    wire [2:0]       tlx_afu_cmd_pl;
    wire [63:0]      tlx_afu_cmd_be;
    wire             tlx_afu_cmd_end;
-   wire             tlx_afu_cmd_t;
+//   wire             tlx_afu_cmd_t;
    wire [63:0]      tlx_afu_cmd_pa;
    wire [3:0]       tlx_afu_cmd_flag;
    wire             tlx_afu_cmd_os;
@@ -478,7 +479,7 @@ initial begin
     tlx_afu_cmd_pl_top			<= 3'b0;
     tlx_afu_cmd_be_top			<= 64'b0;
     tlx_afu_cmd_end_top			<= 0;
-    tlx_afu_cmd_t_top			<= 0;
+//    tlx_afu_cmd_t_top			<= 0;
     tlx_afu_cmd_pa_top			<= 64'b0;
     tlx_afu_cmd_flag_top			<= 4'b0;
     tlx_afu_cmd_os_top			<= 0;
@@ -639,7 +640,7 @@ end
     assign 	tlx_afu_cmd_pl			= tlx_afu_cmd_pl_top;
     assign 	tlx_afu_cmd_be			= tlx_afu_cmd_be_top;
     assign 	tlx_afu_cmd_end			= tlx_afu_cmd_end_top;
-    assign 	tlx_afu_cmd_t			= tlx_afu_cmd_t_top;
+//    assign 	tlx_afu_cmd_t			= tlx_afu_cmd_t_top;
     assign 	tlx_afu_cmd_pa			= tlx_afu_cmd_pa_top;
     assign 	tlx_afu_cmd_flag		= tlx_afu_cmd_flag_top;
     assign 	tlx_afu_cmd_os			= tlx_afu_cmd_os_top;
@@ -738,7 +739,7 @@ end
 	tlx_afu_cmd_pl_top,
 	tlx_afu_cmd_be_top,
 	tlx_afu_cmd_end_top,
-	tlx_afu_cmd_t_top,
+//	tlx_afu_cmd_t_top,
 	tlx_afu_cmd_pa_top,
 	tlx_afu_cmd_flag_top,
 	tlx_afu_cmd_os_top,
@@ -835,7 +836,8 @@ end
 	cfg0_tlx_resp_code_top	,
 	cfg0_tlx_rdata_offset_top,
 	cfg0_tlx_rdata_bus_top	,
-   	cfg0_tlx_rdata_bdi_top
+   	cfg0_tlx_rdata_bdi_top,
+	ro_device_top
     );
   end
 
@@ -940,26 +942,6 @@ end
     .afu_tlx_rdata_bus                (afu_tlx_rdata_bus),
     .afu_tlx_rdata_bdi                (afu_tlx_rdata_bdi),	// TODO: the name given in the spec for this signal is afu_tlx_rdata_bad
 
-//	Table 10: TLX Framer Template Configuration
-// mcp3 update on 12/Jun/2017 - port is absent   .afu_cfg_xmit_tmpl_config_0       (afu_cfg_xmit_tmpl_config_0),
-// mcp3 update on 12/Jun/2017 - port is absent    .afu_cfg_xmit_tmpl_config_1       (afu_cfg_xmit_tmpl_config_1),
-// mcp3 update on 12/Jun/2017 - port is absent    .afu_cfg_xmit_tmpl_config_2       (afu_cfg_xmit_tmpl_config_2),
-// mcp3 update on 12/Jun/2017 - port is absent    .afu_cfg_xmit_tmpl_config_3       (afu_cfg_xmit_tmpl_config_3),
-// mcp3 update on 12/Jun/2017 - port is absent    .afu_cfg_xmit_rate_config_0       (afu_cfg_xmit_rate_config_0),
-// mcp3 update on 12/Jun/2017 - port is absent    .afu_cfg_xmit_rate_config_1       (afu_cfg_xmit_rate_config_1),
-// mcp3 update on 12/Jun/2017 - port is absent    .afu_cfg_xmit_rate_config_2       (afu_cfg_xmit_rate_config_2),
-// mcp3 update on 12/Jun/2017 - port is absent    .afu_cfg_xmit_rate_config_3       (afu_cfg_xmit_rate_config_3),
-
-  // These signals do not appear on the RefDesign Doc. However it is present
-  // on the TLX spec
-// mcp3 update on 12/Jun/2017 - port is absent   .afu_cfg_in_rcv_tmpl_capability_0 (afu_cfg_in_rcv_tmpl_capability_0),
-// mcp3 update on 12/Jun/2017 - port is absent   .afu_cfg_in_rcv_tmpl_capability_1 (afu_cfg_in_rcv_tmpl_capability_1),
-// mcp3 update on 12/Jun/2017 - port is absent   .afu_cfg_in_rcv_tmpl_capability_2 (afu_cfg_in_rcv_tmpl_capability_2),
-// mcp3 update on 12/Jun/2017 - port is absent   .afu_cfg_in_rcv_tmpl_capability_3 (afu_cfg_in_rcv_tmpl_capability_3),
-// mcp3 update on 12/Jun/2017 - port is absent   .afu_cfg_in_rcv_rate_capability_0 (afu_cfg_in_rcv_rate_capability_0),
-// mcp3 update on 12/Jun/2017 - port is absent   .afu_cfg_in_rcv_rate_capability_1 (afu_cfg_in_rcv_rate_capability_1),
-// mcp3 update on 12/Jun/2017 - port is absent   .afu_cfg_in_rcv_rate_capability_2 (afu_cfg_in_rcv_rate_capability_2),
-// mcp3 update on 12/Jun/2017 - port is absent   .afu_cfg_in_rcv_rate_capability_3 (afu_cfg_in_rcv_rate_capability_3),
     .tlx_afu_ready                    (tlx_afu_ready),
  // Added newly on the mcp3 release of 30/Mar/2017
     .cfg_vpd_rden                     (),

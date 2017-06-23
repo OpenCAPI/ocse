@@ -256,7 +256,7 @@ void tlx_bfm(
 			svLogicVecVal	*tlx_afu_cmd_pl_top,
 			svLogicVecVal	*tlx_afu_cmd_be_top,
 			svLogic		*tlx_afu_cmd_end_top,
-			svLogic		*tlx_afu_cmd_t_top,
+//			svLogic		*tlx_afu_cmd_t_top,
 			svLogicVecVal	*tlx_afu_cmd_pa_top,
 			svLogicVecVal	*tlx_afu_cmd_flag_top,
 			svLogic		*tlx_afu_cmd_os_top,
@@ -304,7 +304,7 @@ void tlx_bfm(
 		const svLogicVecVal	*afu_tlx_cmd_pasid_top,
 		const svLogicVecVal	*afu_tlx_cmd_pg_size_top,
 		const svLogicVecVal	*afu_tlx_cdata_bus_top,
-			const svLogic	afu_tlx_cdata_bdi_top,// TODO: TLX Ref Design doc lists this as afu_tlx_cdata_bad
+			const svLogic	afu_tlx_cdata_bdi_top,
 			const svLogic	afu_tlx_cdata_valid_top,
 
 				//	Table 9: TLX Framer Response Interface
@@ -345,7 +345,8 @@ void tlx_bfm(
 		   const svLogicVecVal	*cfg0_tlx_resp_code_top	,
 		   const svLogicVecVal	*cfg0_tlx_rdata_offset_top,
 		   const svLogicVecVal	*cfg0_tlx_rdata_bus_top	,
-   			const svLogic	cfg0_tlx_rdata_bdi_top
+   			const svLogic	cfg0_tlx_rdata_bdi_top,
+			svLogicVecVal	*ro_device_top
             )
 {
 //  int change = 0;
@@ -390,6 +391,7 @@ void tlx_bfm(
       printf( "credit management\n" );
       invalidVal = 0;
       c_cfg0_tlx_credit_return  	= (cfg0_tlx_credit_return_top & 0x2) ? 0 : (cfg0_tlx_credit_return_top & 0x1);
+      invalidVal  			= (cfg0_tlx_credit_return_top & 0x2);
       if(invalidVal != 0) {
 	printf("%08lld: ", (long long) c_sim_time);
 	printf(" The CFG-TLX Credit return value has either X or Z value \n" );
@@ -403,25 +405,19 @@ void tlx_bfm(
 	  event.cfg_tlx_credit_return = 0;
 	}
       }
+      invalidVal = 0;
+      c_afu_tlx_resp_credit  	= (afu_tlx_resp_credit_top & 0x2) ? 0 : (afu_tlx_resp_credit_top & 0x1);
+      invalidVal		+= afu_tlx_resp_credit_top & 0x2;
+      if(invalidVal == 0) {
+	  event.afu_tlx_resp_credit = 1;
+      }
+      invalidVal = 0;
+      c_afu_tlx_cmd_credit  	= (afu_tlx_cmd_credit_top & 0x2) ? 0 : (afu_tlx_cmd_credit_top & 0x1);
+      invalidVal		+= afu_tlx_cmd_credit_top & 0x2;
+      if(invalidVal == 0) {
+	  event.afu_tlx_cmd_credit = 1;
+      }
       
-/*
-    invalidVal = 0;
-    c_afu_tlx_resp_credit  	= (afu_tlx_resp_credit_top & 0x2) ? 0 : (afu_tlx_resp_credit_top & 0x1);
-    invalidVal			+= afu_tlx_resp_credit_top & 0x2;
-    c_afu_tlx_cmd_credit  	= (afu_tlx_cmd_credit_top & 0x2) ? 0 : (afu_tlx_cmd_credit_top & 0x1);
-    invalidVal			+= afu_tlx_cmd_credit_top & 0x2;
-// TODO: check for the CFG credit handling, as well as cmd credit handling
-    c_cfg0_tlx_credit_return  	= (cfg0_tlx_credit_return_top & 0x2) ? 0 : (cfg0_tlx_credit_return_top & 0x1);
-    invalidVal			+= cfg0_tlx_credit_return_top & 0x2;
-    afu_tlx_read_initial_credits (&event, &c_afu_tlx_resp_credit, &c_afu_tlx_resp_initial_credit);
-#ifdef DEBUG1
-    if(invalidVal != 0)
-    {
-      printf("%08lld: ", (long long) c_sim_time);
-      printf(" The AFU-TLX Resp Credit Interface has either X or Z value \n" );
-    }
-#endif
-*/
       invalidVal = 0;
 
       //	Code to access the AFU->TLX command interface
@@ -719,7 +715,7 @@ void tlx_bfm(
           setDpiSignal32(tlx_afu_cmd_pl_top, event.tlx_afu_cmd_pl, 3);
           setDpiSignal64(tlx_afu_cmd_be_top, event.tlx_afu_cmd_be);
           *tlx_afu_cmd_end_top = (event.tlx_afu_cmd_end) & 0x1;
-          *tlx_afu_cmd_t_top = (event.tlx_afu_cmd_t) & 0x1;
+//          *tlx_afu_cmd_t_top = (event.tlx_afu_cmd_t) & 0x1;
           setDpiSignal64(tlx_afu_cmd_pa_top, event.tlx_afu_cmd_pa);
 #ifdef TLX4
           setDpiSignal32(tlx_afu_cmd_flag_top, event.tlx_afu_cmd_flag, 4);
@@ -786,6 +782,7 @@ void tlx_bfm(
       setDpiSignal32(tlx_afu_cmd_resp_initial_credit_top, event.tlx_afu_cmd_resp_initial_credit, 3);
       setDpiSignal32(tlx_afu_data_initial_credit_top, event.tlx_afu_data_initial_credit, 4);
       *tlx_afu_ready_top			= 1;	// TODO: need to check this
+      setDpiSignal32(ro_device_top, 0, 5);	// TODO: 5 bit value tied to 0 as of now. Check whether it should be configurable
       // printf("lgt: tlx_bfm: clearing tlx to afu credits\n");
       // remember to clear the credits in the event because a clock only cycle will not update the event structure
       event.tlx_afu_resp_credit = 0;
