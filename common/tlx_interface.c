@@ -607,18 +607,18 @@ int tlx_afu_send_cfg_cmd_and_data(struct AFU_EVENT *event,
 int afu_tlx_read_cfg_resp_and_data(struct AFU_EVENT *event,
 		    uint8_t * afu_resp_opcode, uint8_t * resp_dl,
 		    uint16_t  * resp_capptag, uint16_t requested_capptag, uint8_t * resp_dp,
-		    uint8_t * resp_data_is_valid, uint8_t * resp_code, uint8_t * rdata_bus, uint8_t * rdata_bad)
+		    uint8_t * resp_data_is_valid, uint8_t * resp_code, uint8_t * cfg_rdata_bus, uint8_t * cfg_rdata_bad)
 
 {
 	if (!event->afu_tlx_resp_valid) {
 		
 		return AFU_TLX_RESP_NOT_VALID;
 	} else  if (event->afu_tlx_resp_capptag != requested_capptag) {
-		printf(" CURRENT resp_capptag= 0x%x NOT A MATCH FOR REQUESTED CFG RESP CAPPTAG=ox%x \n",
+		printf(" CURRENT resp_capptag= 0x%x NOT A MATCH FOR REQUESTED CFG RESP CAPPTAG=0x%x \n",
 			event->afu_tlx_resp_capptag, requested_capptag);
 		return (CFG_TLX_NOT_CFG_CMD);
 		} else {
-		printf(" CURRENT resp_capptag= 0x%x  A MATCH FOR REQUESTED CFG RESP CAPPTAG=ox%x \n",
+		printf(" CURRENT resp_capptag= 0x%x  A MATCH FOR REQUESTED CFG RESP CAPPTAG=0x%x \n",
 			event->afu_tlx_resp_capptag, requested_capptag);
 			event->afu_tlx_resp_valid = 0;
 			*afu_resp_opcode = event->afu_tlx_resp_opcode;
@@ -636,8 +636,8 @@ int afu_tlx_read_cfg_resp_and_data(struct AFU_EVENT *event,
 	// at the TLX level??
 					event->afu_cfg_rdata_valid = 0;
 					*resp_data_is_valid = 1;
-					*rdata_bad = event->afu_tlx_rdata_bad;
-					memcpy(rdata_bus, event->afu_cfg_rdata_bus, 4);
+					*cfg_rdata_bad = event->afu_cfg_rdata_bad;
+					memcpy(cfg_rdata_bus, event->afu_cfg_rdata_bus, 4);
 					//return TLX_SUCCESS;
 					}
 		//	return AFU_TLX_RESP_NO_DATA;
@@ -1099,12 +1099,12 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 				return -1;
 			}
 		}
-		 printf("tlx_get_afu_events: read bc = 0x%04x: more bytes from rbuf\n", bc );
+		// printf("tlx_get_afu_events: read bc = 0x%04x: more bytes from rbuf\n", bc );
 		if ( bc == 0 ) {
 		         printf("tlx_get_afu_events: bc = 0 after trying to reading data sizes from rbuf\n" );
 			return -1;
 		}
-		 printf("tlx_get_afu_events: bc = 0x%04x: more bytes in rbuf\n", bc );
+		// printf("tlx_get_afu_events: bc = 0x%04x: more bytes in rbuf\n", bc );
 
 		event->rbp += bc;
 		rbc += 4;  // account for those extra bytes
@@ -1116,15 +1116,15 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 			resp_data_byte_cnt = event->rbuf[3];
 			resp_data_byte_cnt = ((resp_data_byte_cnt << 8) | event->rbuf[4]);
 			resp_data_byte_cnt += 1;   //add bdi byte
-		printf("rbuf[3] = 0x%x  rbuf[4]= 0x %x resp_data_byte_cnt = 0x%2x \n", 
-			event->rbuf[3], event->rbuf[4], resp_data_byte_cnt);
+			//printf("rbuf[3] = 0x%x  rbuf[4]= 0x %x resp_data_byte_cnt = 0x%2x \n", 
+			//event->rbuf[3], event->rbuf[4], resp_data_byte_cnt);
 			rbc += resp_data_byte_cnt;
-printf("TLX_GET_AFU_EVENT-0x20 - rbuf[0] is 0x%02x and rbc = %2d  \n", event->rbuf[0], rbc);
+			//printf("TLX_GET_AFU_EVENT-0x20 - rbuf[0] is 0x%02x and rbc = %2d  \n", event->rbuf[0], rbc);
 			//rbc += 65; //TODO for now, resp data always 65B total
 			}
 		if ((event->rbuf[0] & 0x08) != 0) {
 			rbc += 6; // resp always 6B
-printf("TLX_GET_AFU_EVENT-0x08 - rbuf[0] is 0x%02x and rbc = %2d  \n", event->rbuf[0], rbc);
+			//printf("TLX_GET_AFU_EVENT-0x08 - rbuf[0] is 0x%02x and rbc = %2d  \n", event->rbuf[0], rbc);
 		}
 	 	if ((event->rbuf[0] & 0x04) != 0) {
 			cmd_data_byte_cnt = event->rbuf[1];
@@ -1138,7 +1138,7 @@ printf("TLX_GET_AFU_EVENT-0x08 - rbuf[0] is 0x%02x and rbc = %2d  \n", event->rb
 		if ((event->rbuf[0] & 0x01) != 0)
 			rbc += 10; // for now, always copy over everything
 
-printf("TLX_GET_AFU_EVENT-2 - rbuf[0] is 0x%02x and rbc is %2d \n", event->rbuf[0], rbc);
+	//printf("TLX_GET_AFU_EVENT-2 - rbuf[0] is 0x%02x and rbc is %2d \n", event->rbuf[0], rbc);
 	if ((bc =
 	     recv(event->sockfd, event->rbuf + event->rbp, rbc - event->rbp,
 		  0)) == -1) {
@@ -1161,11 +1161,11 @@ printf("TLX_GET_AFU_EVENT-2 - rbuf[0] is 0x%02x and rbc is %2d \n", event->rbuf[
 	}
 
 	// dump rbuf
-	//if (event->rbuf[0]  != 0x11) {
+	if (event->rbuf[0]  != 0x11) {
 		printf( "lgt: tlx_get_afu_events: rbuf length:0x%02x rbuf: 0x", rbc );
 		for ( i = 0; i < rbc; i++ ) printf( "%02x", event->rbuf[i] );
 		printf( "\n" );
-	//}
+	}
 
 	//rbc = 1;
 	rbc = 5;
@@ -1245,12 +1245,12 @@ printf("TLX_GET_AFU_EVENT-2 - rbuf[0] is 0x%02x and rbc is %2d \n", event->rbuf[
 		event->tlx_afu_resp_credit = 0;
 	}
 	if ((event->rbuf[0] & 0x20) != 0) {
-		if (resp_data_byte_cnt <= 4)  { //this is cfg_resp_data  
+		if (resp_data_byte_cnt <= 5)  { //this is cfg_resp_data  
 			event->afu_cfg_rdata_valid = 1;
 			event->afu_cfg_rdata_bad = event->rbuf[rbc++];
-			for (i = 0; i < resp_data_byte_cnt; i++) {
+			for (i = 0; i < (resp_data_byte_cnt-1); i++) {
 				event->afu_cfg_rdata_bus[i]= event->rbuf[rbc++];
-			printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
+			//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
 			printf("event->afu_cfg_rdata_bus[%x] is 0x%2x \n", i, event->afu_cfg_rdata_bus[i]);
 			  }
 		} else { // this is other resp data
@@ -1269,13 +1269,13 @@ printf("TLX_GET_AFU_EVENT-2 - rbuf[0] is 0x%02x and rbc is %2d \n", event->rbuf[
 	} else {
 		event->afu_tlx_rdata_valid = 0;
 		event->afu_cfg_rdata_valid = 0;
-		printf("in tlx_get_afu_events and setting tlx_afu_resp & resp_data credits to 0\n");
+		//printf("in tlx_get_afu_events and setting tlx_afu_resp & resp_data credits to 0\n");
 		event->tlx_afu_resp_data_credit = 0;
 		}
 	
 	if ((event->rbuf[0] & 0x01) != 0) {
 		event->afu_tlx_credit_req_valid = 1;
-		printf("JUST SET afu_tlx_credit_req_valid = 1 in tlx_get_afu_model \n");
+		//printf("JUST SET afu_tlx_credit_req_valid = 1 in tlx_get_afu_model \n");
 		event->afu_tlx_resp_initial_credit = event->rbuf[rbc++];
 		event->afu_tlx_cmd_initial_credit = event->rbuf[rbc++];
 		event->cfg_tlx_initial_credit = event->rbuf[rbc++];
@@ -1721,6 +1721,9 @@ int afu_cfg_send_resp_and_data(struct AFU_EVENT *event,
 		return AFU_TLX_DOUBLE_RESP_AND_DATA;
 	} else {
 		event->afu_tlx_resp_valid = 1;
+// TEMPORARY HACK BC AFU_DRIVER SENDING AFU_CFG_RESP_DATA_BYTE_CNT FOR WR RESP
+		if ((afu_resp_opcode == 0x04) || (afu_resp_opcode == 0x05))
+			afu_cfg_resp_data_byte_cnt = 0;
 		if (afu_cfg_resp_data_byte_cnt != 0) {
 			printf("afu_cfg_send_resp_and_data and afu_cfg_resp_data_byte_cnt = 0x%x \n", 
 				afu_cfg_resp_data_byte_cnt);
