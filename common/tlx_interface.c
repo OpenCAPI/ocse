@@ -1727,7 +1727,15 @@ int afu_cfg_send_resp_and_data(struct AFU_EVENT *event,
 			event->afu_cfg_rdata_valid = 1;
 			event->afu_cfg_rdata_bad = rdata_bad;
 			event->afu_cfg_resp_data_byte_cnt = afu_cfg_resp_data_byte_cnt;
-			memcpy(event->afu_tlx_rdata_bus, rdata_bus, afu_cfg_resp_data_byte_cnt);
+			printf("afu_cfg_send_resp_and_data and rdata_bus[0] = 0x%x \n", 
+				rdata_bus[0]);
+			printf("afu_cfg_send_resp_and_data and rdata_bus[1] = 0x%x \n", 
+				rdata_bus[1]);
+			printf("afu_cfg_send_resp_and_data and rdata_bus[2] = 0x%x \n", 
+				rdata_bus[2]);
+			printf("afu_cfg_send_resp_and_data and rdata_bus[3] = 0x%x \n", 
+				rdata_bus[3]);
+			memcpy(event->afu_cfg_rdata_bus, rdata_bus, afu_cfg_resp_data_byte_cnt);
 		}
 		event->afu_tlx_resp_opcode = afu_resp_opcode;
 		event->afu_tlx_resp_capptag = resp_capptag;
