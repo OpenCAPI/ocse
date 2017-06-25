@@ -182,6 +182,7 @@ void setMyCacheLine(svLogicVecVal *myLongSignal, uint8_t myCacheData[CACHELINE_B
 void setDpiSignal32(svLogicVecVal *my32bSignal, uint32_t inData, int size)
 {
   uint32_t myMask = ~(0xFFFFFFFF << size);
+  if(size == 32) myMask = 0xFFFFFFFF;
   my32bSignal->aval = inData & myMask;
   my32bSignal->bval = 0x0;
 }
@@ -681,7 +682,17 @@ void tlx_bfm(
       }
 
       // try moving the config data drive to just after the command drive (from here)
-
+      if(c_config_cmd_data_valid)
+      {
+        setDpiSignal32(tlx_cfg0_data_bus_top, 0x28, 32); // lgt might need to delay these in top.v
+	*tlx_cfg0_data_bdi_top = c_tlx_afu_cmd_bdi_del;
+        c_config_cmd_data_valid = 0;
+      }
+      else
+      {
+        setDpiSignal32(tlx_cfg0_data_bus_top, 0x0, 32); 
+	*tlx_cfg0_data_bdi_top = 0;
+      }
       if(event.tlx_afu_cmd_valid)
       {
         if ( ( event.tlx_afu_cmd_opcode == 0xE0 ) || ( event.tlx_afu_cmd_opcode == 0xE1 ) )		// if the command is a config_read (0xE0) or a config_write, the tlx uses a dfferent interface to send the command to the AFU
@@ -699,19 +710,17 @@ void tlx_bfm(
           event.tlx_afu_cmd_valid = 0;
 	  printf( "lgt:tlx_afu_cmd__valid: data valid signals: tlx_cfg_cmd_data_valid = %d, tlx_afu_cmd_data_valid = %d\n", event.tlx_cfg_cmd_data_valid, event.tlx_afu_cmd_data_valid );
           if(event.tlx_afu_cmd_data_valid) {
+	    c_tlx_afu_cmd_data_del = *event.tlx_afu_cmd_data_bus;   	// lgt use data from tlx_cfg part of event. or not
+	    c_tlx_afu_cmd_bdi_del = (event.tlx_afu_cmd_data_bdi) & 0x1;   
 	    printf( "lgt:tlx_afu_cmd_data_valid: received data from tlx.  raw data=0x" );
 	    for ( i=0; i<4; i++ ) {
 	      printf( "%02x", event.tlx_afu_cmd_data_bus[i] );
 	    }
 	    printf( "\n" );
-	    c_tlx_afu_cmd_data_del = *event.tlx_afu_cmd_data_bus;   	// lgt use data from tlx_cfg part of event. or not
 	    printf( "lgt:tlx_afu_cmd_data_valid: received data from tlx.  copied data=0x%08x\n", c_tlx_afu_cmd_data_del );
-	    c_tlx_afu_cmd_bdi_del = (event.tlx_afu_cmd_data_bdi) & 0x1;   
 	    c_config_cmd_data_valid = 1;
 	    printf( "lgt:tlx_afu_cmd_data_valid: set config_cmd_data_valid=%d\n", c_config_cmd_data_valid );
 	    // just try to drive it and not reset it.
-            setDpiSignal32(tlx_cfg0_data_bus_top, c_tlx_afu_cmd_data_del, 32); // lgt might need to delay these in top.v
-	    *tlx_cfg0_data_bdi_top = c_tlx_afu_cmd_bdi_del;
 	  }
         }
         else
@@ -753,7 +762,6 @@ void tlx_bfm(
     	if (!clk_afu_cmd_val){
     		*tlx_afu_cmd_valid_top = 0;
     		*tlx_cfg0_valid_top = 0;
-                c_config_cmd_data_valid = 0;
 		printf( "lgt:tlx_afu_cmd_data_valid: after a delay reset config_cmd_data_valid=%d\n", c_config_cmd_data_valid );
       	}
       }
