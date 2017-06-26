@@ -331,7 +331,7 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 
 
 	event40c = _add_event(mmio, NULL, 0, 0, 0, cmd_pa_f1+0x40c, 1, 0x000028);
-	printf("Just sent config_wr, will wait for read_req then send data \n");
+	printf("Just sent config_wr, will wait for cmd_resp then read data reg \n");
         _wait_for_done(&(event40c->state), lock);
 	free(event40c);
 	printf("waiting for AFU to set [31] to 1 in addr 0x40c \n");
