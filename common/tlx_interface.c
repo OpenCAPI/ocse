@@ -1028,14 +1028,18 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		event->afu_tlx_resp_credit = 0;
 	}
 
+	// if nothing but a clock event, don't bother sending bytes 1->4
+	if ( bp == 5)
+		bp = 1;
+
         // dump tbuf - but NOT for just credit/rd_req
-       // if (event->tbuf[0] != 0x11) {
+        if (event->tbuf[0] != 0x11) {
 		if ( bp > 1 ) {
 	  	printf( "lgt: tlx_signal_tlx_model: tbuf length:0x%02x tbuf: 0x", bp );
 	  	for ( i = 0; i < bp; i++ ) printf( "%02x", event->tbuf[i] );
 	  	printf( "\n" );
 		}
-	//}
+	}
 
 	bl = bp;
 	bp = 0;
@@ -1084,6 +1088,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		if ((event->rbuf[0] & 0x10) != 0) {
 			event->clock = 0;
 			if (event->rbuf[0] == 0x10) {
+				//printf("Just a clock event \n");
 				event->rbp = 0;
 				return 1;
 			}
@@ -1124,7 +1129,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 			}
 		if ((event->rbuf[0] & 0x08) != 0) {
 			rbc += 6; // resp always 6B
-			//printf("TLX_GET_AFU_EVENT-0x08 - rbuf[0] is 0x%02x and rbc = %2d  \n", event->rbuf[0], rbc);
+			printf("TLX_GET_AFU_EVENT-0x08 - rbuf[0] is 0x%02x and rbc = %2d  \n", event->rbuf[0], rbc);
 		}
 	 	if ((event->rbuf[0] & 0x04) != 0) {
 			cmd_data_byte_cnt = event->rbuf[1];
@@ -1321,7 +1326,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 	if (event->rbp == 0) {
 	         printf("tlx_get_tlx_events: rbp = 0\n" );
 		if ((bc = recv(event->sockfd, event->rbuf, 1, 0)) == -1) {
-		         printf("tlx_get_tlx_events: read rbuf[0] = 0x%02x\n", event->rbuf[0] );
+		         //printf("tlx_get_tlx_events: read rbuf[0] = 0x%02x\n", event->rbuf[0] );
 			if (errno == EWOULDBLOCK) {
     			        // there is nothing on the socket
 				return 0;
@@ -1337,7 +1342,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 		event->rbp += bc;
 	}
 	if (event->rbp != 0) {
-	         printf("tlx_get_tlx_events: rbp != 0: decoding rbuf[0]\n" );
+	         printf("tlx_get_tlx_events: rbp != 0: decoding rbuf[0]= 0x%x\n", event->rbuf[0] );
 		if ((event->rbuf[0] & 0x40) != 0) {
 		        // printf("tlx_get_tlx_events: clock\n" );
 			event->clock = 1;
@@ -1345,7 +1350,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 			tlx_signal_tlx_model(event);
 		         printf("tlx_get_tlx_events: sent\n" );
 			if (event->rbuf[0] == 0x40) {
-			        // printf("tlx_get_tlx_events: only a clock, nothing else to decode\n" );
+				//printf("tlx_get_tlx_events: only a clock, nothing else to decode\n" );
 				event->rbp = 0;
 				return 1;
 			}
