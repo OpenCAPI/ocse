@@ -532,7 +532,6 @@ void tlx_bfm(
         invalidVal		+= (cfg0_tlx_resp_code_top->bval) & 0xF;
         c_cfg0_tlx_rdata_offset	= (cfg0_tlx_rdata_offset_top->aval) & 0xF;
         invalidVal		+= (cfg0_tlx_rdata_offset_top->bval) & 0xF;
-        // invalidVal		+= getMyByteArray(cfg0_tlx_rdata_bus_top, 4, &c_afu_tlx_rdata_bus[c_cfg0_tlx_rdata_offset]);
         invalidVal		+= getMyByteArray(cfg0_tlx_rdata_bus_top, 4, &c_afu_tlx_rdata_bus[0]);
 
 	//printf( "lgt:cfg0_tlx_resp_valid: received data from cfg.  raw data=0x" );
@@ -581,7 +580,7 @@ void tlx_bfm(
         		c_afu_tlx_rdata_bus, c_afu_tlx_rdata_bdi
         );
         printf("%08lld: ", (long long) c_sim_time);
-        printf(" The AFU-TLX Command Response Data transferred thru method and the resp code is %d \n",  resp_code);
+        printf(" The AFU-TLX Regular Command Response Data transferred thru method and the resp code is %d \n",  resp_code);
       }
       else if(c_cfg0_tlx_resp_valid && (c_cfg_resp_ack_pending == 0))
       {
@@ -592,6 +591,7 @@ void tlx_bfm(
         		c_afu_tlx_rdata_bus, c_afu_tlx_rdata_bdi
         );
         printf("%08lld: ", (long long) c_sim_time);
+<<<<<<< HEAD
         printf(" The AFU-TLX Command Response Data transferred thru method - OPCODE = 0x%x the method's resp code is %x \n",  c_afu_tlx_resp_opcode, resp_code);
 
 	//printf( "lgt:cfg0_tlx_resp_valid: put data in event cfg.  event data=0x" );
@@ -600,6 +600,9 @@ void tlx_bfm(
 	//}
 	//printf( "\n" );
 
+=======
+        printf(" The AFU-TLX Config Command Response Data transferred thru method - OPCODE = 0x%x the method's resp code is %x \n",  c_afu_tlx_resp_opcode, resp_code);
+>>>>>>> 3f409805d4796d48560a23d6023c5e1d485a6acd
       }
       invalidVal = 0;
       c_afu_tlx_cmd_rd_req_top  	= (afu_tlx_cmd_rd_req_top & 0x2) ? 0 : (afu_tlx_cmd_rd_req_top & 0x1);
