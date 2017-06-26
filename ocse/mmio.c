@@ -334,14 +334,17 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	printf("Just sent config_wr, will wait for read_req then send data \n");
         _wait_for_done(&(event40c->state), lock);
 	free(event40c);
-	printf("waiting for AFU to set [31] to 1 in addr 0x40c \n");
+	// printf("waiting for AFU to set [31] to 1 in addr 0x40c \n");
 	event40c = _add_cfg(mmio, 1, 0, cmd_pa_f1 + 0x40c, 0L);
-        _wait_for_done(&(event40c->state), lock);
+ 	printf("Just sent config_rd, will wait for then check data\n");
+       _wait_for_done(&(event40c->state), lock);
 
 	// Uncomment the while statement to get multiple reads on 0x40c
+	printf("waiting for AFU to set [31] to 1 in addr 0x40c cmd_data=0x%016lx \n", event40c->cmd_data);
 	while ((event40c->cmd_data & AFU_DESC_DATA_VALID) == 0) {
 		event40c = _add_cfg(mmio, 1, 0, cmd_pa_f1 + 0x40c, 0L);
         	_wait_for_done(&(event40c->state), lock);
+		// printf("waiting for AFU to set [31] to 1 in addr 0x40c cmd_data=0x%016lx \n", event40c->cmd_data);
 	}
 
 	printf("AFU finally set [31] to 1 in addr 0x40c \n");
@@ -549,11 +552,13 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 	char type[7];
 	uint8_t afu_resp_opcode, resp_dl,resp_dp, resp_data_is_valid, resp_code, rdata_bad;
 	uint16_t resp_capptag;
-	uint16_t cfg_read_data;
+	uint32_t cfg_read_data;
 	uint8_t *  rdata;
 	unsigned char   rdata_bus[64];
 	unsigned char   cfg_rdata_bus[4];
 	int offset, length;
+
+	// int i;
 
 	// handle config and mmio responses
 	// length can be calculated from the mmio->list->dw or cmd_pL
@@ -583,6 +588,13 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 	   	&resp_capptag, &resp_dp,
 	    	&resp_data_is_valid, &resp_code, rdata_bus, &rdata_bad);
 	}
+
+	// printf( "lgt:handle_mmio_ack: rdata_bus[0 to 3] = 0x" );
+	// for (i=0; i<4; i++) {
+	//   printf( "%02x", rdata_bus[i] );
+	// }
+	// printf( "\n" );
+
 	if (rc == TLX_SUCCESS) {
 	  // should we scan the mmio list looking for a matching CAPPtag here? Not yet, assume in order responses
 	  // but we can check it...
@@ -605,12 +617,12 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 
 			if (resp_data_is_valid) {
 				if (mmio->list->cfg) {
-					//TODO data is only 4B, for now don't put into uint64_t, put in uint16_t 
+					//TODO data is only 4B, for now don't put into uint64_t, put in uint32_t 
 					//we will fix this lateri and use cfg_resp_data_byte cnt!
 					length = 4;
-			  		memcpy(&cfg_read_data, &rdata_bus, length);
-			  		debug_msg("%s:%s CFG CMD RESP  length=%d data=0x%x code=0x%x", mmio->afu_name, type, 
-				                  length, cfg_read_data, resp_code );
+			  		memcpy( &cfg_read_data, &rdata_bus[0], length );
+			  		debug_msg("%s:%s CFG CMD RESP  length=%d data=0x%08x code=0x%02x", mmio->afu_name, type, 
+				                  length, cfg_read_data, resp_code ); // ???
 				} else {
 			  		// extract data from address aligned offset in vector
 			 		 offset = mmio->list->cmd_PA & 0x000000000000003F ;
@@ -619,7 +631,7 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 			  		} else {
 			   	 		length = 8;
 			  		}
-			  		memcpy(&read_data, &rdata_bus[offset], length);
+			  		memcpy( &read_data, &rdata_bus[offset], length );
 			  		debug_msg("%s:%s CMD RESP offset=%d length=%d data=0x%x code=0x%x", mmio->afu_name, type, offset, length,
 				    		read_data, resp_code );
 					}
