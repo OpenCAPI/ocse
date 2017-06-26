@@ -591,8 +591,7 @@ void tlx_bfm(
         		c_afu_tlx_rdata_bus, c_afu_tlx_rdata_bdi
         );
         printf("%08lld: ", (long long) c_sim_time);
-<<<<<<< HEAD
-        printf(" The AFU-TLX Command Response Data transferred thru method - OPCODE = 0x%x the method's resp code is %x \n",  c_afu_tlx_resp_opcode, resp_code);
+        printf(" The AFU-TLX Command Response Data transferred thru method - OPCODE = 0x%02x the method's resp code is 0x%02x \n",  c_afu_tlx_resp_opcode, resp_code);
 
 	//printf( "lgt:cfg0_tlx_resp_valid: put data in event cfg.  event data=0x" );
 	//for ( i=0; i<4; i++ ) {
@@ -600,9 +599,6 @@ void tlx_bfm(
 	//}
 	//printf( "\n" );
 
-=======
-        printf(" The AFU-TLX Config Command Response Data transferred thru method - OPCODE = 0x%x the method's resp code is %x \n",  c_afu_tlx_resp_opcode, resp_code);
->>>>>>> 3f409805d4796d48560a23d6023c5e1d485a6acd
       }
       invalidVal = 0;
       c_afu_tlx_cmd_rd_req_top  	= (afu_tlx_cmd_rd_req_top & 0x2) ? 0 : (afu_tlx_cmd_rd_req_top & 0x1);
