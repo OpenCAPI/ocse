@@ -698,7 +698,7 @@ void tlx_bfm(
       // try moving the config data drive to just after the command drive (from here)
       if(c_config_cmd_data_valid)
       {
-        setDpiSignal32(tlx_cfg0_data_bus_top, 0x28, 32); // lgt might need to delay these in top.v
+        setDpiSignal32(tlx_cfg0_data_bus_top, c_tlx_afu_cmd_data_del, 32); // lgt might need to delay these in top.v
 	*tlx_cfg0_data_bdi_top = c_tlx_afu_cmd_bdi_del;
         c_config_cmd_data_valid = 0;
       }
