@@ -151,6 +151,13 @@ AFU::start ()
 	    afu_event.afu_tlx_resp_credit = 1;	// return TLX resp credit
 	    afu_event.tlx_afu_resp_valid = 0;
 	}
+	// process tlx config response
+	if (afu_event.tlx_cfg_resp_ack) {
+	    debug_msg("AFU: Received TLX config response 0x%x", afu_event.tlx_afu_resp_opcode);
+	    resolve_tlx_afu_resp();
+	    afu_event.cfg_tlx_credit_return = 1;	
+	    afu_event.tlx_cfg_resp_ack = 0;
+	}
 	// process tlx response data
 	if(afu_event.tlx_afu_resp_data_valid && mem_state == WAITING_FOR_DATA) {
 	    debug_msg("AFU: Received TLX response data");
