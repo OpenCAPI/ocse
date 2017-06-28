@@ -24,6 +24,7 @@ uint8_t status_data[256];
 uint8_t status_resp_valid = 0;
 uint8_t status_updated = 0;
 uint8_t insert_cycle = 0;
+uint8_t afu_enable_reset = 0;
 
 AFU::AFU (int port, string filename, bool parity, bool jerror):
     descriptor (filename),
@@ -88,9 +89,10 @@ AFU::start ()
         select (afu_event.sockfd + 1, &watchset, NULL, NULL, NULL);
 
 	// check socket if there are new events from ocse to process
+	printf("getting tlx events\n");
         int rc = tlx_get_tlx_events (&afu_event);
 
-        info_msg("Cycle: %d", cycle);
+        //info_msg("Cycle: %d", cycle);
         ++cycle;
 
 	// connection dropped
@@ -149,6 +151,13 @@ AFU::start ()
 	    afu_event.afu_tlx_resp_credit = 1;	// return TLX resp credit
 	    afu_event.tlx_afu_resp_valid = 0;
 	}
+	// process tlx config response
+	if (afu_event.tlx_cfg_resp_ack) {
+	    debug_msg("AFU: Received TLX config response 0x%x", afu_event.tlx_afu_resp_opcode);
+	    resolve_tlx_afu_resp();
+	    afu_event.cfg_tlx_credit_return = 1;	
+	    afu_event.tlx_cfg_resp_ack = 0;
+	}
 	// process tlx response data
 	if(afu_event.tlx_afu_resp_data_valid && mem_state == WAITING_FOR_DATA) {
 	    debug_msg("AFU: Received TLX response data");
@@ -168,19 +177,25 @@ AFU::start ()
 	    tlx_pr_wr_mem();
  	}
 
-	printf("checking afu reset bit\n");
+	//printf("checking afu reset bit\n");
 	//  reset AFU
-	if(afu_is_reset()) {
-	    debug_msg("AFU is resetting");
+	if(afu_enable_reset) {
+	    if(afu_is_reset()) {
+	    	debug_msg("AFU is resetting");
+		afu_enable_reset = 0;
+	    }
 	}
 	// enable AFU
 	//if(afu_is_enabled() && state == IDLE) {
 	if(state == IDLE) {
-	    printf("checking afu enable bit\n");
-	    if(afu_is_enabled()) {
-	    	debug_msg("AFU is enabled");
-	    	debug_msg("AFU: set state = READY");
-	    	state = READY;
+	    if(afu_enable_reset) {
+	    	printf("checking afu enable bit\n");
+	    	if(afu_is_enabled()) {
+	    	    debug_msg("AFU is enabled");
+	    	    debug_msg("AFU: set state = READY");
+	    	    state = READY;
+		    afu_enable_reset = 0;
+	        }
 	    }
 	}
 	// get machine context and create new MachineController
@@ -677,31 +692,22 @@ AFU::tlx_afu_config_write()
 	afu_tlx_cmd_rd_req = 0x1;
 	afu_tlx_cmd_rd_cnt = 0x1;
 
-        //if(TagManager::request_tlx_credit(CMD_DATA_CREDIT)) {
-	    if( afu_tlx_cmd_data_read_req(&afu_event, afu_tlx_cmd_rd_req, afu_tlx_cmd_rd_cnt) !=
+	if( afu_tlx_cmd_data_read_req(&afu_event, afu_tlx_cmd_rd_req, afu_tlx_cmd_rd_cnt) !=
 	    	TLX_SUCCESS) {
-	    	printf("AFU: Failed afu_tlx_cmd_data_read_req\n");
-	    }
-	//}
-//	else {
-//	    error_msg("AFU:tlx_afu_config_write: no RESP_CREDIT credit available");
-//	}
+	    printf("AFU: Failed afu_tlx_cmd_data_read_req\n");
+	}
+	
     	config_state = READY;
 	debug_msg("AFU: Set config_state = READY");
     }
     else if(config_state == READY) {
 	data_size = 4;
 	byte_offset = 0x0000003F & afu_event.tlx_afu_cmd_pa;
-//	if(TagManager::request_tlx_credit(RESP_DATA_CREDIT) &&
-//	   (TagManager::request_tlx_credit(RESP_CREDIT))) {
-	    if(tlx_afu_read_cmd_data(&afu_event, &cmd_data_bdi, afu_event.tlx_afu_cmd_data_bus) !=
+
+    	if(tlx_afu_read_cmd_data(&afu_event, &cmd_data_bdi, afu_event.tlx_afu_cmd_data_bus) !=
 		TLX_SUCCESS) {
-	   	printf("AFU: Failed tlx_afu_read_cmd_data\n");
-	    }
-//	}
-//	else {
-//	    error_msg("AFU:tlx_afu_config_write: no RESP_DATA_CREDIT available");
-//	}
+	   printf("AFU: Failed tlx_afu_read_cmd_data\n");
+	}
 	printf("cdata_bus = 0x");
 	for(uint8_t i=0; i<64; i++)
 	    printf("%02x", afu_event.tlx_afu_cmd_data_bus[i]);
@@ -711,6 +717,10 @@ AFU::tlx_afu_config_write()
 	debug_msg("AFU:config_write: config_data (afu_desc offset) = 0x%x", config_data);
  	debug_msg("AFU:config_write: cmd_pa = 0x%x", cmd_pa);
 	debug_msg("AFU:config_write: byte_offset = 0x%x", byte_offset);
+	// set afu_enable_reset to check for enable or reset bit
+	if(config_data = 0x50c) {
+	    afu_enable_reset = 1;
+	}
    	if(cmd_pa == 0x40c) {		// config write port
 	    port_offset = config_data;	// get afu descriptor offset
 	    if(port_offset < 0x0FFF) {
