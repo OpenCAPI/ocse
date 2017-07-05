@@ -42,7 +42,8 @@ static int clk_afu_resp_val;
 static int clk_afu_cmd_val;
 static int clk_afu_resp_dat_val;
 static int clk_afu_cmd_dat_val;
-static int credits_initialized = 0;
+static int tlx_afu_credits_initialized = 0;
+static int afu_tlx_credits_initialized = 0;
 
 // inputs from AFX
 uint8_t		c_reset = 1;
@@ -358,6 +359,7 @@ void tlx_bfm(
   int invalidVal = 0;
   int i = 0;
   int j = 0;
+  int rc= 0;
 
   c_reset			= reset & 0x1;
 
@@ -374,13 +376,21 @@ void tlx_bfm(
       invalidVal			+= (cfg0_tlx_initial_credit_top->bval) & 0x1F;
       if(!c_reset)
       {
-	if (credits_initialized == 0 ) {
-	  printf("sending initial credits to tlx cmd = %d, cfg = %d, resp = %d\n", c_afu_tlx_cmd_initial_credit, c_cfg0_tlx_initial_credit, c_afu_tlx_resp_initial_credit );
+	if (afu_tlx_credits_initialized == 0 ) {
+	  debug_msg("tlx_bfm: sending initial credits to tlx cmd = %d, cfg = %d, resp = %d", c_afu_tlx_cmd_initial_credit, c_cfg0_tlx_initial_credit, c_afu_tlx_resp_initial_credit );
 	  afu_tlx_send_initial_credits (&event, c_afu_tlx_cmd_initial_credit, c_cfg0_tlx_initial_credit, c_afu_tlx_resp_initial_credit);
-	  printf("reading initial credits from tlx\n" );
-	  tlx_afu_read_initial_credits (&event, &c_tlx_afu_cmd_resp_initial_credit, &c_tlx_afu_data_initial_credit);
-	  printf("initial credits from tlx cmd/resp = %d, data = %d\n", c_tlx_afu_cmd_resp_initial_credit, c_tlx_afu_data_initial_credit);
-	  credits_initialized = 1;
+	  debug_msg("tlx_bfm: sent" );
+	  afu_tlx_credits_initialized = 1;
+	}
+	if (tlx_afu_credits_initialized == 0 ) {
+	  debug_msg("tlx_bfm: reading initial credits from tlx\n" );
+	  rc = tlx_afu_read_initial_credits (&event, &c_tlx_afu_cmd_resp_initial_credit, &c_tlx_afu_data_initial_credit);
+	  if (rc == 0) {
+	    debug_msg("tlx_bfm: read initial credits from tlx cmd/resp = %d, data = %d\n", c_tlx_afu_cmd_resp_initial_credit, c_tlx_afu_data_initial_credit);
+	    tlx_afu_credits_initialized = 1;
+	  } else {
+	    debug_msg("tlx_bfm: initial credits not ready" );
+	  }
 	}
       }
 #ifdef DEBUG1
@@ -824,18 +834,25 @@ void tlx_bfm(
     	if (!clk_afu_cmd_dat_val)
     		*tlx_afu_cmd_data_valid_top = 0;
       }
+      if(event.tlx_afu_credit_valid)
+      {
+	// only drive initial credits if the credit event is valid.
+	// should we only do this once some how?
+	setDpiSignal32(tlx_afu_cmd_resp_initial_credit_top, event.tlx_afu_cmd_resp_initial_credit, 3);
+	setDpiSignal32(tlx_afu_data_initial_credit_top, event.tlx_afu_data_initial_credit, 4);
+
+      }
       // printf("lgt: tlx_bfm: driving tlx to afu credits\n");
-      *tlx_afu_resp_credit_top 		= (event.tlx_afu_resp_credit) & 0x1;
+      // should this be gated by credit_valid as well?
+      *tlx_afu_resp_credit_top 	        = (event.tlx_afu_resp_credit) & 0x1;
       *tlx_afu_resp_data_credit_top 	= (event.tlx_afu_resp_data_credit) & 0x1;
       *tlx_afu_cmd_credit_top	 	= (event.tlx_afu_cmd_credit) & 0x1;
       *tlx_afu_cmd_data_credit_top	= (event.tlx_afu_cmd_data_credit) & 0x1;
       *tlx_cfg0_resp_ack_top		= (event.tlx_cfg_resp_ack) & 0x1;
       if(event.tlx_cfg_resp_ack != 0)
-      {
-        event.tlx_cfg_resp_ack = 0;
-      }
-      setDpiSignal32(tlx_afu_cmd_resp_initial_credit_top, event.tlx_afu_cmd_resp_initial_credit, 3);
-      setDpiSignal32(tlx_afu_data_initial_credit_top, event.tlx_afu_data_initial_credit, 4);
+	{
+	  event.tlx_cfg_resp_ack = 0;
+	}
       *tlx_afu_ready_top			= 1;	// TODO: need to check this
       setDpiSignal32(ro_device_top, 0, 5);	// TODO: 5 bit value tied to 0 as of now. Check whether it should be configurable
       // printf("lgt: tlx_bfm: clearing tlx to afu credits\n");

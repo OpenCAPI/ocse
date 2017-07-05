@@ -542,7 +542,7 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 		goto init_fail;
 	}
 	// Initialize TLX cmd (response) handler
-	debug_msg("%s @ %s:%d: cmd_init", ocl->name, ocl->host, ocl->port);
+	debug_msg("ocl_init: %s @ %s:%d: cmd_init", ocl->name, ocl->host, ocl->port);
 	if ((ocl->cmd = cmd_init(ocl->afu_event, parms, ocl->mmio,
 				 &(ocl->state), ocl->name, ocl->dbg_fp,
 				 ocl->dbg_id))
@@ -555,15 +555,17 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 	ocl->vsec_tlx_rev_level= parms->tlx_rev_level;
 	ocl->vsec_image_loaded= parms->image_loaded;
 	ocl->vsec_base_image= parms->base_image;
+
 	// Set credits for TLX interface
-	ocl->state = OCSE_DESC
-;
+	ocl->state = OCSE_DESC;
+
+	debug_msg( "ocl_init: %s @ %s:%d: sending initial credits to afu: tlx_afu_cmd_resp_credits = %d, tlx_afu_data_credits = %d", ocl->name, ocl->host, ocl->port, MAX_TLX_AFU_CMD_RESP_CREDITS, MAX_TLX_AFU_DATA_CREDITS );
 	if (tlx_afu_send_initial_credits(ocl->afu_event,MAX_TLX_AFU_CMD_RESP_CREDITS,
 		MAX_TLX_AFU_DATA_CREDITS) != TLX_SUCCESS) {
-		warn_msg("Unable to set initial credits");
+		warn_msg("ocl_init: Unable to set initial credits");
 		goto init_fail;
 	}
-	printf("sent out initial TLX_AFU credits \n");
+	debug_msg("sent out initial TLX_AFU credits \n");
 			tlx_signal_afu_model(ocl->afu_event);
 	// Start ocl loop thread
 	if (pthread_create(&(ocl->thread), NULL, _ocl_loop, ocl)) {

@@ -1684,10 +1684,11 @@ int tlx_afu_read_initial_credits(struct AFU_EVENT *event,
         debug_msg( "tlx_afu_read_initial_credits" );
 	
 	// why do I care if credit valid is on during initial credit exchange???
-	/* if (!event->tlx_afu_credit_valid) { */
-	/*   warn_msg("no tlx_afu_credit valid"); */
-	/* 	return TLX_AFU_NO_CREDITS; */
-	/* } */
+	// because I could get 0 initial credits if I don't
+	if (!event->tlx_afu_credit_valid) {
+	        warn_msg("no tlx_afu_credit valid, not even initial_credits");
+		return TLX_AFU_NO_CREDITS;
+	}
 
 	*tlx_afu_cmd_resp_initial_credit = event->tlx_afu_cmd_resp_initial_credit;
 	*tlx_afu_data_initial_credit = event->tlx_afu_data_initial_credit;
@@ -1865,10 +1866,10 @@ int afu_tlx_send_cmd(struct AFU_EVENT *event,
 {  
         debug_msg("afu_tlx_send_cmd: tlx_afu_cmd_credits available is %d", event->tlx_afu_cmd_credits_available );
 
-	/* if (event->tlx_afu_cmd_credits_available == 0) { */
-	/* 	warn_msg("afu_tlx_send_cmd: no credits available", event->tlx_afu_cmd_credits_available); */
-	/* 	return TLX_AFU_NO_CREDITS; */
-	/* } */
+	if (event->tlx_afu_cmd_credits_available == 0) {
+		warn_msg("afu_tlx_send_cmd: no credits available", event->tlx_afu_cmd_credits_available);
+		return TLX_AFU_NO_CREDITS;
+	}
 	if (event->afu_tlx_cmd_valid) {
 		warn_msg("afu_tlx_send_cmd: double command", event->tlx_afu_cmd_credits_available);
 		return AFU_TLX_DOUBLE_COMMAND;
@@ -1908,11 +1909,10 @@ int afu_tlx_send_cmd_data( struct AFU_EVENT *event,
 {
   debug_msg("afu_tlx_send_cmd_data: tlx_afu_cmd_data_credits available is %d", event->tlx_afu_cmd_data_credits_available );
 
-  // lgt: temporarily remove this credit check as credit handling seems a bit fragile
-  // if (event->tlx_afu_cmd_data_credits_available == 0) {
-  //   warn_msg("afu_tlx_send_cmd_data: no credits available", event->tlx_afu_cmd_data_credits_available);
-  //   return TLX_AFU_NO_CREDITS;
-  //  }
+  if (event->tlx_afu_cmd_data_credits_available == 0) {
+    warn_msg("afu_tlx_send_cmd_data: no credits available", event->tlx_afu_cmd_data_credits_available);
+    return TLX_AFU_NO_CREDITS;
+   }
 	
   event->afu_tlx_cdata_valid = 1;
   event->tlx_afu_cmd_data_credits_available -= 1;
@@ -1945,17 +1945,19 @@ int afu_tlx_send_cmd_and_data(struct AFU_EVENT *event,
 
 {
 	if ((event->tlx_afu_cmd_credits_available == 0) ||
-		(event->tlx_afu_cmd_data_credits_available == 0))
-		return TLX_AFU_NO_CREDITS;
+	    (event->tlx_afu_cmd_data_credits_available == 0)) {
+	  warn_msg("afu_tlx_send_cmd_and_data: no credits cmd or cmd_data available: cmd_credits = %d, cmd_data_credits = %d", event->tlx_afu_cmd_credits_available, event->tlx_afu_cmd_data_credits_available);
+	  return TLX_AFU_NO_CREDITS;
+	}
 	if ((event->afu_tlx_cmd_valid == 1) || (event->afu_tlx_cdata_valid == 1)) {
 		return AFU_TLX_DOUBLE_CMD_AND_DATA;
 	} else {
 		event->afu_tlx_cmd_valid = 1;
 		event->tlx_afu_cmd_credits_available -= 1;
-		printf("tlx_afu_cmd_credits available is %d  \n", event->tlx_afu_cmd_credits_available);
+		debug_msg("afu_tlx_send_cmd_and_data: tlx_afu_cmd_credits available is %d", event->tlx_afu_cmd_credits_available);
 		event->afu_tlx_cdata_valid = 1;
 		event->tlx_afu_cmd_data_credits_available -= 1;
-		printf("tlx_afu_cmd_data_credits available is %d  \n", event->tlx_afu_cmd_data_credits_available);
+		debug_msg("afu_tlx_send_cmd_and_data: tlx_afu_cmd_data_credits available is %d", event->tlx_afu_cmd_data_credits_available);
 		event->afu_tlx_cmd_opcode = afu_cmd_opcode;
 		event->afu_tlx_cmd_actag = cmd_actag;
 		event->afu_tlx_cmd_stream_id = cmd_stream_id;
