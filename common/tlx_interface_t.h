@@ -304,10 +304,10 @@ struct AFU_EVENT {
   // Config and Credits
   uint8_t  afu_tlx_credit_req_valid;		  /* TODO TEMP for now, needed for xfer of credit & req changes */
   uint8_t  tlx_afu_credit_valid;		  /* TODO TEMP for now, needed for xfer of credits */
-  uint8_t  afu_tlx_cmd_credits_available;
-  uint8_t  afu_tlx_resp_credits_available;
-  uint8_t  tlx_afu_cmd_credits_available;
-  uint8_t  tlx_afu_resp_credits_available;
+  uint8_t  afu_tlx_cmd_credits_available; // init from afu_tlx_cmd_initial_credit, decrement on tlx_afu_cmd_valid, increment on afu_tlx_cmd_credit
+  uint8_t  afu_tlx_resp_credits_available; // init from afu_tlx_resp_initial_credit, decrement on tlx_afu_resp_valid, increment on afu_tlx_resp_credit
+  uint8_t  tlx_afu_cmd_credits_available;  // init from tlx_afu_cmd_resp_initial_credit, decrement on afu_tlx_cmd_valid, increment on tlx_afu_cmd_credit
+  uint8_t  tlx_afu_resp_credits_available; // init from tlx_afu_cmd_resp_initial_credit, decrement on afu_tlx_resp_valid, increment on tlx_afu_resp_credit
   uint8_t  tlx_afu_resp_data_credits_available;
   uint8_t  tlx_afu_cmd_data_credits_available;
   uint8_t  cfg_tlx_credits_available;

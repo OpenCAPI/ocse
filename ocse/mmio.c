@@ -461,6 +461,8 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 
 
 	// things we have to write to enable an afu operation
+	//    OpenCAPI Configuration Header 0x10 = bar0 low
+	//    OpenCAPI Configuration Header 0x14 = bar0 high
 	//    OpenCAPI Configuration Header 0x04[1] = Memory Space
 	//    function dvsec 0x0c[11:0] = function actag length enabled
 	//    afu control dvsec 0x0c[24] = enable afu
@@ -469,9 +471,21 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	//
 
 	// 
-	// Set Memory Space bit in OpenCAPI Conifiguration header to allow the afu to decode addresses using the BAR registers
-	// Memory Space bit is at 0x04 bit 1
+	// Set configuration space header bar and memory space
 	//
+	// Set BAR0 low 0x10 = 0x00000000 for now - could "randomize" based on size that comes back from a read
+	debug_msg("OpenCAPI Configuration Header data write 0x%08x @ 0x%016lx", ( 0x00000000 ), cmd_pa_f1+0x10);
+	event_w = _add_event(mmio, NULL, 0, 0, 0, cmd_pa_f1+0x10, 1, ( 0x00000000 )); // set to 0
+        _wait_for_done(&(event_w->state), lock);
+	free(event_w);
+
+	// Set BAR0 high 0x14 = 0x00000000 for now - could "randomize" based on size that comes back from a read
+	debug_msg("OpenCAPI Configuration Header data write 0x%08x @ 0x%016lx", ( 0x00000000 ), cmd_pa_f1+0x14);
+	event_w = _add_event(mmio, NULL, 0, 0, 0, cmd_pa_f1+0x14, 1, ( 0x00000000 )); // set to 0
+        _wait_for_done(&(event_w->state), lock);
+	free(event_w);
+
+	// Set Memory Space bit 0x04[1] in OpenCAPI Conifiguration header to allow the afu to decode addresses using the BAR registers
 	event_r = _add_cfg(mmio, 1, 0, cmd_pa_f1 + 0x04, 0L);          // opencapi configuration header... of funtion1
         _wait_for_done(&(event_r->state), lock);
 	debug_msg("OpenCAPI Configuration Header data read 0x%08x @ 0x%016lx complete", event_r->cmd_data, cmd_pa_f1+0x04);
@@ -502,8 +516,8 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
         _wait_for_done(&(event_r->state), lock);
 	debug_msg("AFU Control DVSEC write read 0x%08x @ 0x%016lx complete", event_r->cmd_data, cmd_pa_f1+0x518);
 
-	debug_msg("AFU Control DVSEC write 0x%08x @ 0x%016lx", ( event_r->cmd_data | ( event_r->cmd_data << 8 ) ), cmd_pa_f1+0x518);
-	event_w = _add_event(mmio, NULL, 0, 0, 0, cmd_pa_f1+0x518, 1, ( event_r->cmd_data | ( event_r->cmd_data << 8 ) ) );
+	debug_msg("AFU Control DVSEC write 0x%08x @ 0x%016lx", ( event_r->cmd_data | ( event_r->cmd_data << 16 ) ), cmd_pa_f1+0x518);
+	event_w = _add_event(mmio, NULL, 0, 0, 0, cmd_pa_f1+0x518, 1, ( event_r->cmd_data | ( event_r->cmd_data << 16 ) ) );
         _wait_for_done(&(event_w->state), lock);
 	free(event_w);
 	

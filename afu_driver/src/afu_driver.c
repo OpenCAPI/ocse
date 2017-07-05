@@ -56,6 +56,9 @@ uint8_t		c_afu_tlx_resp_credit;
 uint8_t		c_afu_tlx_resp_initial_credit;
 uint8_t		c_cfg0_tlx_initial_credit;
 
+uint8_t		c_tlx_afu_cmd_resp_initial_credit;
+uint8_t		c_tlx_afu_data_initial_credit;
+
 uint8_t		c_afu_tlx_cmd_valid;
 uint8_t		c_afu_tlx_cmd_opcode;
 uint16_t	c_afu_tlx_cmd_actag;
@@ -375,8 +378,8 @@ void tlx_bfm(
 	  printf("sending initial credits to tlx cmd = %d, cfg = %d, resp = %d\n", c_afu_tlx_cmd_initial_credit, c_cfg0_tlx_initial_credit, c_afu_tlx_resp_initial_credit );
 	  afu_tlx_send_initial_credits (&event, c_afu_tlx_cmd_initial_credit, c_cfg0_tlx_initial_credit, c_afu_tlx_resp_initial_credit);
 	  printf("reading initial credits from tlx\n" );
-	  tlx_afu_read_initial_credits (&event, &c_afu_tlx_cmd_initial_credit, &c_afu_tlx_resp_initial_credit);
-	  printf("initial credits from tlx cmd = %d, resp = %d\n", c_afu_tlx_cmd_initial_credit, c_afu_tlx_resp_initial_credit );
+	  tlx_afu_read_initial_credits (&event, &c_tlx_afu_cmd_resp_initial_credit, &c_tlx_afu_data_initial_credit);
+	  printf("initial credits from tlx cmd/resp = %d, data = %d\n", c_tlx_afu_cmd_resp_initial_credit, c_tlx_afu_data_initial_credit);
 	  credits_initialized = 1;
 	}
       }
@@ -410,14 +413,16 @@ void tlx_bfm(
       invalidVal = 0;
       c_afu_tlx_resp_credit  	= (afu_tlx_resp_credit_top & 0x2) ? 0 : (afu_tlx_resp_credit_top & 0x1);
       invalidVal		+= afu_tlx_resp_credit_top & 0x2;
-      if(invalidVal == 0) {
-	  event.afu_tlx_resp_credit = 1;
+      // if value is invalid, force the credit to 0
+      if(invalidVal != 0) {
+	  event.afu_tlx_resp_credit = 0;
       }
       invalidVal = 0;
       c_afu_tlx_cmd_credit  	= (afu_tlx_cmd_credit_top & 0x2) ? 0 : (afu_tlx_cmd_credit_top & 0x1);
       invalidVal		+= afu_tlx_cmd_credit_top & 0x2;
-      if(invalidVal == 0) {
-	  event.afu_tlx_cmd_credit = 1;
+      // if value is invalid, force the credit to 0
+      if(invalidVal != 0) {
+	  event.afu_tlx_cmd_credit = 0;
       }
       
       invalidVal = 0;
@@ -705,7 +710,7 @@ void tlx_bfm(
       else
       {
         setDpiSignal32(tlx_cfg0_data_bus_top, 0x0, 32); 
-	*tlx_cfg0_data_bdi_top = 0;
+        *tlx_cfg0_data_bdi_top = 0;
       }
       if(event.tlx_afu_cmd_valid)
       {

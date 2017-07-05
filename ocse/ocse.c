@@ -267,7 +267,7 @@ static struct client *_client_connect(int *fd, char *ip)
 	client->state = CLIENT_INIT;
 	
 	// lgt quick fix for bdf
-	client->bdf = 0xcdef;
+	client->bdf = 0x5001;
 
 	// Return acknowledge to client
 	ack[0] = OCSE_CONNECT;
