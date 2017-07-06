@@ -148,8 +148,9 @@ static int _handle_interrupt(struct ocxl_afu_h *afu)
 	/* uint8_t data[64]; */
 	/* uint8_t data_valid; */
   // HMP idea
-	uint16_t size, irq;
+	uint16_t size;
 	//uint8_t data[sizeof(irq)];
+	struct ocxl_irq_h *irq;
 	uint64_t addr;
 	uint8_t cmd_flag;
 	uint8_t adata[sizeof(addr)];
@@ -199,7 +200,7 @@ static int _handle_interrupt(struct ocxl_afu_h *afu)
 
 	// HMP idea
 	//buffer[0] = OCSE_INTERRUPT (already read)
-	//buffer[1] =event->cmd_flag
+	//buffer[1] = event->cmd_flag
 	//buffer[2] = event->addr 
 
 	if (get_bytes_silent(afu->fd, 1, &cmd_flag, 1000, 0) < 0) {
@@ -215,16 +216,37 @@ static int _handle_interrupt(struct ocxl_afu_h *afu)
 	memcpy(&addr, adata, sizeof(addr));
 	addr = ntohs(addr);
 	printf("OK, interrupt request made it over socket to client!!\n");
+
 	// TODO Update the rest of this to actually search for address and then do 
 	// whatever is needed if it's valid.....
 
+	// search for addr in irq list of afu
+	// if we don't find it, warn_msg
+	// if we do find it, add an event if it is new for this irq
+	irq = afu->irq;
+	while (irq != NULL) {
+	  if ( irq == (struct ocxl_irq_h *)addr ) {
+	    break;
+	  }
+	  irq = irq->_next;
+	}
+	if ( irq == NULL ) {
+	  warn_msg( "_handle_interrupt: no matching irqs allocated in this application" );
+	  return -1;
+	}
+
+	// we have the matching irq pointer
+
 	// Only track a single interrupt at a time
-	// but what about a second afu_interrupt to a different irq address?  should that be saved or coalecsed?
+	// but what about a second afu_interrupt to a different irq address?  
+	// should that be saved or coalecsed?
 	// this code would coalesce them
 	pthread_mutex_lock(&(afu->event_lock));
 	i = 0;
 	while (afu->events[i] != NULL) {
 		if (afu->events[i]->header.type == OCXL_EVENT_AFU_INTERRUPT) {
+			// we could search deeper here to see if this event is for the
+			// incoming irq.  if it is, return, if not, check the next event
 			pthread_mutex_unlock(&(afu->event_lock));
 			return 0;
 		}
@@ -238,7 +260,8 @@ static int _handle_interrupt(struct ocxl_afu_h *afu)
 	afu->events[i]->header.type = OCXL_EVENT_AFU_INTERRUPT;
 	afu->events[i]->header.size = size;
 	afu->events[i]->header.process_element = afu->context; // might not need this
-	afu->events[i]->irq.irq = irq;  // saves only low order bits of irq for now...
+	afu->events[i]->irq.irq = addr;  // which came in and matched irq
+	afu->events[i]->irq.flags = cmd_flag;
 
 	do {
 		i = write(afu->pipe[1], &(afu->events[i]->header.type), 1);
@@ -2410,7 +2433,7 @@ int ocxl_set_irqs_max(struct ocxl_afu_h *afu, long value)
 
 struct ocxl_irq_h *ocxl_afu_new_irq(struct ocxl_afu_h *afu)
 {
-  // create an irq link it to the afu and return the address of the irq to the caller
+  // create an irq, link it to the afu, and return the address of the irq to the caller
   struct ocxl_irq_h *new_irq;
   struct ocxl_irq_h *current_irq;
 

@@ -29,6 +29,10 @@ LIBOCXL_1 {
 		ocxl_errinfo_size;
 		ocxl_errinfor_read;
 
+		ocxl_afu_new_irq;
+		ocxl_afu_irq_next;
+		ocxl_afu_irq_free;
+
 		ocxl_pending_event;
 		ocxl_read_event;
 		ocxl_read_expected_event;
