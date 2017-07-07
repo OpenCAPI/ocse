@@ -300,9 +300,13 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
  	//uint32_t resp = TLX_RSP_INTRP_RESP; 
  	uint32_t resp= 0; //FOR NOW, always a good response
  	enum cmd_type type = CMD_INTERRUPT; 
-        int32_t context;
+        uint32_t context;
+        uint64_t addr;
  
         context = _find_client_by_actag(cmd, actag);
+	if (context < 0) warn_msg( "_add_interrupt: actag does not match a client" );
+
+	memcpy( (void *)&addr, (void *)&(cmd_ea_or_obj[0]), sizeof(uint64_t));
  
 /* 	if (!irq || (irq > cmd->client[handle]->max_irqs)) { */
 /* 		warn_msg("AFU issued interrupt with illegal source id"); */
@@ -314,8 +318,9 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 /* 	if (!cmd->irq) */
 /* 		cmd->irq = irq; */
 /*  int_done: */
-// setting MEM_IDLE will tell handle_interrupt to send req to libocxl 
-	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_INTERRUPT, 0, 0, MEM_IDLE,
+
+        // setting MEM_IDLE will tell handle_interrupt to send req to libocxl 
+	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_INTERRUPT, addr, 0, MEM_IDLE,
 		 resp, 0, 0, 0, 0);
  } 
 
@@ -1325,7 +1330,7 @@ void handle_interrupt(struct cmd *cmd)
 	struct cmd_event **head;
 	struct cmd_event *event;
 	struct client *client;
-	uint16_t irq;
+	// uint16_t irq;
 	uint8_t buffer[3];
 
 	// Make sure cmd structure is valid

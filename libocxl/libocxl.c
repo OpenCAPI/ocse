@@ -153,12 +153,12 @@ static int _handle_interrupt(struct ocxl_afu_h *afu)
 	struct ocxl_irq_h *irq;
 	uint64_t addr;
 	uint8_t cmd_flag;
-	uint8_t adata[sizeof(addr)];
+	uint8_t adata[8];
 	int i;
 
 	if (!afu) fatal_msg("_handle_interrupt:NULL afu passed");
 
-	DPRINTF("AFU INTERRUPT\n");
+	debug_msg("AFU INTERRUPT");
 
 	// in opencapi, we should get a 64 bit address (and maybe data)
 	// we should find that address in the afu's irq list
@@ -208,14 +208,14 @@ static int _handle_interrupt(struct ocxl_afu_h *afu)
 		_all_idle(afu);
 		return -1;
 	}
-	if (get_bytes_silent(afu->fd, sizeof(addr), adata, 1000, 0) < 0) {
+	if (get_bytes_silent(afu->fd, 8, adata, 1000, 0) < 0) {
 		warn_msg("Socket failure getting address");
 		_all_idle(afu);
 		return -1;
 	}
-	memcpy(&addr, adata, sizeof(addr));
-	addr = ntohs(addr);
-	printf("OK, interrupt request made it over socket to client!!\n");
+	memcpy(&addr, adata, 8);
+	// addr = ntohs(addr);
+	debug_msg("_handle_interrupt: received intrp_req addr 0x%016lx", addr);
 
 	// TODO Update the rest of this to actually search for address and then do 
 	// whatever is needed if it's valid.....
@@ -225,7 +225,8 @@ static int _handle_interrupt(struct ocxl_afu_h *afu)
 	// if we do find it, add an event if it is new for this irq
 	irq = afu->irq;
 	while (irq != NULL) {
-	  if ( irq == (struct ocxl_irq_h *)addr ) {
+	  debug_msg("_handle_interrupt: compare irq to add : 0x%016lx ?= 0x%016lx", (uint64_t)irq, addr);
+	  if ( (uint64_t)irq == addr ) {
 	    break;
 	  }
 	  irq = irq->_next;
