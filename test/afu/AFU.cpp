@@ -26,6 +26,7 @@ uint8_t status_updated = 0;
 uint8_t insert_cycle = 0;
 uint8_t afu_enable_reset = 0;
 uint32_t wr_config_data;
+uint32_t bar_h0, bar_h1, bar_h2;
 
 AFU::AFU (int port, string filename, bool parity, bool jerror):
     descriptor (filename),
@@ -415,22 +416,23 @@ AFU::resolve_tlx_afu_cmd()
     rc = tlx_cfg_read_cmd_and_data(&afu_event, &cmd_data_bdi, cmd_data_bus, &cmd_opcode,
 	&cmd_capptag, &cmd_dl, &cmd_pl, &cmd_be, &cmd_end, &cmd_t, &cmd_pa);
     if(rc != TLX_SUCCESS) {
-	error_msg("Failed: tlx_cfg_read_cmd_and_data");
+	printf("rc = 0x%x\n", rc);
     }
+    
     if(cmd_opcode == 0xe1) {
 	memcpy(&wr_config_data, &cmd_data_bus, 4);
 	printf("AFU: wr_config_data = 0x%x\n", wr_config_data);
     }
-//    else {
-//    	if (tlx_afu_read_cmd(&afu_event, &cmd_opcode, &cmd_capptag, 
-//		&cmd_dl, &cmd_pl, &cmd_be, &cmd_end, &cmd_t, 
-//#ifdef	TLX4
-//		&cmd_os, &cmd_flag,
-//#endif
-//		&cmd_pa) != TLX_SUCCESS) {
-//	error_msg("Failed: tlx_afu_read_cmd");
-  //  	}
-//    }
+    if(rc == CFG_TLX_NOT_CFG_CMD) {
+    	if (tlx_afu_read_cmd(&afu_event, &cmd_opcode, &cmd_capptag, 
+		&cmd_dl, &cmd_pl, &cmd_be, &cmd_end, &cmd_t, 
+#ifdef	TLX4
+		&cmd_os, &cmd_flag,
+#endif
+		&cmd_pa) != TLX_SUCCESS) {
+	error_msg("Failed: tlx_afu_read_cmd");
+	}
+    }
     
     afu_event.afu_tlx_resp_capptag = cmd_capptag;
     info_msg("AFU:resolve_tlx_afu_cmd");
@@ -612,7 +614,12 @@ AFU::tlx_afu_config_read()
     resp_pl = afu_event.tlx_afu_cmd_pl;
     vsec_offset = 0x0000FFFC & afu_event.tlx_afu_cmd_pa;
     byte_offset = 0x0000003F & afu_event.tlx_afu_cmd_pa;
-    vsec_data  = descriptor.get_vsec_reg(vsec_offset);	// get vsec data
+    if(vsec_offset >= 0x10 && vsec_offset <= 0x24) {
+	vsec_data = descriptor.get_vsec_reg(vsec_offset);
+    }
+    else {
+    	vsec_data  = descriptor.get_vsec_reg(vsec_offset);	// get vsec data
+    }
     debug_msg("AFU: vsec data = 0x%x vsec offset = 0x%x byte offset = 0x%x",
 	vsec_data, vsec_offset, byte_offset);
     if(resp_pl == 0x00) {
@@ -757,6 +764,27 @@ AFU::tlx_afu_config_write()
 	    descriptor.set_vsec_reg(0x40c, port_offset);
 	    debug_msg("AFU: afu descriptor data port 0x410 = 0x%x", descriptor.get_vsec_reg(0x410));
 	    debug_msg("AFU: afu descriptor offset port 0x40c = 0x%x", descriptor.get_vsec_reg(0x40c));
+	}
+	else if(cmd_pa >= 0x10 && cmd_pa <= 0x24) {
+	    printf("AFU: config BAR\n");
+	    if(config_data != 0xFFFFFFFF) {
+	    	switch(cmd_pa) {
+		    case 0x14:
+			bar_h0 = wr_config_data;
+		  	printf("AFU: bar_h0 = 0x%x\n", bar_h0);
+			break;
+		    case 0x1c:
+			bar_h1 = wr_config_data;
+			printf("AFU: bar_h1 = 0x%x\n", bar_h1);
+			break;
+		    case 0x24:
+			bar_h2 = wr_config_data;
+		  	printf("AFU: bar_h2 = 0x%x\n", bar_h2);
+			break;
+		    default:
+			break;
+		}	 
+	    }   
 	}
 	else {	// vsec config write 
 	    vsec_offset = cmd_pa & 0x00000FFC;
