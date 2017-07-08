@@ -485,7 +485,7 @@ static void _handle_ack(struct ocxl_afu_h *afu)
 
 
 static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_size, uint64_t addr,
-			  uint8_t function_code, uint64_t op1, uint64_t op2)
+			  uint8_t function_code, uint64_t op1, uint64_t op2, uint8_t cmd_endian)
 {
 
 	uint8_t atomic_op;
@@ -604,17 +604,17 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 	}
 
 	atomic_op = function_code;
+	if (cmd_endian == 0)
+		atomic_le = 1;
+	else
+	    atomic_le = 0;
+	//cmd_endian == 0 when afu is LE, our old logic needs atomic_le == 1 for LE
 	//TODO Here is where I stopped updating this function from CAPI2 to OPEN CAPI
 	// Remove and read atomic_le from bit7 of data[0]
 	// if atomic_le == 1, afu is le, so no data issues (ocse is always le).
 	// if atomic_le == 0, we have to swap op1/op2 data before ops, and also swap
 	// data returned by fetches
-	if ((atomic_op & 0x80) == 0x80) {
-		atomic_le = 1;
-		atomic_op &= 0x3F;
-	} else
-		atomic_le = 0;
-
+	
 	debug_msg("_handle_DMO_OPs:  atomic_op = 0x%2x and atomic_le = 0x%x ", atomic_op, atomic_le);
 
 	DPRINTF("READ from addr @ 0x%016" PRIx64 "\n", addr);
@@ -653,6 +653,8 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 					op_1l += op_Al;
 					wb = 2;
 				}
+				if (amo_op == OCSE_AMO_WR)
+					wb = 0;
 				break;
 			case AMO_ARMWF_XOR:
 				if  (op_size == 4) {
@@ -664,6 +666,8 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 					op_1l ^= op_Al;
 					wb = 2;
 				}
+				if (amo_op == OCSE_AMO_WR)
+					wb = 0;
 				break;
 			case AMO_ARMWF_OR:
 				if  (op_size == 4) {
@@ -675,6 +679,8 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 					op_1l |= op_Al;
 					wb = 2;
 				}
+				if (amo_op == OCSE_AMO_WR)
+					wb = 0;
 				break;
 			case AMO_ARMWF_AND:
 				if  (op_size == 4) {
@@ -686,6 +692,8 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 					op_1l &= op_Al;
 					wb = 2;
 				}
+				if (amo_op == OCSE_AMO_WR)
+					wb = 0;
 				break;
 			case AMO_ARMWF_CAS_MAX_U:
 				if  (op_size == 4) {
@@ -699,6 +707,8 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 						op_1l = op_Al;
 					wb = 2;
 				}
+				if (amo_op == OCSE_AMO_WR)
+					wb = 0;
 				break;
 			case AMO_ARMWF_CAS_MAX_S:
 				// sign extend op_A and op_1 and then cast as int and do comparison
@@ -716,7 +726,9 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 					if ((int64_t)op_Al > (int64_t)op_1l)
 						op_1l = op_Al;
 					wb = 2;
-				};
+				}
+				if (amo_op == OCSE_AMO_WR)
+					wb = 0;
 				break;
 			case AMO_ARMWF_CAS_MIN_U:
 				if  (op_size == 4) {
@@ -730,6 +742,8 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 						op_1l = op_Al;
 					wb = 2;
 				}
+				if (amo_op == OCSE_AMO_WR)
+					wb = 0;
 				break;
 			case AMO_ARMWF_CAS_MIN_S:
 				if (op_size == 4) {
@@ -747,6 +761,8 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 						op_1l = op_Al;
 					wb = 2;
 				}
+				if (amo_op == OCSE_AMO_WR)
+					wb = 0;
 				break;
 			/* addr = location of an address aligned 4 or 8 byte first operand (op_A),
  * which is compared to the operand provided by AFU (op_1 or (op_1l). AFU also provides the function
@@ -762,6 +778,8 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 					op_1l = op_2l;
 					wb = 2;
 				}
+				if (amo_op == OCSE_AMO_WR)
+					wb = 0;
 				break;
 			case AMO_ARMWF_CAS_E:
 				if  (op_size == 4) {
@@ -779,6 +797,8 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 						op_1l = op_Al;
 					wb = 2;
 				}
+				if (amo_op == OCSE_AMO_WR)
+					wb = 0;
 				break;
 			case AMO_ARMWF_CAS_NE:
 				if  (op_size == 4) {
@@ -796,6 +816,8 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 						op_1l = op_Al;
 					wb = 2;
 				}
+				if (amo_op == OCSE_AMO_WR)
+					wb = 0;
 				break;
 			/* addr = location of two address aligned 4 or 8 byte operands.
  * The first operand A is found at the address specified; second operand A2 is found at
@@ -804,6 +826,30 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
  *  • cannot target locations at 32n, when n = 0, 1, 2, 3... (armwf_dec_b)
  * The original value from memory, or (1 << (s*8 -1)) is returned (s = 4 or 8) */
 			case AMO_ARMWF_INC_B:
+			//case AMO_ARMW_CAS_T:
+				if (amo_op == OCSE_AMO_WR) { //this is the amo_wr store & compare twin
+
+					if  (op_size == 4) {
+						memcpy((char *) &lvalue, (void *)addr+4, op_size);
+						op_2 = (uint32_t)(lvalue);
+					debug_msg("STORE TWIN compare %08"PRIx32" with %08"PRIx32 ", if == store op_1 to both locations", op_A, op_2);
+						if (op_A == op_2)
+							op_2 = op_1;
+						else
+							op_1 = op_A;
+						wb = 0;
+					} else {
+						memcpy((char *) &llvalue, (void *)addr+8, op_size);
+						op_2l = (uint64_t)(llvalue);
+					debug_msg("STORE TWIN compare %016"PRIx64" with %016"PRIx64 ", if == store op_1l to both locations", op_Al, op_2l);
+						if (op_Al == op_2l)
+							op_2l = op_1l;
+						else
+							op_1l = op_Al;
+						wb = 0;
+					}
+					break;
+				   }
 				if  (op_size == 4) {
 					memcpy((char *) &lvalue, (void *)addr+4, op_size);
 					op_1 = (uint32_t)(lvalue);
@@ -887,7 +933,7 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 			/* addr = location of an address aligned 4 or 8 byte first operand (op_A),
  *  which is modified with operand provided by AFU (op_1 or op_1l). AFU also provides the function
  *  encode (op_code). The result is returned to memory, the original value is returned to the AFU as completion data */
-			case AMO_ARMW_ADD:
+/*			case AMO_ARMW_ADD:
 				if  (op_size == 4) {
 				debug_msg("ADD %08"PRIx32" to %08"PRIx32 " and store it  ", op_A, op_1);
 					op_1 += op_A;
@@ -987,12 +1033,12 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 						op_1l = op_Al;
 					wb = 0;
 				}
-				break;
+				break; */
 			/* addr = location of two address aligned 4 or 8 byte operands.
  * The first operand A is at addr; second operand A2 is at addr+  or addr+8, depending on widths of operands.
  * The address must be naturally aligned and cannot target locations at 32n-2bin2dec(‘1L’), where n = 1,2,3...
  * The AFU provides a third operand, op_1 or op_1, and will be stored at addr and addr+4 if A1 == A2. */
-			case AMO_ARMW_CAS_T:
+/*			case AMO_ARMW_CAS_T:
 				if  (op_size == 4) {
 					memcpy((char *) &lvalue, (void *)addr+4, op_size);
 					op_2 = (uint32_t)(lvalue);
@@ -1012,7 +1058,7 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 						op_1l = op_Al;
 					wb = 0;
 				}
-				break;
+				break; */
 			default:
 				wb = 0xf;
 				warn_msg("Unsupported AMO command 0x%04x", atomic_op);
@@ -1075,7 +1121,7 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 				warn_msg("invalid wb! ");
 				wb = 0;
 				break;
-			}
+			} 
 
 
 }
@@ -1252,7 +1298,7 @@ static void *_psl_loop(void *ptr)
 {
 	struct ocxl_afu_h *afu = (struct ocxl_afu_h *)ptr;
 	uint8_t buffer[MAX_LINE_CHARS];
-	uint8_t op_size, function_code, amo_op;
+	uint8_t op_size, function_code, amo_op, cmd_endian;
 	uint64_t addr, wr_be;
 	uint16_t size;
 	uint32_t value, lvalue;
@@ -1519,15 +1565,16 @@ static void *_psl_loop(void *ptr)
 		case OCSE_AMO_RW:
 			DPRINTF("AFU AMO_WRITE OR AMO_READ/WRITE\n");
 			amo_op = buffer[0];
-			if (get_bytes_silent(afu->fd, sizeof(size), buffer, 1000, 0) < 0) {
+			if (get_bytes_silent(afu->fd, sizeof(op_size), buffer, -1, 0) < 0) {
 				warn_msg
 				    ("Socket failure getting amo_wr or amo_rw size");
 				_all_idle(afu);
 				break;
 			}
-			memcpy( (char *)&size, buffer, sizeof( size ) );
-			size = ntohs(size);
-			DPRINTF( "of size=%d \n", size );
+			memcpy( (char *)&op_size, buffer, sizeof( op_size ) );
+			//memcpy( (char *)&size, buffer, sizeof( size ) );
+			//size = ntohs(size);
+			DPRINTF( "op_size=%d \n", op_size );
 			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
 					     -1, 0) < 0) {
 				warn_msg
@@ -1538,41 +1585,44 @@ static void *_psl_loop(void *ptr)
 			memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
 			addr = ntohll(addr);
 			DPRINTF("to addr 0x%016" PRIx64 "\n", addr);
-				if (get_bytes_silent(afu->fd, 17, buffer,
-					     -1, 0) < 0) {
+			if (get_bytes_silent(afu->fd, 18, buffer,
+				     -1, 0) < 0) {
 				warn_msg
-				    ("Socket failure getting amo_wr or amo_rw cmd_flag and op1/op2 data");
+			   	 ("Socket failure getting amo_wr or amo_rw cmd_flag, cmd_endian and op1/op2 data");
 				_all_idle(afu);
 				break;
 			}
-			function_code = (uint8_t) buffer[0];
+			memcpy( (char *)&function_code, &buffer[0], sizeof( function_code ) );
 			DPRINTF("amo_wr or amo_rw cmd_flag= 0x%x\n", function_code);
+			memcpy( (char *)&cmd_endian, &buffer[1], sizeof( cmd_endian ) );
+			DPRINTF("amo_wr or amo_rw cmd_endian= 0x%x\n", cmd_endian);
 
 			// TODO FIX THIS TO CORRECTLY EXTRACT OP_1 and OP_2 if needed !!!
-			memcpy((char *)&op1, (char *)&buffer[1], sizeof(uint64_t));
+			memcpy((char *)&op1, (char *)&buffer[2], sizeof(uint64_t));
 			debug_msg("op1 bytes 1-8 are 0x%016" PRIx64, op1);
 			//op1 = ntohll (op1);
 			//printf("op1 bytes 1-8 are 0x%016" PRIx64 " \n", op1);
-			memcpy((char *)&op2, (char *)&buffer[9], sizeof(uint64_t));
+			memcpy((char *)&op2, (char *)&buffer[10], sizeof(uint64_t));
 			debug_msg("op2 bytes 1-8 are 0x%016" PRIx64, op2);
+			//op_size = (uint8_t) size;
 			
-			_handle_DMO_OPs(afu, amo_op, op_size, addr, function_code, op1, op2);
+			_handle_DMO_OPs(afu, amo_op, op_size, addr, function_code, op1, op2, cmd_endian);
 			break;
 
 		case OCSE_AMO_RD:
 			DPRINTF("AFU AMO READ \n");
 			amo_op = buffer[0];
-			if (get_bytes_silent(afu->fd, sizeof(size), buffer, 1000, 0) < 0) {
+			if (get_bytes_silent(afu->fd, sizeof(op_size), buffer, -1, 0) < 0) {
 				warn_msg
 				    ("Socket failure getting amo_rd size");
 				_all_idle(afu);
 				break;
 			}
-			memcpy( (char *)&size, buffer, sizeof( size ) );
-			size = ntohs(size);
-			DPRINTF( "of size=%d \n", size );
-			op_size = (uint8_t) size;
-			DPRINTF( "of op_size=%d \n", op_size );
+			memcpy( (char *)&op_size, buffer, sizeof( op_size ) );
+			//memcpy( (char *)&size, buffer, sizeof( size ) );
+			//size = ntohs(size);
+		//	op_size = (uint8_t) size;
+			DPRINTF( "op_size=%d \n", op_size );
 			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
 					     -1, 0) < 0) {
 				warn_msg
@@ -1583,17 +1633,19 @@ static void *_psl_loop(void *ptr)
 			memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
 			addr = ntohll(addr);
 			DPRINTF("to addr 0x%016" PRIx64 "\n", addr);
-			if (get_bytes_silent(afu->fd, 1, buffer,
+			if (get_bytes_silent(afu->fd, 2, buffer,
 					     -1, 0) < 0) {
 				warn_msg
-				    ("Socket failure getting amo_rd cmd_flag");
+				    ("Socket failure getting amo_rd cmd_flag and cmd_endian");
 				_all_idle(afu);
 				break;
 			}
-			function_code = (uint8_t) buffer[0];
+			memcpy( (char *)&function_code, &buffer[0], sizeof( function_code ) );
+			memcpy( (char *)&cmd_endian, &buffer[1], sizeof( cmd_endian ) );
 			DPRINTF("amo_rd cmd_flag= 0x%x\n", function_code);
+			DPRINTF("amo_rd cmd_endian= 0x%x\n", cmd_endian);
 
-			_handle_DMO_OPs(afu, amo_op, op_size, addr, function_code, 0, 0);
+			_handle_DMO_OPs(afu, amo_op, op_size, addr, function_code, 0, 0, cmd_endian);
 			break;
 
 

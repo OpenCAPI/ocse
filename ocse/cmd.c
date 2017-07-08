@@ -220,7 +220,7 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 		     uint32_t command, enum cmd_type type,
 		     uint64_t addr, uint16_t size, enum mem_state state,
 		     uint32_t resp, uint8_t unlock , uint8_t cmd_data_is_valid,
-		     uint64_t wr_be, uint8_t cmd_flag)
+		     uint64_t wr_be, uint8_t cmd_flag, uint8_t cmd_endian)
 
 {
 	struct cmd_event **head;
@@ -240,6 +240,7 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	event->resp = resp;
 	event->wr_be = wr_be;
 	event->cmd_flag = cmd_flag;
+	event->cmd_endian = cmd_endian;
 
 	// Temporary hack for now, as we don't touch/look @ TLX_SPAP reg
 	if (event->resp == TLX_RESPONSE_CONTEXT)
@@ -321,7 +322,7 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 
         // setting MEM_IDLE will tell handle_interrupt to send req to libocxl 
 	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_INTERRUPT, addr, 0, MEM_IDLE,
-		 resp, 0, 0, 0, 0);
+		 resp, 0, 0, 0, 0, 0);
  } 
 
 // Format and add misc. command to list
@@ -332,7 +333,7 @@ static void _add_other(struct cmd *cmd, uint16_t actag, uint32_t afutag,
  
         context = _find_client_by_actag(cmd, actag);
 	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_OTHER, 0, 0, MEM_DONE,
-		 resp, 0, 0, 0, 0);
+		 resp, 0, 0, 0, 0, 0);
 }
 
 // Check address alignment
@@ -459,13 +460,13 @@ static void _add_read(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 	// Reads will be added to the list and will next be processed
 	// in the function handle_buffer_write()
 	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_READ, addr, size,
-		 MEM_IDLE, TLX_RESPONSE_DONE, 0, 0, 0, 0);
+		 MEM_IDLE, TLX_RESPONSE_DONE, 0, 0, 0, 0, 0);
 }
 
 // Format and add AMO read or write to command list
 static void _add_amo(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 		      uint8_t cmd_opcode, enum cmd_type type, uint8_t *cmd_ea_or_obj, 
-		      uint8_t cmd_pl, uint8_t cmd_data_is_valid, uint8_t cmd_flag)
+		      uint8_t cmd_pl, uint8_t cmd_data_is_valid, uint8_t cmd_flag, uint8_t cmd_endian)
 {
         int32_t context, size, sizecheck;
         int64_t addr;
@@ -478,6 +479,7 @@ static void _add_amo(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 	// at address offset. When data goes over to libocxl we extract and send 16B ALWAYS
 	// for AMO_WR and AMO_RW unless told elsewise. AMO_RD has no immediate data
 
+	size = 16;
   	switch (cmd_pl) {
   		case 2: 
   		case 3:
@@ -508,12 +510,14 @@ static void _add_amo(struct cmd *cmd, uint16_t actag, uint16_t afutag,
     			break;
   		}
 	if ( size == -1) {
+	printf("hp: AMO CMD FAILED SIZE CHECKS!!! \n");
 	  _add_other(cmd, actag, afutag, cmd_opcode,
 			   TLX_RESPONSE_FAILED);
 		return;
 	}
 	// Check command size and address
 	if (!_aligned(addr, sizecheck )) {
+	printf("hp: AMO CMD FAILED ADDR ALIGN CHECKS!!! \n");
 	  _add_other(cmd, actag, afutag, cmd_opcode,
 			   TLX_RESPONSE_FAILED);
 		return;
@@ -530,8 +534,9 @@ static void _add_amo(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 	// Command data comes over with the command for amo_rw and amo_w, so now we need to read it from event
 	// Then, next step is to send over to client/libocxl for processing
 	
-	_add_cmd(cmd, context, afutag, cmd_opcode, type, addr, size,
-		 MEM_IDLE, TLX_RESPONSE_DONE, 0, cmd_data_is_valid, 0, cmd_flag);
+	printf("hp: ADDING AMO CMD!!! \n");
+	_add_cmd(cmd, context, afutag, cmd_opcode, type, addr, (uint16_t)sizecheck,
+		 MEM_IDLE, TLX_RESPONSE_DONE, 0, cmd_data_is_valid, 0, cmd_flag, cmd_endian);
 }
 
 
@@ -571,10 +576,10 @@ static void _add_write(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 		context, cmd_opcode, addr, size, afutag );
 	if ((cmd_opcode == AFU_CMD_DMA_W_BE) || (cmd_opcode == AFU_CMD_DMA_W_BE_N))
 		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_WR_BE, addr, size,
-			 MEM_IDLE, TLX_RESPONSE_DONE, 0, cmd_data_is_valid, cmd_be, 0);
+			 MEM_IDLE, TLX_RESPONSE_DONE, 0, cmd_data_is_valid, cmd_be, 0, 0);
 	else
 		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_WRITE, addr, size,
-			 MEM_IDLE, TLX_RESPONSE_DONE, 0, cmd_data_is_valid, 0, 0);
+			 MEM_IDLE, TLX_RESPONSE_DONE, 0, cmd_data_is_valid, 0, 0, 0);
 }
 
 
@@ -650,19 +655,19 @@ static void _parse_cmd(struct cmd *cmd,
 	case AFU_CMD_AMO_RD_N:
 		printf("YES! AFU cmd is some sort of AMO read!!!!\n");
 		_add_amo(cmd, cmd_actag, cmd_afutag, cmd_opcode, CMD_AMO_RD, 
-			  cmd_ea_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag);
+			  cmd_ea_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag, cmd_endian);
 		break;
 	case AFU_CMD_AMO_RW:
 	case AFU_CMD_AMO_RW_N:
 		printf("YES! AFU cmd is some sort of AMO read/write!!!!\n");
 		_add_amo(cmd, cmd_actag, cmd_afutag, cmd_opcode, CMD_AMO_RW, 
-			  cmd_ea_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag);
+			  cmd_ea_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag, cmd_endian);
 		break;
 	case AFU_CMD_AMO_W:
 	case AFU_CMD_AMO_W_N:
 		printf("YES! AFU cmd is some sort of AMO read or write!!!!\n");
 		_add_amo(cmd, cmd_actag, cmd_afutag, cmd_opcode, CMD_AMO_WR, 
-			  cmd_ea_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag);
+			  cmd_ea_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag, cmd_endian);
 		break;
 
 		// Interrupt
@@ -1123,21 +1128,18 @@ void handle_write_be_or_amo(struct cmd *cmd)
 	// Send any ready write_be or AMO cmds to client immediately
 	head = &cmd->list;
 	while (*head != NULL) {
+	  	printf ("handle_write_be_or_amo: head->type is %2x, head->state is 0x%3x \n", (*head)->type, (*head)->state);
 		if ((((*head)->type == CMD_WR_BE) || ((*head)->type == CMD_AMO_WR) ||
 		    ((*head)->type == CMD_AMO_RW)) &&
 		    ((*head)->state == MEM_RECEIVED))
 			break;
 		if (((*head)->type == CMD_AMO_RD)  && 
-		   ((*head)->state == AMO_OP_REQ))
+		   ((*head)->state == MEM_RECEIVED))  // TODO change this later, we did get data but it's not used
 			break;
-		if ((((*head)->type == CMD_AMO_RD) || ((*head)->type == CMD_AMO_RW)) && 
-		   ((*head)->state == AMO_MEM_RESP))
- 			goto amo_wb;
 
 		head = &((*head)->_next);
 	}
 	event = *head;
-
 
 	// Test for client disconnect or nothing to do....
 	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
@@ -1170,21 +1172,21 @@ void handle_write_be_or_amo(struct cmd *cmd)
 		// TODO NOTE: we get 64B in data buffer and we extract and send 16B, starting at addr offset
 		// amo_wr  and amo_rw op_size will be either 4 or 8;only certain amo_rw cmds will have two 
 		// immediate operands but we don't care here, we're sending 16B to libocxl no matter what is in it.
-		count = (uint8_t) event->size;
-		switch (count) {
-			case 2:
-				event->size = 4;
-				break;
-			case 3:
-				event->size = 8;
-				break;
-			case 6:
-				event->size = 4;
-				break;
-			case 7:
-				event->size = 8;
-				break;
-			}
+		//count = (uint8_t) event->size;
+		//switch (count) {
+		//	case 2:
+		//		event->size = 4;
+		//		break;
+		//	case 3:
+		//		event->size = 8;
+		//		break;
+		//	case 6:
+		//		event->size = 4;
+		//		break;
+		//	case 7:
+		//		event->size = 8;
+		//		break;
+		//	}
 			
 		offset = event->addr & ~CACHELINE_MASK;
 			buffer = (uint8_t *) malloc(28);
@@ -1192,11 +1194,13 @@ void handle_write_be_or_amo(struct cmd *cmd)
 			buffer[0] = (uint8_t) OCSE_AMO_WR;
 		 else // (event->type == CMD_AMO_RW)
 			buffer[0] = (uint8_t) OCSE_AMO_RW;
-		size = (uint16_t *)&(buffer[1]);
-		*size = htons(event->size);
-		addr = (uint64_t *) & (buffer[3]);
+		buffer[1] = (uint8_t)event->size;
+		//size = (uint16_t *)&(buffer[1]);
+		//*size = htons(event->size);
+		addr = (uint64_t *) & (buffer[2]);
 		*addr = htonll(event->addr);
-		buffer[11] = event->cmd_flag;
+		buffer[10] = event->cmd_flag;
+		buffer[11] = event->cmd_endian;
 		memcpy(&(buffer[12]), &(event->data[offset]), 16);
 		event->abort = &(client->abort);
 
@@ -1207,16 +1211,18 @@ void handle_write_be_or_amo(struct cmd *cmd)
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 	} else if (event->type == CMD_AMO_RD ) {  //these have no data, use just memory ops. Still need op_size though
 		//we still call it size here and will convert it on the other side
-		if (event->size == 2)
-			event->size =4;
-		else event->size = 8;
+		//if (event->size == 2)
+		//		event->size =4;
+		//else event->size = 8;
 		buffer = (uint8_t *) malloc(12); //or 13??
 		buffer[0] = (uint8_t) OCSE_AMO_RD;
-		size = (uint16_t *)&(buffer[1]);
-		*size = htons(event->size);
-		addr = (uint64_t *) & (buffer[3]);
+		buffer[1] = (uint8_t)event->size;
+		//size = (uint16_t *)&(buffer[1]);
+		//*size = htons(event->size);
+		addr = (uint64_t *) & (buffer[2]);
 		*addr = htonll(event->addr);
-		buffer[11] = event->cmd_flag;
+		buffer[10] = event->cmd_flag;
+		buffer[11] = event->cmd_endian;
 		event->abort = &(client->abort);
 
 		debug_msg("%s:AMO_RD cmd_flag=0x%02x size=%d addr=0x%016"PRIx64" port=0x%2x",
@@ -1230,34 +1236,6 @@ void handle_write_be_or_amo(struct cmd *cmd)
 	client->mem_access = (void *)event;
 	return;
 
-amo_wb: event = *head;
-// TODO update this for new AMO_RD and AMO_RW write back
-//debug_msg ("event->opcode = 0x%x ", event->opcode);
-//	if ((event->opcode & 0x3f) < 0x20) {
-	//randomly decide not to return data yet
-//		if (!allow_resp(cmd->parms))
-//			return;
-
-		event->cpl_type = 4; //always 4 for atomic completion response
-		event->cpl_byte_count = event->size; // not valid for AMO but we do it anyway for debug
-		event->cpl_laddr = (uint32_t) (event->cpl_laddr & 0x000000000000000C);
-		debug_msg("%s:DMA0 AMO FETCH DATA WB  utag=0x%02x size=%d addr=0x%016"PRIx64 ,
-		  	cmd->afu_name, event->utag, event->size, event->addr);
-
-/*		if (tlx_dma0_cpl_bus_write(cmd->afu_event, event->utag, event->cpl_type,
-			event->size, event->cpl_laddr, event->cpl_byte_count,
-			event->data) == TLX_SUCCESS) {
-			debug_msg("%s:DMA0 CPL BUS WRITE utag=0x%02x", cmd->afu_name,
-				  event->utag);
-			event->resp = TLX_RESPONSE_DONE;
-			//event->state = DMA_CPL_SENT;
-			//see if this fixes the core dumps
-			event->state = MEM_DONE;
-			} else
-				printf ("looks like we didn't have success writing cpl data? \n");
-*/
-	//	}
-		return;
 
 }
 
@@ -1527,11 +1505,11 @@ static void _handle_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
         // have to expect data back from some AMO ops
 	else if ((event->type == CMD_AMO_RD) || (event->type == CMD_AMO_RW)) {
 		// Client is returning data from AMO memory read
-                // printf( "_handle_mem_read: CMD_AMO_RD or CMD_AMP_RW \n" );
-		if (get_bytes_silent(fd, event->size, data, cmd->parms->timeout,
+                 printf( "_handle_mem_read: AFU_CMD_AMO_RD or AFU_CMD_AMP_RW \n" );
+		if (get_bytes_silent(fd, event->size, &data[offset], cmd->parms->timeout,
 			     event->abort) < 0) {
-	        	debug_msg("%s:_handle_dma0_mem_read failed tag=0x%02x size=%d addr=0x%016"PRIx64,
-				  cmd->afu_name, event->tag, event->size, event->addr);
+	        	debug_msg("%s:_handle_amo_mem_read failed tag=0x%02x size=%d addr=0x%016"PRIx64,
+				  cmd->afu_name, event->afutag, event->size, event->addr);
 			//event->resp = TLX_RESPONSE_DERROR;
 			event->state = MEM_DONE;
 			debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->tag,
@@ -1541,9 +1519,10 @@ static void _handle_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
 		// DMA return data goes at offset 0 in the event data instead of some other offset.
                 // should we clear event->data first?
 		memcpy((void *)event->data, (void *)&data, event->size);
-		event->state = DMA_MEM_RESP;
+		//event->state = DMA_MEM_RESP;
+		event->state = MEM_DONE;
 
-	}
+	} 
 }
 
 // Calculate page address in cached index for translation
@@ -1644,7 +1623,6 @@ void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd)
 				 event->context, event->resp);
 		return;
 	}
-
 	_update_age(cmd, event->addr);
 	// TODO update this entire section to work for new AMO_RD and AMO_RW that return data!!
 	if ((event->type == CMD_READ) ||
@@ -1653,13 +1631,16 @@ void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd)
  	// have to account for AMO RD or RW cmds with returned data
  	else if (event->type == CMD_DMA_RD)
 		_handle_mem_read(cmd, event, fd);
-	// TODO FIX THIS FOR OCSE AMO returns~~~
- 	//else if (event->type == CMD_DMA_WR_AMO) {
-        //         if ((event->opcode & 0x3f) < 0x20)
-	//		_handle_mem_read(cmd, event, fd);
-	//	 else
-	//		event->state = MEM_DONE;
-	//	}
+	else if ((event->type == CMD_AMO_RD) || (event->type == CMD_AMO_RW)) {
+		// Client is returning data from AMO memory read or rw
+                 printf( "_handle_mem_return: CMD_DMA_RD or CMD_DMA_WR_AMO \n" );
+		_handle_mem_read(cmd,event,fd);
+		// have to set size back 
+		if (event->size == 4)
+			event->size = 2;
+		else 
+			event->size = 3;
+		  }
 	else if ((event->type == CMD_CAS_4B) || (event->type == CMD_CAS_8B))
 			event->state = MEM_DONE;
 
@@ -1669,6 +1650,7 @@ void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd)
 		event->state = MEM_TOUCHED;
 	else			// Write after touch
 		event->state = MEM_DONE;
+printf("made it here 4\n");
 	debug_cmd_return(cmd->dbg_fp, cmd->dbg_id, event->tag, event->context);
 }
 
@@ -1779,13 +1761,11 @@ void handle_caia2_cmds(struct cmd *cmd)
 	// Look for any cmds to process
 	head = &cmd->list;
 	while (*head != NULL) {
-	  	//printf ("handle_caia2_cmds: head->type is %2x, head->state is 0x%3x \n", (*head)->type, (*head)->state);
+	  	printf ("handle_caia2_cmds: head->type is %2x, head->state is 0x%3x \n", (*head)->type, (*head)->state);
 	//first look for  CAS commands
 		if (((*head)->type == CMD_CAS_4B) || ((*head)->type == CMD_CAS_8B))
 			break;
-		if (((*head)->state == DMA_PENDING) || ((*head)->state == DMA_PARTIAL))
-			goto dmaop_chk;
-		head = &((*head)->_next);
+			head = &((*head)->_next);
 	}
 	event = *head;
 
@@ -1820,46 +1800,6 @@ void handle_caia2_cmds(struct cmd *cmd)
 
 	} */
 	return;
-//here we search list of events to find one that has matching ITAG, then process
-	dmaop_chk: event = *head;
-	/*	if (cmd->afu_event->dma0_dvalid == 1)  {
-	this_itag = cmd->afu_event->dma0_req_itag;
-	// Look for a matching itag to process immediately
-	head = &cmd->list;
-	while (*head != NULL) {
-		debug_msg ("in handle_caia2 cmds in dmaop_ck: head->type is %2x, head->itag is 0x%3x ", (*head)->type, (*head)->itag);
-		if ((((*head)->type == CMD_XLAT_RD) &&
-		    ((*head)->itag == this_itag)) |
-		 (((*head)->type == CMD_XLAT_WR) &&
-		    ((*head)->itag == this_itag)))
-			break;
-		head = &((*head)->_next);
-	}
-	if (*head != NULL) {
-		event = *head;
-		//Fill in event and set up for next steps
-		event->itag = cmd->afu_event->dma0_req_itag;
-		event->utag = cmd->afu_event->dma0_req_utag;
-		event->dtype = cmd->afu_event->dma0_req_type;
-		event->size = cmd->afu_event->dma0_req_size;
-		// If DMA read, set up for subsequent handle_dma_mem_read
-		// If DMA write, pull data in and set up for subsequent handle dma_mem_write
-		// ALSO send over any AMO cmds that come across as dma wr
-
-		if ((event->dtype == DMA_DTYPE_ATOMIC) && (event->type == CMD_XLAT_WR))  {
-			event->state = DMA_OP_REQ;
-			event->type = CMD_DMA_WR_AMO;
-			event->opcode = cmd->afu_event->dma0_opcode;
-		  	memcpy((void *)&(event->data[0]), (void *)&(cmd->afu_event->dma0_req_data), 16);
-			debug_msg("%s:DMA0_VALID itag=0x%02x utag=0x%02x addr=0x%016"PRIx64" type = 0x%02x size=0x%02x", cmd->afu_name,
-		  		event->itag, event->utag, event->addr, event->dtype, event->size);
-			}
-
-		} else {
-		error_msg("%s: DMA REQUEST RECEIVED WITH UNKNOWN/INVALID ITAG = 0x%3x", cmd->afu_name, this_itag); }
-	cmd->afu_event->dma0_dvalid = 0;
-	} */
-   	return;
 }
 
 // Send a randomly selected pending response back to AFU
@@ -1893,56 +1833,7 @@ void handle_response(struct cmd *cmd)
 			debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ",drive response because resp is TLX_RESPONSE_error", cmd->afu_name, (*head) );
 			goto drive_resp;
 		} */
-		// if (dma write and we've sent utag sent status AND it wasn't AMO that has pending cpl resp),
-		// OR (dma write and it was AMO and we've sent cpl resp)
-		// OR (itag was aborted),  we can remove this event
-		if ( ( ( (*head)->type == CMD_DMA_WR )     && ( (*head)->state == MEM_DONE ) ) ||
-		     ( ( (*head)->type == CMD_AMO_WR ) && ( (*head)->state == MEM_DONE ) ) ||
-		     ( ( (*head)->type == CMD_XLAT_WR )    && ( (*head)->state == MEM_DONE ) ) ) {
-			//  update dma0_wr_credits IF CMD_DMA_WR or CMD_DMA_WR_AM0
-			//if ((*head)->type != CMD_XLAT_WR)
-			//	cmd->dma0_wr_credits++;
-			event = *head;
-			*head = event->_next;
-			debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", free event and skip response because dma write related is done",
-				   cmd->afu_name, event );
-			free(event->data);
-			free(event->parity);
-			free(event);
-		        //printf("in handle_response and finally freeing original xlat/dma write event \n");
-			return;
-		} else if ( ( ( (*head)->type == CMD_DMA_RD )  && ( (*head)->state == DMA_CPL_SENT ) ) ||
-			    ( ( (*head)->type == CMD_XLAT_RD ) && ( (*head)->state == MEM_DONE ) ) ) {
-		        // if dma read and we've send completion data OR itag aborted , we can remove this event
-			//  update dma0_rd_credits IF CMD_DMA_RD
-			//if ((*head)->type != CMD_XLAT_RD)
-			//	cmd->dma0_rd_credits++;
-			event = *head;
-			*head = event->_next;
-			debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", free event and skip response because dma read related is CPL or DONE",
-				   cmd->afu_name, event );
-			free(event->data);
-			free(event->parity);
-			free(event);
-	                //printf("in handle_response and finally freeing original xlat/dma read event \n");
-			return;
-		}
 
-
-		if ( ( (*head)->type == CMD_XLAT_RD ) ||
-		     ( (*head)->type == CMD_XLAT_WR ) ) {
-				if ((*head)->state == DMA_ITAG_RET) {
-					event = *head;
-					event->resp = TLX_RESPONSE_DONE;
-					debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", drive response because xlat type state was DMA_ITAG_RET",
-						   cmd->afu_name, event );
-					goto drive_resp;
-				} else {
-					debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", skip response because xlat type state was not DMA_ITAG_RET",
-						   cmd->afu_name, (*head) );
-					return;
-				}
-		}
 
 
 		// if the state of the event is mem_done, we can potentially stop the loop and send a response for it.
@@ -2000,6 +1891,7 @@ void handle_response(struct cmd *cmd)
 	//      do we buffer it in tlx_interface somehow? could be a good altenate
 	// lgt: build the appropriate response for the event we selected
 	if ( (event->command == AFU_CMD_DMA_W) || (event->command == AFU_CMD_DMA_W_N) ||
+		(event->command == AFU_CMD_AMO_W) || (event->command == AFU_CMD_AMO_W_N) ||
 		(event->command == AFU_CMD_DMA_PR_W) || event->command == AFU_CMD_DMA_PR_W_N ) {
 		
 		if ( (event->command == AFU_CMD_DMA_W) || (event->command == AFU_CMD_DMA_W_N) ) {
@@ -2020,7 +1912,9 @@ void handle_response(struct cmd *cmd)
 						0);
 
 	// rc = tlx_response(cmd->afu_event, event->tag, event->resp, 1, 0, 0, cmd->pagesize, event->resp_extra);
-	} else if ( (event->command == AFU_CMD_PR_RD_WNITC) || (event->command == AFU_CMD_PR_RD_WNITC_N) ) {
+	} else if ( (event->command == AFU_CMD_PR_RD_WNITC) || (event->command == AFU_CMD_PR_RD_WNITC_N) || 
+		    (event->command == AFU_CMD_AMO_RD) || (event->command == AFU_CMD_AMO_RD_N) ||
+		    (event->command == AFU_CMD_AMO_RW) || (event->command == AFU_CMD_AMO_RW_N) ) {
 	    // we can just send the 64 bytes of data back
 	    // and complete the event
 	    rc = tlx_afu_send_resp_and_data( cmd->afu_event, 
@@ -2033,7 +1927,7 @@ void handle_response(struct cmd *cmd)
 					     0, // resp_addr_tag, - not used by response
 					     0, // resp_data_bdi - not used by response
 					     event->data ) ; // data in this case is already at the proper offset in the 64 B data packet
-	} else if ( (event->command == AFU_CMD_RD_WNITC) || (event->command == AFU_CMD_RD_WNITC_N) ) {
+	} else if ( (event->command == AFU_CMD_RD_WNITC) || (event->command == AFU_CMD_RD_WNITC_N) ){
 	    // we can:
 	    //    send a complete response, with all the data
 	    //    send partial responses, in any order, with aligned partial data (vary dl and dp in the response

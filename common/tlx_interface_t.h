@@ -225,7 +225,7 @@
 #define AFU_CMD_READ_EXCLUSIVE_T	0xe8 	// TLX4 only
 #define AFU_CMD_READ_SHARED_T		0xe9 	// TLX4 only
 
-/* TEMP PATCH UNTIL CMDS GET TRANSLATED FROM AMO_ARMW* TO AFU_CMD_AMO* in LIBOCXL */
+/*  AMO_OPCODES per TL SPEC: used in LIBOCXL */
 #define AMO_ARMWF_ADD	 0x00
 #define AMO_ARMWF_XOR	 0x01
 #define AMO_ARMWF_OR	 0x02
@@ -235,20 +235,12 @@
 #define AMO_ARMWF_CAS_MIN_U	 0x06
 #define AMO_ARMWF_CAS_MIN_S	 0x07
 #define AMO_ARMWF_CAS_U	 0x08
-#define AMO_ARMWF_CAS_E	 0x11
-#define AMO_ARMWF_CAS_NE	 0x10
-#define AMO_ARMWF_INC_B	 0x18
-#define AMO_ARMWF_INC_E	 0x19
-#define AMO_ARMWF_DEC_B	 0x1c
-#define AMO_ARMW_ADD	 0x20
-#define AMO_ARMW_XOR	 0x21
-#define AMO_ARMW_OR	 0x22
-#define AMO_ARMW_AND	 0x23
-#define AMO_ARMW_CAS_MAX_U	 0x24
-#define AMO_ARMW_CAS_MAX_S	 0x25
-#define AMO_ARMW_CAS_MIN_U	 0x26
-#define AMO_ARMW_CAS_MIN_S	 0x27
-#define AMO_ARMW_CAS_T	 0x38
+#define AMO_ARMWF_CAS_E	 0x09
+#define AMO_ARMWF_CAS_NE	 0x0a
+#define AMO_ARMWF_INC_B	 0x0c
+#define AMO_ARMWF_INC_E	 0x0d
+#define AMO_ARMWF_DEC_B	 0x0e
+#define AMO_ARMW_CAS_T	 0x0c
 
 
 

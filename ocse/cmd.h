@@ -114,6 +114,7 @@ struct cmd_event {
 	uint32_t dpartial;
 	uint64_t wr_be;
 	uint8_t cmd_flag;
+	uint8_t cmd_endian;
 	uint32_t sent_sts;
 	uint32_t cpl_type;
 	uint32_t cpl_size;

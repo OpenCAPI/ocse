@@ -175,6 +175,7 @@ static void _handle_afu(struct ocl *ocl)
 	  handle_cmd(ocl->cmd, ocl->latency);
 	  handle_afu_tlx_cmd_data_read(ocl->cmd);  // just fills up the write command structures
 	  handle_interrupt(ocl->cmd);
+	  handle_write_be_or_amo(ocl->cmd); 
 	}
 }
 
