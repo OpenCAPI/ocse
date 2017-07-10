@@ -64,7 +64,7 @@ private:
     void reset_machine_controllers ();
     bool get_machine_context();
     void request_assign_actag();
-
+    uint32_t is_mmio_addr(uint64_t addr);
     bool get_mmio_read_parity ();
     bool set_jerror_not_run;
     
