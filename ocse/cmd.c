@@ -510,7 +510,7 @@ static void _add_amo(struct cmd *cmd, uint16_t actag, uint16_t afutag,
     			break;
   		}
 	if ( size == -1) {
-	printf("hp: AMO CMD FAILED SIZE CHECKS!!! \n");
+	printf("hp: AMO CMD FAILED SIZE CHECKS cmd_pl= 0x%x, cmd_flag=0x%x !!! \n", cmd_pl, cmd_flag);
 	  _add_other(cmd, actag, afutag, cmd_opcode,
 			   TLX_RESPONSE_FAILED);
 		return;
@@ -948,6 +948,7 @@ void handle_buffer_write(struct cmd *cmd)
 		  }
 		  event->state = MEM_REQUEST;
 		  client->mem_access = (void *)event;
+	debug_msg("Setting client->mem_access in handle_buffer_write");
 		  return; //exit immediately
 		}
 
@@ -984,6 +985,7 @@ void handle_buffer_write(struct cmd *cmd)
 		  debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag,
 				   event->context);
 		  client->mem_access = (void *)event;
+	debug_msg("Setting client->mem_access in handle_buffer_write 2");
 		}
 		// lgt remove read_pe command code - no such command in opencapi
 	}
@@ -1206,7 +1208,7 @@ void handle_write_be_or_amo(struct cmd *cmd)
 
 		debug_msg("%s:AMO_WR or AMO_RW cmd_flag=0x%02x size=%d addr=0x%016"PRIx64" port=0x%2x",
 		  	cmd->afu_name, event->cmd_flag, event->size, event->addr, client->fd);
-		if (put_bytes(client->fd, sizeof(buffer), buffer, cmd->dbg_fp,
+		if (put_bytes(client->fd, 28, buffer, cmd->dbg_fp,
 		      cmd->dbg_id, client->context) < 0) 
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 	} else if (event->type == CMD_AMO_RD ) {  //these have no data, use just memory ops. Still need op_size though
@@ -1234,6 +1236,7 @@ void handle_write_be_or_amo(struct cmd *cmd)
 
 
 	client->mem_access = (void *)event;
+	debug_msg("Setting client->mem_access in handle_write_be_or_amo");
 	return;
 
 
@@ -1299,6 +1302,7 @@ void handle_touch(struct cmd *cmd)
 	}
 	event->state = MEM_TOUCH;
 	client->mem_access = (void *)event;
+	debug_msg("Setting client->mem_access in handle_touch");
 	debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->tag, event->context);
 }
 
@@ -1467,6 +1471,7 @@ void handle_mem_write(struct cmd *cmd)
 		event->state = MEM_REQUEST;
 	  	//printf ("handle_mem_write2: event->type is %2x, event->state is 0x%3x \n", event->type, event->state);
 	client->mem_access = (void *)event;
+	debug_msg("Setting client->mem_access in handle_mem_write");
 }
 
 // Handle data returning from client for memory read

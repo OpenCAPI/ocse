@@ -643,66 +643,66 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 			/* addr = location of an address aligned 4 or 8 byte first operand (op_A),
  *  which is modified with operand provided by AFU (op_1 or op_1l). AFU also provides the function
  *  encode (op_code). The result is returned to memory, the original value is returned to the AFU as completion data */
-			case AMO_ARMWF_ADD:
+			case AMO_WRMWF_ADD:
 				if  (op_size == 4) {
-				debug_msg("ADD %08"PRIx32" to %08"PRIx32 " store it & return op_A ", op_A, op_1);
+				debug_msg("ADD %08"PRIx32" to %08"PRIx32 " store it & only return op_A for amo_rw ", op_A, op_1);
 					op_1 += op_A;
 					wb = 1;
 				} else {
-				debug_msg("ADD %016"PRIx64" to %016"PRIx64 " store it & return op_Al ", op_Al, op_1l);
+				debug_msg("ADD %016"PRIx64" to %016"PRIx64 " store it & return op_Al for amo_rw ", op_Al, op_1l);
 					op_1l += op_Al;
 					wb = 2;
 				}
 				if (amo_op == OCSE_AMO_WR)
 					wb = 0;
 				break;
-			case AMO_ARMWF_XOR:
+			case AMO_WRMWF_XOR:
 				if  (op_size == 4) {
-				debug_msg("XOR %08"PRIx32" with %08"PRIx32 " store it & return op_A ", op_A, op_1);
+				debug_msg("XOR %08"PRIx32" with %08"PRIx32 " store it & return op_A  for amo_rw", op_A, op_1);
 					op_1 ^= op_A;
 					wb = 1;
 				} else {
-				debug_msg("XOR %016"PRIx64" with %016"PRIx64 " store it & return op_Al ", op_Al, op_1l);
+				debug_msg("XOR %016"PRIx64" with %016"PRIx64 " store it & return op_Al for amo_rw ", op_Al, op_1l);
 					op_1l ^= op_Al;
 					wb = 2;
 				}
 				if (amo_op == OCSE_AMO_WR)
 					wb = 0;
 				break;
-			case AMO_ARMWF_OR:
+			case AMO_WRMWF_OR:
 				if  (op_size == 4) {
-				debug_msg("OR %08"PRIx32" with %08"PRIx32 " store it & return op_A ", op_A, op_1);
+				debug_msg("OR %08"PRIx32" with %08"PRIx32 " store it & return op_A  for amo_rw", op_A, op_1);
 					op_1 |= op_A;
 					wb = 1;
 				} else {
-				debug_msg("OR %016"PRIx64" with %016"PRIx64 " store it & return op_Al ", op_Al, op_1l);
+				debug_msg("OR %016"PRIx64" with %016"PRIx64 " store it & return op_Al for amo_rw ", op_Al, op_1l);
 					op_1l |= op_Al;
 					wb = 2;
 				}
 				if (amo_op == OCSE_AMO_WR)
 					wb = 0;
 				break;
-			case AMO_ARMWF_AND:
+			case AMO_WRMWF_AND:
 				if  (op_size == 4) {
-				debug_msg("AND %08"PRIx32" with %08"PRIx32 " store it & return op_A ", op_A, op_1);
+				debug_msg("AND %08"PRIx32" with %08"PRIx32 " store it & return op_A for amo_rw ", op_A, op_1);
 					op_1 &= op_A;
 					wb = 1;
 				} else {
-				debug_msg("AND %016"PRIx64" with %016"PRIx64 " store it & return op_Al ", op_Al, op_1l);
+				debug_msg("AND %016"PRIx64" with %016"PRIx64 " store it & return op_Al for amo_rw ", op_Al, op_1l);
 					op_1l &= op_Al;
 					wb = 2;
 				}
 				if (amo_op == OCSE_AMO_WR)
 					wb = 0;
 				break;
-			case AMO_ARMWF_CAS_MAX_U:
+			case AMO_WRMWF_CAS_MAX_U:
 				if  (op_size == 4) {
-				debug_msg("UNSIGNED COMPARE %08"PRIx32" with %08"PRIx32 " , store larger & return op_A ", op_A, op_1);
+				debug_msg("UNSIGNED COMPARE %08"PRIx32" with %08"PRIx32 " , store larger & return op_A for amo_rw ", op_A, op_1);
 					if (op_A > op_1)
 						op_1 = op_A;
 					wb = 1;
 				} else {
-				debug_msg("UNSIGNED COMPARE %016"PRIx64" with %016"PRIx64 " , store larger & return op_Al  ", op_Al, op_1l);
+				debug_msg("UNSIGNED COMPARE %016"PRIx64" with %016"PRIx64 " , store larger & return op_Al for amo_rw  ", op_Al, op_1l);
 					if (op_Al > op_1l)
 						op_1l = op_Al;
 					wb = 2;
@@ -710,19 +710,19 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 				if (amo_op == OCSE_AMO_WR)
 					wb = 0;
 				break;
-			case AMO_ARMWF_CAS_MAX_S:
+			case AMO_WRMWF_CAS_MAX_S:
 				// sign extend op_A and op_1 and then cast as int and do comparison
 				if (op_size == 4) {
 					op_A = sign_extend(op_A);
 					op_1 = sign_extend(op_1);
-				debug_msg("SIGNED COMPARE %08"PRIx32" with %08"PRIx32 " store larger & return op_A ", op_A, op_1);
+				debug_msg("SIGNED COMPARE %08"PRIx32" with %08"PRIx32 " store larger & return op_A for amo_rw ", op_A, op_1);
 					if ((int32_t)op_A > (int32_t)op_1)
 						op_1 = op_A;
 					wb = 1;
 				} else {
 					op_Al = sign_extend64(op_Al);
 					op_1l = sign_extend64(op_1l);
-				debug_msg("SIGNED COMPARE %016"PRIx64" with %016"PRIx64 " store larger & return op_Al ", op_Al, op_1l);
+				debug_msg("SIGNED COMPARE %016"PRIx64" with %016"PRIx64 " store larger & return op_Al for amo_rw ", op_Al, op_1l);
 					if ((int64_t)op_Al > (int64_t)op_1l)
 						op_1l = op_Al;
 					wb = 2;
@@ -730,14 +730,14 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 				if (amo_op == OCSE_AMO_WR)
 					wb = 0;
 				break;
-			case AMO_ARMWF_CAS_MIN_U:
+			case AMO_WRMWF_CAS_MIN_U:
 				if  (op_size == 4) {
-				debug_msg("UNSIGNED COMPARE %08"PRIx32" with %08"PRIx32 " store smaller & return op_A ", op_A, op_1);
+				debug_msg("UNSIGNED COMPARE %08"PRIx32" with %08"PRIx32 " store smaller & return op_A for amo_rw ", op_A, op_1);
 					if (op_A < op_1)
 						op_1 = op_A;
 					wb = 1;
 				} else {
-				debug_msg("UNSIGNED COMPARE %016"PRIx64" with %016"PRIx64 " store smaller & return op_Al ", op_Al, op_1l);
+				debug_msg("UNSIGNED COMPARE %016"PRIx64" with %016"PRIx64 " store smaller & return op_Al for amo_rw ", op_Al, op_1l);
 					if (op_Al < op_1l)
 						op_1l = op_Al;
 					wb = 2;
@@ -745,18 +745,18 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 				if (amo_op == OCSE_AMO_WR)
 					wb = 0;
 				break;
-			case AMO_ARMWF_CAS_MIN_S:
+			case AMO_WRMWF_CAS_MIN_S:
 				if (op_size == 4) {
 					op_A = sign_extend(op_A);
 					op_1 = sign_extend(op_1);
-				debug_msg("SIGNED COMPARE %08"PRIx32" with %08"PRIx32 " store smaller & return op_A ", op_A, op_1);
+				debug_msg("SIGNED COMPARE %08"PRIx32" with %08"PRIx32 " store smaller & return op_A for amo_rw ", op_A, op_1);
 					if ((int32_t)op_A < (int32_t)op_1)
 						op_1 = op_A;
 					wb = 1;
 				} else {
 					op_Al = sign_extend64(op_Al);
 					op_1l = sign_extend64(op_1l);
-				debug_msg("SIGNED COMPARE %016"PRIx64" with %016"PRIx64 " store smaller & return op_Al ", op_Al, op_1l);
+				debug_msg("SIGNED COMPARE %016"PRIx64" with %016"PRIx64 " store smaller & return op_Al for amo_rw ", op_Al, op_1l);
 					if ((int64_t)op_Al < (int64_t)op_1l)
 						op_1l = op_Al;
 					wb = 2;
@@ -769,6 +769,10 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
  * encode (op_code. If result of compare is true, the third operand provided by AFU (op_2 or op_2l)
  * is written to memory at location specified for op_A. Original value of op_A is returned to AFU. */
 			case AMO_ARMWF_CAS_U:
+				if ((amo_op == OCSE_AMO_WR) || (amo_op == OCSE_AMO_RD)) {
+					info_msg("INVALID FUNCTION CODE FOR AMO_WR or AMO_RD - treated as NOP \n");
+					wb = 0; 
+					break; }
 				if  (op_size == 4) {
 				debug_msg("COMPARE & SWAP  %08"PRIx32" with %08"PRIx32 " ,store op_2 & return op_A ", op_A, op_1);
 					op_1 = op_2;
@@ -778,10 +782,12 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 					op_1l = op_2l;
 					wb = 2;
 				}
-				if (amo_op == OCSE_AMO_WR)
-					wb = 0;
 				break;
 			case AMO_ARMWF_CAS_E:
+				if ((amo_op == OCSE_AMO_WR) || (amo_op == OCSE_AMO_RD)) {
+					info_msg("INVALID FUNCTION CODE FOR AMO_WR or AMO_RD - treated as NOP \n");
+					wb = 0; 
+					break; }
 				if  (op_size == 4) {
 				debug_msg("COMPARE & SWAP == %08"PRIx32" with %08"PRIx32 " ,if true store op_2 & return op_A ", op_A, op_1);
 					if (op_A == op_1)
@@ -800,7 +806,11 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 				if (amo_op == OCSE_AMO_WR)
 					wb = 0;
 				break;
-			case AMO_ARMWF_CAS_NE:
+			case AMO_ARMWF_CAS_NE: //0x0a 
+				if ((amo_op == OCSE_AMO_WR) || (amo_op == OCSE_AMO_RD)) {
+					info_msg("INVALID FUNCTION CODE FOR AMO_WR or AMO_RD - treated as NOP \n");
+					wb = 0; 
+					break; }
 				if  (op_size == 4) {
 				debug_msg("COMPARE & SWAP != %08"PRIx32" with %08"PRIx32 " ,if true, store op_2 & return op_A ", op_A, op_1);
 					if (op_A != op_1)
@@ -825,8 +835,12 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
  *  • cannot target locations at 32n-2bin2dec(‘1L’), where n = 1,2,3... (armwf_inc_b, armwf_inc_e)
  *  • cannot target locations at 32n, when n = 0, 1, 2, 3... (armwf_dec_b)
  * The original value from memory, or (1 << (s*8 -1)) is returned (s = 4 or 8) */
-			case AMO_ARMWF_INC_B:
-			//case AMO_ARMW_CAS_T:
+			case AMO_ARMWF_INC_B: //0xc0
+			//case AMO_W_CAS_T:
+				if (amo_op == OCSE_AMO_RW)  {
+					info_msg("INVALID FUNCTION CODE FOR AMO_RW - treated as NOP \n");
+					wb = 0; 
+					break; }
 				if (amo_op == OCSE_AMO_WR) { //this is the amo_wr store & compare twin
 
 					if  (op_size == 4) {
@@ -877,6 +891,10 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 				}
 				break;
 			case AMO_ARMWF_INC_E:
+				if ((amo_op == OCSE_AMO_WR) || (amo_op == OCSE_AMO_RW)) {
+					info_msg("INVALID FUNCTION CODE FOR AMO_WR or AMO_RW - treated as NOP \n");
+					wb = 0; 
+					break; }
 				if  (op_size == 4) {
 					memcpy((char *) &lvalue, (void *)addr+4, op_size);
 					op_1 = (uint32_t)(lvalue);
@@ -904,6 +922,10 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 				}
 				break;
 			case AMO_ARMWF_DEC_B:
+				if ((amo_op == OCSE_AMO_WR) || (amo_op == OCSE_AMO_RW)) {
+					info_msg("INVALID FUNCTION CODE FOR AMO_WR or AMO_RW - treated as NOP \n");
+					wb = 0; 
+					break; }
 				if  (op_size == 4) {
 					memcpy((char *) &lvalue, (void *)addr-4, op_size);
 					op_1 = (uint32_t)(lvalue);
@@ -1070,7 +1092,7 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 			memcpy ((void *)addr, &op_1, op_size);
 			DPRINTF("WRITE to addr @ 0x%016" PRIx64 " with results of 0x%08" PRIX32 " \n", addr, op_1);
 			// if this was STORE TWIN, write op_2 to addr+4
-			if ((atomic_op) == AMO_ARMW_CAS_T) {
+			if ((atomic_op) == AMO_W_CAS_T) {
 				memcpy ((void *)addr+4, &op_2, op_size);
 				DPRINTF("WRITE to addr+4 @ 0x%016" PRIx64 " with results of 0x%08" PRIX32 " \n", addr+4, op_2);
 			}
@@ -1078,7 +1100,7 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 			memcpy ((void *)addr, &op_1l, op_size);
 			DPRINTF("WRITE to addr @ 0x%016" PRIx64 " with results of 0x%016" PRIX64 "\n", addr, op_1l);
 			// if this was STORE TWIN, write op_2l to addr+8
-			if ((atomic_op) == AMO_ARMW_CAS_T) {
+			if ((atomic_op) == AMO_W_CAS_T) {
 				memcpy ((void *)addr+8, &op_2l, op_size);
 				DPRINTF("WRITE to addr+8 @ 0x%016" PRIx64 " with results of 0x%016" PRIX64 " \n", addr+8, op_2l);
 			}
@@ -1563,15 +1585,18 @@ static void *_psl_loop(void *ptr)
 
 		case OCSE_AMO_WR:
 		case OCSE_AMO_RW:
-			DPRINTF("AFU AMO_WRITE OR AMO_READ/WRITE\n");
 			amo_op = buffer[0];
-			if (get_bytes_silent(afu->fd, sizeof(op_size), buffer, -1, 0) < 0) {
+			if (amo_op == OCSE_AMO_WR)
+				DPRINTF("AFU AMO_WRITE \n");
+			else
+				DPRINTF("AFU AMO__READ/WRITE\n");
+			if (get_bytes_silent(afu->fd, sizeof(uint8_t), buffer, -1, 0) < 0) {
 				warn_msg
 				    ("Socket failure getting amo_wr or amo_rw size");
 				_all_idle(afu);
 				break;
 			}
-			memcpy( (char *)&op_size, buffer, sizeof( op_size ) );
+			memcpy( (char *)&op_size, buffer, sizeof( uint8_t ) );
 			//memcpy( (char *)&size, buffer, sizeof( size ) );
 			//size = ntohs(size);
 			DPRINTF( "op_size=%d \n", op_size );

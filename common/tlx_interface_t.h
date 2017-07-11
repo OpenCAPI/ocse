@@ -226,21 +226,21 @@
 #define AFU_CMD_READ_SHARED_T		0xe9 	// TLX4 only
 
 /*  AMO_OPCODES per TL SPEC: used in LIBOCXL */
-#define AMO_ARMWF_ADD	 0x00
-#define AMO_ARMWF_XOR	 0x01
-#define AMO_ARMWF_OR	 0x02
-#define AMO_ARMWF_AND	 0x03
-#define AMO_ARMWF_CAS_MAX_U	 0x04
-#define AMO_ARMWF_CAS_MAX_S	 0x05
-#define AMO_ARMWF_CAS_MIN_U	 0x06
-#define AMO_ARMWF_CAS_MIN_S	 0x07
+#define AMO_WRMWF_ADD	 0x00
+#define AMO_WRMWF_XOR	 0x01
+#define AMO_WRMWF_OR	 0x02
+#define AMO_WRMWF_AND	 0x03
+#define AMO_WRMWF_CAS_MAX_U	 0x04
+#define AMO_WRMWF_CAS_MAX_S	 0x05
+#define AMO_WRMWF_CAS_MIN_U	 0x06
+#define AMO_WRMWF_CAS_MIN_S	 0x07
 #define AMO_ARMWF_CAS_U	 0x08
 #define AMO_ARMWF_CAS_E	 0x09
 #define AMO_ARMWF_CAS_NE	 0x0a
 #define AMO_ARMWF_INC_B	 0x0c
 #define AMO_ARMWF_INC_E	 0x0d
 #define AMO_ARMWF_DEC_B	 0x0e
-#define AMO_ARMW_CAS_T	 0x0c
+#define AMO_W_CAS_T	 0x0c
 
 
 
