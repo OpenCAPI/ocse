@@ -839,7 +839,7 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 		event->tbuf[bp++] = (event->tlx_afu_cmd_capptag & 0xFF);
 		//printf("event->tbuf[%x] is 0x%2x \n", bp-1, event->tbuf[bp-1]);
 		event->tbuf[bp++] = (event->tlx_afu_cmd_dl & 0x03);
-		event->tbuf[bp++] = (event->tlx_afu_cmd_pl & 0x03);
+		event->tbuf[bp++] = (event->tlx_afu_cmd_pl & 0x07);
 		for (i = 0; i < 8; i++) {
 			event->tbuf[bp++] =
 			    ((event->tlx_afu_cmd_be) >> ((7 - i) * 8)) & 0xFF;
@@ -988,7 +988,8 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		event->tbuf[bp++] = ((event->afu_tlx_cmd_afutag) >> 8) & 0xFF;
 		event->tbuf[bp++] = (event->afu_tlx_cmd_afutag & 0xFF);
 		event->tbuf[bp++] = (event->afu_tlx_cmd_dl & 0x03);
-		event->tbuf[bp++] = (event->afu_tlx_cmd_pl & 0x03);
+		event->tbuf[bp++] = (event->afu_tlx_cmd_pl & 0x07);
+		//printf("event->tbuf[%x] is 0x%2x \n", bp-1, event->tbuf[bp-1]);
 #ifdef TLX4
 		event->tbuf[bp++] = (event->afu_tlx_cmd_os & 0x01);
 #endif
@@ -1266,6 +1267,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
 		event->afu_tlx_cmd_dl = event->rbuf[rbc++];
 		event->afu_tlx_cmd_pl = event->rbuf[rbc++];
+		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
 #ifdef TLX4
 		event->afu_tlx_cmd_os = event->rbuf[rbc++];;
 #endif

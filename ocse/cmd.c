@@ -658,7 +658,7 @@ static void _parse_cmd(struct cmd *cmd,
 		break;
 	case AFU_CMD_AMO_RW:
 	case AFU_CMD_AMO_RW_N:
-		debug_msg("YES! AFU cmd is some sort of AMO read/write!!!!\n");
+		debug_msg("YES! AFU cmd is some sort of AMO read/write w/cmd_pl= 0x%x!!!!\n", cmd_pl);
 		_add_amo(cmd, cmd_actag, cmd_afutag, cmd_opcode, CMD_AMO_RW, 
 			  cmd_ea_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag, cmd_endian);
 		break;
