@@ -510,14 +510,14 @@ static void _add_amo(struct cmd *cmd, uint16_t actag, uint16_t afutag,
     			break;
   		}
 	if ( size == -1) {
-	printf("hp: AMO CMD FAILED SIZE CHECKS cmd_pl= 0x%x, cmd_flag=0x%x !!! \n", cmd_pl, cmd_flag);
+	debug_msg("AMO CMD FAILED SIZE CHECKS cmd_pl= 0x%x, cmd_flag=0x%x !!! ", cmd_pl, cmd_flag);
 	  _add_other(cmd, actag, afutag, cmd_opcode,
 			   TLX_RESPONSE_FAILED);
 		return;
 	}
 	// Check command size and address
 	if (!_aligned(addr, sizecheck )) {
-	printf("hp: AMO CMD FAILED ADDR ALIGN CHECKS!!! \n");
+	debug_msg("AMO CMD FAILED ADDR ALIGN CHECKS!!! ");
 	  _add_other(cmd, actag, afutag, cmd_opcode,
 			   TLX_RESPONSE_FAILED);
 		return;
@@ -534,7 +534,6 @@ static void _add_amo(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 	// Command data comes over with the command for amo_rw and amo_w, so now we need to read it from event
 	// Then, next step is to send over to client/libocxl for processing
 	
-	printf("hp: ADDING AMO CMD!!! \n");
 	_add_cmd(cmd, context, afutag, cmd_opcode, type, addr, (uint16_t)sizecheck,
 		 MEM_IDLE, TLX_RESPONSE_DONE, 0, cmd_data_is_valid, 0, cmd_flag, cmd_endian);
 }
@@ -612,20 +611,20 @@ static void _parse_cmd(struct cmd *cmd,
 	switch (cmd_opcode) {
 		// assign actag to map an actag to a pasid/bdf (a context for us)
 	case AFU_CMD_ASSIGN_ACTAG:
-		printf("YES! AFU cmd is ASSIGN_ACTAG!!!!\n");
+		debug_msg("YES! AFU cmd is ASSIGN_ACTAG!!!!\n");
                 _assign_actag( cmd, cmd_bdf, cmd_pasid, cmd_actag );
 		break;
 		// Memory Reads
 	case AFU_CMD_RD_WNITC:
 	case AFU_CMD_RD_WNITC_N:
-		printf("YES! AFU cmd is some sort of read!!!!\n");
+		debug_msg("YES! AFU cmd is some sort of read!!!!\n");
 		// calculate size from dl
 		_add_read(cmd, cmd_actag, cmd_afutag, cmd_opcode,
 			 cmd_ea_or_obj, dl_to_size( cmd_dl ));
 		break;
 	case AFU_CMD_PR_RD_WNITC:
 	case AFU_CMD_PR_RD_WNITC_N:
-		printf("YES! AFU cmd is some sort of partial read!!!!\n");
+		debug_msg("YES! AFU cmd is some sort of partial read!!!!\n");
 		// calculate size from pl
 		_add_read(cmd, cmd_actag, cmd_afutag, cmd_opcode, 
 			 cmd_ea_or_obj, pl_to_size( cmd_pl ));
@@ -633,39 +632,39 @@ static void _parse_cmd(struct cmd *cmd,
 		// Memory Writes
 	case AFU_CMD_DMA_W:
 	case AFU_CMD_DMA_W_N:
-		printf("YES! AFU cmd is some sort of write!!!!\n");
+		debug_msg("YES! AFU cmd is some sort of write!!!!\n");
 		_add_write(cmd, cmd_actag, cmd_afutag, cmd_opcode, 
 			  cmd_ea_or_obj, dl_to_size( cmd_dl ), cmd_data_is_valid, 0);
 		break;
 	case AFU_CMD_DMA_PR_W:
 	case AFU_CMD_DMA_PR_W_N:
-		printf("YES! AFU cmd is some sort of partial write!!!!\n");
+		debug_msg("YES! AFU cmd is some sort of partial write!!!!\n");
 		_add_write(cmd, cmd_actag, cmd_afutag, cmd_opcode,
 			  cmd_ea_or_obj, pl_to_size( cmd_pl ), cmd_data_is_valid, 0);
 		break;
 		// Memory Writes with Byte Enable 
 	case AFU_CMD_DMA_W_BE:
 	case AFU_CMD_DMA_W_BE_N:
-		printf("YES! AFU cmd is some sort of write w/BE!!!!\n");
+		debug_msg("YES! AFU cmd is some sort of write w/BE!!!!\n");
 		_add_write(cmd, cmd_actag, cmd_afutag, cmd_opcode, 
 			  cmd_ea_or_obj, 64, cmd_data_is_valid, cmd_be);
 		break;
 		// AMO reads and writes
 	case AFU_CMD_AMO_RD:
 	case AFU_CMD_AMO_RD_N:
-		printf("YES! AFU cmd is some sort of AMO read!!!!\n");
+		debug_msg("YES! AFU cmd is some sort of AMO read!!!!\n");
 		_add_amo(cmd, cmd_actag, cmd_afutag, cmd_opcode, CMD_AMO_RD, 
 			  cmd_ea_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag, cmd_endian);
 		break;
 	case AFU_CMD_AMO_RW:
 	case AFU_CMD_AMO_RW_N:
-		printf("YES! AFU cmd is some sort of AMO read/write!!!!\n");
+		debug_msg("YES! AFU cmd is some sort of AMO read/write!!!!\n");
 		_add_amo(cmd, cmd_actag, cmd_afutag, cmd_opcode, CMD_AMO_RW, 
 			  cmd_ea_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag, cmd_endian);
 		break;
 	case AFU_CMD_AMO_W:
 	case AFU_CMD_AMO_W_N:
-		printf("YES! AFU cmd is some sort of AMO read or write!!!!\n");
+		debug_msg("YES! AFU cmd is some sort of AMO read or write!!!!\n");
 		_add_amo(cmd, cmd_actag, cmd_afutag, cmd_opcode, CMD_AMO_WR, 
 			  cmd_ea_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag, cmd_endian);
 		break;
@@ -673,7 +672,7 @@ static void _parse_cmd(struct cmd *cmd,
 		// Interrupt
 	case AFU_CMD_INTRP_REQ:
 	//case AFU_CMD_INTRP_REQ_D: // not sure POWER supports this one?
-		printf("YES! AFU cmd is some sort of INTERRUPT REQUEST!!!!\n");
+		debug_msg("YES! AFU cmd is some sort of INTERRUPT REQUEST!!!!\n");
 		_add_interrupt(cmd, cmd_actag, cmd_afutag, cmd_opcode,
 			  cmd_ea_or_obj, cmd_flag);
 	// TODO what about stream_id ?
@@ -682,43 +681,12 @@ static void _parse_cmd(struct cmd *cmd,
 		// Restart
 		// Memory Writes
 		break;
-		// Treat these as memory touch to test for valid addresses
-	case TLX_COMMAND_EVICT_I:
-		if (cmd->locked && cmd->res_addr) {
-			_add_other(cmd, handle, tag, command, abort,
-				   TLX_RESPONSE_NRES);
-			break;
-		}
-	case TLX_COMMAND_PUSH_I:
-	case TLX_COMMAND_PUSH_S:
-		if (cmd->locked) {
-			_add_other(cmd, handle, tag, command, abort,
-				   TLX_RESPONSE_NLOCK);
-			break;
-		}
-	case TLX_COMMAND_TOUCH_I:
-	case TLX_COMMAND_TOUCH_S:
-	case TLX_COMMAND_TOUCH_M:
-	case TLX_COMMAND_FLUSH:
-		_add_touch(cmd, handle, tag, command, abort, addr, size,
-			   unlock);
-		break;
-	case TLX_COMMAND_READ_PE:	/
-		_add_read_pe(cmd, handle, tag, command, abort, addr, size);
-		break;
 	case TLX_COMMAND_CAS_E_4B:
 	case TLX_COMMAND_CAS_NE_4B:
 	case TLX_COMMAND_CAS_U_4B:
 	case TLX_COMMAND_CAS_E_8B:
 	case TLX_COMMAND_CAS_NE_8B:
 	case TLX_COMMAND_CAS_U_8B:
-	case TLX_COMMAND_XLAT_RD_P0:
-	case TLX_COMMAND_XLAT_WR_P0:
-	case TLX_COMMAND_XLAT_RD_TOUCH:
-	case TLX_COMMAND_XLAT_WR_TOUCH:
-	case TLX_COMMAND_ITAG_ABRT_RD:
-	case TLX_COMMAND_ITAG_ABRT_WR:
-		_add_caia2(cmd, handle, tag, command, abort,addr);
 		break; */
 	default:
 		warn_msg("Unsupported command 0x%04x", cmd);
@@ -1130,7 +1098,7 @@ void handle_write_be_or_amo(struct cmd *cmd)
 	// Send any ready write_be or AMO cmds to client immediately
 	head = &cmd->list;
 	while (*head != NULL) {
-	  	printf ("handle_write_be_or_amo: head->type is %2x, head->state is 0x%3x \n", (*head)->type, (*head)->state);
+	  	//printf ("handle_write_be_or_amo: head->type is %2x, head->state is 0x%3x \n", (*head)->type, (*head)->state);
 		if ((((*head)->type == CMD_WR_BE) || ((*head)->type == CMD_AMO_WR) ||
 		    ((*head)->type == CMD_AMO_RW)) &&
 		    ((*head)->state == MEM_RECEIVED))
@@ -1148,7 +1116,7 @@ void handle_write_be_or_amo(struct cmd *cmd)
 		return;
 	// Check that memory request can be driven to client
 	if (client->mem_access != NULL) {
-		debug_msg("Can't send to client bc client->mem_access not NULL...retry later");
+		debug_msg("handle_write_be_or_amo: Can't send to client bc client->mem_access not NULL...retry later");
 		return;
 	}
 	// Send cmd & data (if available) to client/libocxl to process
@@ -1483,9 +1451,9 @@ static void _handle_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
 	// printf ("_handle_mem_read: event->type is %2x, event->state is 0x%3x \n", event->type, event->state);
 	if ((event->type == CMD_READ) ||
 		 (((event->type == CMD_CAS_4B) || (event->type == CMD_CAS_8B)) && event->state != MEM_CAS_WR)) {
-	        printf ("_handle_mem_read: CMD_READ \n" );
+	        //printf ("_handle_mem_read: CMD_READ \n" );
 		// Client is returning data from memory read
-		printf("_handle_mem_read: before get bytes silent \n");
+		//printf("_handle_mem_read: before get bytes silent \n");
 		if (get_bytes_silent(fd, event->size, data, cmd->parms->timeout,
 			     event->abort) < 0) {
 	        	debug_msg("%s:_handle_mem_read failed afutag=0x%04x size=%d addr=0x%016"PRIx64,
@@ -1498,7 +1466,7 @@ static void _handle_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
 				 event->context, event->resp);
 			return;
 		}
-		printf("_handle_mem_read: AFTER get bytes silent \n");
+		//printf("_handle_mem_read: AFTER get bytes silent \n");
 		// we used to put the data in the event->data at the offset implied by the address
 		// should we still do that?  It might depend on the the actual ap command that we received.
 		memcpy((void *)&(event->data[offset]), (void *)&data, event->size);
@@ -1510,8 +1478,8 @@ static void _handle_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
         // have to expect data back from some AMO ops
 	else if ((event->type == CMD_AMO_RD) || (event->type == CMD_AMO_RW)) {
 		// Client is returning data from AMO memory read
-                 printf( "_handle_mem_read: AFU_CMD_AMO_RD or AFU_CMD_AMP_RW \n" );
-		if (get_bytes_silent(fd, event->size, &data[offset], cmd->parms->timeout,
+                 debug_msg( "_handle_mem_read: AFU_CMD_AMO_RD or AFU_CMD_AMP_RW \n" );
+		if (get_bytes_silent(fd, event->size, data, cmd->parms->timeout,
 			     event->abort) < 0) {
 	        	debug_msg("%s:_handle_amo_mem_read failed tag=0x%02x size=%d addr=0x%016"PRIx64,
 				  cmd->afu_name, event->afutag, event->size, event->addr);
@@ -1523,8 +1491,9 @@ static void _handle_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
 		}
 		// DMA return data goes at offset 0 in the event data instead of some other offset.
                 // should we clear event->data first?
-		memcpy((void *)event->data, (void *)&data, event->size);
-		//event->state = DMA_MEM_RESP;
+		memcpy((void *)&(event->data[offset]), (void *)&data, event->size);
+	        debug_msg("%s:_handle_amo_mem_read DONE tag=0x%02x size=%d addr=0x%016"PRIx64,
+			  cmd->afu_name, event->afutag, event->size, event->addr);
 		event->state = MEM_DONE;
 
 	} 
@@ -1638,7 +1607,7 @@ void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd)
 		_handle_mem_read(cmd, event, fd);
 	else if ((event->type == CMD_AMO_RD) || (event->type == CMD_AMO_RW)) {
 		// Client is returning data from AMO memory read or rw
-                 printf( "_handle_mem_return: CMD_DMA_RD or CMD_DMA_WR_AMO \n" );
+                 debug_msg( "_handle_mem_return: CMD_DMA_RD or CMD_DMA_WR_AMO " );
 		_handle_mem_read(cmd,event,fd);
 		// have to set size back 
 		if (event->size == 4)
@@ -1655,7 +1624,6 @@ void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd)
 		event->state = MEM_TOUCHED;
 	else			// Write after touch
 		event->state = MEM_DONE;
-printf("made it here 4\n");
 	debug_cmd_return(cmd->dbg_fp, cmd->dbg_id, event->tag, event->context);
 }
 
