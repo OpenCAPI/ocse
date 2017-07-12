@@ -194,7 +194,7 @@ StoreCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     uint16_t  cmd_bdf, cmd_actag, cmd_afutag;
     uint16_t cmd_pasid;
     int  rc;
-    uint32_t afutag;
+//    uint32_t afutag;
     uint8_t  ea_addr[9], i;
 
     
