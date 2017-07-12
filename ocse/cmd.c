@@ -356,65 +356,27 @@ static int _aligned(uint64_t addr, uint32_t size)
 }
 
 
-// Format and add new p9 commands to list
-
-/* static void _add_caia2(struct cmd *cmd, uint32_t handle, uint32_t tag, */
-/* 		       uint32_t command, uint32_t abort, uint64_t addr) */
-/* { */
-/* 	uint32_t resp = TLX_RESPONSE_DONE; */
-/* 	enum cmd_type type = CMD_CAIA2; */
-/* 	enum mem_state state = MEM_DONE; */
-
-/* /\* 	switch (command) { */
-/* 		case TLX_COMMAND_CAS_E_4B: */
-/* 		case TLX_COMMAND_CAS_NE_4B: */
-/* 		case TLX_COMMAND_CAS_U_4B: */
-/* 			//printf("in _add_caia2 for cmd_CAS 4B, address is 0x%016"PRIX64 "\n", addr); */
-/* 			// Check command size and address */
-/* 			if (!_aligned(addr, 16)) { */
-/* 				_add_other(cmd, handle, tag, command, abort, */
-/* 			  	 TLX_RESPONSE_FAILED); */
-/* 			return; */
-/* 			} */
-/* 			type = CMD_CAS_4B; */
-/* 			state = MEM_IDLE; */
-/* 			break; */
-/* 		case TLX_COMMAND_CAS_E_8B: */
-/* 		case TLX_COMMAND_CAS_NE_8B: */
-/* 		case TLX_COMMAND_CAS_U_8B: */
-/* 			//printf("in _add_caia2 for cmd_CAS 8B, address is 0x%016"PRIX64 "\n", addr); */
-/* 			// Check command size and address */
-/* 			if (!_aligned(addr,16)) { */
-/* 			_add_other(cmd, handle, tag, command, abort, */
-/* 			   	TLX_RESPONSE_FAILED); */
-/* 			return; */
-/* 			} */
-/* 			type = CMD_CAS_8B; */
-/* 			state = MEM_IDLE; */
-/* 			break; */
-/* 		default: */
-/* 			warn_msg("Unsupported command 0x%04x", cmd); */
-/* 			break; */
-
-/* 	} *\/ */
-/* 	_add_cmd(cmd, handle, tag, command, abort, type, addr, 0, state, */
-/* 		 resp, 0 ); */
-/* } */
-
-// Format and add memory touch to command list
-/* static void _add_touch(struct cmd *cmd, uint32_t handle, uint32_t tag, */
-/* 		       uint32_t command, uint32_t abort, uint64_t addr, */
-/* 		       uint32_t size, uint8_t unlock) */
-/* { */
-/* 	// Check command size and address */
-/* 	if (!_aligned(addr, size)) { */
-/* 		_add_other(cmd, handle, tag, command, abort, */
-/* 			   TLX_RESPONSE_FAILED); */
-/* 		return; */
-/* 	} */
-/* 	_add_cmd(cmd, handle, tag, command, abort, CMD_TOUCH, addr, */
-/* 		 CACHELINE_BYTES, MEM_IDLE, TLX_RESPONSE_DONE, unlock); */
-/* } */
+// Format and add memory xlate touch to command list
+ static void _add_xlate_touch(struct cmd *cmd, uint16_t actag, uint16_t afutag, 
+ 			   uint8_t cmd_opcode, uint8_t *cmd_ea_or_obj, uint8_t cmd_flag) 
+ { 
+        int64_t addr;
+	uint32_t size = 64;
+        // convert 68 bit ea/obj to 64 bit addr
+        // for ap write commands, ea_or_obj is a 64 bit thing...
+        memcpy( (void *)&addr, (void *)&(cmd_ea_or_obj[0]), sizeof(int64_t));
+ 	// Check command size and address */
+ 	if (!_aligned(addr, size)) { 
+ 		_add_other(cmd, actag, afutag, cmd_opcode, 
+ 			   0xc0); 
+ 		return; 
+ 	} 
+        int32_t context;
+        context = _find_client_by_actag(cmd, actag);
+	// TODO actually do something. For now, we always send back long backoff resp (0x04)
+	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_TOUCH, addr, 0, MEM_DONE,
+		 0x04, 0, 0, 0, 0, 0);
+ } 
 
 
 // Format and add memory read to command list
@@ -668,26 +630,24 @@ static void _parse_cmd(struct cmd *cmd,
 		_add_amo(cmd, cmd_actag, cmd_afutag, cmd_opcode, CMD_AMO_WR, 
 			  cmd_ea_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag, cmd_endian);
 		break;
-
 		// Interrupt
 	case AFU_CMD_INTRP_REQ:
 	//case AFU_CMD_INTRP_REQ_D: // not sure POWER supports this one?
-		debug_msg("YES! AFU cmd is some sort of INTERRUPT REQUEST!!!!\n");
+	case AFU_CMD_WAKE_HOST_THRD:
+		debug_msg("YES! AFU cmd is either INTRPT REQ or WAKE HOST THREAD\n");
 		_add_interrupt(cmd, cmd_actag, cmd_afutag, cmd_opcode,
 			  cmd_ea_or_obj, cmd_flag);
 	// TODO what about stream_id ?
 		break;
-/*
-		// Restart
-		// Memory Writes
+	case AFU_CMD_NOP:
+		debug_msg("NOP CMD - No response needed");
 		break;
-	case TLX_COMMAND_CAS_E_4B:
-	case TLX_COMMAND_CAS_NE_4B:
-	case TLX_COMMAND_CAS_U_4B:
-	case TLX_COMMAND_CAS_E_8B:
-	case TLX_COMMAND_CAS_NE_8B:
-	case TLX_COMMAND_CAS_U_8B:
-		break; */
+	case AFU_CMD_XLATE_TOUCH:
+	case AFU_CMD_XLATE_TOUCH_N:
+		debug_msg("YES! AFU cmd is some kind of XLATE_TOUCH\n");
+		_add_xlate_touch(cmd, cmd_actag, cmd_afutag, cmd_opcode,
+			  cmd_ea_or_obj, cmd_flag);
+		break;
 	default:
 		warn_msg("Unsupported command 0x%04x", cmd);
 		_add_other(cmd, cmd_actag, cmd_afutag, cmd_opcode, TLX_RESPONSE_FAILED);
@@ -1281,7 +1241,7 @@ void handle_interrupt(struct cmd *cmd)
 	struct cmd_event *event;
 	struct client *client;
 	// uint16_t irq;
-	uint8_t buffer[3];
+	uint8_t buffer[10];
 
 	// Make sure cmd structure is valid
 	if (cmd == NULL)
@@ -1788,27 +1748,6 @@ void handle_response(struct cmd *cmd)
 	client = NULL;
 	head = &cmd->list;
 	while (*head != NULL) {
-	  //debug_msg( "%s:RESPONSE examine event @ 0x%016" PRIx64 ", command=0x%x, tag=0x%08x, type=0x%02x, state=0x%02x, resp=0x%x",
-	  //	   cmd->afu_name,
-	  //	   (*head),
-	  //	   (*head)->command,
-	  //	   (*head)->tag,
-	  //	   (*head)->type,
-	  //	   (*head)->state,
-	  //	   (*head)->resp );
-		// Fast track error responses
-	/*	if ( ( (*head)->resp == TLX_RESPONSE_PAGED ) ||
-		     ( (*head)->resp == TLX_RESPONSE_NRES ) ||
-		     ( (*head)->resp == TLX_RESPONSE_NLOCK ) ||
-		     ( (*head)->resp == TLX_RESPONSE_FAILED ) ||
-		     ( (*head)->resp == TLX_RESPONSE_FLUSHED ) ) {
-			event = *head;
-			debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ",drive response because resp is TLX_RESPONSE_error", cmd->afu_name, (*head) );
-			goto drive_resp;
-		} */
-
-
-
 		// if the state of the event is mem_done, we can potentially stop the loop and send a response for it.
 		// if we not allowing reordering, we'll break the loop and use this event.
 		// don't allow reordering while we sort this out.
@@ -1935,6 +1874,10 @@ void handle_response(struct cmd *cmd)
   		rc = tlx_afu_send_resp( cmd->afu_event,TLX_RSP_INTRP_RESP,event->afutag, 
 					     event->resp, // resp_code - right now always a good response
 					     0, 0, 0, 0);
+	} else if ((event->command == AFU_CMD_XLATE_TOUCH ) || (event->command == AFU_CMD_XLATE_TOUCH_N )) {
+  		rc = tlx_afu_send_resp( cmd->afu_event,TLX_RSP_TOUCH_RESP,event->afutag, 
+					     event->resp, // resp_code - right now always a pending(0x4) or fail(0xc) response
+					     0, 0, 0, 0);
 		}
 	   
 	if (rc == TLX_SUCCESS) {
@@ -1944,17 +1887,17 @@ void handle_response(struct cmd *cmd)
 		// if ( ( client != NULL ) && ( event->command == TLX_COMMAND_RESTART ) )
 		// 	client->flushing = FLUSH_NONE;
 		// if this was an xlat cmd, don't want to free the event so add code to check - HMP
-	        if ( ( event->type == CMD_XLAT_RD ) ||
-		     ( event->type == CMD_XLAT_WR ) ) {
-		  debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", set state dma pending and tag to deadbeef",
-			     cmd->afu_name,
-			     event );
-		  event->state = DMA_PENDING;
+	        //if ( ( event->type == CMD_XLAT_RD ) ||
+		//     ( event->type == CMD_XLAT_WR ) ) {
+		//  debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", set state dma pending and tag to deadbeef",
+		//	     cmd->afu_name,
+		//	     event );
+		//  event->state = DMA_PENDING;
 		  // do this to "free" the tag since AFU thinks it's free now
-		  event->tag = 0xdeadbeef;
-		  printf("DMA_PENDING set for event \n");
-		  cmd->credits++;
-		} else {
+		//  event->tag = 0xdeadbeef;
+		//  printf("DMA_PENDING set for event \n");
+		//  cmd->credits++;
+	//	} else {
 	          debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", free event",
 			     cmd->afu_name,
 			     event );
@@ -1963,9 +1906,9 @@ void handle_response(struct cmd *cmd)
 		  free(event->parity);
 		  free(event);
 		  cmd->credits++;
-		}
+	//	}
 	} else {
-		  debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", _response() faled",
+		  debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", _response() failed",
 			     cmd->afu_name,
 			     event );
 	}
