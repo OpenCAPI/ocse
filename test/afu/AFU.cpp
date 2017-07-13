@@ -587,6 +587,8 @@ AFU::resolve_tlx_afu_resp()
 	case TLX_RSP_WRITE_FAILED:
 	case TLX_RSP_MEM_FLUSH_DONE:
 	case TLX_RSP_INTRP_RESP:
+	    printf("Receive interrupt response code = 0x%x\n",resp_code);
+	    break;
 	case TLX_RSP_READ_RESP_OW:
 	case TLX_RSP_READ_RESP_XW:
 	case TLX_RSP_WAKE_HOST_RESP:
