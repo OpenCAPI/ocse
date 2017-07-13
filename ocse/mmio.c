@@ -673,7 +673,7 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 	char type[7];
 	uint8_t afu_resp_opcode, resp_dl,resp_dp, resp_data_is_valid, resp_code, rdata_bad;
 	uint16_t resp_capptag;
-	uint32_t cfg_read_data;
+	uint32_t cfg_read_data = 0;
 	uint8_t *  rdata;
 	unsigned char   rdata_bus[64];
 	unsigned char   cfg_rdata_bus[4];

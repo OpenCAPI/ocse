@@ -38,21 +38,10 @@ enum cmd_type {
 	CMD_WRITE,
 	CMD_TOUCH,
 	CMD_INTERRUPT,
-	CMD_READ_PE,
-	CMD_CAS_4B,
-	CMD_CAS_8B,
 	CMD_WR_BE,
 	CMD_AMO_RD,
 	CMD_AMO_RW,
 	CMD_AMO_WR,
-	CMD_CAIA2,
-	CMD_XLAT_RD,
-	CMD_XLAT_WR,
-	CMD_DMA_RD,
-	CMD_DMA_WR,
-	CMD_DMA_WR_AMO,
-	CMD_ITAG_ABRT_RD,
-	CMD_ITAG_ABRT_WR,
 	CMD_XLAT_RD_TOUCH,
 	CMD_XLAT_WR_TOUCH,
 	CMD_OTHER
@@ -69,17 +58,17 @@ enum mem_state {
 	MEM_CAS_WR,
 	MEM_RECEIVED,
 	AMO_MEM_RESP,
-	DMA_ITAG_REQ,
-	DMA_ITAG_RET,
-	DMA_PENDING,
+	//DMA_ITAG_REQ,
+	//DMA_ITAG_RET,
+	//DMA_PENDING,
 	DMA_PARTIAL,
 	AMO_OP_REQ,
 	DMA_OP_REQ,
-	DMA_SEND_STS,
+	//DMA_SEND_STS,
 	DMA_MEM_REQ,
 	DMA_MEM_RESP,
-	DMA_CPL_PARTIAL,
-	DMA_CPL_SENT,
+	//DMA_CPL_PARTIAL,
+	//DMA_CPL_SENT,
 	MEM_DONE
 };
 
@@ -179,10 +168,7 @@ void handle_aerror(struct cmd *cmd, struct cmd_event *event);
 
 void handle_response(struct cmd *cmd);
 
-void handle_caia2_cmds(struct cmd *cmd);
-void handle_dma0_read(struct cmd *cmd);
 void handle_write_be_or_amo(struct cmd *cmd);
-void handle_dma0_sent_sts(struct cmd *cmd);
 
 
 int client_cmd(struct cmd *cmd, struct client *client);

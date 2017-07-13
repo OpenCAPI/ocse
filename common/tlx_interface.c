@@ -1127,6 +1127,8 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 	int bc = 0;
 	uint32_t rbc = 1;
 	uint16_t cmd_data_byte_cnt, resp_data_byte_cnt;
+	cmd_data_byte_cnt = 0;
+	resp_data_byte_cnt = 0;
 	fd_set watchset;
 	FD_ZERO(&watchset);
 	FD_SET(event->sockfd, &watchset);
@@ -1405,6 +1407,8 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
         int bc, i;
 	uint32_t rbc = 1;
 	uint16_t cmd_data_byte_cnt, resp_data_byte_cnt;
+	cmd_data_byte_cnt = 0;
+	resp_data_byte_cnt = 0;
 	debug_msg("tlx_get_tlx_events: entered\n" );
 	if (event->rbp == 0) {
 		if ((bc = recv(event->sockfd, event->rbuf, 1, 0)) == -1) {
