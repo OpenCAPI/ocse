@@ -364,6 +364,7 @@ module top (
 // mcp3 release of 12/Jun does not have this port wire	[3:0]		afu_cfg_xmit_rate_config_3               ;
 
 // Other wires
+   wire            reset_n;
   // Table 1: TLX to AFU Response Interface
    wire             tlx_afu_resp_valid;
    wire [7:0]       tlx_afu_resp_opcode;
