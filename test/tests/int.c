@@ -32,8 +32,7 @@ int main(int argc, char *argv[])
 {
     int opt, option_index, i;
     int rc;
-//    char *rcacheline, *wcacheline;
-    char *status;
+    char *status, *rcacheline;
     struct ocxl_afu_h *mafu_h;
     struct ocxl_irq_h *irq_h;
     struct ocxl_irq_h *err_irq_h;
@@ -79,9 +78,14 @@ int main(int argc, char *argv[])
 	perror("FAILED: posix_memalign for status");
 	goto done;
     }
+    if(posix_memalign((void**)&rcacheline, 128, 128) != 0) {
+	perror("FAILED: posix_memalign for rcacheline");
+	goto done;
+    }
 
     for(i=0; i<CACHELINE; i++) {
 	status[i] = 0x0;
+	rcacheline[i] = rand();
     }
     
     //status[0]=0xff;
@@ -109,33 +113,34 @@ int main(int argc, char *argv[])
     }
 
     // initialize the error interrupt vector
-    err_irq_h = ocxl_afu_new_irq( mafu_h );
-    if(verbose)
-    	printf("initializing interrupt address = 0x%016lx\n", (uint64_t)err_irq_h);
-    ocxl_mmio_write64( mafu_h, ProcessInterruptObject_REGISTER, (uint64_t)err_irq_h );
-    if(verbose)
-    	printf("initializing interrupt control to intrp_req\n");
-    ocxl_mmio_write64( mafu_h, ProcessInterruptControl_REGISTER, 0x00);
-    if(verbose)
-    	printf("initializing interrupt data (unused by us)\n");
-    ocxl_mmio_write64( mafu_h, ProcessInterruptData_REGISTER, 0x00000000);
+//    err_irq_h = ocxl_afu_new_irq( mafu_h );
+//    if(verbose)
+//    	printf("initializing interrupt address = 0x%016lx\n", (uint64_t)err_irq_h);
+//    ocxl_mmio_write64( mafu_h, ProcessInterruptObject_REGISTER, (uint64_t)err_irq_h );
+//    if(verbose)
+//    	printf("initializing interrupt control to intrp_req\n");
+//    ocxl_mmio_write64( mafu_h, ProcessInterruptControl_REGISTER, 0x00);
+//    if(verbose)
+//    	printf("initializing interrupt data (unused by us)\n");
+//    ocxl_mmio_write64( mafu_h, ProcessInterruptData_REGISTER, 0x00000000);
 
-    printf("Attempt Read command\n");
+    irq_h = ocxl_afu_new_irq(mafu_h);
+    printf("Set irq (source) ea field = 0x%016lx\n", (uint64_t)irq_h);
+
+    printf("Attempt Interrupt command\n");
     status[0] = 0xff;
     config_param.context = 0;
     config_param.enable_always = 1;
     config_param.mem_size = CACHELINE;
     config_param.command = AFU_CMD_INTRP_REQ;
-//    config_param.mem_base_address = (uint64_t)rcacheline;
+    config_param.mem_base_address = (uint64_t)irq_h;
     config_param.machine_number = 0;
     config_param.status_address = (uint32_t)status;
     printf("status address = 0x%p\n", status);
     printf("command = 0x%x\n", config_param.command);
     printf("mem base address = 0x%"PRIx64"\n", config_param.mem_base_address);
 
-    irq_h = ocxl_afu_new_irq(mafu_h);
-    printf("Set irq (source) ea field = 0x%016lx\n", (uint64_t)irq_h);
-
+    
     rc = config_enable_and_run_machine(mafu_h, &machine_config, config_param, DIRECTED);
     if( rc != -1) {
 	printf("Response = 0x%x\n", rc);
