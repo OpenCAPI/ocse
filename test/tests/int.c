@@ -6,6 +6,11 @@
 #include "tlx_interface_t.h"
 #include "../../libocxl/libocxl.h"
 
+#define ProcessControl_REGISTER 0x0018
+#define PROCESS_CONTROL_RESTART 0x0000000000000001
+#define ProcessInterruptControl_REGISTER 0x0020
+#define ProcessInterruptObject_REGISTER 0x0028
+#define ProcessInterruptData_REGISTER 0x0030
 #define CACHELINE 128
 #define MDEVICE "/dev/cxl/afu0.0s"
 
@@ -26,10 +31,13 @@ static void print_help(char *name)
 int main(int argc, char *argv[])
 {
     int opt, option_index, i;
-    int rc, timeout;
-    char *rcacheline, *wcacheline;
-    char *status;
+    int rc;
+    char *status, *rcacheline;
     struct ocxl_afu_h *mafu_h;
+    struct ocxl_irq_h *irq_h;
+    struct ocxl_irq_h *err_irq_h;
+    struct ocxl_event event;
+
     MachineConfig machine_config;
     MachineConfigParam config_param;
 
@@ -66,27 +74,19 @@ int main(int argc, char *argv[])
     init_machine(&machine_config);
 
     // align and randomize cacheline
-    if (posix_memalign((void**)&rcacheline, CACHELINE, CACHELINE) != 0) {
-	perror("FAILED: posix_memalign for rcacheline");
-	goto done;
-    }
-    if (posix_memalign((void**)&wcacheline, CACHELINE, CACHELINE) != 0) {
-	perror("FAILED: posix_memalign for wcacheline");
-	goto done;
-    }
     if(posix_memalign((void**)&status, 128, 128) != 0) {
 	perror("FAILED: posix_memalign for status");
 	goto done;
     }
-
-    printf("rcacheline = 0x");
-    for(i=0; i<CACHELINE; i++) {
-	rcacheline[i] = rand();
-	wcacheline[i] = 0x0;
-	status[i] = 0x0;
-	printf("%02x", (uint8_t)rcacheline[i]);
+    if(posix_memalign((void**)&rcacheline, 128, 128) != 0) {
+	perror("FAILED: posix_memalign for rcacheline");
+	goto done;
     }
-    printf("\n");
+
+    for(i=0; i<CACHELINE; i++) {
+	status[i] = 0x0;
+	rcacheline[i] = rand();
+    }
     
     //status[0]=0xff;
     // open master device
@@ -111,21 +111,37 @@ int main(int argc, char *argv[])
 	printf("FAILED: ocxl_mmio_map\n");
 	goto done;
     }
-    printf("Attempt Read command\n");
+
+    // initialize the error interrupt vector
+//    err_irq_h = ocxl_afu_new_irq( mafu_h );
+//    if(verbose)
+//    	printf("initializing interrupt address = 0x%016lx\n", (uint64_t)err_irq_h);
+//    ocxl_mmio_write64( mafu_h, ProcessInterruptObject_REGISTER, (uint64_t)err_irq_h );
+//    if(verbose)
+//    	printf("initializing interrupt control to intrp_req\n");
+//    ocxl_mmio_write64( mafu_h, ProcessInterruptControl_REGISTER, 0x00);
+//    if(verbose)
+//    	printf("initializing interrupt data (unused by us)\n");
+//    ocxl_mmio_write64( mafu_h, ProcessInterruptData_REGISTER, 0x00000000);
+
+    irq_h = ocxl_afu_new_irq(mafu_h);
+    printf("Set irq (source) ea field = 0x%016lx\n", (uint64_t)irq_h);
+
+    printf("Attempt Interrupt command\n");
     status[0] = 0xff;
     config_param.context = 0;
     config_param.enable_always = 1;
     config_param.mem_size = CACHELINE;
-    config_param.command = AFU_CMD_RD_WNITC;
-    config_param.mem_base_address = (uint64_t)rcacheline;
+    config_param.command = AFU_CMD_INTRP_REQ;
+    config_param.mem_base_address = (uint64_t)irq_h;
     config_param.machine_number = 0;
     config_param.status_address = (uint32_t)status;
     printf("status address = 0x%p\n", status);
-    printf("rcacheline = 0x%p\n", rcacheline);
     printf("command = 0x%x\n", config_param.command);
     printf("mem base address = 0x%"PRIx64"\n", config_param.mem_base_address);
+
+    
     rc = config_enable_and_run_machine(mafu_h, &machine_config, config_param, DIRECTED);
-    //status[0] = 0xff;
     if( rc != -1) {
 	printf("Response = 0x%x\n", rc);
 	printf("config_enable_and_run_machine PASS\n");
@@ -134,40 +150,26 @@ int main(int argc, char *argv[])
 	printf("FAILED: config_enable_and_run_machine\n");
 	goto done;
     }
-    timeout = 0;
+//    timeout = 0;
+//    while(status[0] != 0x0) {
+//	printf("Polling read completion status = 0x%x\n", *status);
+//    }
+
+    rc = ocxl_read_event(mafu_h, &event);
+    printf("Returned from ocxl_read_event -> there is an interrupt\n");
+    if(rc != 0) {
+	printf("Error retrieving interrupt event\n");
+  	return -1;
+    }
+
+    // when we see the interrupt event, need to write the restart bit of the Process Control Register 0x18[0]
+    ocxl_mmio_write64(mafu_h, ProcessControl_REGISTER, PROCESS_CONTROL_RESTART);
+
+
     while(status[0] != 0x0) {
-	printf("Polling read completion status = 0x%x\n", *status);
+	printf("Polling ... completion status = 0x%x\n", *status);
     }
-
-    // Attemp write command
-    printf("Attempt Write command\n");
-    status[0] = 0xff;
-    config_param.command = AFU_CMD_DMA_W;
-    config_param.mem_size = 64;
-    config_param.mem_base_address = (uint64_t)wcacheline;
-    printf("wcacheline = 0x%p\n", wcacheline);
-    printf("command = 0x%x\n",config_param.command);
-    printf("wcache address = 0x%"PRIx64"\n", config_param.mem_base_address);
-    rc = config_enable_and_run_machine(mafu_h, &machine_config, config_param, DIRECTED);
-    //status[0] = 0xff;
-    if(rc != -1) {
-	printf("Response = 0x%x\n", rc);
- 	printf("config_enable_and_run_machine PASS\n");
-    }
-    else {
-	printf("FAILED: config_enable_and_run_machine\n");
-	goto done;
-    }
-    while(status[0] != 0x00) {
-	printf("Polling write completion status = 0x%x\n", *status);
-    }
-    
-    printf("wcacheline = 0x");
-    for(i=0; i<CACHELINE; i++) {
-	printf("%02x", (uint8_t)wcacheline[i]);
-    }
-    printf("\n");
-
+ 
 done:
     // free device
     printf("Freeing device ... \n");

@@ -64,7 +64,7 @@ struct afu_cfg_sp {
         uint32_t PASID_CTL_STS;
         uint32_t OCAPI_TL_CP;
         uint32_t OCAPI_TL_REVID;
-        uint32_t OCAPI_TL_ACTAG;
+        uint32_t OCAPI_TL_VERS;
         uint32_t OCAPI_TL_TMP_CFG;
         uint32_t OCAPI_TL_TX_RATE;
         uint32_t OCAPI_TL_MAXAFU;
@@ -80,12 +80,14 @@ struct afu_cfg_sp {
         uint32_t AFU_CTL_WAKE_TERM_C;
         uint32_t AFU_CTL_PASID_LEN_10;
         uint32_t AFU_CTL_PASID_BASE_14;
-        uint32_t AFU_CTL_INTS_PER_PASID_18;
-        uint32_t AFU_CTL_INT_CMD_BASE_1C;
-        uint32_t global_MMIO_offset;
+        uint32_t AFU_CTL_ACTAG_LEN_EN_S;
+        uint32_t AFU_CTL_ACTAG_BASE;
+        uint32_t global_MMIO_offset_high;
+        uint32_t global_MMIO_offset_low;
         uint32_t global_MMIO_BAR;
         uint32_t global_MMIO_size;
-        uint32_t pp_MMIO_offset;
+        uint32_t pp_MMIO_offset_high;
+        uint32_t pp_MMIO_offset_low;
         uint32_t pp_MMIO_BAR;
         uint32_t pp_MMIO_stride;
 	uint32_t num_ints_per_process;

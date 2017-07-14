@@ -23,7 +23,6 @@
 
 #include "client.h"
 #include "cmd.h"
-#include "job.h"
 #include "mmio.h"
 #include "parms.h"
 #include "../common/utils.h"
@@ -36,7 +35,7 @@ struct ocl {
 	FILE *dbg_fp;
 	struct client **client;
 	struct cmd *cmd;
-	struct job *job; // NEED TO REMOVE THIS OR REWORK IT?
+	//struct job *job; // NEED TO REMOVE THIS OR REWORK IT?
 	struct mmio *mmio;
 	struct ocl **head;
 	struct ocl *_prev;

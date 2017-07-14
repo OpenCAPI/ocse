@@ -23,7 +23,7 @@
  *  that AFU that will monitor any incoming socket data from either the
  *  simulator (AFU) or any clients (applications) that attach to this
  *  AFU.  The code in here is just the foundation for the ocl.  The code
- *  for handling jobs, commands and mmios are each in there own separate files.
+ *  for handling commands and mmios are each in separate files.
  */
 
 #include <arpa/inet.h>
@@ -74,16 +74,8 @@ static void _attach(struct ocl *ocl, struct client *client)
 	// send an empty wed in the case of master
 	// lgt - new idea:
 	// track number of clients in ocl
-	// if number of clients = 0, then add the start job
-	// add llcmd add to client  (loop through clients in send_com)
 	// increment number of clients (decrement where we handle the completion of the detach)
 	 if (ocl->attached_clients < ocl->max_clients) {
-	    if (ocl->attached_clients == 0) {
-	      /*if (add_job(ocl->job, TLX_JOB_START, 0L) != NULL) {
-		// if master, we might want to wait until after the llcmd add is complete
-		// can I wait here for the START to finish?
-	      } */
-	   }
 	 ocl->idle_cycles = TLX_IDLE_CYCLES;
 	 ack = OCSE_ATTACH;
 	 }
@@ -91,7 +83,6 @@ static void _attach(struct ocl *ocl, struct client *client)
 	ocl->state = OCSE_RUNNING;
 	info_msg( "Attached client context %d: current attached clients = %d: client type = %c\n", client->context, ocl->attached_clients, client->type );
 
-	// NO LONGER for master and slave send llcmd add
 
  //attach_done:
 	if (put_bytes(client->fd, 1, &ack, ocl->dbg_fp, ocl->dbg_id,
@@ -106,17 +97,15 @@ static void _detach(struct ocl *ocl, struct client *client)
 	uint8_t ack = OCSE_DETACH;
 
 	debug_msg("DETACH from client context 0x%02x", client->context);
-	//   NO LONGER add llcmd terminate to ocl->job->pe
-	//   NO LONGER add llcmd remove to ocl->job->pe
-	//SO what, exactly, DO we do?
 	put_bytes(client->fd, 1, &ack, ocl->dbg_fp, ocl->dbg_id,
 		      client->context);
 		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		//_free( ocl, client );
 		//ocl->client->context = NULL;  // I don't like this part...
 
-	if (client->type == 'd')
-        	client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	// DO we still need this?
+	//if (client->type == 'd')
+        //	client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 
 //}
 // TEMP FOR NOW< MAY BECOME PERMANENT...if we no longer need to have a separate _free call from
@@ -164,10 +153,9 @@ static void _handle_afu(struct ocl *ocl)
 	//uint8_t *buffer;
 	//int i;
 	//size_t size;
-	/*if (ocl->mmio->list !=NULL) {
+	if (ocl->mmio->list !=NULL) {
 	 handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
-	} */
-        handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
+	} 
 
 	if (ocl->cmd != NULL) {
 	  handle_response(ocl->cmd);  // sends response and data (if required)
@@ -175,6 +163,7 @@ static void _handle_afu(struct ocl *ocl)
 	  handle_cmd(ocl->cmd, ocl->latency);
 	  handle_afu_tlx_cmd_data_read(ocl->cmd);  // just fills up the write command structures
 	  handle_interrupt(ocl->cmd);
+	  handle_write_be_or_amo(ocl->cmd); 
 	}
 }
 
@@ -311,11 +300,9 @@ static void *_ocl_loop(void *ptr)
 		}
 		if (ocl->idle_cycles) {
 			// Clock AFU
-//printf("before tlx_signal_afu_model in ocl_loop, events is 0x%3x \n", events);
 			tlx_signal_afu_model(ocl->afu_event);
 			// Check for events from AFU
 			events = tlx_get_afu_events(ocl->afu_event);
-//printf("after tlx_get_afu_events, events is 0x%3x \n", events);
 			// Error on socket
 			if (events < 0) {
 				warn_msg("Lost connection with AFU");
@@ -326,8 +313,6 @@ static void *_ocl_loop(void *ptr)
 				_handle_afu(ocl);
 
 			// Drive events to AFU
-			//send_job(ocl->job);
-			//send_pe(ocl->job);
 			send_mmio(ocl->mmio);
 
 			if (ocl->mmio->list == NULL)
@@ -349,13 +334,9 @@ static void *_ocl_loop(void *ptr)
 		for (i = 0; i < ocl->max_clients; i++) {
 			if (ocl->client[i] == NULL)
 				continue;
-		//	if ((ocl->client[i]->type == 'd') &&
-			    //(ocl->client[i]->state == CLIENT_NONE) &&
 			    if ((ocl->client[i]->state == CLIENT_NONE) &&
 			    (ocl->client[i]->idle_cycles == 0)) {
-			        // this was the old way of detaching a dedicated process app/afu pair
 			        // we get the detach message, drop the client, and wait for idle cycle to get to 0
-			        // so why not go back to using this? No need to wait for LLCMD REMOVE to complete
 				put_bytes(ocl->client[i]->fd, 1, &ack,
 					  ocl->dbg_fp, ocl->dbg_id,
 					  ocl->client[i]->context);
@@ -402,7 +383,6 @@ static void *_ocl_loop(void *ptr)
 			}
 			ocl->cmd->list = NULL;
 			info_msg("No longer sending reset to AFU");
-			//add_job(ocl->job, TLX_JOB_RESET, 0L);
 		}
 
 		lock_delay(ocl->lock);
@@ -431,9 +411,6 @@ static void *_ocl_loop(void *ptr)
 		ocl->_next->_prev = ocl->_prev;
 	if (ocl->cmd) {
 		free(ocl->cmd);
-	}
-	if (ocl->job) {
-		free(ocl->job);
 	}
 	if (ocl->mmio) {
 		free(ocl->mmio);
@@ -464,7 +441,6 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 		  int port, pthread_mutex_t * lock, FILE * dbg_fp)
 {
 	struct ocl *ocl;
-	struct job_event; // *reset;
 	uint16_t location;
 
 	location = 0x8000;
@@ -528,12 +504,6 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 	debug_afu_connect(ocl->dbg_fp, ocl->dbg_id);
 
 	// Initialize credit handler ?
-	debug_msg("%s @ %s:%d: job_init", ocl->name, ocl->host, ocl->port);
-	/* if ((ocl->job = job_init(ocl->afu_event, &(ocl->state), ocl->name,
-				 ocl->dbg_fp, ocl->dbg_id)) == NULL) {
-		perror("job_init");
-		goto init_fail;
-	} */
 	// Initialize mmio and TL cnd handler
 	debug_msg("%s @ %s:%d: mmio_init", ocl->name, ocl->host, ocl->port);
 	if ((ocl->mmio = mmio_init(ocl->afu_event, ocl->timeout, ocl->name,
@@ -542,7 +512,7 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 		goto init_fail;
 	}
 	// Initialize TLX cmd (response) handler
-	debug_msg("%s @ %s:%d: cmd_init", ocl->name, ocl->host, ocl->port);
+	debug_msg("ocl_init: %s @ %s:%d: cmd_init", ocl->name, ocl->host, ocl->port);
 	if ((ocl->cmd = cmd_init(ocl->afu_event, parms, ocl->mmio,
 				 &(ocl->state), ocl->name, ocl->dbg_fp,
 				 ocl->dbg_id))
@@ -555,15 +525,17 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 	ocl->vsec_tlx_rev_level= parms->tlx_rev_level;
 	ocl->vsec_image_loaded= parms->image_loaded;
 	ocl->vsec_base_image= parms->base_image;
+
 	// Set credits for TLX interface
-	ocl->state = OCSE_DESC
-;
+	ocl->state = OCSE_DESC;
+
+	debug_msg( "ocl_init: %s @ %s:%d: sending initial credits to afu: tlx_afu_cmd_resp_credits = %d, tlx_afu_data_credits = %d", ocl->name, ocl->host, ocl->port, MAX_TLX_AFU_CMD_RESP_CREDITS, MAX_TLX_AFU_DATA_CREDITS );
 	if (tlx_afu_send_initial_credits(ocl->afu_event,MAX_TLX_AFU_CMD_RESP_CREDITS,
 		MAX_TLX_AFU_DATA_CREDITS) != TLX_SUCCESS) {
-		warn_msg("Unable to set initial credits");
+		warn_msg("ocl_init: Unable to set initial credits");
 		goto init_fail;
 	}
-	printf("sent out initial TLX_AFU credits \n");
+	debug_msg("sent out initial TLX_AFU credits \n");
 			tlx_signal_afu_model(ocl->afu_event);
 	// Start ocl loop thread
 	if (pthread_create(&(ocl->thread), NULL, _ocl_loop, ocl)) {
@@ -585,16 +557,12 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 
 	// Send reset to AFU
 	debug_msg("%s @ %s:%d: No need to send reset job.", ocl->name, ocl->host, ocl->port);
-	/* reset = add_job(ocl->job, TLX_JOB_RESET, 0L);
-	while (ocl->job->job == reset) {	//infinite loop
-		lock_delay(ocl->lock);
-	}  */
 	// Read AFU initial credit values
 	int event;
 	//uint8_t   afu_tlx_cmd_credits_available;
 	//uint8_t   afu_tlx_resp_credits_available;
 	event = tlx_get_afu_events(ocl->afu_event);
-	printf("after tlx_get_afu_events, event is 0x%3x \n", event);
+	//printf("after tlx_get_afu_events, event is 0x%3x \n", event);
 	// Error on socket
 	if (event < 0) {
 		warn_msg("Lost connection with AFU");
@@ -616,15 +584,8 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 
 	// Finish TLX configuration
 	ocl->state = OCSE_IDLE;
-	//if (dedicated_mode_support(ocl->mmio)) {
-		// AFU supports Dedicated Mode
-		// TODO FIX THIS TO USE NEW CFG VALUES!!
-		ocl->max_clients = 4;
-	//}
-	//if (directed_mode_support(ocl->mmio)) {
-		// AFU supports Directed Mode
-	//	ocl->max_clients = ocl->mmio->cfg.num_of_processes;
-	//}
+	// TODO FIX THIS TO USE NEW CFG VALUES!!
+	ocl->max_clients = 4;
 	if (ocl->max_clients == 0) {
 		error_msg("AFU programming model is invalid");
 		goto init_fail;

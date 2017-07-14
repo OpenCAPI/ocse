@@ -114,20 +114,20 @@ static void _query(struct client *client, uint8_t id)
 	int size, offset;
 
 	ocl = _find_ocl(id, &major, &minor);
-	size = 1 + sizeof(ocl->mmio->cfg.OCAPI_TL_ACTAG) + sizeof(client->max_irqs) +
+	size = 1 + sizeof(ocl->mmio->cfg.AFU_CTL_ACTAG_LEN_EN_S) + sizeof(client->max_irqs) +
 	    sizeof(ocl->mmio->cfg.FUNC_CFG_MAXAFU) +
 	    sizeof(ocl->mmio->cfg.AFU_INFO_REVID) + sizeof(ocl->mmio->cfg.AFU_CTL_PASID_BASE_14) +
-	    sizeof(ocl->mmio->cfg.AFU_CTL_INTS_PER_PASID_18) + sizeof(ocl->mmio->cfg.cr_device) +
+	    sizeof(ocl->mmio->cfg.AFU_CTL_ACTAG_BASE) + sizeof(ocl->mmio->cfg.cr_device) +
 	    sizeof(ocl->mmio->cfg.cr_vendor) + sizeof(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX_8) +
-	    sizeof(ocl->mmio->cfg.pp_MMIO_offset) + sizeof(ocl->mmio->cfg.pp_MMIO_BAR) +
-	    sizeof(ocl->mmio->cfg.pp_MMIO_stride);
+	    sizeof(ocl->mmio->cfg.pp_MMIO_offset_high) + sizeof(ocl->mmio->cfg.pp_MMIO_offset_low) +
+	    sizeof(ocl->mmio->cfg.pp_MMIO_BAR) + sizeof(ocl->mmio->cfg.pp_MMIO_stride);
 	buffer = (uint8_t *) malloc(size);
 	buffer[0] = OCSE_QUERY;
 	offset = 1;
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.OCAPI_TL_ACTAG),
-	       sizeof(ocl->mmio->cfg.OCAPI_TL_ACTAG));
-	offset += sizeof(ocl->mmio->cfg.OCAPI_TL_ACTAG);
+	       (char *)&(ocl->mmio->cfg.AFU_CTL_ACTAG_LEN_EN_S),
+	       sizeof(ocl->mmio->cfg.AFU_CTL_ACTAG_LEN_EN_S));
+	offset += sizeof(ocl->mmio->cfg.AFU_CTL_ACTAG_LEN_EN_S);
 	if (client->max_irqs == 0)
 		client->max_irqs = 2037; // TODO FIX THIS eventually
 	memcpy(&(buffer[offset]),
@@ -146,9 +146,9 @@ static void _query(struct client *client, uint8_t id)
 	       sizeof(ocl->mmio->cfg.AFU_CTL_PASID_BASE_14));
         offset += sizeof(ocl->mmio->cfg.AFU_CTL_PASID_BASE_14);
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.AFU_CTL_INTS_PER_PASID_18),
-	       sizeof(ocl->mmio->cfg.AFU_CTL_INTS_PER_PASID_18));
-        offset += sizeof(ocl->mmio->cfg.AFU_CTL_INTS_PER_PASID_18);
+	       (char *)&(ocl->mmio->cfg.AFU_CTL_ACTAG_BASE),
+	       sizeof(ocl->mmio->cfg.AFU_CTL_ACTAG_BASE));
+        offset += sizeof(ocl->mmio->cfg.AFU_CTL_ACTAG_BASE);
 	memcpy(&(buffer[offset]),
 	       (char *)&(ocl->mmio->cfg.cr_device),
 	       sizeof(ocl->mmio->cfg.cr_device));
@@ -162,9 +162,13 @@ static void _query(struct client *client, uint8_t id)
 	       sizeof(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX_8));
         offset += sizeof(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX_8);
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.pp_MMIO_offset),
-	       sizeof(ocl->mmio->cfg.pp_MMIO_offset));
-        offset += sizeof(ocl->mmio->cfg.pp_MMIO_offset);
+	       (char *)&(ocl->mmio->cfg.pp_MMIO_offset_high),
+	       sizeof(ocl->mmio->cfg.pp_MMIO_offset_high));
+        offset += sizeof(ocl->mmio->cfg.pp_MMIO_offset_high);
+	memcpy(&(buffer[offset]),
+	       (char *)&(ocl->mmio->cfg.pp_MMIO_offset_low),
+	       sizeof(ocl->mmio->cfg.pp_MMIO_offset_low));
+        offset += sizeof(ocl->mmio->cfg.pp_MMIO_offset_low);
 	memcpy(&(buffer[offset]),
 	       (char *)&(ocl->mmio->cfg.pp_MMIO_BAR),
 	       sizeof(ocl->mmio->cfg.pp_MMIO_BAR));
@@ -263,7 +267,7 @@ static struct client *_client_connect(int *fd, char *ip)
 	client->state = CLIENT_INIT;
 	
 	// lgt quick fix for bdf
-	client->bdf = 0xcdef;
+	client->bdf = 0x5001;
 
 	// Return acknowledge to client
 	ack[0] = OCSE_CONNECT;

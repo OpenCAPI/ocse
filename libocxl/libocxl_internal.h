@@ -52,6 +52,11 @@ struct mmio_req {
 	uint64_t data;
 };
 
+struct ocxl_irq_h {
+	struct ocxl_afu_h *afu;
+	struct ocxl_irq_h *_next;
+};
+
 struct ocxl_afu_h {
 	pthread_t thread;
 	pthread_mutex_t event_lock;
@@ -68,14 +73,15 @@ struct ocxl_afu_h {
 	int mapped;
 	int global_mapped;
 	int pipe[2];
-  long mmio_length;  // this pasid stride
-  long mmio_offset;  // this pasid mmio offset - f(pasid, per pasid stride, per pasid mmio offset)
+        long mmio_length;  // this pasid stride
+        long mmio_offset;  // this pasid mmio offset - f(pasid, per pasid stride, per pasid mmio offset)
 	uint16_t cr_device;
 	uint16_t cr_vendor;
 	struct int_req int_req;
 	struct open_req open;
 	struct attach_req attach;
 	struct mmio_req mmio;
+	struct ocxl_irq_h *irq;
 	struct ocxl_afu_h *_head;
 	struct ocxl_afu_h *_next;
         struct ocxl_afu_h *_next_adapter; // ???

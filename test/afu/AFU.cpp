@@ -24,6 +24,11 @@ uint8_t status_data[256];
 uint8_t status_resp_valid = 0;
 uint8_t status_updated = 0;
 uint8_t insert_cycle = 0;
+uint8_t afu_enable_reset = 0;
+uint32_t wr_config_data;
+uint32_t bar_h0, bar_l0, bar_h1, bar_l1, bar_h2, bar_l2;
+uint64_t bar = 0x00000000ll;
+uint8_t enable_bar = 0;
 
 AFU::AFU (int port, string filename, bool parity, bool jerror):
     descriptor (filename),
@@ -47,7 +52,7 @@ AFU::AFU (int port, string filename, bool parity, bool jerror):
     afu_event.afu_tlx_resp_initial_credit = MAX_AFU_TLX_RESP_CREDITS; 
     afu_event.afu_tlx_cmd_initial_credit = MAX_AFU_TLX_CMD_CREDITS;
     afu_tlx_send_initial_credits(&afu_event, MAX_AFU_TLX_CMD_CREDITS,
-		MAX_AFU_TLX_RESP_CREDITS);
+		10, MAX_AFU_TLX_RESP_CREDITS);
     debug_msg("AFU: Send initial afu cmd and resp credits to ocse");
     reset ();
 }
@@ -56,8 +61,8 @@ bool
 AFU::afu_is_enabled()
 {
     uint32_t  enable;
-    enable = descriptor.get_vsec_reg(0x508);
-    if(enable & 0x02000000)
+    enable = descriptor.get_vsec_reg(0x50c);
+    if(enable & 0x01000000)
 	return true;
     else
 	return false;	
@@ -68,8 +73,8 @@ AFU::afu_is_reset()
 {
     uint32_t reset;
  
-    reset = descriptor.get_afu_desc_reg(0x508);
-    if(reset & 0x01000000)
+    reset = descriptor.get_afu_desc_reg(0x50c);
+    if(reset & 0x00800000)
 	return true;
     else
 	return false;   
@@ -88,6 +93,7 @@ AFU::start ()
         select (afu_event.sockfd + 1, &watchset, NULL, NULL, NULL);
 
 	// check socket if there are new events from ocse to process
+	printf("getting tlx events\n");
         int rc = tlx_get_tlx_events (&afu_event);
 
         //info_msg("Cycle: %d", cycle);
@@ -101,6 +107,7 @@ AFU::start ()
 
 	// get TLX initial cmd and data credits run once
 	if(initial_credit_flag == 0) {
+	    debug_msg("AFU: afu read initial credit");
 	    if(tlx_afu_read_initial_credits(&afu_event, &tlx_afu_cmd_max_credit,
 		&tlx_afu_data_max_credit) != TLX_SUCCESS) {
 		error_msg("AFU: Failed tlx_afu_read_initial_credits");
@@ -136,27 +143,34 @@ AFU::start ()
 
 	// process tlx commands
 	if (afu_event.tlx_afu_cmd_valid) {
-	    debug_msg("AFU: Receive TLX command 0x%x", afu_event.tlx_afu_cmd_opcode);
+	    debug_msg("AFU: Received TLX command 0x%x", afu_event.tlx_afu_cmd_opcode);
 	    debug_msg("AFU: Process TLX command");
 	    resolve_tlx_afu_cmd();
 	    afu_event.afu_tlx_cmd_credit = 1;	// return TLX cmd credit
 	}
 	// process tlx response
 	if (afu_event.tlx_afu_resp_valid) {
-	    debug_msg("AFU: Process TLX response 0x%x", afu_event.tlx_afu_resp_opcode);
+	    debug_msg("AFU: Received TLX response 0x%x", afu_event.tlx_afu_resp_opcode);
 	    resolve_tlx_afu_resp();
 	    afu_event.afu_tlx_resp_credit = 1;	// return TLX resp credit
 	    afu_event.tlx_afu_resp_valid = 0;
 	}
+	// process tlx config response
+	if (afu_event.tlx_cfg_resp_ack) {
+	    debug_msg("AFU: Received TLX config response 0x%x", afu_event.tlx_afu_resp_opcode);
+	    afu_event.cfg_tlx_credit_return = 1;	
+	    afu_event.tlx_cfg_resp_ack = 0;
+	}
 	// process tlx response data
 	if(afu_event.tlx_afu_resp_data_valid && mem_state == WAITING_FOR_DATA) {
-	    debug_msg("AFU: Process TLX response data");
+	    debug_msg("AFU: Received TLX response data");
 	    resolve_tlx_afu_resp();
 	    afu_event.tlx_afu_resp_data_credit = 1;	// return TLX resp data credit
 	    afu_event.tlx_afu_resp_data_valid = 0;
 	}
 	// configuration write response
-	if (afu_event.tlx_afu_cmd_data_valid && config_state == READY) {
+	//if (afu_event.tlx_afu_cmd_data_valid && config_state == READY) {
+	if (afu_event.tlx_cfg_resp_ack && config_state == READY) {
 	    info_msg("AFU: calling tlx_afu_config_write");
 	    tlx_afu_config_write();
 	}
@@ -167,21 +181,27 @@ AFU::start ()
 	    tlx_pr_wr_mem();
  	}
 
+	//printf("checking afu reset bit\n");
 	//  reset AFU
-	if(afu_is_reset()) {
-	    debug_msg("AFU is resetting");
+	if(afu_enable_reset) {
+	    if(afu_is_reset()) {
+	    	debug_msg("AFU is resetting");
+		afu_enable_reset = 0;
+	    }
 	}
-	
 	// enable AFU
 	//if(afu_is_enabled() && state == IDLE) {
 	if(state == IDLE) {
-	    if(afu_is_enabled()) {
-	    	debug_msg("AFU is enabled");
-	    	debug_msg("AFU: set state = READY");
-	    	state = READY;
+	    if(afu_enable_reset) {
+	    	printf("checking afu enable bit\n");
+	    	if(afu_is_enabled()) {
+	    	    debug_msg("AFU is enabled");
+	    	    debug_msg("AFU: set state = READY");
+	    	    state = READY;
+		    afu_enable_reset = 0;
+	        }
 	    }
 	}
-
 	// get machine context and create new MachineController
 	else if(state == READY) {
 	    if(get_machine_context()) {
@@ -383,43 +403,54 @@ AFU::request_assign_actag()
 void 
 AFU::resolve_tlx_afu_cmd()
 {
-    uint8_t tlx_cmd_opcode;
+    uint8_t cmd_opcode;
+    uint8_t cmd_data_bus[64];
     uint16_t cmd_capptag;
-    uint8_t  cmd_dl;
-    uint8_t  cmd_pl;
+    uint8_t  cmd_dl, cmd_pl, cmd_end, cmd_t, cmd_data_bdi;
     uint64_t cmd_be;
-    uint8_t  cmd_end;
-    uint8_t  cmd_t;
+    int rc;
 #ifdef	TLX4
     uint8_t  cmd_flag;
     uint8_t  cmd_os;
 #endif
     uint64_t  cmd_pa;
     
-    if (tlx_afu_read_cmd(&afu_event, &tlx_cmd_opcode, &cmd_capptag, 
+    rc = tlx_cfg_read_cmd_and_data(&afu_event, &cmd_data_bdi, cmd_data_bus, &cmd_opcode,
+	&cmd_capptag, &cmd_dl, &cmd_pl, &cmd_be, &cmd_end, &cmd_t, &cmd_pa);
+    if(rc != TLX_SUCCESS) {
+	printf("rc = 0x%x\n", rc);
+    }
+    
+    if(cmd_opcode == 0xe1) {
+	memcpy(&wr_config_data, &cmd_data_bus, 4);
+	printf("AFU: wr_config_data = 0x%x\n", wr_config_data);
+    }
+    if(rc == CFG_TLX_NOT_CFG_CMD) {
+    	if (tlx_afu_read_cmd(&afu_event, &cmd_opcode, &cmd_capptag, 
 		&cmd_dl, &cmd_pl, &cmd_be, &cmd_end, &cmd_t, 
 #ifdef	TLX4
-	&cmd_os, &cmd_flag,
+		&cmd_os, &cmd_flag,
 #endif
 		&cmd_pa) != TLX_SUCCESS) {
 	error_msg("Failed: tlx_afu_read_cmd");
+	}
     }
     
     afu_event.afu_tlx_resp_capptag = cmd_capptag;
     info_msg("AFU:resolve_tlx_afu_cmd");
-    info_msg("cmd_opcode = 0x%x", tlx_cmd_opcode);
+    info_msg("cmd_opcode = 0x%x", cmd_opcode);
     info_msg("cmd_pa = 0x%08lx", cmd_pa);
     info_msg("cmd_capptag = 0x%x", cmd_capptag);
     info_msg("cmd_pl = 0x%x", cmd_pl);
 
-    switch (tlx_cmd_opcode) {
+    switch (cmd_opcode) {
 	case TLX_CMD_NOP:
 	case TLX_CMD_XLATE_DONE:
 	case TLX_CMD_RETURN_ADR_TAG:
 	case TLX_CMD_INTRP_RDY:
 	case TLX_CMD_RD_MEM:
 	case TLX_CMD_PR_RD_MEM:
-	    debug_msg("calling tlx_pr_rd_mem");
+	    debug_msg("AFU: pr_rd_mem cmd:");
 	    tlx_pr_rd_mem();
 	    break;
 	case TLX_CMD_AMO_RD:
@@ -429,7 +460,7 @@ AFU::resolve_tlx_afu_cmd()
 	case TLX_CMD_WRITE_MEM_BE:
 	case TLX_CMD_WRITE_META:
 	case TLX_CMD_PR_WR_MEM:
-	    debug_msg("Calling tlx_pr_wr_mem");
+	    debug_msg("AFU: pr_wr_mem cmd:");
 	    tlx_pr_wr_mem();
 	    break;
 	case TLX_CMD_FORCE_EVICT:
@@ -450,8 +481,6 @@ AFU::resolve_tlx_afu_cmd()
 	    if(afu_event.tlx_afu_cmd_t == 0) {
 		info_msg("AFU: calling tlx_afu_config_write");
 		tlx_afu_config_write();
-		// get BDF
-		
 	    }
 	    else {
 		// do configuration write
@@ -525,7 +554,7 @@ AFU::resolve_tlx_afu_resp()
 	case TLX_RSP_TOUCH_RESP:
 	    break;
 	case TLX_RSP_READ_RESP:
-	    debug_msg("AFU: calling afu_tlx_resp_data_read_req");
+	    debug_msg("AFU: read_resp: calling afu_tlx_resp_data_read_req");
 	    cmd_rd_req = 0x1;	
 	    cmd_rd_cnt = 0x1; 	// 0=512B, 1=64B, 2=128B
 	    if(afu_tlx_resp_data_read_req(&afu_event, cmd_rd_req, cmd_rd_cnt) != TLX_SUCCESS) {
@@ -558,6 +587,9 @@ AFU::resolve_tlx_afu_resp()
 	case TLX_RSP_WRITE_FAILED:
 	case TLX_RSP_MEM_FLUSH_DONE:
 	case TLX_RSP_INTRP_RESP:
+	    printf("Receive interrupt response code = 0x%x\n",resp_code);
+	    write_app_status(status_address, 0x0);
+	    break;
 	case TLX_RSP_READ_RESP_OW:
 	case TLX_RSP_READ_RESP_XW:
 	case TLX_RSP_WAKE_HOST_RESP:
@@ -572,27 +604,30 @@ AFU::tlx_afu_config_read()
 {
     uint32_t vsec_offset, vsec_data;
     uint16_t bdf;
-    uint8_t afu_tlx_resp_dl;
-    uint8_t afu_tlx_resp_opcode;
-    uint8_t afu_tlx_resp_code;
-    uint8_t afu_tlx_rdata_valid;
-    uint16_t afu_tlx_resp_capptag;
-    uint8_t  cmd_pl, data_size;
-    uint8_t byte_offset;
+    uint8_t resp_dl, resp_pl, resp_opcode, rdata_bad;
+    uint16_t resp_capptag, byte_cnt;
+    uint8_t  resp_code, resp_dp, data_size;
+    uint8_t rdata_valid, byte_offset;
+    uint64_t  cmd_pa;
+    int rc;
 
     info_msg("AFU:tlx_afu_config_read");
-    afu_tlx_resp_opcode = 0x01;	// mem rd response
-    afu_tlx_resp_dl = 0x01;	// length 64 byte
-    afu_tlx_resp_code = 0x0;	
-    afu_tlx_rdata_valid = 0x0;	
-    afu_tlx_resp_capptag = afu_event.tlx_afu_cmd_capptag;
-    cmd_pl = afu_event.tlx_afu_cmd_pl;
+    resp_opcode = 0x01;
+    resp_dl = 0x01;	// length 64 byte
+    byte_cnt = 4;		
+    resp_capptag = afu_event.tlx_afu_cmd_capptag;
+    resp_pl = afu_event.tlx_afu_cmd_pl;
     vsec_offset = 0x0000FFFC & afu_event.tlx_afu_cmd_pa;
     byte_offset = 0x0000003F & afu_event.tlx_afu_cmd_pa;
-    vsec_data  = descriptor.get_vsec_reg(vsec_offset);	// get vsec data
+    if(vsec_offset >= 0x10 && vsec_offset <= 0x24) {
+	vsec_data = descriptor.get_vsec_reg(vsec_offset);
+    }
+    else {
+    	vsec_data  = descriptor.get_vsec_reg(vsec_offset);	// get vsec data
+    }
     debug_msg("AFU: vsec data = 0x%x vsec offset = 0x%x byte offset = 0x%x",
 	vsec_data, vsec_offset, byte_offset);
-    if(cmd_pl == 0x00) {
+    if(resp_pl == 0x00) {
 	data_size = 1;
 	switch(vsec_offset) {
 	    case 0:
@@ -615,7 +650,7 @@ AFU::tlx_afu_config_read()
 		break;
 	}
     }
-    else if(cmd_pl == 0x01) {
+    else if(resp_pl == 0x01) {
 	data_size = 2;
 	switch(vsec_offset) {
 	    case 0:
@@ -630,14 +665,14 @@ AFU::tlx_afu_config_read()
 		break;
 	}
     }
-    else if(cmd_pl == 0x02) {
+    else if(resp_pl == 0x02) {
 	data_size = 4;
     }
 
     bdf = (0xFFFF0000 & afu_event.tlx_afu_cmd_pa) >> 16;
     afu_event.afu_tlx_cmd_bdf = bdf;
     info_msg("AFU: BDF = 0x%x", bdf);
-    info_msg("AFU: resp_capptag = 0x%x", afu_tlx_resp_capptag);
+    info_msg("AFU: cmd_capptag = 0x%x", resp_capptag);
     memcpy(&afu_event.afu_tlx_rdata_bus, &vsec_data, data_size); 
     byte_shift(afu_event.afu_tlx_rdata_bus, data_size, byte_offset, RIGHT);  
     printf("rdata_bus = 0x");
@@ -645,84 +680,59 @@ AFU::tlx_afu_config_read()
 	printf("%02x", afu_event.afu_tlx_rdata_bus[i]);
     printf("\n");
     info_msg("AFU: vsec_offset = 0x%x vsec_data = 0x%x", vsec_offset, vsec_data);
-    //if(TagManager::request_tlx_credit(RESP_DATA_CREDIT)) { 
-      if(TagManager::request_tlx_credit(RESP_CREDIT)) {
-        if(afu_tlx_send_resp_and_data(&afu_event, afu_tlx_resp_opcode, afu_tlx_resp_dl, 
-		afu_tlx_resp_capptag, afu_event.afu_tlx_resp_dp, 
-		afu_tlx_resp_code, afu_tlx_rdata_valid, 
-		afu_event.afu_tlx_rdata_bus, afu_event.afu_tlx_rdata_bad) != TLX_SUCCESS) {
+    printf("calling ocse\n");
+    rc = afu_cfg_send_resp_and_data(&afu_event, resp_opcode, resp_dl, resp_capptag,
+	resp_dp, resp_code, byte_cnt, rdata_valid, afu_event.afu_tlx_rdata_bus, rdata_bad);
+    printf("config read rc = 0x%x\n", rc);
+    if(rc != TLX_SUCCESS) {
 
 		error_msg("AFU: Failed afu_tlx_send_resp_and_data");
     	}
-    }
-    else {
-	error_msg("AFU: No response data credit available");
-    }
 }
 
 void
 AFU::tlx_afu_config_write()
 {
-    uint8_t  afu_tlx_cmd_rd_req;
-    uint8_t  afu_tlx_cmd_rd_cnt;
-    uint8_t  afu_resp_opcode;
+    uint8_t  resp_opcode, rdata_valid;
     uint8_t  resp_dl = 0;
-    uint16_t resp_capptag;
+    uint16_t byte_cnt, resp_capptag;
     uint8_t  resp_dp = 0;
     uint8_t  resp_code = 0;
-    uint8_t  cmd_data_bdi;
+    uint8_t  rdata_bad;
     uint8_t  byte_offset, data_size;
-    uint32_t config_data, port_data, port_offset, vsec_offset;
+    uint32_t config_data, config_offset, port_data, port_offset, vsec_offset;
     uint32_t cmd_pa;
-    
+    int rc;
+  
     debug_msg("AFU::tlx_afu_config_write");
     resp_capptag = afu_event.tlx_afu_cmd_capptag;
     cmd_pa = afu_event.tlx_afu_cmd_pa & 0x0000FFFC;   
+    resp_dl = 1;
 
     debug_msg("AFU: cmd_pa = 0x%x", cmd_pa);
 
-    if(config_state == IDLE) {
-	afu_tlx_cmd_rd_req = 0x1;
-	afu_tlx_cmd_rd_cnt = 0x1;
-
-        //if(TagManager::request_tlx_credit(CMD_DATA_CREDIT)) {
-	    if( afu_tlx_cmd_data_read_req(&afu_event, afu_tlx_cmd_rd_req, afu_tlx_cmd_rd_cnt) !=
-	    	TLX_SUCCESS) {
-	    	printf("AFU: Failed afu_tlx_cmd_data_read_req\n");
-	    }
-	//}
-//	else {
-//	    error_msg("AFU:tlx_afu_config_write: no RESP_CREDIT credit available");
-//	}
-    	config_state = READY;
-	debug_msg("AFU: Set config_state = READY");
-    }
-    else if(config_state == READY) {
+//    if(config_state == IDLE) {
+	//afu_tlx_cmd_rd_req = 0x1;
+	//afu_tlx_cmd_rd_cnt = 0x1;
+	byte_cnt = 0;
+	resp_opcode = 4;
+	// get config write afu descriptor offset
+	byte_cnt = 0;
 	data_size = 4;
 	byte_offset = 0x0000003F & afu_event.tlx_afu_cmd_pa;
-//	if(TagManager::request_tlx_credit(RESP_DATA_CREDIT) &&
-//	   (TagManager::request_tlx_credit(RESP_CREDIT))) {
-	    if(tlx_afu_read_cmd_data(&afu_event, &cmd_data_bdi, afu_event.tlx_afu_cmd_data_bus) !=
-		TLX_SUCCESS) {
-	   	printf("AFU: Failed tlx_afu_read_cmd_data\n");
-	    }
-//	}
-//	else {
-//	    error_msg("AFU:tlx_afu_config_write: no RESP_DATA_CREDIT available");
-//	}
-	printf("cdata_bus = 0x");
-	for(uint8_t i=0; i<64; i++)
-	    printf("%02x", afu_event.tlx_afu_cmd_data_bus[i]);
-	printf("\n");
-   	byte_shift(afu_event.tlx_afu_cmd_data_bus, data_size, byte_offset, LEFT); 
-	memcpy(&config_data, afu_event.tlx_afu_cmd_data_bus, data_size);
-	debug_msg("AFU:config_write: config_data (afu_desc offset) = 0x%x", config_data);
- 	debug_msg("AFU:config_write: cmd_pa = 0x%x", cmd_pa);
-	debug_msg("AFU:config_write: byte_offset = 0x%x", byte_offset);
-   	if(cmd_pa == 0x40c) {		// config write port
-	    port_offset = config_data;	// get afu descriptor offset
+	
+	// get config write data
+	// set afu_enable_reset to check for enable or reset bit
+	if(cmd_pa == 0x50c) {
+	    afu_enable_reset = 1;
+	}
+	// 0x40c afu descriptor offset port, 0x410 afu descriptor data port
+   	if(cmd_pa == 0x40c) {	
+	    port_offset = wr_config_data;	// get afu descriptor offset
+	    printf("AFU: port_offset = 0x%x\n", port_offset);
 	    if(port_offset < 0x0FFF) {
 		port_data = descriptor.get_afu_desc_reg(port_offset);	// get afu desc data
+		printf("AFU: afu descriptor data port = 0x%x\n", port_data);
 		descriptor.set_afu_desc_reg(0x410, port_data);		// write afu desc data to read port
 	    }
 	    else {
@@ -731,32 +741,53 @@ AFU::tlx_afu_config_write()
 	    }
 	    port_offset = port_offset | 0x80000000;		// set bit 31 to write port 0x40c
 	    descriptor.set_vsec_reg(0x40c, port_offset);
-	    debug_msg("AFU: read port 0x410 = 0x%x", descriptor.get_vsec_reg(0x410));
-	    debug_msg("AFU: write port 0x40c = 0x%x", descriptor.get_vsec_reg(0x40c));
+	    debug_msg("AFU: afu descriptor data port 0x410 = 0x%x", descriptor.get_vsec_reg(0x410));
+	    debug_msg("AFU: afu descriptor offset port 0x40c = 0x%x", descriptor.get_vsec_reg(0x40c));
+	}
+	else if(cmd_pa >= 0x10 && cmd_pa <= 0x24) {
+	    printf("AFU: config BAR\n");
+	    if(config_data != 0xFFFFFFFF) {
+	    	switch(cmd_pa) {
+		    case 0x10:
+			enable_bar = 0;
+			bar_l0 = wr_config_data;
+			printf("AFU: bar_l0 = 0x%x\n", bar_l0);
+			break;
+		    case 0x14:
+			bar_h0 = wr_config_data;
+		  	printf("AFU: bar_h0 = 0x%x\n", bar_h0);
+			break;
+		    case 0x18:
+			enable_bar = 1;
+			bar_l1 = wr_config_data;
+			printf("AFU: bar_l1 = 0x%x\n", bar_l1);
+			break;
+		    case 0x1c:
+			bar_h1 = wr_config_data;
+			printf("AFU: bar_h1 = 0x%x\n", bar_h1);
+			break;
+		    case 0x20:
+			enable_bar = 2;
+			bar_l2 = wr_config_data;
+			printf("AFU: bar_l2 = 0x%x\n", bar_l2);
+			break;
+		    case 0x24:
+			bar_h2 = wr_config_data;
+		  	printf("AFU: bar_h2 = 0x%x\n", bar_h2);
+			break;
+		    default:
+			break;
+		}	 
+	    }   
 	}
 	else {	// vsec config write 
 	    vsec_offset = cmd_pa & 0x00000FFC;
-	    descriptor.set_vsec_reg(vsec_offset, config_data);	    
+	    descriptor.set_vsec_reg(vsec_offset, wr_config_data);	    
 	}
-	afu_resp_opcode = 0x04;		// mem write resp
-	resp_code = 0x0;
-	if(TagManager::request_tlx_credit(RESP_CREDIT)) {
-            if(afu_tlx_send_resp(&afu_event, afu_resp_opcode, resp_dl, resp_capptag,
-			resp_dp, resp_code) != TLX_SUCCESS) {
-	    	printf("AFU: Failed afu_tlx_send_resp\n");
-	    }
-	}
-	else {
-		error_msg("AFU: no resp credit available");
-	}
-//	if(afu_tlx_send_resp(&afu_event, afu_resp_opcode, resp_dl, resp_capptag,
-//		resp_dp, resp_code) != TLX_SUCCESS) {
-//	    printf("AFU: Failed afu_tlx_send_resp\n");
-//	}
-	    
-	config_state = IDLE;
-	printf("\nafu_tlx_cdata_bus\n");
-    }
+	rc = afu_cfg_send_resp_and_data(&afu_event, resp_opcode, resp_dl, resp_capptag,
+		resp_dp, resp_code, byte_cnt, rdata_valid, 
+		afu_event.afu_tlx_rdata_bus, rdata_bad);
+
 }
 
 void
@@ -777,31 +808,36 @@ AFU::tlx_pr_rd_mem()
     afu_tlx_rdata_valid = 0x0;
     afu_tlx_resp_capptag = afu_event.tlx_afu_cmd_capptag;
 
-    mem_offset = afu_event.tlx_afu_cmd_pa;
+    //mem_offset = afu_event.tlx_afu_cmd_pa;
     if(afu_event.tlx_afu_cmd_pl == 3)
 	data_size = 8;
     else if(afu_event.tlx_afu_cmd_pl == 2)
 	data_size = 4;
 
     debug_msg("AFU:tlx_pr_rd_mem");
-    
+    if(is_mmio_addr(afu_event.tlx_afu_cmd_pa)) {    
     // mmio read data
-    descriptor.get_mmio_mem(mem_offset, (char*)&mem_data, data_size);
-    debug_msg("mem_offset = 0x%x mem_data = 0x%016llx", mem_offset, mem_data);
-    memcpy(&afu_event.afu_tlx_rdata_bus, &mem_data, data_size);
-    byte_shift(afu_event.afu_tlx_rdata_bus, data_size, mem_offset, RIGHT);
-//    if(TagManager::request_tlx_credit(RESP_DATA_CREDIT)) { 
-      if(TagManager::request_tlx_credit(RESP_CREDIT)) {
-        if(afu_tlx_send_resp_and_data(&afu_event, afu_tlx_resp_opcode, afu_tlx_resp_dl, 
+	mem_offset = afu_event.tlx_afu_cmd_pa;
+    	descriptor.get_mmio_mem(mem_offset, (char*)&mem_data, data_size);
+    	debug_msg("mem_offset = 0x%x mem_data = 0x%016llx", mem_offset, mem_data);
+    	memcpy(&afu_event.afu_tlx_rdata_bus, &mem_data, data_size);
+    	byte_shift(afu_event.afu_tlx_rdata_bus, data_size, mem_offset, RIGHT);
+
+      	if(TagManager::request_tlx_credit(RESP_CREDIT)) {
+            if(afu_tlx_send_resp_and_data(&afu_event, afu_tlx_resp_opcode, afu_tlx_resp_dl, 
 		afu_tlx_resp_capptag, afu_event.afu_tlx_resp_dp, 
 		afu_tlx_resp_code, afu_tlx_rdata_valid, 
 		afu_event.afu_tlx_rdata_bus, afu_event.afu_tlx_rdata_bad) != TLX_SUCCESS) {
 
 		error_msg("AFU: Failed afu_tlx_send_resp_and_data");
+    	    }
+    	}
+    	else {
+	    error_msg("AFU: No response credit available");
     	}
     }
     else {
-	error_msg("AFU: No response credit available");
+	printf("AFU: addr = 0x%ul is not mmio address\n");
     }
 }
 
@@ -822,6 +858,7 @@ AFU::tlx_pr_wr_mem()
     uint8_t  data_size;		
 
     debug_msg("AFU:tlx_pr_wr_mem");
+
     cmd_pa = afu_event.tlx_afu_cmd_pa & 0x0000FFFC;
     resp_capptag = afu_event.tlx_afu_cmd_capptag;
     byte_offset = 0x0000003F & afu_event.tlx_afu_cmd_pa;
@@ -829,29 +866,18 @@ AFU::tlx_pr_wr_mem()
     if(mem_state == IDLE) {
 	afu_tlx_cmd_rd_req = 0x1;
 	afu_tlx_cmd_rd_cnt = 0x1;
-//    	if(TagManager::request_tlx_credit(RESP_DATA_CREDIT)) {
-//	if(TagManager::request_tlx_credit(RESP_CREDIT)) {
 	    if(afu_tlx_cmd_data_read_req(&afu_event, afu_tlx_cmd_rd_req, afu_tlx_cmd_rd_cnt) !=
 	        TLX_SUCCESS) {
 	    	printf("AFU: Failed afu_tlx_resp_data_read_req\n");
 	    }
-//	}
-//	else {
-//	    	error_msg("AFU:tlx_pr_wr_mem: no cmd data credit available");
-//	}
 	debug_msg("AFU: set mem_state = READY");
 	mem_state = READY;
     }
     else if(mem_state == READY) {
-	//if(TagManager::request_tlx_credit(RESP_DATA_CREDIT)) {
 	    if(tlx_afu_read_cmd_data(&afu_event, &cmd_data_bdi, afu_event.tlx_afu_cmd_data_bus) !=
 		TLX_SUCCESS) {
 		printf("AFU: Failed tlx_afu_read_cmd_data\n");
 	    }
-	//}
-	//else {
-	//    error_msg("AFU: Failed no RESP_DATA_CREDIT available");
-	//}
 	if(afu_event.tlx_afu_cmd_pl == 3)
 	    data_size = 8;
 	else if(afu_event.tlx_afu_cmd_pl == 2)
@@ -863,30 +889,42 @@ AFU::tlx_pr_wr_mem()
 	byte_shift(afu_event.tlx_afu_cmd_data_bus, data_size, byte_offset, LEFT);
 	memcpy(&mem_data, afu_event.tlx_afu_cmd_data_bus, data_size);
 	debug_msg("mem_data offset = 0x%x mem_data = 0x%016llx", cmd_pa, mem_data);
-	// mmio write
-	descriptor.set_mmio_mem(cmd_pa, (char*)&mem_data, data_size);
-	//descriptor.set_port_reg(cmd_pa, mem_data);
-	afu_resp_opcode = 0x04;		// mem write resp
-	resp_code = 0x0;
-	if(TagManager::request_tlx_credit(RESP_CREDIT)) {
-            if(afu_tlx_send_resp(&afu_event, afu_resp_opcode, resp_dl, resp_capptag,
+	if(is_mmio_addr(afu_event.tlx_afu_cmd_pa)) {
+	    // mmio write
+	    descriptor.set_mmio_mem(cmd_pa, (char*)&mem_data, data_size);
+	    //descriptor.set_port_reg(cmd_pa, mem_data);
+	    afu_resp_opcode = 0x04;		// mem write resp
+	    resp_code = 0x0;
+	    if(TagManager::request_tlx_credit(RESP_CREDIT)) {
+                if(afu_tlx_send_resp(&afu_event, afu_resp_opcode, resp_dl, resp_capptag,
 			resp_dp, resp_code) != TLX_SUCCESS) {
-	    	printf("AFU: Failed afu_tlx_send_resp\n");
+	    	    printf("AFU: Failed afu_tlx_send_resp\n");
+	    	}
 	    }
+	    else {
+		    error_msg("AFU: no resp credit available");
+	    }
+	    debug_msg("set mem_state = IDLE");
+	    mem_state = IDLE;
 	}
 	else {
-		error_msg("AFU: no resp credit available");
+	    printf("AFU:addr = 0x%llx is not mmio address space\n", afu_event.tlx_afu_cmd_pa);
 	}
-//	if(afu_tlx_send_resp(&afu_event, afu_resp_opcode, resp_dl, resp_capptag,
-//		resp_dp, resp_code) != TLX_SUCCESS) {
-//	    printf("AFU: Failed afu_tlx_send_resp\n");
-//	}
-
-	debug_msg("set mem_state = IDLE");
-	mem_state = IDLE;
     }
 }
-
+uint32_t
+AFU::is_mmio_addr(uint64_t addr)
+{
+    printf("AFU: mmio addr = 0x%016llx\n", addr);
+    printf("AFU: bar addr  = 0x%016llx\n", bar);
+    addr = addr & 0xFFFFFFFFFFF10000;
+    if(addr >= bar && addr < bar+0x10000) {
+	return 1;
+    }
+    else {
+	return 0;
+    }
+}
 
 void
 AFU::byte_shift(unsigned char *array, uint8_t size, uint8_t offset, uint8_t direction)

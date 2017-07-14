@@ -74,6 +74,8 @@
 #define AFU_TLX_RESP_NO_DATA 35
 #define AFU_TLX_NO_CREDITS 40
 #define AFU_TLX_RD_CNT_WRONG 41
+#define CFG_TLX_NO_CREDITS 42
+#define CFG_TLX_NOT_CFG_CMD 43
 #define TLX_RESPONSE_FAILED 15
 #define TLX_RESPONSE_CONTEXT 17
 #define TLX_BAD_SOCKET 16	/* The socket connection could not be established */
@@ -223,30 +225,22 @@
 #define AFU_CMD_READ_EXCLUSIVE_T	0xe8 	// TLX4 only
 #define AFU_CMD_READ_SHARED_T		0xe9 	// TLX4 only
 
-/* TEMP PATCH UNTIL CMDS GET TRANSLATED FROM AMO_ARMW* TO AFU_CMD_AMO* in LIBOCXL */
-#define AMO_ARMWF_ADD	 0x00
-#define AMO_ARMWF_XOR	 0x01
-#define AMO_ARMWF_OR	 0x02
-#define AMO_ARMWF_AND	 0x03
-#define AMO_ARMWF_CAS_MAX_U	 0x04
-#define AMO_ARMWF_CAS_MAX_S	 0x05
-#define AMO_ARMWF_CAS_MIN_U	 0x06
-#define AMO_ARMWF_CAS_MIN_S	 0x07
+/*  AMO_OPCODES per TL SPEC: used in LIBOCXL */
+#define AMO_WRMWF_ADD	 0x00
+#define AMO_WRMWF_XOR	 0x01
+#define AMO_WRMWF_OR	 0x02
+#define AMO_WRMWF_AND	 0x03
+#define AMO_WRMWF_CAS_MAX_U	 0x04
+#define AMO_WRMWF_CAS_MAX_S	 0x05
+#define AMO_WRMWF_CAS_MIN_U	 0x06
+#define AMO_WRMWF_CAS_MIN_S	 0x07
 #define AMO_ARMWF_CAS_U	 0x08
-#define AMO_ARMWF_CAS_E	 0x11
-#define AMO_ARMWF_CAS_NE	 0x10
-#define AMO_ARMWF_INC_B	 0x18
-#define AMO_ARMWF_INC_E	 0x19
-#define AMO_ARMWF_DEC_B	 0x1c
-#define AMO_ARMW_ADD	 0x20
-#define AMO_ARMW_XOR	 0x21
-#define AMO_ARMW_OR	 0x22
-#define AMO_ARMW_AND	 0x23
-#define AMO_ARMW_CAS_MAX_U	 0x24
-#define AMO_ARMW_CAS_MAX_S	 0x25
-#define AMO_ARMW_CAS_MIN_U	 0x26
-#define AMO_ARMW_CAS_MIN_S	 0x27
-#define AMO_ARMW_CAS_T	 0x38
+#define AMO_ARMWF_CAS_E	 0x09
+#define AMO_ARMWF_CAS_NE	 0x0a
+#define AMO_ARMWF_INC_B	 0x0c
+#define AMO_ARMWF_INC_E	 0x0d
+#define AMO_ARMWF_DEC_B	 0x0e
+#define AMO_W_CAS_T	 0x0c
 
 
 
@@ -302,14 +296,16 @@ struct AFU_EVENT {
   // Config and Credits
   uint8_t  afu_tlx_credit_req_valid;		  /* TODO TEMP for now, needed for xfer of credit & req changes */
   uint8_t  tlx_afu_credit_valid;		  /* TODO TEMP for now, needed for xfer of credits */
-  uint8_t  afu_tlx_cmd_credits_available;
-  uint8_t  afu_tlx_resp_credits_available;
-  uint8_t  tlx_afu_cmd_credits_available;
-  uint8_t  tlx_afu_resp_credits_available;
+  uint8_t  afu_tlx_cmd_credits_available; // init from afu_tlx_cmd_initial_credit, decrement on tlx_afu_cmd_valid, increment on afu_tlx_cmd_credit
+  uint8_t  afu_tlx_resp_credits_available; // init from afu_tlx_resp_initial_credit, decrement on tlx_afu_resp_valid, increment on afu_tlx_resp_credit
+  uint8_t  tlx_afu_cmd_credits_available;  // init from tlx_afu_cmd_resp_initial_credit, decrement on afu_tlx_cmd_valid, increment on tlx_afu_cmd_credit
+  uint8_t  tlx_afu_resp_credits_available; // init from tlx_afu_cmd_resp_initial_credit, decrement on afu_tlx_resp_valid, increment on tlx_afu_resp_credit
   uint8_t  tlx_afu_resp_data_credits_available;
   uint8_t  tlx_afu_cmd_data_credits_available;
+  uint8_t  cfg_tlx_credits_available;
   uint16_t  tlx_afu_cmd_data_byte_cnt;	/*  used for socket transfer only */
   uint16_t  tlx_afu_resp_data_byte_cnt;	/*  used for socket transfer only */
+  uint16_t  afu_cfg_resp_data_byte_cnt;	/*  used for socket transfer only */
   // TLX to AFU Repsonse Interface (table 1)
   // CAPP to AP (host to afu) responses (generally to ap/capp commands and data)
   uint8_t tlx_afu_resp_valid;             /* 1 bit valid respoonse from tlx */
@@ -344,10 +340,15 @@ struct AFU_EVENT {
   uint8_t tlx_afu_cmd_flag;               /* 4 bit command flag for atomic memory ops - OCAPI 4 */
   uint8_t tlx_afu_cmd_os;                 /* 1 bit command ordered segment - OCAPI 4 */
 #endif
+  // In real design, this is on the config cmd bus
+  uint8_t tlx_cfg_resp_ack;		  /* 1 bit signal to AFU after taking cfg resp from interface */
 
   // TLX Command Credit Interface (table 4)
   uint8_t afu_tlx_cmd_credit;              /* 1 bit return a credit to tlx */
-  uint8_t afu_tlx_cmd_initial_credit;      /* 7 bit initial number of credits that the afu is providing to tlx for consumption - when is this valid? */
+  uint8_t afu_tlx_cmd_initial_credit;      /* 7 bit initial number of credits that the afu is providing to tlx for consumption valid? */
+  // In real design, these are on separate bus, along with signals used for config rd/config wr cmds
+  uint8_t cfg_tlx_credit_return;              /* 1 bit return a credit to tlx for config cmds */
+  uint8_t cfg_tlx_initial_credit;      /* 4 bit initial number of credits that the afu is providing to tlx for consumption */
 
   // TLX to AFU Repsonse DATA Interface (table 5)
   // CAPP to AP (host to afu) data responses (generally to ap/capp read commands)
@@ -370,6 +371,9 @@ struct AFU_EVENT {
   uint8_t tlx_afu_cmd_data_bdi;            /* 1 bit bad data indicator */
   uint8_t afu_tlx_cmd_rd_req;              /* 1 bit read request */
   uint8_t afu_tlx_cmd_rd_cnt;              /* 3 bit encoded read count */
+  uint8_t tlx_cfg_cmd_data_valid;          /* 1 bit config command data from host valid */
+  uint8_t tlx_cfg_cmd_data_bdi;            /* 1 bit bad config data indicator */
+  unsigned char tlx_cfg_cmd_data_bus[4];  /* 32 bit (4 byte) config cmd data  */
 
   // TLX Framer Command Interface (table 7)
   uint8_t tlx_afu_resp_credit;             /* 1 bit tlx returning a response credit to the afu */
@@ -412,6 +416,9 @@ struct AFU_EVENT {
   uint8_t afu_tlx_rdata_valid;            /* 6 bit response data is valid */
   unsigned char afu_tlx_rdata_bus[64];    /* 512 bit response data */
   uint8_t afu_tlx_rdata_bad;              /* 1 bit response data is bad */
+  unsigned char afu_cfg_rdata_bus[4];  	  /* 32 bit (4 byte) config response data  */
+  uint8_t afu_cfg_rdata_valid;            /* 6 bit config response data is valid */
+  uint8_t afu_cfg_rdata_bad;              /* 1 bit config response data is bad */
 
   // TLX Framer Template Configuration (table 10)
   uint8_t afu_cfg_xmit_tmpl_config_0;     /* 1 bit xmit template enable - default */

@@ -122,7 +122,7 @@ int poll_machine(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t contex
 			printf("Failed to read data\n");
 			return -1;
 		}
-		machine->config[i] = temp;		
+		machine->config[i] = temp;	
 	}
 
 	return 0;
