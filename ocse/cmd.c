@@ -310,7 +310,11 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	memcpy( (void *)&addr, (void *)&(cmd_ea_or_obj[0]), sizeof(uint64_t));
  
         // setting MEM_IDLE will tell handle_interrupt to send req to libocxl 
-	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_INTERRUPT, addr, 0, MEM_IDLE,
+        if (cmd_opcode == AFU_CMD_WAKE_HOST_THRD)
+		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_WAKE_HOST_THRD, addr, 0, MEM_IDLE,
+		 resp, 0, 0, 0, 0, 0);
+	else  //must be some type of INTR request
+		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_INTERRUPT, addr, 0, MEM_IDLE,
 		 resp, 0, 0, 0, 0, 0);
  } 
 
@@ -1200,7 +1204,8 @@ void handle_interrupt(struct cmd *cmd)
 	// Send any interrupts to client immediately
 	head = &cmd->list;
 	while (*head != NULL) {
-		if (((*head)->type == CMD_INTERRUPT) &&
+		//if (((*head)->type == CMD_INTERRUPT) &&
+		if ((((*head)->type == CMD_INTERRUPT) || ((*head)->type == CMD_WAKE_HOST_THRD)) &&
 		    ((*head)->state == MEM_IDLE))
 			break;
 		head = &((*head)->_next);
@@ -1211,8 +1216,11 @@ void handle_interrupt(struct cmd *cmd)
 	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
 		return;
 
-	// Send interrupt to client
-	buffer[0] = OCSE_INTERRUPT;
+	// Send interrupt or wake_host_thread request to client
+	if (event->type == CMD_WAKE_HOST_THRD)
+		buffer[0] = OCSE_WAKE_HOST_THREAD;
+	else //must be an interrupt
+		buffer[0] = OCSE_INTERRUPT;
 	//irq = htons(cmd->irq);
 	//memcpy(&(buffer[1]), &irq, 2);
 	memcpy(&(buffer[1]), &event->cmd_flag, 1);
