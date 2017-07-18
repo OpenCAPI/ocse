@@ -238,10 +238,6 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 		case OCSE_MMIO_WRITE32:
 			mmio = handle_mmio(ocl->mmio, client, 0, dw, 0, global);
 			break;
-		case OCSE_MMIO_EBREAD:
-                        eb_rd = 1;
-			mmio = handle_mmio(ocl->mmio, client, 1, dw, eb_rd, global);
-			break;
 		case OCSE_GLOBAL_MMIO_READ64:
 			global = 1;
 			dw = 1;

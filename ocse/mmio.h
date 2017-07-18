@@ -26,9 +26,6 @@
 #include "../common/tlx_interface.h"
 #include "../common/utils.h"
 
-#define PROG_MODEL_MASK 0x7fff
-#define PROG_MODEL_DEDICATED 0x0010
-#define PROG_MODEL_DIRECTED 0x0004
 #define MMIO_FULL_RANGE 0x4000000
 #define PSA_MASK             0x00FFFFFFFFFFFFFFL
 #define PSA_REQUIRED         0x0100000000000000L
@@ -92,17 +89,6 @@ struct afu_cfg_sp {
         uint32_t pp_MMIO_stride;
 	uint32_t num_ints_per_process;
 	uint32_t num_of_processes;
-//	uint16_t num_of_afu_CRs;
-//	uint16_t req_prog_model;
-//	uint64_t reserved1;
-//	uint64_t reserved2;
-//	uint64_t reserved3;
-//	uint64_t AFU_CR_len;
-//	uint64_t AFU_CR_offset;
-//	uint64_t PerProcessPSA;
-//	uint64_t PerProcessPSA_offset;
-//	uint64_t AFU_EB_len;
-//	uint64_t AFU_EB_offset;
 };
 
 struct mmio {
@@ -135,8 +121,5 @@ struct mmio_event *handle_mmio(struct mmio *mmio, struct client *client,
 
 struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client);
 
-//int dedicated_mode_support(struct mmio *mmio);
-
-//int directed_mode_support(struct mmio *mmio);
 
 #endif				/* _MMIO_H_ */

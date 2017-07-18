@@ -1003,14 +1003,3 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 	return NULL;
 }
 
-//int dedicated_mode_support(struct mmio *mmio)
-//{
-//	return ((mmio->cfg.req_prog_model & PROG_MODEL_MASK) ==
-//		PROG_MODEL_DEDICATED);
-//}
-
-//int directed_mode_support(struct mmio *mmio)
-//{
-//	return ((mmio->cfg.req_prog_model & PROG_MODEL_MASK) ==
-//		PROG_MODEL_DIRECTED);
-//}
