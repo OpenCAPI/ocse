@@ -1649,12 +1649,6 @@ static void *_psl_loop(void *ptr)
 				goto ocl_fail;
 			}
 			break;
-		case OCSE_WAKE:
-			if (_handle_wake(afu) < 0) {
-				perror("Wake host thread Failure");
-				goto psl_fail;
-			}
-			break;
 		case OCSE_AFU_ERROR:
 			if (_handle_afu_error(afu) < 0) {
 				perror("AFU ERROR Failure");
