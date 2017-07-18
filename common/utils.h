@@ -70,6 +70,10 @@
 #define OCSE_GLOBAL_MMIO_WRITE64	0x27
 #define OCSE_GLOBAL_MMIO_READ32	        0x28
 #define OCSE_GLOBAL_MMIO_WRITE32	0x29
+#define OCSE_LPC_MAP     	        0x2a
+#define OCSE_LPC_READ	                0x2b
+#define OCSE_LPC_WRITE          	0x2c
+#define OCSE_WAKE                	0x2d
 #define MAX_INT32 0x7fffffffU
 #define MIN_INT32 0x80000000U
 #define MAX_UINT32 0xffffffffU

@@ -1211,20 +1211,34 @@ void handle_interrupt(struct cmd *cmd)
 	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
 		return;
 
-	// Send interrupt to client
-	buffer[0] = OCSE_INTERRUPT;
+	// Send interrupt or wake host thread to client
+	// will eventually need intrp_req.d support
+	if ( event->command == AFU_CMD_INTRP_REQ ) {
+	  buffer[0] = OCSE_INTERRUPT;
+	} else {
+	  buffer[0] = OCSE_WAKE;
+	}
+
 	//irq = htons(cmd->irq);
 	//memcpy(&(buffer[1]), &irq, 2);
 	memcpy(&(buffer[1]), &event->cmd_flag, 1);
 	memcpy(&(buffer[2]), &event->addr, 8);
+
 	// do we still need this event->abort???
 	event->abort = &(client->abort);
-	debug_msg("%s:INTERRUPT cmd_flag=%d addr=0x%016"PRIx64, event->context, event->cmd_flag, event->addr);
+	debug_msg( "%s:INTERRUPT cmd=0x%02x cmd_flag=%d addr=0x%016"PRIx64, 
+		   event->context, 
+		   event->command, 
+		   event->cmd_flag, 
+		   event->addr );
 	if (put_bytes(client->fd, 10, buffer, cmd->dbg_fp, cmd->dbg_id,
 		      event->context) < 0) {
 		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 	}
 	debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->tag, event->context);
+
+	// this assumes the wake host thread finds a thread
+	// should add a path for a negative response from libocxl application
 	event->state = MEM_DONE;
 }
 
@@ -1668,6 +1682,10 @@ void handle_response(struct cmd *cmd)
 					     event->data ) ; // data in this case is already the complete length
 	} else if (event->command == AFU_CMD_INTRP_REQ ) {
   		rc = tlx_afu_send_resp( cmd->afu_event,TLX_RSP_INTRP_RESP,event->afutag, 
+					     event->resp, // resp_code - right now always a good response
+					     0, 0, 0, 0);
+	} else if (event->command == AFU_CMD_WAKE_HOST_THRD ) {
+  		rc = tlx_afu_send_resp( cmd->afu_event,TLX_RSP_WAKE_HOST_RESP,event->afutag, 
 					     event->resp, // resp_code - right now always a good response
 					     0, 0, 0, 0);
 	} else if ((event->command == AFU_CMD_XLATE_TOUCH ) || (event->command == AFU_CMD_XLATE_TOUCH_N )) {

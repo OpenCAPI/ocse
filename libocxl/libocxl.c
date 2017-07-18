@@ -140,6 +140,98 @@ static int _handle_dsi(struct ocxl_afu_h *afu, uint64_t addr)
 	return i;
 }
 
+static int _handle_wake(struct ocxl_afu_h *afu)
+{
+  // LGT idea
+	/* uint64_t irq; */
+	/* uint8_t size; */
+	/* uint8_t data[64]; */
+	/* uint8_t data_valid; */
+  // HMP idea
+	uint16_t size;
+	//uint8_t data[sizeof(irq)];
+	//struct ocxl_irq_h *irq;
+	uint64_t addr;
+	uint8_t cmd_flag;
+	uint8_t adata[8];
+	int i;
+
+	if (!afu) fatal_msg("_handle_wake:NULL afu passed");
+
+	debug_msg("AFU WAKE");
+
+	// in opencapi, we should get a 64 bit address (and maybe data)
+	// we should find that address in the afu's irq list
+	// if we find it, we should put some stuff(?) in the event array
+
+	// propose
+	// 1 byte of cmd flag
+	// 8 bytes of address aka tid
+
+	// HMP idea
+	//buffer[0] = OCSE_WAKE (already read)
+	//buffer[1] = event->cmd_flag
+	//buffer[2] = event->addr 
+
+	if (get_bytes_silent(afu->fd, 1, &cmd_flag, 1000, 0) < 0) {
+		warn_msg("Socket failure getting cmd_flags");
+		_all_idle(afu);
+		return -1;
+	}
+	if (get_bytes_silent(afu->fd, 8, adata, 1000, 0) < 0) {
+		warn_msg("Socket failure getting address");
+		_all_idle(afu);
+		return -1;
+	}
+	memcpy(&addr, adata, 8);
+	// addr = ntohs(addr);
+	debug_msg("_handle_wake: received wake_host_thread thread id 0x%016lx", addr);
+
+	// not sure if we need this code block for wake_host_thread
+	// search for addr in tid list of afu
+	// if we don't find it, warn_msg
+	// if we do find it, add an event if it is new for this irq
+	/* tid = afu->tid; */
+	/* while (tid != NULL) { */
+	/*   debug_msg("_handle_wake: compare wake to addr : 0x%016lx ?= 0x%016lx", (uint64_t)tid, addr); */
+	/*   if ( (uint64_t)tid == addr ) { */
+	/*     break; */
+	/*   } */
+	/*   tid = tid->_next; */
+	/* } */
+	/* if ( tid == NULL ) { */
+	/*   warn_msg( "_handle_wake: no matching tid in this application" ); */
+	/*   return -1; */
+	/* } */
+
+	// we have the matching tid pointer
+
+	// Only track a single interrupt at a time
+	// but what about a second afu_interrupt to a different irq address?  
+	// should that be saved or coalecsed?
+	// this code would coalesce them
+	pthread_mutex_lock(&(afu->waitasec_lock));
+	if ( afu->waitasec != NULL ) {
+	  // we are already waiting for someone to see the wake_host_thread
+	  pthread_mutex_unlock(&(afu->waitasec_lock));
+	  return 0;
+	}
+
+	size = sizeof(struct ocxl_waitasec);
+
+	afu->waitasec = (struct ocxl_waitasec *)calloc(1, size);
+	afu->waitasec->type = OCXL_EVENT_AFU_INTERRUPT;
+	afu->waitasec->size = size;
+	afu->waitasec->process_element = afu->context; // might not need this
+
+	do {
+		i = write(afu->pipe[1], &(afu->waitasec->type), 1);
+	} while ((i == 0) || (errno == EINTR));
+
+	pthread_mutex_unlock(&(afu->waitasec_lock));
+	return i;
+}
+
 static int _handle_interrupt(struct ocxl_afu_h *afu)
 {
   // LGT idea
@@ -1700,6 +1792,12 @@ static void *_psl_loop(void *ptr)
 		case OCSE_INTERRUPT:
 			if (_handle_interrupt(afu) < 0) {
 				perror("Interrupt Failure");
+				goto psl_fail;
+			}
+			break;
+		case OCSE_WAKE:
+			if (_handle_wake(afu) < 0) {
+				perror("Wake host thread Failure");
 				goto psl_fail;
 			}
 			break;
@@ -3318,5 +3416,38 @@ int ocxl_work_set_wed(struct ocxl_ioctl_start_work *work, __u64 wed)
 	}
 	work->work_element_descriptor = wed;
 	return 0;
+}
+
+// ocxl_sleep should behave very much like read_event
+// however, I don't think we can use the event structure as is
+// maybe create another event struct so that interrupt events and 
+// wake host thread events cannot collide or stall each other.
+// only one waitasec at a time in a context/afu pair
+int ocxl_sleep(struct ocxl_afu_h *afu)
+{
+        struct ocxl_waitasec waitasec;
+	uint8_t type;
+	//int i;
+
+	if (afu == NULL ) {
+		errno = EINVAL;
+		return -1;
+	}
+	// Function will block until event occurs
+	pthread_mutex_lock( &(afu->waitasec_lock) );
+	while ( afu->opened && !afu->waitasec ) {	/*infinite loop */
+		pthread_mutex_unlock( &(afu->waitasec_lock) );
+		if (_delay_1ms() < 0)
+			return -1;
+		pthread_mutex_lock(&(afu->waitasec_lock));
+	}
+
+	// Copy event data, free and move remaining events in queue
+	memcpy( &waitasec, afu->waitasec, sizeof( struct ocxl_waitasec ) );
+	free( afu->waitasec );
+	pthread_mutex_unlock( &(afu->waitasec_lock) );
+	if (read(afu->pipe[0], &type, 1) > 0)
+		return 0;
+	return -1;
 }
 

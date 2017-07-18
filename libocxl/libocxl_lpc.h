@@ -29,7 +29,7 @@
 extern "C" {
 #endif
 
-// think about an lpc or "host agent memory" set of helper functions
+// think about an lpc or "home agent memory" set of helper functions
 // maybe a map function
 // read functions
 // write functions
@@ -42,6 +42,11 @@ extern "C" {
  * note - the application is responsible for managing the space held by the lpc
  * there are no malloc or free operations
  */
+
+#define OCXL_LPC_FLAGS 0x3
+#define OCXL_LPC_BIG_ENDIAN 0x1
+#define OCXL_LPC_LITTLE_ENDIAN 0x2
+#define OCXL_LPC_HOST_ENDIAN 0x3
 
 int ocxl_lpc_map(struct ocxl_afu_h *afu, uint32_t flags);
 int ocxl_lpc_unmap(struct ocxl_afu_h *afu);
