@@ -57,10 +57,27 @@ struct ocxl_irq_h {
 	struct ocxl_irq_h *_next;
 };
 
+struct ocxl_waitasec {
+	__u16 type;
+	__u16 size;
+	__u16 process_element;
+	__u16 reserved1;
+};
+
+struct lpc_req {
+	volatile enum libocxl_req_state state;
+	volatile uint8_t type;
+	volatile uint64_t addr;
+	volatile uint64_t size;
+	uint8_t *data;
+};
+
 struct ocxl_afu_h {
 	pthread_t thread;
 	pthread_mutex_t event_lock;
+	pthread_mutex_t waitasec_lock;
 	struct ocxl_event *events[EVENT_QUEUE_MAX];
+	struct ocxl_waitasec *waitasec;
 	int adapter;
 	char *id;
 	uint16_t context;
@@ -72,6 +89,7 @@ struct ocxl_afu_h {
 	int attached;
 	int mapped;
 	int global_mapped;
+	int lpc_mapped;
 	int pipe[2];
         long mmio_length;  // this pasid stride
         long mmio_offset;  // this pasid mmio offset - f(pasid, per pasid stride, per pasid mmio offset)
@@ -81,6 +99,7 @@ struct ocxl_afu_h {
 	struct open_req open;
 	struct attach_req attach;
 	struct mmio_req mmio;
+	struct lpc_req lpc;
 	struct ocxl_irq_h *irq;
 	struct ocxl_afu_h *_head;
 	struct ocxl_afu_h *_next;

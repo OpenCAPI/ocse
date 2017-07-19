@@ -312,6 +312,13 @@ int ocxl_get_cr_class(struct ocxl_afu_h *afu, long cr_num, long *valp);
 int ocxl_errinfo_size(struct ocxl_afu_h *afu, size_t *valp);
 int ocxl_errinfo_read(struct ocxl_afu_h *afu, void *dst, off_t off, size_t len);
 
+/*
+ * "wait a sec"
+ */
+// a routine that models the behavior of the Power ISA wait instruction
+// the routine will block until someone issues a "wake_host_thead" or asb_notify
+int ocxl_sleep(struct ocxl_afu_h *afu);
+
 // think about an lpc or "host agent memory" set of helper functions
 // maybe a map function
 // read functions

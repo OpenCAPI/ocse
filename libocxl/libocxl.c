@@ -140,7 +140,91 @@ static int _handle_dsi(struct ocxl_afu_h *afu, uint64_t addr)
 	return i;
 }
 
-static int _handle_interrupt(struct ocxl_afu_h *afu)
+static int _handle_wake_host_thread(struct ocxl_afu_h *afu)
+{
+	uint16_t size;
+	uint64_t addr;
+	uint8_t cmd_flag;
+	uint8_t adata[8];
+	int i;
+
+	if (!afu) fatal_msg("_handle_wake_host_thread:NULL afu passed");
+
+	debug_msg("AFU WAKE HOST THREAD");
+
+	// in opencapi, we should get a 64 bit address (and maybe data)
+	// we should find that address in the afu's irq list
+	// if we find it, we should put some stuff(?) in the event array
+
+	// propose
+	// 1 byte of cmd flag
+	// 8 bytes of address aka tid
+
+	// HMP idea
+	//buffer[0] = OCSE_WAKE (already read)
+	//buffer[1] = event->cmd_flag
+	//buffer[2] = event->addr 
+
+	if (get_bytes_silent(afu->fd, 1, &cmd_flag, 1000, 0) < 0) {
+		warn_msg("Socket failure getting cmd_flags");
+		_all_idle(afu);
+		return -1;
+	}
+	if (get_bytes_silent(afu->fd, 8, adata, 1000, 0) < 0) {
+		warn_msg("Socket failure getting address");
+		_all_idle(afu);
+		return -1;
+	}
+	memcpy(&addr, adata, 8);
+	// addr = ntohs(addr);
+	debug_msg("_handle_wake_host_thread: received wake_host_thread thread id 0x%016lx", addr);
+
+	// not sure if we need this code block for wake_host_thread
+	// search for addr in tid list of afu
+	// if we don't find it, warn_msg
+	// if we do find it, add an event if it is new for this irq
+	/* tid = afu->tid; */
+	/* while (tid != NULL) { */
+	/*   debug_msg("_handle_wake: compare wake to addr : 0x%016lx ?= 0x%016lx", (uint64_t)tid, addr); */
+	/*   if ( (uint64_t)tid == addr ) { */
+	/*     break; */
+	/*   } */
+	/*   tid = tid->_next; */
+	/* } */
+	/* if ( tid == NULL ) { */
+	/*   warn_msg( "_handle_wake: no matching tid in this application" ); */
+	/*   return -1; */
+	/* } */
+
+	// we have the matching tid pointer
+
+	// Only track a single interrupt at a time
+	// but what about a second afu_interrupt to a different irq address?  
+	// should that be saved or coalecsed?
+	// this code would coalesce them
+	pthread_mutex_lock(&(afu->waitasec_lock));
+	if ( afu->waitasec != NULL ) {
+	  // we are already waiting for someone to see the wake_host_thread
+	  pthread_mutex_unlock(&(afu->waitasec_lock));
+	  return 0;
+	}
+
+	size = sizeof(struct ocxl_waitasec);
+
+	afu->waitasec = (struct ocxl_waitasec *)calloc(1, size);
+	afu->waitasec->type = OCXL_EVENT_AFU_INTERRUPT;
+	afu->waitasec->size = size;
+	afu->waitasec->process_element = afu->context; // might not need this
+
+	do {
+		i = write(afu->pipe[1], &(afu->waitasec->type), 1);
+	} while ((i == 0) || (errno == EINTR));
+
+	pthread_mutex_unlock(&(afu->waitasec_lock));
+	return i;
+}
+
+static int _handle_interrupt(struct ocxl_afu_h *afu, uint8_t data_is_valid)
 {
   // LGT idea
 	/* uint64_t irq; */
@@ -148,12 +232,13 @@ static int _handle_interrupt(struct ocxl_afu_h *afu)
 	/* uint8_t data[64]; */
 	/* uint8_t data_valid; */
   // HMP idea
-	uint16_t size;
+	uint16_t size, data_size;
 	//uint8_t data[sizeof(irq)];
 	struct ocxl_irq_h *irq;
 	uint64_t addr;
 	uint8_t cmd_flag;
 	uint8_t adata[8];
+	uint8_t ddata[32];
 	int i;
 
 	if (!afu) fatal_msg("_handle_interrupt:NULL afu passed");
@@ -216,6 +301,23 @@ static int _handle_interrupt(struct ocxl_afu_h *afu)
 	memcpy(&addr, adata, 8);
 	// addr = ntohs(addr);
 	debug_msg("_handle_interrupt: received intrp_req addr 0x%016lx", addr);
+	
+	if (data_is_valid) {  //this is an AFU_CMD_INTRP_REQ_D
+	// For now, up to 32bytes of data is sent over, pulled  from the addr offset 
+	// in the 64B data flit, If you prefer  it floating in a 64B buffer, edit _handle_interrupt in cmd.c
+		if (get_bytes_silent(afu->fd, sizeof(uint16_t), ddata, 1000, 0) < 0) {
+			warn_msg("Socket failure getting data_size");
+			_all_idle(afu);
+			return -1;
+		}
+		memcpy((char *)&data_size, (char *)ddata, sizeof(uint16_t));
+	  	if (get_bytes_silent(afu->fd, data_size, ddata, 1000, 0) < 0) { 
+	    		 warn_msg("Socket failure getting interrupt data "); 
+	     		_all_idle(afu); 
+	     		return -1; 
+
+		}
+	}
 
 	// TODO Update the rest of this to actually search for address and then do 
 	// whatever is needed if it's valid.....
@@ -271,6 +373,7 @@ static int _handle_interrupt(struct ocxl_afu_h *afu)
 	pthread_mutex_unlock(&(afu->event_lock));
 	return i;
 }
+
 
 static int _handle_afu_error(struct ocxl_afu_h *afu)
 {
@@ -456,7 +559,7 @@ static void _handle_ack(struct ocxl_afu_h *afu)
 	if (!afu)
 		fatal_msg("NULL afu passed to libocxl.c:_handle_ack");
 	DPRINTF("MMIO ACK\n");
-	if ((afu->mmio.type == OCSE_MMIO_READ64) | (afu->mmio.type == OCSE_GLOBAL_MMIO_READ64) | (afu->mmio.type == OCSE_MMIO_EBREAD)) {
+	if ((afu->mmio.type == OCSE_MMIO_READ64) | (afu->mmio.type == OCSE_GLOBAL_MMIO_READ64) ) {
 		if (get_bytes_silent(afu->fd, sizeof(uint64_t), data, 1000, 0) <
 		    0) {
 			warn_msg("Socket failure getting MMIO Ack");
@@ -609,8 +712,6 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 	else
 	    atomic_le = 0;
 	//cmd_endian == 0 when afu is LE, our old logic needs atomic_le == 1 for LE
-	//TODO Here is where I stopped updating this function from CAPI2 to OPEN CAPI
-	// Remove and read atomic_le from bit7 of data[0]
 	// if atomic_le == 1, afu is le, so no data issues (ocse is always le).
 	// if atomic_le == 0, we have to swap op1/op2 data before ops, and also swap
 	// data returned by fetches
@@ -640,9 +741,6 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 		warn_msg("unsupported op_size of 0x%2x \n", op_size);
 
 	switch (atomic_op) {
-			/* addr = location of an address aligned 4 or 8 byte first operand (op_A),
- *  which is modified with operand provided by AFU (op_1 or op_1l). AFU also provides the function
- *  encode (op_code). The result is returned to memory, the original value is returned to the AFU as completion data */
 			case AMO_WRMWF_ADD:
 				if  (op_size == 4) {
 				debug_msg("ADD %08"PRIx32" to %08"PRIx32 " store it & only return op_A for amo_rw ", op_A, op_1);
@@ -764,10 +862,6 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 				if (amo_op == OCSE_AMO_WR)
 					wb = 0;
 				break;
-			/* addr = location of an address aligned 4 or 8 byte first operand (op_A),
- * which is compared to the operand provided by AFU (op_1 or (op_1l). AFU also provides the function
- * encode (op_code. If result of compare is true, the third operand provided by AFU (op_2 or op_2l)
- * is written to memory at location specified for op_A. Original value of op_A is returned to AFU. */
 			case AMO_ARMWF_CAS_U:
 				if ((amo_op == OCSE_AMO_WR) || (amo_op == OCSE_AMO_RD)) {
 					info_msg("INVALID FUNCTION CODE FOR AMO_WR or AMO_RD - treated as NOP \n");
@@ -829,12 +923,6 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 				if (amo_op == OCSE_AMO_WR)
 					wb = 0;
 				break;
-			/* addr = location of two address aligned 4 or 8 byte operands.
- * The first operand A is found at the address specified; second operand A2 is found at
- * addr + 4 or addr +8, depending on widths of operands.
- *  • cannot target locations at 32n-2bin2dec(‘1L’), where n = 1,2,3... (armwf_inc_b, armwf_inc_e)
- *  • cannot target locations at 32n, when n = 0, 1, 2, 3... (armwf_dec_b)
- * The original value from memory, or (1 << (s*8 -1)) is returned (s = 4 or 8) */
 			case AMO_ARMWF_INC_B: //0xc0
 			//case AMO_W_CAS_T:
 				if (amo_op == OCSE_AMO_RW)  {
@@ -952,135 +1040,6 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 					wb = 2;
 				}
 				break;
-			/* addr = location of an address aligned 4 or 8 byte first operand (op_A),
- *  which is modified with operand provided by AFU (op_1 or op_1l). AFU also provides the function
- *  encode (op_code). The result is returned to memory, the original value is returned to the AFU as completion data */
-/*			case AMO_ARMW_ADD:
-				if  (op_size == 4) {
-				debug_msg("ADD %08"PRIx32" to %08"PRIx32 " and store it  ", op_A, op_1);
-					op_1 += op_A;
-				} else {
-				debug_msg("ADD %016"PRIx64" to %016"PRIx64 " and store it  ", op_Al, op_1l);
-					op_1l += op_Al;
-				}
-				wb = 0;
-				break;
-
-			case AMO_ARMW_XOR:
-				if  (op_size == 4) {
-				debug_msg("XOR %08"PRIx32" with %08"PRIx32 " and store it  ", op_A, op_1);
-					op_1 ^= op_A;
-				} else {
-				debug_msg("XOR %016"PRIx64" with %016"PRIx64 " and store it  ", op_Al, op_1l);
-					op_1l ^= op_Al;
-				}
-				wb = 0;
-				break;
-			case AMO_ARMW_OR:
-				if  (op_size == 4) {
-				debug_msg("OR %08"PRIx32" with %08"PRIx32 " and store it  ", op_A, op_1);
-					op_1 |= op_A;
-				} else {
-				debug_msg("OR %016"PRIx64" with %016"PRIx64 " and store it  ", op_Al, op_1l);
-					op_1l |= op_Al;
-				}
-				wb = 0;
-				break;
-			case AMO_ARMW_AND:
-				if  (op_size == 4) {
-				debug_msg("AND %08"PRIx32" with %08"PRIx32 " and store it ", op_A, op_1);
-					op_1 &= op_A;
-				} else {
-				debug_msg("AND %016"PRIx64" with %016"PRIx64 " and store it  ", op_Al, op_1l);
-					op_1l &= op_Al;
-				}
-				wb = 0;
-				break;
-			case AMO_ARMW_CAS_MAX_U:
-				if  (op_size == 4) {
-				debug_msg("UNSIGNED COMPARE %08"PRIx32" with %08"PRIx32 " store the larger ", op_A, op_1);
-					if (op_A > op_1)
-						op_1 = op_A;
-				} else {
-				debug_msg("UNSIGNED COMPARE %016"PRIx64" with %016"PRIx64 " store the larger  ", op_Al, op_1l);
-					if (op_Al > op_1l)
-						op_1l = op_Al;
-				}
-				wb = 0;
-				break;
-
-			case AMO_ARMW_CAS_MAX_S:
-				// sign extend op_A and op_1 and then cast as int and do comparison
-				if (op_size == 4) {
-					op_A = sign_extend(op_A);
-					op_1 = sign_extend(op_1);
-				debug_msg("SIGNED COMPARE %08"PRIx32" with %08"PRIx32 " store the larger ", op_A, op_1);
-					if ((int32_t)op_A > (int32_t)op_1)
-						op_1 = op_A;
-					wb = 0;
-				} else {
-					op_Al = sign_extend64(op_Al);
-					op_1l = sign_extend64(op_1l);
-				debug_msg("SIGNED COMPARE %016"PRIx64" with %016"PRIx64 " store the larger  ", op_Al, op_1l);
-					if ((int64_t)op_Al > (int64_t)op_1l)
-						op_1l = op_Al;
-					wb = 0;
-				}
-				break;
-			case AMO_ARMW_CAS_MIN_U:
-				if  (op_size == 4) {
-				debug_msg("UNSIGNED COMPARE %08"PRIx32" with %08"PRIx32 " store the smaller ", op_A, op_1);
-					if (op_A < op_1)
-						op_1 = op_A;
-				} else {
-				debug_msg("UNSIGNED COMPARE %016"PRIx64" with %016"PRIx64 " store the smaller  ", op_Al, op_1l);
-					if (op_Al < op_1l)
-						op_1l = op_Al;
-				}
-				wb = 0;
-				break;
-			case AMO_ARMW_CAS_MIN_S:
-				if (op_size == 4) {
-					op_A = sign_extend(op_A);
-					op_1 = sign_extend(op_1);
-				debug_msg("SIGNED COMPARE %08"PRIx32" with %08"PRIx32 " store the smaller ", op_A, op_1);
-					if ((int32_t)op_A < (int32_t)op_1)
-						op_1 = op_A;
-					wb = 0;
-				} else {
-					op_Al = sign_extend64(op_Al);
-					op_1l = sign_extend64(op_1l);
-				debug_msg("SIGNED COMPARE %016"PRIx64" with %016"PRIx64 " store the smaller  ", op_Al, op_1l);
-					if ((int64_t)op_Al < (int64_t)op_1l)
-						op_1l = op_Al;
-					wb = 0;
-				}
-				break; */
-			/* addr = location of two address aligned 4 or 8 byte operands.
- * The first operand A is at addr; second operand A2 is at addr+  or addr+8, depending on widths of operands.
- * The address must be naturally aligned and cannot target locations at 32n-2bin2dec(‘1L’), where n = 1,2,3...
- * The AFU provides a third operand, op_1 or op_1, and will be stored at addr and addr+4 if A1 == A2. */
-/*			case AMO_ARMW_CAS_T:
-				if  (op_size == 4) {
-					memcpy((char *) &lvalue, (void *)addr+4, op_size);
-					op_2 = (uint32_t)(lvalue);
-				debug_msg("STORE TWIN compare %08"PRIx32" with %08"PRIx32 ", if == store op_1 to both locations", op_A, op_2);
-					if (op_A == op_2)
-						op_2 = op_1;
-					else
-						op_1 = op_A;
-					wb = 0;
-				} else {
-					memcpy((char *) &llvalue, (void *)addr+8, op_size);
-					op_2l = (uint64_t)(llvalue);
-				debug_msg("STORE TWIN compare %016"PRIx64" with %016"PRIx64 ", if == store op_1l to both locations", op_Al, op_2l);
-					if (op_Al == op_2l)
-						op_2l = op_1l;
-					else
-						op_1l = op_Al;
-					wb = 0;
-				}
-				break; */
 			default:
 				wb = 0xf;
 				warn_msg("Unsupported AMO command 0x%04x", atomic_op);
@@ -1352,7 +1311,6 @@ static void *_psl_loop(void *ptr)
 			case OCSE_GLOBAL_MMIO_WRITE32:
 				_mmio_write32(afu);
 				break;
-			case OCSE_MMIO_EBREAD:
 			case OCSE_MMIO_READ64:
 			case OCSE_MMIO_READ32:	
 			case OCSE_GLOBAL_MMIO_READ64:
@@ -1697,16 +1655,28 @@ static void *_psl_loop(void *ptr)
 		case OCSE_MMIO_ACK:
 			_handle_ack(afu);
 			break;
-		case OCSE_INTERRUPT:
-			if (_handle_interrupt(afu) < 0) {
+		case OCSE_INTERRUPT_D:
+			if (_handle_interrupt(afu, 1) < 0) {
 				perror("Interrupt Failure");
-				goto psl_fail;
+				goto ocl_fail;
+			}
+			break;
+		case OCSE_INTERRUPT:
+			if (_handle_interrupt(afu, 0) < 0) {
+				perror("Interrupt Failure");
+				goto ocl_fail;
+			}
+			break;
+		case OCSE_WAKE_HOST_THREAD:
+			if (_handle_wake_host_thread(afu) < 0) {
+				perror("Wake Host Thread Failure");
+				goto ocl_fail;
 			}
 			break;
 		case OCSE_AFU_ERROR:
 			if (_handle_afu_error(afu) < 0) {
 				perror("AFU ERROR Failure");
-				goto psl_fail;
+				goto ocl_fail;
 			}
 			break;
 		default:
@@ -1715,7 +1685,7 @@ static void *_psl_loop(void *ptr)
 		}
 	}
 
- psl_fail:
+ ocl_fail:
 	afu->attached = 0;
 	pthread_exit(NULL);
 }
@@ -3318,5 +3288,38 @@ int ocxl_work_set_wed(struct ocxl_ioctl_start_work *work, __u64 wed)
 	}
 	work->work_element_descriptor = wed;
 	return 0;
+}
+
+// ocxl_sleep should behave very much like read_event
+// however, I don't think we can use the event structure as is
+// maybe create another event struct so that interrupt events and 
+// wake host thread events cannot collide or stall each other.
+// only one waitasec at a time in a context/afu pair
+int ocxl_sleep(struct ocxl_afu_h *afu)
+{
+        struct ocxl_waitasec waitasec;
+	uint8_t type;
+	//int i;
+
+	if (afu == NULL ) {
+		errno = EINVAL;
+		return -1;
+	}
+	// Function will block until event occurs
+	pthread_mutex_lock( &(afu->waitasec_lock) );
+	while ( afu->opened && !afu->waitasec ) {	/*infinite loop */
+		pthread_mutex_unlock( &(afu->waitasec_lock) );
+		if (_delay_1ms() < 0)
+			return -1;
+		pthread_mutex_lock(&(afu->waitasec_lock));
+	}
+
+	// Copy event data, free and move remaining events in queue
+	memcpy( &waitasec, afu->waitasec, sizeof( struct ocxl_waitasec ) );
+	free( afu->waitasec );
+	pthread_mutex_unlock( &(afu->waitasec_lock) );
+	if (read(afu->pipe[0], &type, 1) > 0)
+		return 0;
+	return -1;
 }
 

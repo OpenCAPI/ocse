@@ -3,9 +3,9 @@ COMMON_DIR=../common
 include Makefile.vars
 include Makefile.rules
 
-OBJS = libocxl.o debug.o utils.o
+OBJS = debug.o utils.o
 
-all: libocxl.so libocxl.a
+all: libocxl.so libocxl.a libocxl_lpc.so libocxl_lpc.a
 
 CHECK_HEADER := $(shell echo \\\#include\ $(1) | $(CC) $(CFLAGS) -E - > /dev/null 2>&1 && echo y || echo n)
 
@@ -16,13 +16,21 @@ endif
 
 libocxl.o: $(COMMON_DIR)/misc/ocxl.h
 
-libocxl.so: $(OBJS)
+libocxl.so: libocxl.o $(OBJS)
 	$(call Q,CC, $(CC) $(CFLAGS) -shared $^ -o $@, $@) -Wl,--version-script symver.map
 
-libocxl.a: $(OBJS)
+libocxl.a: libocxl.o $(OBJS)
+	$(call Q,AR, $(AR) rcs $@ $^, $@)
+
+libocxl_lpc.o: $(COMMON_DIR)/misc/ocxl.h
+
+libocxl_lpc.so: libocxl_lpc.o $(OBJS)
+	$(call Q,CC, $(CC) $(CFLAGS) -shared $^ -o $@, $@) -Wl,--version-script symver.map
+
+libocxl_lpc.a: libocxl_lpc.o $(OBJS)
 	$(call Q,AR, $(AR) rcs $@ $^, $@)
 
 clean:
-	rm -f *.[od] $(COMMON_DIR)/*.[od] gmon.out libocxl.so libocxl.a $(COMMON_DIR)/misc/cxl.h
+	rm -f *.[od] $(COMMON_DIR)/*.[od] gmon.out libocxl.so libocxl.a libocxl_lpc.so libocx_lpcl.a $(COMMON_DIR)/misc/cxl.h
 
 .PHONY: clean all

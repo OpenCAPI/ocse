@@ -296,7 +296,7 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 // Format and add interrupt to command list
 
  static void _add_interrupt(struct cmd *cmd, uint16_t actag, uint16_t afutag, 
- 			   uint8_t cmd_opcode, uint8_t *cmd_ea_or_obj, uint8_t cmd_flag) 
+ 			   uint8_t cmd_opcode, uint8_t *cmd_ea_or_obj, uint16_t size, uint8_t cmd_data_is_valid, uint8_t cmd_flag) 
  { 
  	//uint32_t resp = TLX_RSP_INTRP_RESP; 
  	uint32_t resp= 0; //FOR NOW, always a good response
@@ -310,8 +310,12 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	memcpy( (void *)&addr, (void *)&(cmd_ea_or_obj[0]), sizeof(uint64_t));
  
         // setting MEM_IDLE will tell handle_interrupt to send req to libocxl 
-	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_INTERRUPT, addr, 0, MEM_IDLE,
-		 resp, 0, 0, 0, 0, 0);
+        if (cmd_opcode == AFU_CMD_WAKE_HOST_THRD)
+		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_WAKE_HOST_THRD, addr, size, MEM_IDLE,
+		 resp, 0, cmd_data_is_valid, 0, cmd_flag, 0);
+	else  //must be some type of INTR request
+		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_INTERRUPT, addr, size, MEM_IDLE,
+		 resp, 0, cmd_data_is_valid, 0, cmd_flag, 0);
  } 
 
 // Format and add misc. command to list
@@ -620,12 +624,16 @@ static void _parse_cmd(struct cmd *cmd,
 			  cmd_ea_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag, cmd_endian);
 		break;
 		// Interrupt
+	case AFU_CMD_INTRP_REQ_D: // not sure POWER supports this one?
+		debug_msg("YES! AFU cmd is  INTRPT REQ WITH DATA\n");
+		_add_interrupt(cmd, cmd_actag, cmd_afutag, cmd_opcode,
+			  cmd_ea_or_obj, pl_to_size( cmd_pl), cmd_data_is_valid, cmd_flag);
 	case AFU_CMD_INTRP_REQ:
-	//case AFU_CMD_INTRP_REQ_D: // not sure POWER supports this one?
+	case AFU_CMD_INTRP_REQ_D: // not sure POWER supports this one?
 	case AFU_CMD_WAKE_HOST_THRD:
 		debug_msg("YES! AFU cmd is either INTRPT REQ or WAKE HOST THREAD\n");
 		_add_interrupt(cmd, cmd_actag, cmd_afutag, cmd_opcode,
-			  cmd_ea_or_obj, cmd_flag);
+			  cmd_ea_or_obj, 0, cmd_data_is_valid, cmd_flag);
 	// TODO what about stream_id ?
 		break;
 	case AFU_CMD_NOP:
@@ -638,7 +646,7 @@ static void _parse_cmd(struct cmd *cmd,
 			  cmd_ea_or_obj, cmd_flag);
 		break;
 	default:
-		warn_msg("Unsupported command 0x%04x", cmd);
+		warn_msg("Unsupported command 0x%04x", cmd_opcode);
 		_add_other(cmd, cmd_actag, cmd_afutag, cmd_opcode, TLX_RESPONSE_FAILED);
 		break;
 	}
@@ -1191,7 +1199,9 @@ void handle_interrupt(struct cmd *cmd)
 	struct cmd_event *event;
 	struct client *client;
 	// uint16_t irq;
-	uint8_t buffer[10];
+	uint64_t offset;
+	uint16_t byte_count;
+	uint8_t buffer[45];
 
 	// Make sure cmd structure is valid
 	if (cmd == NULL)
@@ -1200,7 +1210,8 @@ void handle_interrupt(struct cmd *cmd)
 	// Send any interrupts to client immediately
 	head = &cmd->list;
 	while (*head != NULL) {
-		if (((*head)->type == CMD_INTERRUPT) &&
+		//if (((*head)->type == CMD_INTERRUPT) &&
+		if ((((*head)->type == CMD_INTERRUPT) || ((*head)->type == CMD_WAKE_HOST_THRD)) &&
 		    ((*head)->state == MEM_IDLE))
 			break;
 		head = &((*head)->_next);
@@ -1211,20 +1222,41 @@ void handle_interrupt(struct cmd *cmd)
 	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
 		return;
 
-	// Send interrupt to client
-	buffer[0] = OCSE_INTERRUPT;
+	// Send interrupt or wake_host_thread request to client
+	if (event->type == CMD_WAKE_HOST_THRD)
+		buffer[0] = OCSE_WAKE_HOST_THREAD;
+	else if (event->command == AFU_CMD_INTRP_REQ_D) 
+			buffer[0] = OCSE_INTERRUPT_D;
+		else
+			buffer[0] = OCSE_INTERRUPT;
+
 	//irq = htons(cmd->irq);
 	//memcpy(&(buffer[1]), &irq, 2);
 	memcpy(&(buffer[1]), &event->cmd_flag, 1);
 	memcpy(&(buffer[2]), &event->addr, 8);
+	byte_count = 10;
+	if (event->command == AFU_CMD_INTRP_REQ_D) {
+		offset = event->addr & ~CACHELINE_MASK;
+		memcpy(&(buffer[10]), &event->size, 2);
+		byte_count += 2;
+		memcpy(&(buffer[12]), &(event->data[offset]), event->size);
+		byte_count += event->size;
+	}
 	// do we still need this event->abort???
 	event->abort = &(client->abort);
-	debug_msg("%s:INTERRUPT cmd_flag=%d addr=0x%016"PRIx64, event->context, event->cmd_flag, event->addr);
-	if (put_bytes(client->fd, 10, buffer, cmd->dbg_fp, cmd->dbg_id,
+	debug_msg( "%s:INTERRUPT cmd=0x%02x cmd_flag=%d addr=0x%016"PRIx64, 
+		   event->context, 
+		   event->command, 
+		   event->cmd_flag, 
+		   event->addr );
+	if (put_bytes(client->fd, byte_count, buffer, cmd->dbg_fp, cmd->dbg_id,
 		      event->context) < 0) {
 		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 	}
 	debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->tag, event->context);
+
+	// this assumes the wake host thread finds a thread
+	// should add a path for a negative response from libocxl application
 	event->state = MEM_DONE;
 }
 
@@ -1668,6 +1700,10 @@ void handle_response(struct cmd *cmd)
 					     event->data ) ; // data in this case is already the complete length
 	} else if (event->command == AFU_CMD_INTRP_REQ ) {
   		rc = tlx_afu_send_resp( cmd->afu_event,TLX_RSP_INTRP_RESP,event->afutag, 
+					     event->resp, // resp_code - right now always a good response
+					     0, 0, 0, 0);
+	} else if (event->command == AFU_CMD_WAKE_HOST_THRD ) {
+  		rc = tlx_afu_send_resp( cmd->afu_event,TLX_RSP_WAKE_HOST_RESP,event->afutag, 
 					     event->resp, // resp_code - right now always a good response
 					     0, 0, 0, 0);
 	} else if ((event->command == AFU_CMD_XLATE_TOUCH ) || (event->command == AFU_CMD_XLATE_TOUCH_N )) {
