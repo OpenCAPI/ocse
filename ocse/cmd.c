@@ -625,7 +625,7 @@ static void _parse_cmd(struct cmd *cmd,
 		break;
 		// Interrupt
 	case AFU_CMD_INTRP_REQ:
-	//case AFU_CMD_INTRP_REQ_D: // not sure POWER supports this one?
+	case AFU_CMD_INTRP_REQ_D: // not sure POWER supports this one?
 	case AFU_CMD_WAKE_HOST_THRD:
 		debug_msg("YES! AFU cmd is either INTRPT REQ or WAKE HOST THREAD\n");
 		_add_interrupt(cmd, cmd_actag, cmd_afutag, cmd_opcode,
@@ -642,7 +642,7 @@ static void _parse_cmd(struct cmd *cmd,
 			  cmd_ea_or_obj, cmd_flag);
 		break;
 	default:
-		warn_msg("Unsupported command 0x%04x", cmd);
+		warn_msg("Unsupported command 0x%04x", cmd_opcode);
 		_add_other(cmd, cmd_actag, cmd_afutag, cmd_opcode, TLX_RESPONSE_FAILED);
 		break;
 	}
