@@ -365,6 +365,7 @@ static int _handle_interrupt(struct ocxl_afu_h *afu, uint8_t data_is_valid)
 	afu->events[i]->header.process_element = afu->context; // might not need this
 	afu->events[i]->irq.irq = addr;  // which came in and matched irq
 	afu->events[i]->irq.flags = cmd_flag;
+	// notice we don't put ddata anywhere - that is because we don't have a place for it in Power ISA's interrupt scheme
 
 	do {
 		i = write(afu->pipe[1], &(afu->events[i]->header.type), 1);
