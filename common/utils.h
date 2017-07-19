@@ -60,7 +60,7 @@
 #define OCSE_INTERRUPT		0x13
 #define OCSE_AFU_ERROR		0x14
 #define OCSE_WAKE_HOST_THREAD	0x15
-#define OCSE_VSEC_INFO		0x16
+#define OCSE_INTERRUPT_D	0x16
 #define OCSE_WR_BE		0x21
 #define OCSE_AMO_RD		0x22
 #define OCSE_AMO_RW		0x23

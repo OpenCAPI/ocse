@@ -224,7 +224,7 @@ static int _handle_wake_host_thread(struct ocxl_afu_h *afu)
 	return i;
 }
 
-static int _handle_interrupt(struct ocxl_afu_h *afu)
+static int _handle_interrupt(struct ocxl_afu_h *afu, uint8_t data_is_valid)
 {
   // LGT idea
 	/* uint64_t irq; */
@@ -232,12 +232,13 @@ static int _handle_interrupt(struct ocxl_afu_h *afu)
 	/* uint8_t data[64]; */
 	/* uint8_t data_valid; */
   // HMP idea
-	uint16_t size;
+	uint16_t size, data_size;
 	//uint8_t data[sizeof(irq)];
 	struct ocxl_irq_h *irq;
 	uint64_t addr;
 	uint8_t cmd_flag;
 	uint8_t adata[8];
+	uint8_t ddata[32];
 	int i;
 
 	if (!afu) fatal_msg("_handle_interrupt:NULL afu passed");
@@ -300,6 +301,23 @@ static int _handle_interrupt(struct ocxl_afu_h *afu)
 	memcpy(&addr, adata, 8);
 	// addr = ntohs(addr);
 	debug_msg("_handle_interrupt: received intrp_req addr 0x%016lx", addr);
+	
+	if (data_is_valid) {  //this is an AFU_CMD_INTRP_REQ_D
+	// For now, up to 32bytes of data is sent over, pulled  from the addr offset 
+	// in the 64B data flit, If you prefer  it floating in a 64B buffer, edit _handle_interrupt in cmd.c
+		if (get_bytes_silent(afu->fd, sizeof(uint16_t), ddata, 1000, 0) < 0) {
+			warn_msg("Socket failure getting data_size");
+			_all_idle(afu);
+			return -1;
+		}
+		memcpy((char *)&data_size, (char *)ddata, sizeof(uint16_t));
+	  	if (get_bytes_silent(afu->fd, data_size, ddata, 1000, 0) < 0) { 
+	    		 warn_msg("Socket failure getting interrupt data "); 
+	     		_all_idle(afu); 
+	     		return -1; 
+
+		}
+	}
 
 	// TODO Update the rest of this to actually search for address and then do 
 	// whatever is needed if it's valid.....
@@ -1637,8 +1655,14 @@ static void *_psl_loop(void *ptr)
 		case OCSE_MMIO_ACK:
 			_handle_ack(afu);
 			break;
+		case OCSE_INTERRUPT_D:
+			if (_handle_interrupt(afu, 1) < 0) {
+				perror("Interrupt Failure");
+				goto ocl_fail;
+			}
+			break;
 		case OCSE_INTERRUPT:
-			if (_handle_interrupt(afu) < 0) {
+			if (_handle_interrupt(afu, 0) < 0) {
 				perror("Interrupt Failure");
 				goto ocl_fail;
 			}
