@@ -628,6 +628,7 @@ static void _parse_cmd(struct cmd *cmd,
 		debug_msg("YES! AFU cmd is  INTRPT REQ WITH DATA\n");
 		_add_interrupt(cmd, cmd_actag, cmd_afutag, cmd_opcode,
 			  cmd_ea_or_obj, pl_to_size( cmd_pl), cmd_data_is_valid, cmd_flag);
+		break;
 	case AFU_CMD_INTRP_REQ:
 	case AFU_CMD_WAKE_HOST_THRD:
 		debug_msg("YES! AFU cmd is either INTRPT REQ or WAKE HOST THREAD\n");
@@ -1209,9 +1210,8 @@ void handle_interrupt(struct cmd *cmd)
 	// Send any interrupts to client immediately
 	head = &cmd->list;
 	while (*head != NULL) {
-		//if (((*head)->type == CMD_INTERRUPT) &&
 		if ((((*head)->type == CMD_INTERRUPT) || ((*head)->type == CMD_WAKE_HOST_THRD)) &&
-		    ((*head)->state == MEM_IDLE))
+		    (((*head)->state == MEM_IDLE) || ((*head)->state == MEM_RECEIVED)))
 			break;
 		head = &((*head)->_next);
 	}
@@ -1220,7 +1220,6 @@ void handle_interrupt(struct cmd *cmd)
 	// Test for client disconnect
 	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
 		return;
-
 	// Send interrupt or wake_host_thread request to client
 	if (event->type == CMD_WAKE_HOST_THRD)
 		buffer[0] = OCSE_WAKE_HOST_THREAD;
