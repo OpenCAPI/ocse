@@ -44,7 +44,8 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
     command_size = (config[1] >> 48) & 0xFFF;
 
     memory_base_address = config[2];
-    memory_size = config[3];
+    memory_size = (uint16_t)config[1];
+    printf("Machine: memory_size = 0x%x\n", memory_size);
     switch(memory_size) {
 	case 1:
 	    afu_event->afu_tlx_cmd_pl = 0;
@@ -97,6 +98,7 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
 	command = new StoreCommand ( command_code, command_address_parity,
 		command_code_parity, command_tag_parity, buffer_read_parity);
 	break;
+    case AFU_CMD_INTRP_REQ_D:
     case AFU_CMD_INTRP_REQ:
 	printf("Machine: afu_cmd_intrp_req\n");
         command =

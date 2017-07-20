@@ -50,7 +50,7 @@ private:
 
     /* specifies the valid memory space for this machine */
     uint64_t memory_base_address;
-    uint64_t memory_size;
+    uint16_t memory_size;
 
     /* ==== the above are configs to be read from MMIO at the end of each
      * command ==== */
