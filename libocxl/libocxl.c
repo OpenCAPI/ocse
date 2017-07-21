@@ -1276,6 +1276,47 @@ static void _mmio_read(struct ocxl_afu_h *afu)
 	afu->mmio.state = LIBOCXL_REQ_PENDING;
 }
 
+/* static void _mem_write(struct ocxl_afu_h *afu) */
+/* { */
+/* 	uint8_t *buffer; */
+/* 	int buffer_length; */
+/* 	int buffer_offset; */
+
+/* 	uint32_t offset; */
+/* 	uint32_t size; */
+
+/* 	if (!afu) */
+/* 		fatal_msg("NULL afu passed to libocxl.c:_mmio_write64"); */
+
+/* 	// buffer length = 1 byte for type, buffer remainder?, 4 bytes for offset, n bytes for size, m bytes for data */
+/* 	buffer_length = 1 + sizeof(addr) + sizeof(size) + afu->mem.size; */
+/* 	buffer = (uint8_t *) malloc(buffer_length); */
+
+/* 	buffer[0] = afu->mem.type; */
+
+/* 	buffer_offset = 1; */
+/* 	offset = htonl(afu->mem.addr); */
+/* 	memcpy((char *)&(buffer[buffer_offset]), (char *)&offset, sizeof(offset)); */
+/* 	buffer_offset += sizeof(addr); */
+
+/* 	size = htonl(afu->mem.size); */
+/* 	memcpy((char *)&(buffer[buffer_offset]), (char *)&size, sizeof(size)); */
+/* 	buffer_offset += sizeof(size); */
+
+/* 	// data = htonll(afu->mmio.data); */
+/* 	memcpy((char *)&(buffer[buffer_offset]), data, size); */
+/* 	if (put_bytes_silent(afu->fd, buffer_length, buffer) != buffer_length) { */
+/* 		free(buffer); */
+/* 		close_socket(&(afu->fd)); */
+/* 		afu->opened = 0; */
+/* 		afu->attached = 0; */
+/* 		afu->mem.state = LIBOCXL_REQ_IDLE; */
+/* 		return; */
+/* 	} */
+/* 	free(buffer); */
+/* 	afu->mem.state = LIBOCXL_REQ_PENDING; */
+/* } */
+
 static void *_psl_loop(void *ptr)
 {
 	struct ocxl_afu_h *afu = (struct ocxl_afu_h *)ptr;
@@ -1321,6 +1362,20 @@ static void *_psl_loop(void *ptr)
 			default:
 				break;
 			}
+		/* if (afu->mem.state == LIBOCXL_REQ_REQUEST) { */
+		/* 	switch (afu->mmio.type) { */
+		/* 	case OCSE_LPC_MAP: */
+		/* 		_mem_map(afu); */
+		/* 		break; */
+		/* 	case OCSE_LPC_WRITE: */
+		/* 		_mem_write(afu); */
+		/* 		break; */
+		/* 	case OCSE_LPC_READ: */
+		/* 		_mem_read(afu); */
+		/* 		break; */
+		/* 	default: */
+		/* 		break; */
+		/* 	} */
 		}
 
 		// Process socket input from OCSE
@@ -1361,6 +1416,7 @@ static void *_psl_loop(void *ptr)
 			afu->open.state = LIBOCXL_REQ_IDLE;
 			afu->attach.state = LIBOCXL_REQ_IDLE;
 			afu->mmio.state = LIBOCXL_REQ_IDLE;
+			// afu->mem.state = LIBOCXL_REQ_IDLE;
 			afu->int_req.state = LIBOCXL_REQ_IDLE;
 			break;
 		case OCSE_MAX_INT:
@@ -1656,19 +1712,25 @@ static void *_psl_loop(void *ptr)
 		case OCSE_MMIO_ACK:
 			_handle_ack(afu);
 			break;
+		/* case OCSE_LPC_ACK: */
+		/* 	_handle_mem_ack(afu); */
+		/* 	break; */
 		case OCSE_INTERRUPT_D:
+			debug_msg("AFU INTERRUPT D");
 			if (_handle_interrupt(afu, 1) < 0) {
 				perror("Interrupt Failure");
 				goto ocl_fail;
 			}
 			break;
 		case OCSE_INTERRUPT:
+			debug_msg("AFU INTERRUPT");
 			if (_handle_interrupt(afu, 0) < 0) {
 				perror("Interrupt Failure");
 				goto ocl_fail;
 			}
 			break;
 		case OCSE_WAKE_HOST_THREAD:
+			debug_msg("AFU WAKE HOST THREAD");
 			if (_handle_wake_host_thread(afu) < 0) {
 				perror("Wake Host Thread Failure");
 				goto ocl_fail;

@@ -279,14 +279,17 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 		printf("Getting ready to copy first chunk of write data to buffer & add=0x%016"PRIx64" & size=0x%x .\n", event->addr, size);
 		// alway copy 64 bytes...
 		memcpy((void *)&(event->data[0]), (void *)&(cmd->afu_event->afu_tlx_cdata_bus), 64);
-		if (size > 64) {
-		        // but if size is greater that 64, we have to gather more data
-			event->dpartial =64;
-			event->state = MEM_BUFFER;
-		 }
-		else  {
-			event->state = MEM_RECEIVED;
-			event->dpartial =0;
+		// for type = cmd_interrupt, event->state is already correctly set to MEM_IDLE
+		if (event->type != CMD_INTERRUPT) {
+		  if (size > 64) {
+		    // but if size is greater that 64, we have to gather more data
+		    event->dpartial =64;
+		    event->state = MEM_BUFFER;
+		  }
+		  else  {
+		    event->state = MEM_RECEIVED;
+		    event->dpartial =0;
+		  }
 		}
 	
 	}
@@ -619,19 +622,19 @@ static void _parse_cmd(struct cmd *cmd,
 		break;
 	case AFU_CMD_AMO_W:
 	case AFU_CMD_AMO_W_N:
-		debug_msg("YES! AFU cmd is some sort of AMO read or write!!!!\n");
+		debug_msg("YES! AFU cmd is some sort of AMO read or write!!!!");
 		_add_amo(cmd, cmd_actag, cmd_afutag, cmd_opcode, CMD_AMO_WR, 
 			  cmd_ea_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag, cmd_endian);
 		break;
 		// Interrupt
 	case AFU_CMD_INTRP_REQ_D: // not sure POWER supports this one?
-		debug_msg("YES! AFU cmd is  INTRPT REQ WITH DATA\n");
+		debug_msg("YES! AFU cmd is  INTRPT REQ WITH DATA");
 		_add_interrupt(cmd, cmd_actag, cmd_afutag, cmd_opcode,
 			  cmd_ea_or_obj, pl_to_size( cmd_pl), cmd_data_is_valid, cmd_flag);
 		break;
 	case AFU_CMD_INTRP_REQ:
 	case AFU_CMD_WAKE_HOST_THRD:
-		debug_msg("YES! AFU cmd is either INTRPT REQ or WAKE HOST THREAD\n");
+		debug_msg("YES! AFU cmd is either INTRPT REQ or WAKE HOST THREAD");
 		_add_interrupt(cmd, cmd_actag, cmd_afutag, cmd_opcode,
 			  cmd_ea_or_obj, 0, cmd_data_is_valid, cmd_flag);
 	// TODO what about stream_id ?
@@ -1203,9 +1206,12 @@ void handle_interrupt(struct cmd *cmd)
 	uint16_t byte_count;
 	uint8_t buffer[45];
 
+	debug_msg( "ocse:handle_interrupt:" );
+
 	// Make sure cmd structure is valid
 	if (cmd == NULL)
 		return;
+	debug_msg( "ocse:handle_interrupt:valid cmd available" );
 
 	// Send any interrupts to client immediately
 	head = &cmd->list;
@@ -1218,7 +1224,7 @@ void handle_interrupt(struct cmd *cmd)
 	event = *head;
 
 	// Test for client disconnect
-	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
+	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL)) 
 		return;
 	// Send interrupt or wake_host_thread request to client
 	if (event->type == CMD_WAKE_HOST_THRD)
@@ -1228,11 +1234,10 @@ void handle_interrupt(struct cmd *cmd)
 		else
 			buffer[0] = OCSE_INTERRUPT;
 
-	//irq = htons(cmd->irq);
-	//memcpy(&(buffer[1]), &irq, 2);
 	memcpy(&(buffer[1]), &event->cmd_flag, 1);
 	memcpy(&(buffer[2]), &event->addr, 8);
 	byte_count = 10;
+
 	if (event->command == AFU_CMD_INTRP_REQ_D) {
 		offset = event->addr & ~CACHELINE_MASK;
 		memcpy(&(buffer[10]), &event->size, 2);
@@ -1240,13 +1245,15 @@ void handle_interrupt(struct cmd *cmd)
 		memcpy(&(buffer[12]), &(event->data[offset]), event->size);
 		byte_count += event->size;
 	}
+
 	// do we still need this event->abort???
 	event->abort = &(client->abort);
-	debug_msg( "%s:INTERRUPT cmd=0x%02x cmd_flag=%d addr=0x%016"PRIx64, 
-		   event->context, 
+
+	debug_msg( "ocse:handle_interrupt: cmd=0x%02x cmd_flag=%d addr=0x%016"PRIx64, 
 		   event->command, 
 		   event->cmd_flag, 
 		   event->addr );
+
 	if (put_bytes(client->fd, byte_count, buffer, cmd->dbg_fp, cmd->dbg_id,
 		      event->context) < 0) {
 		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
