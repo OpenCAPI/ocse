@@ -1703,7 +1703,7 @@ void handle_response(struct cmd *cmd)
 					     0, // resp_addr_tag, - not used by response
 					     0, // resp_data_bdi - not used by good response
 					     event->data ) ; // data in this case is already the complete length
-	} else if (event->command == AFU_CMD_INTRP_REQ ) {
+	} else if ((event->command == AFU_CMD_INTRP_REQ ) || (event->command == AFU_CMD_INTRP_REQ_D)) {
   		rc = tlx_afu_send_resp( cmd->afu_event,TLX_RSP_INTRP_RESP,event->afutag, 
 					     event->resp, // resp_code - right now always a good response
 					     0, 0, 0, 0);
