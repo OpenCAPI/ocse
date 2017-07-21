@@ -1276,46 +1276,46 @@ static void _mmio_read(struct ocxl_afu_h *afu)
 	afu->mmio.state = LIBOCXL_REQ_PENDING;
 }
 
-static void _mem_write(struct ocxl_afu_h *afu)
-{
-	uint8_t *buffer;
-	int buffer_length;
-	int buffer_offset;
+/* static void _mem_write(struct ocxl_afu_h *afu) */
+/* { */
+/* 	uint8_t *buffer; */
+/* 	int buffer_length; */
+/* 	int buffer_offset; */
 
-	uint32_t offset;
-	uint32_t size;
+/* 	uint32_t offset; */
+/* 	uint32_t size; */
 
-	if (!afu)
-		fatal_msg("NULL afu passed to libocxl.c:_mmio_write64");
+/* 	if (!afu) */
+/* 		fatal_msg("NULL afu passed to libocxl.c:_mmio_write64"); */
 
-	// buffer length = 1 byte for type, buffer remainder?, 4 bytes for offset, n bytes for size, m bytes for data
-	buffer_length = 1 + sizeof(addr) + sizeof(size) + afu->mem.size;
-	buffer = (uint8_t *) malloc(buffer_length);
+/* 	// buffer length = 1 byte for type, buffer remainder?, 4 bytes for offset, n bytes for size, m bytes for data */
+/* 	buffer_length = 1 + sizeof(addr) + sizeof(size) + afu->mem.size; */
+/* 	buffer = (uint8_t *) malloc(buffer_length); */
 
-	buffer[0] = afu->mem.type;
+/* 	buffer[0] = afu->mem.type; */
 
-	buffer_offset = 1;
-	offset = htonl(afu->mem.addr);
-	memcpy((char *)&(buffer[buffer_offset]), (char *)&offset, sizeof(offset));
-	buffer_offset += sizeof(addr);
+/* 	buffer_offset = 1; */
+/* 	offset = htonl(afu->mem.addr); */
+/* 	memcpy((char *)&(buffer[buffer_offset]), (char *)&offset, sizeof(offset)); */
+/* 	buffer_offset += sizeof(addr); */
 
-	size = htonl(afu->mem.size);
-	memcpy((char *)&(buffer[buffer_offset]), (char *)&size, sizeof(size));
-	buffer_offset += sizeof(size);
+/* 	size = htonl(afu->mem.size); */
+/* 	memcpy((char *)&(buffer[buffer_offset]), (char *)&size, sizeof(size)); */
+/* 	buffer_offset += sizeof(size); */
 
-	// data = htonll(afu->mmio.data);
-	memcpy((char *)&(buffer[buffer_offset]), data, size);
-	if (put_bytes_silent(afu->fd, buffer_length, buffer) != buffer_length) {
-		free(buffer);
-		close_socket(&(afu->fd));
-		afu->opened = 0;
-		afu->attached = 0;
-		afu->mem.state = LIBOCXL_REQ_IDLE;
-		return;
-	}
-	free(buffer);
-	afu->mem.state = LIBOCXL_REQ_PENDING;
-}
+/* 	// data = htonll(afu->mmio.data); */
+/* 	memcpy((char *)&(buffer[buffer_offset]), data, size); */
+/* 	if (put_bytes_silent(afu->fd, buffer_length, buffer) != buffer_length) { */
+/* 		free(buffer); */
+/* 		close_socket(&(afu->fd)); */
+/* 		afu->opened = 0; */
+/* 		afu->attached = 0; */
+/* 		afu->mem.state = LIBOCXL_REQ_IDLE; */
+/* 		return; */
+/* 	} */
+/* 	free(buffer); */
+/* 	afu->mem.state = LIBOCXL_REQ_PENDING; */
+/* } */
 
 static void *_psl_loop(void *ptr)
 {
@@ -1362,21 +1362,21 @@ static void *_psl_loop(void *ptr)
 			default:
 				break;
 			}
-		if (afu->mem.state == LIBOCXL_REQ_REQUEST) {
-			switch (afu->mmio.type) {
-			case OCSE_LPC_MAP:
-				_mem_map(afu);
-				break;
-			case OCSE_LPC_WRITE:
-				_mem_write(afu);
-				break;
-			case OCSE_LPC_READ:
-				_mem_read(afu);
-				break;
-			default:
-				break;
-			}
-		}
+		/* if (afu->mem.state == LIBOCXL_REQ_REQUEST) { */
+		/* 	switch (afu->mmio.type) { */
+		/* 	case OCSE_LPC_MAP: */
+		/* 		_mem_map(afu); */
+		/* 		break; */
+		/* 	case OCSE_LPC_WRITE: */
+		/* 		_mem_write(afu); */
+		/* 		break; */
+		/* 	case OCSE_LPC_READ: */
+		/* 		_mem_read(afu); */
+		/* 		break; */
+		/* 	default: */
+		/* 		break; */
+		/* 	} */
+		/* } */
 
 		// Process socket input from OCSE
 		rc = bytes_ready(afu->fd, 1000, 0);
