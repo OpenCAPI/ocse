@@ -628,6 +628,7 @@ static void _parse_cmd(struct cmd *cmd,
 		debug_msg("YES! AFU cmd is  INTRPT REQ WITH DATA\n");
 		_add_interrupt(cmd, cmd_actag, cmd_afutag, cmd_opcode,
 			  cmd_ea_or_obj, pl_to_size( cmd_pl), cmd_data_is_valid, cmd_flag);
+		break;
 	case AFU_CMD_INTRP_REQ:
 	case AFU_CMD_WAKE_HOST_THRD:
 		debug_msg("YES! AFU cmd is either INTRPT REQ or WAKE HOST THREAD\n");

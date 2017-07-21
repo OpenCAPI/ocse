@@ -175,6 +175,7 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 	int dw = 0;  // 1 means mmio that is 64 bits
 	int eb_rd = 0;  // 1 means mmio for event based read
 	int global = 0;  // 1 means mmio to the global space
+	int region = 0;  // 0 = lpc memory, 1 = global mmio, 2 = per process mmio
 
 	// Handle MMIO done
 	 if (client->mmio_access != NULL) {
@@ -191,6 +192,7 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 	dw = 0;
 	eb_rd = 0;
 	global = 0;
+	region = 0;
 	if (bytes_ready(client->fd, 1, &(client->abort))) {
 		if (get_bytes(client->fd, 1, buffer, ocl->timeout,
 			      &(client->abort), ocl->dbg_fp, ocl->dbg_id,
@@ -241,7 +243,7 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 		case OCSE_GLOBAL_MMIO_READ64:
 			global = 1;
 			dw = 1;
-			mmio = handle_mmio(ocl->mmio, client, 0, dw, 0, global);
+			mmio = handle_mmio(ocl->mmio, client, 1, dw, 0, global);
 			break;
 		case OCSE_MMIO_READ64:
 			dw = 1;
@@ -249,11 +251,14 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 			break;
 		case OCSE_GLOBAL_MMIO_READ32:
 			global = 1;
-			mmio = handle_mmio(ocl->mmio, client, 0, dw, 0, global);
+			mmio = handle_mmio(ocl->mmio, client, 1, dw, 0, global);
 			break;
 		case OCSE_MMIO_READ32:
 			mmio = handle_mmio(ocl->mmio, client, 1, dw, 0, global);
 			break;
+		/* case OCSE_LPC_WRITE: */
+		/* 	mmio = handle_mem(ocl->mmio, client, 0, region); */
+		/* 	break; */
 		default:
 		  error_msg("Unexpected 0x%02x from client on socket", buffer[0], client->fd);
 		}
