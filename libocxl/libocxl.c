@@ -1376,7 +1376,7 @@ static void *_psl_loop(void *ptr)
 		/* 	default: */
 		/* 		break; */
 		/* 	} */
-		/* } */
+		}
 
 		// Process socket input from OCSE
 		rc = bytes_ready(afu->fd, 1000, 0);
@@ -1416,7 +1416,7 @@ static void *_psl_loop(void *ptr)
 			afu->open.state = LIBOCXL_REQ_IDLE;
 			afu->attach.state = LIBOCXL_REQ_IDLE;
 			afu->mmio.state = LIBOCXL_REQ_IDLE;
-			afu->mem.state = LIBOCXL_REQ_IDLE;
+			// afu->mem.state = LIBOCXL_REQ_IDLE;
 			afu->int_req.state = LIBOCXL_REQ_IDLE;
 			break;
 		case OCSE_MAX_INT:
@@ -1712,9 +1712,9 @@ static void *_psl_loop(void *ptr)
 		case OCSE_MMIO_ACK:
 			_handle_ack(afu);
 			break;
-		case OCSE_LPC_ACK:
-			_handle_mem_ack(afu);
-			break;
+		/* case OCSE_LPC_ACK: */
+		/* 	_handle_mem_ack(afu); */
+		/* 	break; */
 		case OCSE_INTERRUPT_D:
 			debug_msg("AFU INTERRUPT D");
 			if (_handle_interrupt(afu, 1) < 0) {
