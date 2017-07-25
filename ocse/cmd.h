@@ -96,6 +96,7 @@ struct cmd_event {
 	uint64_t wr_be;
 	uint8_t cmd_flag;
 	uint8_t cmd_endian;
+	uint8_t cmd_pg_size;
 	uint32_t cpl_xfers_to_go;
 	uint8_t unlock;
 	uint8_t buffer_activity;
