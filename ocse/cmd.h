@@ -59,17 +59,11 @@ enum mem_state {
 	MEM_CAS_WR,
 	MEM_RECEIVED,
 	AMO_MEM_RESP,
-	//DMA_ITAG_REQ,
-	//DMA_ITAG_RET,
-	//DMA_PENDING,
 	DMA_PARTIAL,
 	AMO_OP_REQ,
 	DMA_OP_REQ,
-	//DMA_SEND_STS,
 	DMA_MEM_REQ,
 	DMA_MEM_RESP,
-	//DMA_CPL_PARTIAL,
-	//DMA_CPL_SENT,
 	MEM_DONE
 };
 
@@ -97,19 +91,12 @@ struct cmd_event {
 	uint32_t resp_r_pgsize;
 	uint32_t resp_extra;
 	uint32_t port;
-	uint32_t itag;
-	uint32_t utag;
-	//uint32_t dsize;
 	uint32_t dtype;
 	uint32_t dpartial;
 	uint64_t wr_be;
 	uint8_t cmd_flag;
 	uint8_t cmd_endian;
-	uint32_t sent_sts;
-	uint32_t cpl_type;
-	uint32_t cpl_size;
-	uint32_t cpl_laddr;
-	uint32_t cpl_byte_count;
+	uint8_t cmd_pg_size;
 	uint32_t cpl_xfers_to_go;
 	uint8_t unlock;
 	uint8_t buffer_activity;

@@ -354,7 +354,7 @@ static int _aligned(uint64_t addr, uint32_t size)
 
 // Format and add memory xlate touch to command list
  static void _add_xlate_touch(struct cmd *cmd, uint16_t actag, uint16_t afutag, 
- 			   uint8_t cmd_opcode, uint8_t *cmd_ea_or_obj, uint8_t cmd_flag) 
+ 			   uint8_t cmd_opcode, uint8_t *cmd_ea_or_obj, uint8_t cmd_flag, uint8_t cmd_pg_size) 
  { 
         int64_t addr;
 	uint32_t size = 64;
@@ -364,14 +364,18 @@ static int _aligned(uint64_t addr, uint32_t size)
  	// Check command size and address */
  	if (!_aligned(addr, size)) { 
  		_add_other(cmd, actag, afutag, cmd_opcode, 
- 			   0xc0); 
+ 			   0xe0); 
  		return; 
  	} 
+	// In future, check to see if cmd_pg_size is a supported value? Send it
+	// over to libocxl?
         int32_t context;
         context = _find_client_by_actag(cmd, actag);
-	// TODO actually do something. For now, we always send back long backoff resp (0x04)
+	// TODO actually do something. For now, we always send back success for touch_resp (0x00)
+	// We could send request to libocxl for processing, especially for OpenCAPI 4
+	// when a translation address is expected as return
 	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_TOUCH, addr, 0, MEM_DONE,
-		 0x04, 0, 0, 0, 0, 0);
+		 0x00, 0, 0, 0, 0, 0);
  } 
 
 
@@ -646,7 +650,7 @@ static void _parse_cmd(struct cmd *cmd,
 	case AFU_CMD_XLATE_TOUCH_N:
 		debug_msg("YES! AFU cmd is some kind of XLATE_TOUCH\n");
 		_add_xlate_touch(cmd, cmd_actag, cmd_afutag, cmd_opcode,
-			  cmd_ea_or_obj, cmd_flag);
+			  cmd_ea_or_obj, cmd_flag, cmd_pg_size);
 		break;
 	default:
 		warn_msg("Unsupported command 0x%04x", cmd_opcode);
@@ -1143,9 +1147,8 @@ void handle_touch(struct cmd *cmd)
 {
 	struct cmd_event *event;
 	struct client *client;
-	uint8_t buffer[10];
+	uint8_t *buffer;
 	uint64_t *addr;
-	uint16_t *size;
 
 	debug_msg( "ocse:handle_touch:" );
 	// Make sure cmd structure is valid
@@ -1155,19 +1158,13 @@ void handle_touch(struct cmd *cmd)
 	// Randomly select a pending touch (or none)
 	event = cmd->list;
 	while (event != NULL) {
-		if (((event->type == CMD_XLAT_RD_TOUCH) || (event->type == CMD_XLAT_WR_TOUCH))
+		if (((event->type == AFU_CMD_XLATE_TOUCH) || (event->type == AFU_CMD_XLATE_TOUCH_N))
 		    && (event->state == MEM_IDLE)
 		    && ((event->client_state != CLIENT_VALID)
 			|| !allow_reorder(cmd->parms))) {
 			break;
 		}
 
-		if (((event->type == CMD_TOUCH) || (event->type == CMD_WRITE))
-		    && (event->state == MEM_IDLE)
-		    && ((event->client_state != CLIENT_VALID)
-			|| !allow_reorder(cmd->parms))) {
-			break;
-		}
 		event = event->_next;
 	}
 
@@ -1179,25 +1176,27 @@ void handle_touch(struct cmd *cmd)
 	if (client->mem_access != NULL)
 		return;
 
-	// Send memory touch request to client
+	debug_msg("%s:XLATE TOUCH cmd_flag=0x%x tag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
+		  event->cmd_flag, event->afutag, event->addr);
+	event->state = MEM_DONE;
+
+	// TODO in future, Send xlate touch request to client
+	/*buffer = (uint8_t *) malloc(11);
 	buffer[0] = (uint8_t) OCSE_MEMORY_TOUCH;
-	//buffer[1] = (uint8_t) event->size;
-	//addr = (uint64_t *) & (buffer[2]);
-	size = (uint16_t *)&(buffer[1]);
-	*size = htons(event->size);
-	addr = (uint64_t *) & (buffer[3]);
-	*addr = htonll(event->addr & CACHELINE_MASK);
-	event->abort = &(client->abort);
-	debug_msg("%s:MEMORY TOUCH tag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
-		  event->tag, event->addr);
-	if (put_bytes(client->fd, 10, buffer, cmd->dbg_fp, cmd->dbg_id,
+	addr = (uint64_t *) & (buffer[1]);
+	*addr = htonll(event->addr);
+	buffer[9] = event->cmd_flag;
+	buffer[10] = event->cmd_pg_size;
+	debug_msg("%s:XLATE TOUCH cmd_flag=0x%x tag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
+		  event->cmd_flag, event->afutag, event->addr);
+	if (put_bytes(client->fd, 11, buffer, cmd->dbg_fp, cmd->dbg_id,
 		      event->context) < 0) {
 		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 	}
 	event->state = MEM_TOUCH;
 	client->mem_access = (void *)event;
 	debug_msg("Setting client->mem_access in handle_touch");
-	debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->tag, event->context);
+	debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->tag, event->context); */
 }
 
 // Send pending interrupt to client as soon as possible
@@ -1221,21 +1220,16 @@ void handle_interrupt(struct cmd *cmd)
 	// Send any interrupts to client immediately
 	head = &cmd->list;
 	while (*head != NULL) {
-	  debug_msg( "ocse:handle_interrupt:type 0x%02x ?= 0x%02x OR 0x%02x", (*head)->type, CMD_INTERRUPT, CMD_WAKE_HOST_THRD );
-		//if ( ( (*head)->type == CMD_INTERRUPT ) &&
-		if ( ( ( (*head)->type == CMD_INTERRUPT ) || ( (*head)->type == CMD_WAKE_HOST_THRD ) ) &&
-		     ( (*head)->state == MEM_IDLE ) )
-		  break;
+		if ((((*head)->type == CMD_INTERRUPT) || ((*head)->type == CMD_WAKE_HOST_THRD)) &&
+		    (((*head)->state == MEM_IDLE) || ((*head)->state == MEM_RECEIVED)))
+			break;
 		head = &((*head)->_next);
 	}
 	event = *head;
 
 	// Test for client disconnect
-	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL)) {
-	        // debug_msg( "ocse:handle_interrupt:no interupt commandt or client has gone missing" );
+	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL)) 
 		return;
-	}
-	debug_msg( "ocse:handle_interrupt:valid interupt command and client still present" );
 
 	// Send interrupt or wake_host_thread request to client
 	if (event->type == CMD_WAKE_HOST_THRD)
@@ -1719,7 +1713,7 @@ void handle_response(struct cmd *cmd)
 					     0, // resp_addr_tag, - not used by response
 					     0, // resp_data_bdi - not used by good response
 					     event->data ) ; // data in this case is already the complete length
-	} else if (event->command == AFU_CMD_INTRP_REQ ) {
+	} else if ((event->command == AFU_CMD_INTRP_REQ ) || (event->command == AFU_CMD_INTRP_REQ_D)) {
   		rc = tlx_afu_send_resp( cmd->afu_event,TLX_RSP_INTRP_RESP,event->afutag, 
 					     event->resp, // resp_code - right now always a good response
 					     0, 0, 0, 0);
@@ -1729,29 +1723,16 @@ void handle_response(struct cmd *cmd)
 					     0, 0, 0, 0);
 	} else if ((event->command == AFU_CMD_XLATE_TOUCH ) || (event->command == AFU_CMD_XLATE_TOUCH_N )) {
   		rc = tlx_afu_send_resp( cmd->afu_event,TLX_RSP_TOUCH_RESP,event->afutag, 
-					     event->resp, // resp_code - right now always a pending(0x4) or fail(0xc) response
+					     event->resp, // resp_code - right now always a (0x0) response
 					     0, 0, 0, 0);
+		printf("SENDING TOUCH_RESP \n");
 		}
 	   
 	if (rc == TLX_SUCCESS) {
 		debug_msg("%s:RESPONSE event @ 0x%016" PRIx64 ", sent tag=0x%02x code=0x%x", cmd->afu_name,
 			  event, event->afutag, event->resp);
 		debug_cmd_response(cmd->dbg_fp, cmd->dbg_id, event->tag);
-		// if ( ( client != NULL ) && ( event->command == TLX_COMMAND_RESTART ) )
-		// 	client->flushing = FLUSH_NONE;
-		// if this was an xlat cmd, don't want to free the event so add code to check - HMP
-	        //if ( ( event->type == CMD_XLAT_RD ) ||
-		//     ( event->type == CMD_XLAT_WR ) ) {
-		//  debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", set state dma pending and tag to deadbeef",
-		//	     cmd->afu_name,
-		//	     event );
-		//  event->state = DMA_PENDING;
-		  // do this to "free" the tag since AFU thinks it's free now
-		//  event->tag = 0xdeadbeef;
-		//  printf("DMA_PENDING set for event \n");
-		//  cmd->credits++;
-	//	} else {
-	          debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", free event",
+		          debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", free event",
 			     cmd->afu_name,
 			     event );
 		  *head = event->_next;
@@ -1759,7 +1740,6 @@ void handle_response(struct cmd *cmd)
 		  free(event->parity);
 		  free(event);
 		  cmd->credits++;
-	//	}
 	} else {
 		  debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", _response() failed",
 			     cmd->afu_name,

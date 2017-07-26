@@ -98,6 +98,7 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
 	command = new StoreCommand ( command_code, command_address_parity,
 		command_code_parity, command_tag_parity, buffer_read_parity);
 	break;
+    case AFU_CMD_WAKE_HOST_THRD:
     case AFU_CMD_INTRP_REQ_D:
     case AFU_CMD_INTRP_REQ:
 	printf("Machine: afu_cmd_intrp_req\n");
