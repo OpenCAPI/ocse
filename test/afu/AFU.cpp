@@ -593,6 +593,9 @@ AFU::resolve_tlx_afu_resp()
 	case TLX_RSP_READ_RESP_OW:
 	case TLX_RSP_READ_RESP_XW:
 	case TLX_RSP_WAKE_HOST_RESP:
+	    printf("Received wake host response code = 0x%x\n", resp_code);
+	    write_app_status(status_address, 0x0);
+	    break;
 	case TLX_RSP_CL_RD_RESP_OW:
 	default:
 	    break;
@@ -915,8 +918,8 @@ AFU::tlx_pr_wr_mem()
 uint32_t
 AFU::is_mmio_addr(uint64_t addr)
 {
-    printf("AFU: mmio addr = 0x%016llx\n", addr);
-    printf("AFU: bar addr  = 0x%016llx\n", bar);
+    printf("AFU: mmio addr = 0x%016lx\n", addr);
+    printf("AFU: bar addr  = 0x%016lx\n", bar);
     addr = addr & 0xFFFFFFFFFFF10000;
     if(addr >= bar && addr < bar+0x10000) {
 	return 1;
