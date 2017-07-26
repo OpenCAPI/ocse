@@ -64,7 +64,7 @@ struct ocxl_waitasec {
 	__u16 reserved1;
 };
 
-struct lpc_req {
+struct mem_req {
 	volatile enum libocxl_req_state state;
 	volatile uint8_t type;
 	volatile uint64_t addr;
@@ -99,7 +99,7 @@ struct ocxl_afu_h {
 	struct open_req open;
 	struct attach_req attach;
 	struct mmio_req mmio;
-	struct lpc_req lpc;
+	struct mem_req mem;
 	struct ocxl_irq_h *irq;
 	struct ocxl_afu_h *_head;
 	struct ocxl_afu_h *_next;

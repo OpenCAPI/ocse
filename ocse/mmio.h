@@ -37,10 +37,12 @@
 #define CXL_MMIO_ENDIAN_MASK 0x3
 
 
+// need to abstract dw - add a size element
+// need to allow for dl and dp - add dl and dp elements
 struct mmio_event {
 	uint32_t rnw;
 	uint32_t dw;    // TODO remove this ?  Maybe, we need to know 4/8 byte mmio  cmd_pL is an encoded length
-	uint32_t eb_rd; //TODO remove this
+	uint32_t eb_rd; // TODO remove this
 	uint32_t cfg;
 	uint64_t cmd_data;
 	uint64_t cmd_PA;
@@ -49,6 +51,12 @@ struct mmio_event {
 	uint8_t cmd_pL;
 	uint8_t cmd_TorR;  //may not need this
 	uint8_t cmd_rd_cnt;
+  // parallel records for general capp commands
+        uint8_t ack;    // use this to hold the ack value for the message back to libocxl
+        uint32_t size;  // if size = 0, we use dw to imply size
+        uint8_t *data;  // if size = 0, we use cmd_data as the data field
+        uint8_t cmd_dL;     // dL, dP, and pL are encoded from either size or dw in send_mmio
+        uint8_t cmd_dP;
 	enum ocse_state state;
 	struct mmio_event *_next;
 };
@@ -121,5 +129,8 @@ struct mmio_event *handle_mmio(struct mmio *mmio, struct client *client,
 
 struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client);
 
+
+struct mmio_event *handle_mem(struct mmio *mmio, struct client *client,
+			       int rnw, int region);
 
 #endif				/* _MMIO_H_ */

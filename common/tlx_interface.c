@@ -938,12 +938,17 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 	if ( bp == 5)
 		bp = 1;
 
+#ifdef DEBUG
 	// dump tbuf
-	if ( bp > 1 ) {
-	  printf( "lgt: tlx_signal_afu_model: tbuf length:0x%02x tbuf: 0x", bp );
-	  for ( i = 0; i < bp; i++ ) printf( "%02x", event->tbuf[i] );
-	  printf( "\n" );
+        // if (event->tbuf[0] != 0x40) { // but not for just a clock
+	if (event->tbuf[0] != 0x41) { // but not for just a clock and credit return
+	  if ( bp > 1 ) {
+	    printf( "lgt: tlx_signal_afu_model: tbuf length:0x%02x tbuf: 0x", bp );
+	    for ( i = 0; i < bp; i++ ) printf( "%02x", event->tbuf[i] );
+	    printf( "\n" );
+	  }
 	}
+#endif
 
 	bl = bp;
 	bp = 0;
@@ -1087,10 +1092,10 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 	if ( bp == 5)
 		bp = 1;
 
-#ifdef DEBUG1
+#ifdef DEBUG
         // dump tbuf
-        if (event->tbuf[0] != 0x10) { // but not for just a clock
-	// if (event->tbuf[0] != 0x11) { // but not for just a clock and credit return
+        // if (event->tbuf[0] != 0x10) { // but not for just a clock
+	if (event->tbuf[0] != 0x11) { // but not for just a clock and credit return
 	  if ( bp > 1 ) {
 	    printf( "lgt: tlx_signal_tlx_model: tbuf length:0x%02x tbuf: 0x", bp );
 	    for ( i = 0; i < bp; i++ ) printf( "%02x", event->tbuf[i] );
@@ -1238,8 +1243,8 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 
 #ifdef DEBUG
 	// dump rbuf
-	if (event->rbuf[0]  != 0x10) { // except when just a clock
-	// if (event->rbuf[0]  != 0x11) { // except when just a clock and credit return
+	// if (event->rbuf[0]  != 0x10) { // except when just a clock
+	if (event->rbuf[0]  != 0x11) { // except when just a clock and credit return
 		printf( "lgt: tlx_get_afu_events: rbuf length:0x%02x rbuf: 0x", rbc );
 		for ( i = 0; i < rbc; i++ ) printf( "%02x", event->rbuf[i] );
 		printf( "\n" );

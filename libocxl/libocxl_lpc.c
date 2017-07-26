@@ -76,47 +76,33 @@ static int _delay_1ms()
 	return nanosleep(&ts, &ts);
 }
 
-static int _testmemaddr(uint8_t * memaddr)
-{
-	int fd[2];
-	int ret = 0;
-	if (pipe(fd) >= 0) {
-		if (write(fd[1], memaddr, 1) > 0)
-			ret = 1;
-	}
-
-	close(fd[0]);
-	close(fd[1]);
-
-	return ret;
-}
-
 // handle routines that catch calls from libocxl._psl_loop
 // are found in libocxl.c
 
 // routines that are called by user applications.
 int ocxl_lpc_map(struct ocxl_afu_h *afu, uint32_t flags)
 {
-	DPRINTF("LPC MAP\n");
+	debug_msg("ocxl_lpc_map:");
 	if (!afu->opened) {
-		printf("ocxl_lpc_map: Must open first!\n");
+		warn_msg("ocxl_lpc_map: Must open first!");
 		goto lpcmap_fail;
 	}
 
 	if (!afu->attached) {
-		printf("ocxl_lpc_map: Must attach first!\n");
+		warn_msg("ocxl_lpc_map: Must attach first!");
 		goto lpcmap_fail;
 	}
 
 	if (flags & ~(OCXL_LPC_FLAGS)) {
-		printf("ocxl_lpc_map: Invalid flags!\n");
+		warn_msg("ocxl_lpc_map: Invalid flags!");
 		goto lpcmap_fail;
 	}
-	// Send MMIO map to OCSE
-	afu->lpc.type = OCSE_LPC_MAP;
-	afu->lpc.data = (uint8_t *)&(flags);
-	afu->lpc.state = LIBOCXL_REQ_REQUEST;
-	while (afu->lpc.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+
+	// Send mem map to OCSE
+	afu->mem.type = OCSE_LPC_MAP;
+	afu->mem.data = (uint8_t *)&(flags);
+	afu->mem.state = LIBOCXL_REQ_REQUEST;
+	while (afu->mem.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
 	afu->lpc_mapped = 1;
 
@@ -138,20 +124,62 @@ int ocxl_lpc_unmap(struct ocxl_afu_h *afu)
 //    *data is size aligned
 int ocxl_lpc_write(struct ocxl_afu_h *afu, uint64_t offset, uint8_t *data, uint64_t size )
 {
-	if (offset & 0x7) {
+        // TODO we're going to allow byte alignment and parse the size into naturally aligned accesses
+        //      or we could force natural alignment on the caller...
+        // phase 1 - size is a power of 2, <= 64, data is size long, offset is naturally aligned
+        //           that is, it will fit in a single 64 Byte write event
+        // phase 2 - size is a power of 2, <= 256, aribitrary and offset is byte aligned
+        //           that is, we have to break it up *somewhere* along the flow into up to 4 legal write event packets
+        // phase 3 - size is aribitrary and offset is byte aligned
+        //           that is, we have to break it up somewhere along the flow into legal write event packets
+
+        debug_msg("ocxl_lpc_write: %d bytes to lpc offset 0x%016lx", size, offset);
+
+        if (!afu) {
+	      warn_msg("NULL afu passed to ocxl_lpc_write");
+	      goto write_fail;
+	}
+
+        if (!afu->lpc_mapped) {
+	      warn_msg("afu lpc space is not mapped");
+	      goto write_fail;
+	}
+
+        // check size legality
+	switch (size) {
+	case 1:
+	case 2:
+	case 4:
+	case 8:
+	case 16:
+	case 32:
+	case 64:
+	      break;
+	default:
+	        warn_msg("unsupported size");
 		errno = EINVAL;
 		return -1;
+		break;
 	}
-	if ((afu == NULL) || !afu->mapped)
-		goto write_fail;
 
-	// Send MMIO map to OCSE
-	afu->lpc.type = OCSE_LPC_WRITE;
-	afu->lpc.addr = offset;
-	afu->lpc.size = size;
-	afu->lpc.data = data;
-	afu->lpc.state = LIBOCXL_REQ_REQUEST;
-	while (afu->lpc.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+        debug_msg("ocxl_lpc_write: legal size = %d bytes", size);
+
+        // check address alignment against size
+	if ( offset & (size - 1) ) {
+	      warn_msg("afu lpc address alignment not valid");
+	      errno = EINVAL;
+	      return -1;
+	  }
+
+        debug_msg("ocxl_lpc_write: legal alignment");
+
+	// Send memory write to OCSE - phase 2 - should we break it up here?  or in ocse?
+	afu->mem.type = OCSE_LPC_WRITE;
+	afu->mem.addr = offset;
+	afu->mem.size = size;
+	afu->mem.data = data;
+	afu->mem.state = LIBOCXL_REQ_REQUEST;
+	while (afu->mem.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
 
 	if (!afu->opened)
@@ -170,21 +198,71 @@ int ocxl_lpc_write(struct ocxl_afu_h *afu, uint64_t offset, uint8_t *data, uint6
 //    *data is size aligned
 int ocxl_lpc_read(struct ocxl_afu_h *afu, uint64_t offset, uint8_t *data, uint64_t size )
 {
-	if (offset & 0x7) {
+        // TODO we're going to allow byte alignment and parse the size into naturally aligned accesses
+        //      or we could force natural alignment on the caller...
+        // phase 1 - size is a power of 2, <= 64, data is size long, offset is naturally aligned
+        //           that is, it will fit in a single 64 Byte write event
+        // phase 2 - size is a power of 2, <= 256, aribitrary and offset is byte aligned
+        //           that is, we have to break it up *somewhere* along the flow into up to 4 legal write event packets
+        // phase 3 - size is aribitrary and offset is byte aligned
+        //           that is, we have to break it up somewhere along the flow into legal write event packets
+
+        debug_msg("ocxl_lpc_read: %d bytes from lpc offset 0x%016lx", size, offset);
+
+        if (!afu) {
+	      warn_msg("NULL afu passed to ocxl_lpc_write");
+	      goto read_fail;
+	}
+
+        if (!afu->lpc_mapped) {
+	      warn_msg("afu lpc space is not mapped");
+	      goto read_fail;
+	}
+
+        // check size legality
+	switch (size) {
+	case 1:
+	case 2:
+	case 4:
+	case 8:
+	case 16:
+	case 32:
+	case 64:
+	      break;
+	default:
+	        warn_msg("unsupported size");
 		errno = EINVAL;
 		return -1;
+		break;
 	}
-	if ((afu == NULL) || !afu->mapped)
-		goto read_fail;
 
-	// Send MMIO map to OCSE
-	afu->lpc.type = OCSE_LPC_READ;
-	afu->lpc.addr = offset;
-	afu->lpc.size = size;
-	afu->lpc.data = data;
-	afu->lpc.state = LIBOCXL_REQ_REQUEST;
-	while (afu->lpc.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+        debug_msg("ocxl_lpc_read: legal size = %d bytes", size);
+
+        // check address alignment against size
+	if ( offset & (size - 1) ) {
+	      warn_msg("afu lpc address alignment not valid");
+	      errno = EINVAL;
+	      return -1;
+	  }
+
+        debug_msg("ocxl_lpc_read: legal alignment");
+
+	// Send memory write to OCSE - phase 2 - should we break it up here?  or in ocse?
+	afu->mem.type = OCSE_LPC_READ;
+	afu->mem.addr = offset;
+	afu->mem.size = size;
+	afu->mem.state = LIBOCXL_REQ_REQUEST;
+	while (afu->mem.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
+
+	// copy the data by copying the pointer
+	if (afu->mem.data == NULL) {
+	      warn_msg("afu lpc memory not returned");
+	      goto read_fail;
+	}
+
+	memcpy( data, afu->mem.data, afu->mem.size );
+	free( afu->mem.data );
 
 	if (!afu->opened)
 		goto read_fail;

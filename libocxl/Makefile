@@ -25,7 +25,7 @@ libocxl.a: libocxl.o $(OBJS)
 libocxl_lpc.o: $(COMMON_DIR)/misc/ocxl.h
 
 libocxl_lpc.so: libocxl_lpc.o $(OBJS)
-	$(call Q,CC, $(CC) $(CFLAGS) -shared $^ -o $@, $@) -Wl,--version-script symver.map
+	$(call Q,CC, $(CC) $(CFLAGS) -shared $^ -o $@, $@) -Wl,--version-script symver_lpc.map
 
 libocxl_lpc.a: libocxl_lpc.o $(OBJS)
 	$(call Q,AR, $(AR) rcs $@ $^, $@)

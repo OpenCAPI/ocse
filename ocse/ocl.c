@@ -154,7 +154,7 @@ static void _handle_afu(struct ocl *ocl)
 	//int i;
 	//size_t size;
 	if (ocl->mmio->list !=NULL) {
-	 handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
+	  handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
 	} 
 
 	if (ocl->cmd != NULL) {
@@ -256,11 +256,14 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 		case OCSE_MMIO_READ32:
 			mmio = handle_mmio(ocl->mmio, client, 1, dw, 0, global);
 			break;
-		/* case OCSE_LPC_WRITE: */
-		/* 	mmio = handle_mem(ocl->mmio, client, 0, region); */
-		/* 	break; */
+		case OCSE_LPC_WRITE:
+			mmio = handle_mem(ocl->mmio, client, 0, region);
+			break;
+		case OCSE_LPC_READ:
+			mmio = handle_mem(ocl->mmio, client, 1, region);
+			break;
 		default:
-		  error_msg("Unexpected 0x%02x from client on socket", buffer[0], client->fd);
+		  error_msg("Unexpected 0x%02x from client on socket 0x%02x", buffer[0], client->fd);
 		}
 
 		if (mmio)

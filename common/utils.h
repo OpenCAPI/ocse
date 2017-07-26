@@ -73,6 +73,8 @@
 #define OCSE_LPC_MAP     	        0x2a
 #define OCSE_LPC_READ	                0x2b
 #define OCSE_LPC_WRITE          	0x2c
+#define OCSE_LPC_ACK            	0x2e
+#define OCSE_LPC_FAIL            	0x2f
 #define MAX_INT32 0x7fffffffU
 #define MIN_INT32 0x80000000U
 #define MAX_UINT32 0xffffffffU

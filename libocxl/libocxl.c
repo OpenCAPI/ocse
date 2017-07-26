@@ -98,6 +98,7 @@ static void _all_idle(struct ocxl_afu_h *afu)
 	afu->open.state = LIBOCXL_REQ_IDLE;
 	afu->attach.state = LIBOCXL_REQ_IDLE;
 	afu->mmio.state = LIBOCXL_REQ_IDLE;
+	afu->mem.state = LIBOCXL_REQ_IDLE;
 	afu->mapped = 0;
 	afu->global_mapped = 0;
 	afu->attached = 0;
@@ -243,7 +244,7 @@ static int _handle_interrupt(struct ocxl_afu_h *afu, uint8_t data_is_valid)
 
 	if (!afu) fatal_msg("_handle_interrupt:NULL afu passed");
 
-	debug_msg("AFU INTERRUPT");
+	debug_msg("_handle_interrupt:");
 
 	// in opencapi, we should get a 64 bit address (and maybe data)
 	// we should find that address in the afu's irq list
@@ -1276,46 +1277,160 @@ static void _mmio_read(struct ocxl_afu_h *afu)
 	afu->mmio.state = LIBOCXL_REQ_PENDING;
 }
 
-/* static void _mem_write(struct ocxl_afu_h *afu) */
-/* { */
-/* 	uint8_t *buffer; */
-/* 	int buffer_length; */
-/* 	int buffer_offset; */
+static void _mem_map(struct ocxl_afu_h *afu)
+{
+  // _mem_map doesn't really need to do anything for ocse...  the fact that we have a socket is enough
+  // all the information we need is over in ocse already as it has gone through the config space
 
-/* 	uint32_t offset; */
-/* 	uint32_t size; */
+        // uint8_t *buffer;
+        // uint32_t *flags_ptr;
+        // uint32_t flags;
+        // int size;
 
-/* 	if (!afu) */
-/* 		fatal_msg("NULL afu passed to libocxl.c:_mmio_write64"); */
 
-/* 	// buffer length = 1 byte for type, buffer remainder?, 4 bytes for offset, n bytes for size, m bytes for data */
-/* 	buffer_length = 1 + sizeof(addr) + sizeof(size) + afu->mem.size; */
-/* 	buffer = (uint8_t *) malloc(buffer_length); */
+        if (!afu)
+	      fatal_msg("NULL afu passed to libocxl.c:_mem_map");
 
-/* 	buffer[0] = afu->mem.type; */
+	/* size = 1 + sizeof(uint32_t); */
+	/* buffer = (uint8_t *) malloc(size); */
+	/* buffer[0] = afu->mem.type; */
 
-/* 	buffer_offset = 1; */
-/* 	offset = htonl(afu->mem.addr); */
-/* 	memcpy((char *)&(buffer[buffer_offset]), (char *)&offset, sizeof(offset)); */
-/* 	buffer_offset += sizeof(addr); */
+	/* flags = (uint32_t)afu->mmio.data; */
+	/* flags_ptr = (uint32_t *) & (buffer[1]); */
+	/* *flags_ptr = htonl(flags); */
 
-/* 	size = htonl(afu->mem.size); */
-/* 	memcpy((char *)&(buffer[buffer_offset]), (char *)&size, sizeof(size)); */
-/* 	buffer_offset += sizeof(size); */
+	/* if (put_bytes_silent(afu->fd, size, buffer) != size) { */
+	/* 	free(buffer); */
+	/* 	close_socket(&(afu->fd)); */
+	/* 	afu->opened = 0; */
+	/* 	afu->attached = 0; */
+	/* 	afu->mem.state = LIBOCXL_REQ_IDLE; */
+	/* 	return; */
+	/* } */
 
-/* 	// data = htonll(afu->mmio.data); */
-/* 	memcpy((char *)&(buffer[buffer_offset]), data, size); */
-/* 	if (put_bytes_silent(afu->fd, buffer_length, buffer) != buffer_length) { */
-/* 		free(buffer); */
-/* 		close_socket(&(afu->fd)); */
-/* 		afu->opened = 0; */
-/* 		afu->attached = 0; */
-/* 		afu->mem.state = LIBOCXL_REQ_IDLE; */
-/* 		return; */
-/* 	} */
-/* 	free(buffer); */
-/* 	afu->mem.state = LIBOCXL_REQ_PENDING; */
-/* } */
+	/* free(buffer); */
+
+	afu->mem.state = LIBOCXL_REQ_IDLE; // make pending if we really have to send something to ocse...
+	return;
+}
+
+static void _mem_read(struct ocxl_afu_h *afu)
+{
+	uint8_t *buffer;
+	int buffer_length;
+	int buffer_offset;
+
+	uint32_t offset;
+	uint32_t size;
+
+	debug_msg("_mem_write:");
+
+	if (!afu)
+		fatal_msg("NULL afu passed to libocxl.c:_mem_write");
+
+	// buffer length = 1 byte for type, buffer remainder?, 4 bytes for offset, 4 bytes for size
+	buffer_length = 1 + sizeof(offset) + sizeof(size);
+	debug_msg("_mem_write: buffer length %d", buffer_length);
+	buffer = (uint8_t *)malloc( buffer_length );
+
+	debug_msg("_mem_write: buffer[0]");
+	buffer[0] = afu->mem.type;
+
+	buffer_offset = 1;
+	debug_msg( "_mem_write: buffer[%d]", buffer_offset );
+	offset = htonl(afu->mem.addr);
+	memcpy( (char *)&(buffer[buffer_offset]), (char *)&offset, sizeof(offset));
+	buffer_offset += sizeof(offset);
+
+	debug_msg( "_mem_write: buffer[%d]", buffer_offset );
+	size = htonl(afu->mem.size);
+	memcpy((char *)&(buffer[buffer_offset]), (char *)&size, sizeof(size));
+
+	if (put_bytes_silent(afu->fd, buffer_length, buffer) != buffer_length) {
+		free(buffer);
+		close_socket(&(afu->fd));
+		afu->opened = 0;
+		afu->attached = 0;
+		afu->mem.state = LIBOCXL_REQ_IDLE;
+		return;
+	}
+
+	free(buffer);
+	afu->mem.state = LIBOCXL_REQ_PENDING;
+}
+
+static void _mem_write(struct ocxl_afu_h *afu)
+{
+	uint8_t *buffer;
+	int buffer_length;
+	int buffer_offset;
+
+	uint32_t offset;
+	uint32_t size;
+
+	debug_msg("_mem_write:");
+
+	if (!afu)
+		fatal_msg("NULL afu passed to libocxl.c:_mem_write");
+
+	// buffer length = 1 byte for type, buffer remainder?, 4 bytes for offset, n bytes for size, m bytes for data
+	buffer_length = 1 + sizeof(offset) + sizeof(size) + afu->mem.size;
+	debug_msg("_mem_write: buffer length %d", buffer_length);
+	buffer = (uint8_t *)malloc( buffer_length );
+
+	debug_msg("_mem_write: buffer[0]");
+	buffer[0] = afu->mem.type;
+
+	buffer_offset = 1;
+	debug_msg( "_mem_write: buffer[%d]", buffer_offset );
+	offset = htonl(afu->mem.addr);
+	memcpy( (char *)&(buffer[buffer_offset]), (char *)&offset, sizeof(offset));
+	buffer_offset += sizeof(offset);
+
+	debug_msg( "_mem_write: buffer[%d]", buffer_offset );
+	size = htonl(afu->mem.size);
+	memcpy((char *)&(buffer[buffer_offset]), (char *)&size, sizeof(size));
+	buffer_offset += sizeof(size);
+
+	// data = htonll(afu->mmio.data);
+	debug_msg( "_mem_write: buffer[%d]", buffer_offset );
+	memcpy( (char *)&(buffer[buffer_offset]), afu->mem.data, afu->mem.size );
+	if (put_bytes_silent(afu->fd, buffer_length, buffer) != buffer_length) {
+		free(buffer);
+		close_socket(&(afu->fd));
+		afu->opened = 0;
+		afu->attached = 0;
+		afu->mem.state = LIBOCXL_REQ_IDLE;
+		return;
+	}
+
+	free(buffer);
+	afu->mem.state = LIBOCXL_REQ_PENDING;
+}
+
+static void _handle_mem_ack(struct ocxl_afu_h *afu)
+{
+        uint32_t size;
+
+	debug_msg( "_handle_mem_ack" );
+
+	if (!afu)
+		fatal_msg("NULL afu passed to libocxl.c:_handle_mem_ack");
+
+	if ( afu->mem.type == OCSE_LPC_READ ) {
+	        // assuming it all worked, we already know the size in afu->mem.size
+	        debug_msg( "_handle_mem_ack: getting %d bytes from socket", afu->mem.size );
+		afu->mem.data = (uint8_t *)malloc( afu->mem.size );
+		if (get_bytes_silent(afu->fd, afu->mem.size, afu->mem.data, 1000, 0) < 0) {
+		      warn_msg("Socket failure getting MEM Ack data");
+		      free( afu->mem.data );
+		      _all_idle(afu);
+		}
+	}
+
+	afu->mem.state = LIBOCXL_REQ_IDLE;
+}
+
 
 static void *_psl_loop(void *ptr)
 {
@@ -1362,20 +1477,21 @@ static void *_psl_loop(void *ptr)
 			default:
 				break;
 			}
-		/* if (afu->mem.state == LIBOCXL_REQ_REQUEST) { */
-		/* 	switch (afu->mmio.type) { */
-		/* 	case OCSE_LPC_MAP: */
-		/* 		_mem_map(afu); */
-		/* 		break; */
-		/* 	case OCSE_LPC_WRITE: */
-		/* 		_mem_write(afu); */
-		/* 		break; */
-		/* 	case OCSE_LPC_READ: */
-		/* 		_mem_read(afu); */
-		/* 		break; */
-		/* 	default: */
-		/* 		break; */
-		/* 	} */
+		}
+		if (afu->mem.state == LIBOCXL_REQ_REQUEST) {
+			switch (afu->mem.type) {
+			case OCSE_LPC_MAP:
+				_mem_map(afu);
+				break;
+			case OCSE_LPC_WRITE:
+				_mem_write(afu);
+				break;
+			case OCSE_LPC_READ:
+				_mem_read(afu);
+				break;
+			default:
+				break;
+			}
 		}
 
 		// Process socket input from OCSE
@@ -1393,7 +1509,7 @@ static void *_psl_loop(void *ptr)
 			break;
 		}
 
-		DPRINTF("OCL EVENT\n");
+		debug_msg("OCL EVENT = 0x%02x\n", buffer[0]);
 		switch (buffer[0]) {
 		case OCSE_OPEN:
 			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
@@ -1416,7 +1532,7 @@ static void *_psl_loop(void *ptr)
 			afu->open.state = LIBOCXL_REQ_IDLE;
 			afu->attach.state = LIBOCXL_REQ_IDLE;
 			afu->mmio.state = LIBOCXL_REQ_IDLE;
-			// afu->mem.state = LIBOCXL_REQ_IDLE;
+			afu->mem.state = LIBOCXL_REQ_IDLE;
 			afu->int_req.state = LIBOCXL_REQ_IDLE;
 			break;
 		case OCSE_MAX_INT:
@@ -1712,9 +1828,9 @@ static void *_psl_loop(void *ptr)
 		case OCSE_MMIO_ACK:
 			_handle_ack(afu);
 			break;
-		/* case OCSE_LPC_ACK: */
-		/* 	_handle_mem_ack(afu); */
-		/* 	break; */
+		case OCSE_LPC_ACK:
+			_handle_mem_ack(afu);
+			break;
 		case OCSE_INTERRUPT_D:
 			debug_msg("AFU INTERRUPT D");
 			if (_handle_interrupt(afu, 1) < 0) {
@@ -2663,6 +2779,9 @@ int ocxl_read_event(struct ocxl_afu_h *afu, struct ocxl_event *event)
 		errno = EINVAL;
 		return -1;
 	}
+
+	debug_msg("ocxl_read_event: waiting for event");
+
 	// Function will block until event occurs
 	pthread_mutex_lock(&(afu->event_lock));
 	while (afu->opened && !afu->events[0]) {	/*infinite loop */
@@ -2672,6 +2791,7 @@ int ocxl_read_event(struct ocxl_afu_h *afu, struct ocxl_event *event)
 		pthread_mutex_lock(&(afu->event_lock));
 	}
 
+	debug_msg("ocxl_read_event: received event");
 	// Copy event data, free and move remaining events in queue
 	memcpy(event, afu->events[0], afu->events[0]->header.size);
 	free(afu->events[0]);

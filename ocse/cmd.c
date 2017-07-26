@@ -678,6 +678,7 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 	uint8_t * dptr = cdata_bus;
 	int rc;
 
+	debug_msg( "ocse:handle_cmd:" );
 	if (cmd == NULL)
 		return;
 
@@ -789,6 +790,7 @@ void handle_buffer_write(struct cmd *cmd)
 	uint16_t *size;
 	//int quadrant, byte;
 
+	debug_msg( "ocse:handle_buffer_write:" );
 	// Make sure cmd structure is valid
 	if (cmd == NULL)
 		return;
@@ -925,6 +927,7 @@ void handle_afu_tlx_cmd_data_read(struct cmd *cmd)
 	uint8_t *buffer;
 	int rc;
 
+	debug_msg( "ocse:handle_afu_tlx_cmd_data_read:" );
 	// Check that cmd struct is valid buffer read is available
 	if ((cmd == NULL) || (cmd->buffer_read == NULL))
 		return;
@@ -1034,6 +1037,7 @@ void handle_write_be_or_amo(struct cmd *cmd)
 	uint16_t *size;
 	uint8_t *buffer;
 
+	debug_msg( "ocse:handle_write_be_or_amo:" );
 	// Check that cmd struct is valid
 	if (cmd == NULL)
 		return;
@@ -1143,6 +1147,7 @@ void handle_touch(struct cmd *cmd)
 	uint64_t *addr;
 	uint16_t *size;
 
+	debug_msg( "ocse:handle_touch:" );
 	// Make sure cmd structure is valid
 	if (cmd == NULL)
 		return;
@@ -1227,7 +1232,7 @@ void handle_interrupt(struct cmd *cmd)
 
 	// Test for client disconnect
 	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL)) {
-	        debug_msg( "ocse:handle_interrupt:no interupt commandt or client has gone missing" );
+	        // debug_msg( "ocse:handle_interrupt:no interupt commandt or client has gone missing" );
 		return;
 	}
 	debug_msg( "ocse:handle_interrupt:valid interupt command and client still present" );
@@ -1278,6 +1283,7 @@ void handle_buffer_data(struct cmd *cmd, uint32_t parity_enable)
 	struct cmd_event *event;
 	int quadrant, byte;
 
+	debug_msg( "ocse:handle_buffer_data:" );
 	// Has struct been initialized?
 	if ((cmd == NULL) || (cmd->buffer_read == NULL))
 		return;
@@ -1333,6 +1339,7 @@ void handle_mem_write(struct cmd *cmd)
 	uint8_t *buffer;
 	uint64_t offset;
 
+	debug_msg( "ocse:handle_mem_write:" );
 	// Make sure cmd structure is valid
 	if (cmd == NULL)
 		return;
@@ -1512,6 +1519,7 @@ void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd)
 {
 	struct client *client;
 
+	debug_msg( "ocse:handle_mem_return:" );
 	// Test for client disconnect
 	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
 		return;
@@ -1569,6 +1577,7 @@ void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd)
 void handle_aerror(struct cmd *cmd, struct cmd_event *event)
 {
 //	event->resp = TLX_RESPONSE_AERROR;
+	debug_msg( "ocse:handle_aerror:" );
 	event->state = MEM_DONE;
 	debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->tag,
 			 event->context, event->resp);
@@ -1583,6 +1592,7 @@ void handle_response(struct cmd *cmd)
 	uint8_t resp_dl, resp_dp;
 	int rc = 0;
 
+	debug_msg( "ocse:handle_response:" );
 	// Select a random pending response (or none)
 	client = NULL;
 	head = &cmd->list;
