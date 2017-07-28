@@ -1,5 +1,6 @@
 #include "Lpc.h"
 #include <stdio.h>
+#include <string.h>	// memcpy
 
 Lpc::Lpc() {
     std::vector<uint8_t> x32k(32);
@@ -9,28 +10,50 @@ Lpc::Lpc() {
     lpc_memory = new uint8_t[0x100000];
 }
 
+// address must be 64 byte aligned
 uint8_t
-Lpc::is_lpc_addr(uint64_t addr) {
-    uint8_t x32k_index;
-    uint64_t list_addr;
+Lpc::lpc_addr_exist(uint64_t addr) {
+    
+    if(addr_list.empty()) {
+	printf("Lpc: add address to lpc list entry\n");
+	addr_list.push_back(addr);
+	return 0;
+    }
+    else {
+	for(it_list=addr_list.begin(); it_list != addr_list.end(); it_list++) {
+	    if(*it_list != addr) {
+		continue;
+	    }
+	    else {
+		printf("Lpc: address exist\n");
+		return 1;
+	    }
+	}
+    }
+    return 0;
+}
 
-    x32k_index = (uint8_t)((addr & 0x00000000000F8000)>> 15);
-    list_addr = addr & 0xFFFFFFFFFFF00000;
-
-    if(addr_list.size() == 0) {
-	printf("Lpc: no lpc memory indexed\n");
-	return 2;
+void
+Lpc::read_lpc_mem(uint64_t addr, uint16_t size, uint8_t *data) {
+    
+    printf("Lpc: read memory at addr = 0x%lx\n", addr);
+    if(lpc_addr_exist(addr)) {
+	addr = addr & 0x00000000000FFFC0;
+	memcpy(&data, (uint8_t*)addr, size);
+    }
+    else {
+	printf("Lpc: no data at the addr requested\n");
     }
 }
 
 void
-Lpc::read_lpc_mem(uint64_t addr, uint16_t size) {
-
-}
-
-void
 Lpc::write_lpc_mem(uint64_t addr, uint16_t size, uint8_t *data) {
-
+    printf("Lpc: write memory at addr = 0x%lx\n", addr);
+    if(lpc_addr_exist(addr)) {
+	printf("Lpc: will overwrite data at this address\n");
+    }
+    addr = addr & 0x00000000000FFFC0;
+    memcpy(&data, (uint8_t*)addr, size);
 }
 
 Lpc::~Lpc() {

@@ -7,7 +7,7 @@ include Makefile.rules
 SRCS=$(wildcard *.c)
 OBJS=$(subst .c,.o,$(SRCS)) TestAFU_config.o
 TESTS=$(subst .c,,$(SRCS))
-DEPS=TestAFU_config.o $(LIBOCXL_DIR)/libocxl.a
+DEPS=TestAFU_config.o $(LIBOCXL_DIR)/libocxl.a $(LIBOCXL_DIR)/libocxl_lpc.a
 all: misc/ocxl.h $(TESTS)
 
 CHECK_HEADER = $(shell echo \\\#include\ $(1) | $(CC) $(CFLAGS) -E - > /dev/null 2>&1 && echo y || echo n)
@@ -20,7 +20,7 @@ endif
 .SECONDEXPANSION:
 
 $(TESTS) : $(addsuffix .o,$$@) $(DEPS)
-	$(call Q,CC, $(CC) $^ -I$(COMMON_DIR) -I$(LIBOCXL_DIR) -o $@ -lpthread, $@)
+	$(call Q,CC, $(CC) $^ -L$(LIBOCXL_DIR) -I$(COMMON_DIR) -I$(LIBOCXL_DIR) -o $@ -lpthread, $@)
 
 TestAFU_config.o :
 

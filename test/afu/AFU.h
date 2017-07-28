@@ -5,6 +5,7 @@
 #include "TagManager.h"
 #include "MachineController.h"
 #include "Commands.h"
+#include "Lpc.h"
 
 extern "C" {
 #include "tlx_interface.h"
@@ -27,7 +28,7 @@ private:
 
     AFU_EVENT afu_event;
     Descriptor descriptor;
-
+    Lpc	lpc;
     std::map < uint16_t, MachineController * >context_to_mc;
     std::map < uint16_t,
         MachineController * >::iterator highest_priority_mc;

@@ -20,8 +20,8 @@ private:
 
 public:
     Lpc();
-    uint8_t is_lpc_addr(uint64_t addr);
-    void read_lpc_mem(uint64_t addr, uint16_t size);
+    uint8_t lpc_addr_exist(uint64_t addr);
+    void read_lpc_mem(uint64_t addr, uint16_t size, uint8_t* data);
     void write_lpc_mem(uint64_t addr, uint16_t size, uint8_t* data);
     ~Lpc();
 };
