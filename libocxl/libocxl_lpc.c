@@ -219,7 +219,7 @@ int ocxl_lpc_write_be(struct ocxl_afu_h *afu, uint64_t offset, uint8_t *data, ui
 	      return -1;
 	  }
 
-	// Send memory write to OCSE - phase 2 - should we break it up here?  or in ocse?
+	// Send memory write to OCSE - always 64 byte
 	afu->mem.type = OCSE_LPC_WRITE_BE;
 	afu->mem.addr = offset;
 	afu->mem.size = 64;

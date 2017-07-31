@@ -1234,7 +1234,7 @@ static struct mmio_event *_handle_mem_write(struct mmio *mmio, struct client *cl
 	}
 	offset = ntohl(offset);
 
-	if (be_valid != 0) {
+	if (be_valid == 0) {
 	  // get size from socket
 	  if (get_bytes_silent(fd, 4, (uint8_t *)&size, mmio->timeout,
 			       &(client->abort)) < 0) {
