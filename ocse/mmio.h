@@ -53,8 +53,10 @@ struct mmio_event {
 	uint8_t cmd_rd_cnt;
   // parallel records for general capp commands
         uint8_t ack;    // use this to hold the ack value for the message back to libocxl
+        uint8_t be_valid;  // use this to let us know whether or not to use the byte enable
         uint32_t size;  // if size = 0, we use dw to imply size
         uint8_t *data;  // if size = 0, we use cmd_data as the data field
+        uint64_t be;  // if be_valid, use this as the byte enable in the command
         uint8_t cmd_dL;     // dL, dP, and pL are encoded from either size or dw in send_mmio
         uint8_t cmd_dP;
 	enum ocse_state state;
@@ -131,6 +133,6 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client);
 
 
 struct mmio_event *handle_mem(struct mmio *mmio, struct client *client,
-			       int rnw, int region);
+			      int rnw, int region, int be_valid);
 
 #endif				/* _MMIO_H_ */

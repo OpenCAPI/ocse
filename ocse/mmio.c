@@ -60,7 +60,6 @@ struct mmio *mmio_init(struct AFU_EVENT *afu_event, int timeout, char *afu_name,
 	return mmio;
 }
 
-// create a new _add_mem_event function that will use size instead of dw.
 // Add new MMIO event
 static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 				     uint32_t rnw, uint32_t dw, int global, uint64_t addr,
@@ -77,7 +76,9 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 	event->rnw = rnw;
 	event->dw = dw;
 	event->size = 0;  // part of the new fields
+	event->be_valid = 0;  // part of the new fields
 	event->data = NULL;
+	event->be = 0;
 	event->cmd_dL = 0;
 	event->cmd_dP = 0;
 	if (client == NULL)  {
@@ -129,10 +130,10 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 }
 
 // create a new _add_mem_event function that will use size instead of dw.
-// Add new MMIO event
+// Add new mmio event for general memory transfer
 static struct mmio_event *_add_mem_event(struct mmio *mmio, struct client *client,
 				     uint32_t rnw, uint32_t size, int region, uint64_t addr,
-				     uint8_t *data)
+				     uint8_t *data, uint32_t be_valid, uint64_t be)
 {
 	struct mmio_event *event;
 	struct mmio_event **list;
@@ -144,9 +145,11 @@ static struct mmio_event *_add_mem_event(struct mmio *mmio, struct client *clien
 		return event;
 	event->cfg = 0;
 	event->rnw = rnw;
+	event->be_valid = be_valid;
 	event->dw = 0;
 	event->size = size;  // part of the new fields
 	event->data = data;
+	event->be = be;
 	if (client == NULL)  {
 	  // is this case where cfg = 1, that is, we want to read config space?
 	  // yes, when we do mmios to config space, we force client to null
@@ -211,9 +214,9 @@ static struct mmio_event *_add_mmio(struct mmio *mmio, struct client *client,
 // Add AFU general memory access command event
 static struct mmio_event *_add_mem(struct mmio *mmio, struct client *client,
 				    uint32_t rnw, uint32_t size, int region, uint64_t addr,
-				    uint8_t *data)
+				   uint8_t *data, uint32_t be_valid, uint64_t be)
 {
-	return _add_mem_event(mmio, client, rnw, size, region, addr, data);
+  return _add_mem_event(mmio, client, rnw, size, region, addr, data, be_valid, be);
 }
 
 static void _wait_for_done(enum ocse_state *state, pthread_mutex_t * lock)
@@ -649,7 +652,7 @@ void send_mmio(struct mmio *mmio)
 	uint8_t  cmd_byte_cnt;
 	uint64_t offset;
 
-	debug_msg( "ocse:send_mmio:" );
+	// debug_msg( "ocse:send_mmio:" );
 
 	event = mmio->list;
 
@@ -657,7 +660,7 @@ void send_mmio(struct mmio *mmio)
 	if ((event == NULL) || (event->state == OCSE_PENDING))
 		return;
 
-	debug_msg( "ocse:send_mmio:valid command exists" );
+	// debug_msg( "ocse:send_mmio:valid command exists" );
 	event->ack = OCSE_MMIO_ACK;
 	if (event->cfg) {
 	        debug_msg( "ocse:send_mmio:mmio to config space" );
@@ -696,6 +699,7 @@ void send_mmio(struct mmio *mmio)
        	}  else   {  // if not a CONFIG, then must be memory access MMIO rd/wr
 	        if ( event->size == 0 ) {
                   // we have the old mmio style
+		  debug_msg( "ocse:send_mmio:mmio to mmio space" );
 		  sprintf(type, "MMIO");
 
 		  // calculate event->pL from event->dw
@@ -715,6 +719,7 @@ void send_mmio(struct mmio *mmio)
 
 		} else {
 		  // we have the new general memory style
+		  debug_msg( "ocse:send_mmio:mmio to LPC space" );
 		  sprintf(type, "MEM");
 		  event->ack = OCSE_LPC_ACK;
 
@@ -806,9 +811,16 @@ void send_mmio(struct mmio *mmio)
 			event->state = OCSE_RD_RQ_PENDING;
 		      }
 		    } else { // full
-		      if (tlx_afu_send_cmd(mmio->afu_event,
-					   TLX_CMD_WRITE_MEM, 0xdaeb, event->cmd_dL, event->cmd_pL, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
-			event->state = OCSE_RD_RQ_PENDING;
+		      if (event->be_valid == 0) {
+			if (tlx_afu_send_cmd(mmio->afu_event,
+					     TLX_CMD_WRITE_MEM, 0xdaeb, event->cmd_dL, event->cmd_pL, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
+			  event->state = OCSE_RD_RQ_PENDING;
+			}
+		      } else {
+			if (tlx_afu_send_cmd(mmio->afu_event,
+					     TLX_CMD_WRITE_MEM_BE, 0xbebe, event->cmd_dL, event->cmd_pL, event->be, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
+			  event->state = OCSE_RD_RQ_PENDING;
+			}
 		      }
 		    }
 		    debug_msg("send_mmio: sent write command, now wait for rd_req from AFU \n"); 
@@ -1193,9 +1205,10 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 			      client->context) < 0) {
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		}
+		debug_msg("SENT OCSE_*_ACK for a WRITE to client!!!!");
 	}
 	debug_mmio_return(mmio->dbg_fp, mmio->dbg_id, client->context);
-	free(event->data);
+	//if (event->data != NULL) free(event->data);
 	free(event);
 	free(buffer);
 
@@ -1203,11 +1216,12 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 }
 
 // Add mem write event to offset in memory space
-static struct mmio_event *_handle_mem_write(struct mmio *mmio, struct client *client, int region)
+static struct mmio_event *_handle_mem_write(struct mmio *mmio, struct client *client, int region, int be_valid)
 {
 	struct mmio_event *event;
 	uint32_t offset;
 	uint32_t size;
+	uint64_t be;
 	uint8_t *data;
 	int fd = client->fd;
 
@@ -1218,12 +1232,23 @@ static struct mmio_event *_handle_mem_write(struct mmio *mmio, struct client *cl
 	}
 	offset = ntohl(offset);
 
-	// get size from socket
-	if (get_bytes_silent(fd, 4, (uint8_t *)&size, mmio->timeout,
-			     &(client->abort)) < 0) {
-		goto write_fail;
-	}
-	size = ntohl(size);
+	if (be_valid != 0) {
+	  // get size from socket
+	  if (get_bytes_silent(fd, 4, (uint8_t *)&size, mmio->timeout,
+			       &(client->abort)) < 0) {
+	    goto write_fail;
+	  }
+	  size = ntohl(size);
+	  be = 0;
+	} else {
+	  // get byte_enable from socket (size is always 64)
+	  if (get_bytes_silent(fd, 8, (uint8_t *)&be, mmio->timeout,
+			       &(client->abort)) < 0) {
+	    goto write_fail;
+	  }
+	  be = ntohl(be);
+	  size = 64;
+	}	  
 
 	// allocate a buffer for the data
 	data = (uint8_t *)malloc( size );
@@ -1233,7 +1258,7 @@ static struct mmio_event *_handle_mem_write(struct mmio *mmio, struct client *cl
 	  goto write_fail;
 	}
 
-	event = _add_mem( mmio, client, 0, size, region, offset, data );
+	event = _add_mem( mmio, client, 0, size, region, offset, data, be_valid, be );
 
 	return event;
 
@@ -1267,7 +1292,7 @@ static struct mmio_event *_handle_mem_read(struct mmio *mmio, struct client *cli
 	// allocate a buffer for the data coming back
 	data = (uint8_t *)malloc( size );
 
-	event = _add_mem( mmio, client, 1, size, region, offset, data );
+	event = _add_mem( mmio, client, 1, size, region, offset, data, 0, 0 );
 
 	return event;
 
@@ -1281,7 +1306,7 @@ static struct mmio_event *_handle_mem_read(struct mmio *mmio, struct client *cli
 
 // Handle mem request from client
 struct mmio_event *handle_mem(struct mmio *mmio, struct client *client,
-			       int rnw, int region)
+			      int rnw, int region, int be_valid)
 {
 	uint8_t ack;
 
@@ -1301,6 +1326,6 @@ struct mmio_event *handle_mem(struct mmio *mmio, struct client *client,
 	if (rnw)
 		return _handle_mem_read(mmio, client, region);
 	else
-		return _handle_mem_write(mmio, client, region);
+	        return _handle_mem_write(mmio, client, region, be_valid);
 }
 

@@ -1215,7 +1215,7 @@ void handle_interrupt(struct cmd *cmd)
 	// Make sure cmd structure is valid
 	if (cmd == NULL)
 		return;
-	debug_msg( "ocse:handle_interrupt:valid cmd available" );
+	//debug_msg( "ocse:handle_interrupt:valid cmd available" );
 
 	// Send any interrupts to client immediately
 	head = &cmd->list;

@@ -1323,26 +1323,26 @@ static void _mem_read(struct ocxl_afu_h *afu)
 	uint32_t offset;
 	uint32_t size;
 
-	debug_msg("_mem_write:");
+	debug_msg("_mem_read:");
 
 	if (!afu)
-		fatal_msg("NULL afu passed to libocxl.c:_mem_write");
+		fatal_msg("NULL afu passed to libocxl.c:_mem_read");
 
 	// buffer length = 1 byte for type, buffer remainder?, 4 bytes for offset, 4 bytes for size
 	buffer_length = 1 + sizeof(offset) + sizeof(size);
-	debug_msg("_mem_write: buffer length %d", buffer_length);
+	debug_msg("_mem_read: buffer length %d", buffer_length);
 	buffer = (uint8_t *)malloc( buffer_length );
 
-	debug_msg("_mem_write: buffer[0]");
+	debug_msg("_mem_read: buffer[0]");
 	buffer[0] = afu->mem.type;
 
 	buffer_offset = 1;
-	debug_msg( "_mem_write: buffer[%d]", buffer_offset );
+	debug_msg( "_mem_read: buffer[%d]", buffer_offset );
 	offset = htonl(afu->mem.addr);
 	memcpy( (char *)&(buffer[buffer_offset]), (char *)&offset, sizeof(offset));
 	buffer_offset += sizeof(offset);
 
-	debug_msg( "_mem_write: buffer[%d]", buffer_offset );
+	debug_msg( "_mem_read: buffer[%d]", buffer_offset );
 	size = htonl(afu->mem.size);
 	memcpy((char *)&(buffer[buffer_offset]), (char *)&size, sizeof(size));
 
@@ -1408,10 +1408,57 @@ static void _mem_write(struct ocxl_afu_h *afu)
 	afu->mem.state = LIBOCXL_REQ_PENDING;
 }
 
+static void _mem_write_be(struct ocxl_afu_h *afu)
+{
+	uint8_t *buffer;
+	int buffer_length;
+	int buffer_offset;
+
+	uint32_t offset;
+	uint64_t be;
+
+	debug_msg("_mem_write_be:");
+
+	if (!afu)
+		fatal_msg("NULL afu passed to libocxl.c:_mem_write");
+
+	// buffer length = 1 byte for type, 4 bytes for offset, 8 bytes for be, 64 bytes for data
+	buffer_length = 1 + sizeof(offset) + sizeof( be ) + afu->mem.size;
+	debug_msg("_mem_write_be: buffer length %d", buffer_length);
+	buffer = (uint8_t *)malloc( buffer_length );
+
+	debug_msg("_mem_write_be: buffer[0]");
+	buffer[0] = afu->mem.type;
+
+	buffer_offset = 1;
+	debug_msg( "_mem_write_be: buffer[%d]", buffer_offset );
+	offset = htonl(afu->mem.addr);
+	memcpy( (char *)&(buffer[buffer_offset]), (char *)&offset, sizeof(offset));
+	buffer_offset += sizeof(offset);
+
+	debug_msg( "_mem_write: buffer[%d]", buffer_offset );
+	be = htonl(afu->mem.be);
+	memcpy((char *)&(buffer[buffer_offset]), (char *)&be, sizeof(be));
+	buffer_offset += sizeof(be);
+
+	// data = htonll(afu->mmio.data);
+	debug_msg( "_mem_write: buffer[%d]", buffer_offset );
+	memcpy( (char *)&(buffer[buffer_offset]), afu->mem.data, afu->mem.size );
+	if (put_bytes_silent(afu->fd, buffer_length, buffer) != buffer_length) {
+		free(buffer);
+		close_socket(&(afu->fd));
+		afu->opened = 0;
+		afu->attached = 0;
+		afu->mem.state = LIBOCXL_REQ_IDLE;
+		return;
+	}
+
+	free(buffer);
+	afu->mem.state = LIBOCXL_REQ_PENDING;
+}
+
 static void _handle_mem_ack(struct ocxl_afu_h *afu)
 {
-        uint32_t size;
-
 	debug_msg( "_handle_mem_ack" );
 
 	if (!afu)
@@ -1485,6 +1532,9 @@ static void *_psl_loop(void *ptr)
 				break;
 			case OCSE_LPC_WRITE:
 				_mem_write(afu);
+				break;
+			case OCSE_LPC_WRITE_BE:
+				_mem_write_be(afu);
 				break;
 			case OCSE_LPC_READ:
 				_mem_read(afu);

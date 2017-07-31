@@ -69,6 +69,7 @@ struct mem_req {
 	volatile uint8_t type;
 	volatile uint64_t addr;
 	volatile uint64_t size;
+	volatile uint64_t be;
 	uint8_t *data;
 };
 

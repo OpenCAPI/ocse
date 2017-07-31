@@ -178,6 +178,53 @@ int ocxl_lpc_write(struct ocxl_afu_h *afu, uint64_t offset, uint8_t *data, uint6
 	afu->mem.addr = offset;
 	afu->mem.size = size;
 	afu->mem.data = data;
+	afu->mem.be = 0;
+	afu->mem.state = LIBOCXL_REQ_REQUEST;
+	while (afu->mem.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+		_delay_1ms();
+
+	if (!afu->opened)
+		goto write_fail;
+
+	return 0;
+
+ write_fail:
+	errno = ENODEV;
+	return -1;
+}
+
+// read 64 bytes from *data to offset in afu
+//    offset is size aligned
+//    *data is size aligned
+//    byte_enable
+int ocxl_lpc_write_be(struct ocxl_afu_h *afu, uint64_t offset, uint8_t *data, uint64_t byte_enable )
+{
+
+  debug_msg("ocxl_lpc_write_be: to lpc offset 0x%016lx, with enable 0x%016lx", offset, byte_enable);
+
+        if (!afu) {
+	      warn_msg("NULL afu passed to ocxl_lpc_write_be");
+	      goto write_fail;
+	}
+
+        if (!afu->lpc_mapped) {
+	      warn_msg("afu lpc space is not mapped");
+	      goto write_fail;
+	}
+
+        // check address alignment against size
+	if ( offset & 0x3F ) {
+	      warn_msg("afu lpc address alignment not valid");
+	      errno = EINVAL;
+	      return -1;
+	  }
+
+	// Send memory write to OCSE - phase 2 - should we break it up here?  or in ocse?
+	afu->mem.type = OCSE_LPC_WRITE_BE;
+	afu->mem.addr = offset;
+	afu->mem.size = 64;
+	afu->mem.data = data;
+	afu->mem.be = byte_enable;
 	afu->mem.state = LIBOCXL_REQ_REQUEST;
 	while (afu->mem.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();

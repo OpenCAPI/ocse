@@ -53,6 +53,8 @@ int ocxl_lpc_unmap(struct ocxl_afu_h *afu);
 
 // write the "size" bytes starting at "data" to the location starting at "offset" in lpc memory known to "afu"
 int ocxl_lpc_write(struct ocxl_afu_h *afu, uint64_t offset, uint8_t *data, uint64_t size );
+// write_be is always 64 bytes of data to the offset under control of byte_enable
+int ocxl_lpc_write_be(struct ocxl_afu_h *afu, uint64_t offset, uint8_t *data, uint64_t byte_enable );
 
 // read the "size" bytes starting at "offset" in lpc memory known to "afu" and save them starting at "data"
 int ocxl_lpc_read(struct ocxl_afu_h *afu, uint64_t offset, uint8_t *data, uint64_t size );
