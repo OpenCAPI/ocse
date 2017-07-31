@@ -1170,16 +1170,18 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 
 	if (event->rnw) {
 	      // Return acknowledge with read data
-	      debug_msg("READY TO SEND OCSE_*_ACK for a READ to client!!!!");
 	      if ( event->size !=0 ) {
    		    // this is an lpc mem request coming back
+		    debug_msg("handle_mmio_done:sending OCSE_LPC_ACK for a READ to client!!!!");
 		    buffer = (uint8_t *) malloc(event->size + 1);
 		    buffer[0] = event->ack;
 		    memcpy( &(buffer[1]), event->data, event->size );
 		    if (put_bytes(fd, event->size + 1, buffer, mmio->dbg_fp, mmio->dbg_id, client->context) < 0) {
 		          client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		    }
+		    free( event->data );
 	      } else if ( event->dw ) {
+		    debug_msg("handle_mmio_done:sending OCSE_MMIO_ACK for a dw READ to client!!!!");
 		    buffer = (uint8_t *) malloc(9);
 		    buffer[0] = event->ack;
 		    data64 = htonll(event->cmd_data);
@@ -1188,6 +1190,7 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 		          client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		    }
 	      } else {
+		    debug_msg("handle_mmio_done:sending OCSE_MMIO_ACK for a READ to client!!!!");
 	    	    buffer = (uint8_t *) malloc(5);
 		    buffer[0] = event->ack;
 		    data32 = htonl(event->cmd_data);
@@ -1208,7 +1211,6 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 		debug_msg("SENT OCSE_*_ACK for a WRITE to client!!!!");
 	}
 	debug_mmio_return(mmio->dbg_fp, mmio->dbg_id, client->context);
-	//if (event->data != NULL) free(event->data);
 	free(event);
 	free(buffer);
 
