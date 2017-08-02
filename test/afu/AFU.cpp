@@ -159,6 +159,7 @@ AFU::start ()
 	if (afu_event.tlx_cfg_resp_ack) {
 	    debug_msg("AFU: Received TLX config response 0x%x", afu_event.tlx_afu_resp_opcode);
 	    afu_event.cfg_tlx_credit_return = 1;	
+	    afu_event.afu_tlx_credit_req_valid = 1;	
 	    afu_event.tlx_cfg_resp_ack = 0;
 	}
 	// process tlx response data
