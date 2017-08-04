@@ -18,7 +18,7 @@
  * Description: shim_host.c
  *
  *  This file contains parse_host_data() which reads the file with the
- *  hostname and ports of each AFU simulator and calls ocl_init for each.
+ *  hostname and ports of each TLX/AFU simulator and calls ocl_init for each.
  */
 
 #include <stdlib.h>
@@ -32,11 +32,11 @@ uint16_t parse_host_data(struct ocl ** head, struct parms * parms,
 {
 	FILE *fp;
 	struct ocl *ocl;
-	char *hostdata, *comment, *afu_id, *host, *port_str;
-	uint16_t location, afu_map;
+	char *hostdata, *comment, *tlx_id, *host, *port_str;
+	uint16_t location, tlx_map;
 	int port;
 
-	afu_map = 0;
+	tlx_map = 0;
 	*head = NULL;
 	fp = fopen(filename, "r");
 	if (!fp) {
@@ -53,7 +53,7 @@ uint16_t parse_host_data(struct ocl ** head, struct parms * parms,
 	hostdata = (char *)malloc(MAX_LINE_CHARS);
 	while (fgets(hostdata, MAX_LINE_CHARS - 1, fp)) {
 		// Parse host & port from file
-		afu_id = hostdata;
+		tlx_id = hostdata;
 		comment = strchr(hostdata, '#');
 		if (comment)
 			continue;
@@ -86,11 +86,11 @@ uint16_t parse_host_data(struct ocl ** head, struct parms * parms,
 		port = atoi(port_str);
 
 		// Initialize OCL
-		if ((location = ocl_init(head, parms, afu_id, host, port,
+		if ((location = ocl_init(head, parms, tlx_id, host, port,
 					 lock, dbg_fp)) == 0) {
 			continue;
 		}
-		afu_map |= location;
+		tlx_map |= location;
 
 		// Update all ocl entries to point to new list head
 		ocl = *head;
@@ -102,5 +102,5 @@ uint16_t parse_host_data(struct ocl ** head, struct parms * parms,
 	free(hostdata);
 	fclose(fp);
 
-	return afu_map;
+	return tlx_map;
 }

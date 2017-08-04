@@ -2041,7 +2041,6 @@ static struct ocxl_afu_h *_new_afu(uint16_t afu_map, uint16_t position, int fd)
 	uint8_t *buffer;
 	int size;
 	struct ocxl_afu_h *afu;
-	uint16_t adapter_mask = 0xf000;
 	uint16_t afu_mask = 0x8000;
 	int major = 0;
 	int minor = 0;
@@ -2050,14 +2049,9 @@ static struct ocxl_afu_h *_new_afu(uint16_t afu_map, uint16_t position, int fd)
 		errno = ENODEV;
 		return NULL;
 	}
-	while ((position & adapter_mask) == 0) {
-		adapter_mask >>= 4;
-		afu_mask >>= 4;
-		++major;
-	}
 	while ((position & afu_mask) == 0) {
 		afu_mask >>= 1;
-		++minor;
+		++major;
 	}
 
 	afu = (struct ocxl_afu_h *)calloc(1, sizeof(struct ocxl_afu_h));
@@ -2072,7 +2066,7 @@ static struct ocxl_afu_h *_new_afu(uint16_t afu_map, uint16_t position, int fd)
 	pthread_mutex_init(&(afu->event_lock), NULL);
 	afu->fd = fd;
 	afu->map = afu_map;
-	afu->dbg_id = (major << 4) | minor;
+	afu->dbg_id = major;
 	debug_msg("opened host-side socket %d", afu->fd);
 
 	// Send OCSE query
@@ -2151,7 +2145,7 @@ static void _release_adapters(struct ocxl_adapter_h *adapter)
 }
 
 static struct ocxl_afu_h *_ocse_open(int *fd, uint16_t afu_map, uint8_t major,
-				     uint8_t minor, char afu_type)
+				     uint8_t minor)
 {
 	struct ocxl_afu_h *afu;
 	uint8_t *buffer;
@@ -2160,8 +2154,11 @@ static struct ocxl_afu_h *_ocse_open(int *fd, uint16_t afu_map, uint8_t major,
 	if ( !fd )
 		fatal_msg( "NULL fd passed to libocxl.c:_ocse_open" );
 	position = 0x8000;
-	position >>= 4 * major;
-	position >>= minor;
+	//position >>= 4 * major;
+	//position >>= minor;
+	position >>= major;
+	debug_msg("afu_map = 0x%04x", afu_map);
+	debug_msg("position = 0x%04x", position);
 	if ((afu_map & position) != position) {
 		warn_msg("open: AFU not in system");
 		close_socket(fd);
@@ -2177,9 +2174,9 @@ static struct ocxl_afu_h *_ocse_open(int *fd, uint16_t afu_map, uint8_t major,
 	buffer = (uint8_t *) calloc(1, MAX_LINE_CHARS);
 	buffer[0] = (uint8_t) OCSE_OPEN;
 	buffer[1] = afu->dbg_id;
-	buffer[2] = afu_type;
+	// buffer[2] = afu_type;
 	afu->fd = *fd;
-	if (put_bytes_silent(afu->fd, 3, buffer) != 3) {
+	if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
 		warn_msg("open:Failed to write to socket");
 		free(buffer);
 		goto open_fail;
@@ -2208,7 +2205,7 @@ static struct ocxl_afu_h *_ocse_open(int *fd, uint16_t afu_map, uint8_t major,
 		goto open_fail;
 	}
 
-	sprintf(afu->id, "afu%d.%d", major, minor);
+	sprintf(afu->id, "tlx%d", major);
 
 	return afu;
 
@@ -2465,31 +2462,42 @@ struct ocxl_afu_h *ocxl_afu_open_dev(char *path)
         // lgt - this part will change for opencapi, but is ok for now.
 	//       afu_type will always be directed, may not have a master/slave distinction
 	//       major and minor are yet to be defined.
+	// afu_map is now simply a number...
+	// the name is temporarily tlxM where M can be 0 - F
+	// type is no longer relevant
 	afu_id = strrchr(path, '/');
 	afu_id++;
-	if ((afu_id[3] < '0') || (afu_id[3] > '3')) {
+	debug_msg("afu id = %s", afu_id);
+	// check and map id[3] to an integer - be mindful of the hex upper/lower case character
+	if ( (afu_id[3] >= '0') && (afu_id[3] <= '9') ) {
+	  major = afu_id[3] - '0';
+	} else if ( (afu_id[3] >= 'A') && (afu_id[3] <= 'F') ) {
+	  major = afu_id[3] - 'A' + 10;
+	} else if ( (afu_id[3] >= 'a') && (afu_id[3] <= 'f') ) {
+	  major = afu_id[3] - 'a' + 10;
+	} else {
 		warn_msg("Invalid afu major: %c", afu_id[3]);
 		errno = ENODEV;
 		return NULL;
 	}
-	if ((afu_id[5] < '0') || (afu_id[5] > '3')) {
-		warn_msg("Invalid afu minor: %c", afu_id[5]);
-		errno = ENODEV;
-		return NULL;
-	}
-	major = afu_id[3] - '0';
-	minor = afu_id[5] - '0';
-	afu_type = afu_id[6];
+	debug_msg("major number = 0x%01x", major);
+	// if ((afu_id[5] < '0') || (afu_id[5] > '3')) {
+	// 	warn_msg("Invalid afu minor: %c", afu_id[5]);
+	//	errno = ENODEV;
+	// 	return NULL;
+	// }
+	minor = 0; // afu_id[5] - '0';  // minor is no longer used
+	afu_type = 'o';                 // afu_type is no longer used
 
-	return _ocse_open(&fd, afu_map, major, minor, afu_type);
+	return _ocse_open(&fd, afu_map, major, minor);
 }
 
 struct ocxl_afu_h *ocxl_afu_open_h(struct ocxl_afu_h *afu)
 {
 	uint8_t major, minor;
 	uint16_t mask;
-	char afu_type;
-	enum ocxl_views view = OCXL_VIEW_SLAVE;
+	// char afu_type;
+	// enum ocxl_views view = OCXL_VIEW_SLAVE;
 
 	if (afu == NULL) {
 		errno = EINVAL;
@@ -2512,24 +2520,24 @@ struct ocxl_afu_h *ocxl_afu_open_h(struct ocxl_afu_h *afu)
 		mask >>= 1;
 		minor++;
 	}
-	switch (view) {
-	case OCXL_VIEW_DEDICATED:
-		afu_type = 'd';
-		// afu->mode = OCXL_MODE_DEDICATED;
-		break;
-	case OCXL_VIEW_MASTER:
-		afu_type = 'm';
-		// afu->mode = OCXL_MODE_DIRECTED;
-		break;
-	case OCXL_VIEW_SLAVE:
-		afu_type = 's';
-		// afu->mode = OCXL_MODE_DIRECTED;
-		break;
-	default:
-		errno = ENODEV;
-		return NULL;
-	}
-	return _ocse_open(&(afu->fd), afu->map, major, minor, afu_type);
+	/* switch (view) { */
+	/* case OCXL_VIEW_DEDICATED: */
+	/* 	afu_type = 'd'; */
+	/* 	// afu->mode = OCXL_MODE_DEDICATED; */
+	/* 	break; */
+	/* case OCXL_VIEW_MASTER: */
+	/* 	afu_type = 'm'; */
+	/* 	// afu->mode = OCXL_MODE_DIRECTED; */
+	/* 	break; */
+	/* case OCXL_VIEW_SLAVE: */
+	/* 	afu_type = 's'; */
+	/* 	// afu->mode = OCXL_MODE_DIRECTED; */
+	/* 	break; */
+	/* default: */
+	/* 	errno = ENODEV; */
+	/* 	return NULL; */
+	/* } */
+	return _ocse_open(&(afu->fd), afu->map, major, minor);
 }
 
 void ocxl_afu_free(struct ocxl_afu_h *afu)

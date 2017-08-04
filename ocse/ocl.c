@@ -445,6 +445,9 @@ static void *_ocl_loop(void *ptr)
 // The return value is encode int a 16-bit value divided into 4 for each
 // possible adapter.  Then the 4 bits in each adapter represent the 4 possible
 // AFUs on an adapter.  For example: afu0.0 is 0x8000 and afu3.0 is 0x0008.
+// 
+// The return value is encode int a 16-bit value where each bit represents a
+// possible tlx interface.  For example: tlx0 is 0x8000 and tlx5 is 0x0400.
 uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 		  int port, pthread_mutex_t * lock, FILE * dbg_fp)
 {
@@ -458,25 +461,34 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 		goto init_fail;
 	}
 	ocl->timeout = parms->timeout;
-	if ((strlen(id) != 6) || strncmp(id, "afu", 3) || (id[4] != '.')) {
+	//if ((strlen(id) != 4) || strncmp(id, "tlx", 3) || (id[4] != '.')) {
+	if ( (strlen(id) != 4) || strncmp(id, "tlx", 3) ) {
 		warn_msg("Invalid afu name: %s", id);
 		goto init_fail;
 	}
-	if ((id[3] < '0') || (id[3] > '3')) {
+	// check and map id[3] to an integer - be mindful of the hex upper/lower case character
+	if ( (id[3] >= '0') && (id[3] <= '9') ) {
+	  ocl->major = id[3] - '0';
+	} else if ( (id[3] >= 'A') && (id[3] <= 'F') ) {
+	  ocl->major = id[3] - 'A' + 10;
+	} else if ( (id[3] >= 'a') && (id[3] <= 'f') ) {
+	  ocl->major = id[3] - 'a' + 10;
+	} else {
 		warn_msg("Invalid afu major: %c", id[3]);
 		goto init_fail;
 	}
-	if ((id[5] < '0') || (id[5] > '3')) {
-		warn_msg("Invalid afu minor: %c", id[5]);
-		goto init_fail;
-	}
+        //if ((id[5] < '0') || (id[5] > '3')) {
+        //		warn_msg("Invalid afu minor: %c", id[5]);
+        //		goto init_fail;
+        //}
+	ocl->minor = 0; // id[5] - '0';
 	ocl->dbg_fp = dbg_fp;
-	ocl->major = id[3] - '0';
-	ocl->minor = id[5] - '0';
-	ocl->dbg_id = ocl->major << 4;
+	ocl->dbg_id = ocl->major; // << 4;
 	ocl->dbg_id |= ocl->minor;
-	location >>= (4 * ocl->major);
-	location >>= ocl->minor;
+	// location is now a straight mapping of the character to a number
+	// location >>= (4 * ocl->major);
+	// location >>= ocl->minor;
+	location >>= ocl->major;
 	if ((ocl->name = (char *)malloc(strlen(id) + 1)) == NULL) {
 		perror("malloc");
 		error_msg("Unable to allocation memory for ocl->name");
@@ -513,7 +525,7 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 
 	// Initialize credit handler ?
 	// Initialize mmio and TL cnd handler
-	debug_msg("%s @ %s:%d: mmio_init", ocl->name, ocl->host, ocl->port);
+	debug_msg("ocl_init: %s @ %s:%d: mmio_init", ocl->name, ocl->host, ocl->port);
 	if ((ocl->mmio = mmio_init(ocl->afu_event, ocl->timeout, ocl->name,
 				   ocl->dbg_fp, ocl->dbg_id)) == NULL) {
 		perror("mmio_init");
@@ -563,8 +575,11 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 		ocl->_next->_prev = ocl;
 	*head = ocl;
 
-	// Send reset to AFU
-	debug_msg("%s @ %s:%d: No need to send reset job.", ocl->name, ocl->host, ocl->port);
+	//
+	// no need to reset anymore
+	//
+	// debug_msg("%s @ %s:%d: No need to send reset job.", ocl->name, ocl->host, ocl->port);
+
 	// Read AFU initial credit values
 	int event;
 	//uint8_t   afu_tlx_cmd_credits_available;
@@ -592,7 +607,9 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 
 	// Finish TLX configuration
 	ocl->state = OCSE_IDLE;
+
 	// TODO FIX THIS TO USE NEW CFG VALUES!!
+	// we can get this from "max pasid width" in the process address space id extended capability
 	ocl->max_clients = 4;
 	if (ocl->max_clients == 0) {
 		error_msg("AFU programming model is invalid");
