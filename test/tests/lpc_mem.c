@@ -125,10 +125,14 @@ int main(int argc, char *argv[])
 
     // lpc write
     printf("Attempting lpc write\n");
-    ocxl_lpc_write(mafu_h, (uint64_t)rcacheline, wcacheline, CACHELINE);
+    ocxl_lpc_write(mafu_h, (uint64_t)rcacheline, wcacheline, 64);
 
     // lpc read
-
+    printf("Attempting lpc read\n");
+    ocxl_lpc_read(mafu_h, (uint64_t)rcacheline, rcacheline, 64);
+    printf("rcacheline = 0x");
+    for(i=0; i<CACHELINE; i++)
+	printf("%02x", (uint8_t)rcacheline[i]);
 done:
     // free device
     printf("Freeing device ... \n");

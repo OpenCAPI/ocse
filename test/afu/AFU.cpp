@@ -863,6 +863,17 @@ AFU::tlx_pr_rd_mem()
     else {	// lpc memory space
 	printf("AFU: lpc addr = 0x%lx \n");
 	lpc.read_lpc_mem(afu_event.tlx_afu_cmd_pa, data_size, afu_event.afu_tlx_rdata_bus);
+	if(TagManager::request_tlx_credit(RESP_CREDIT)) {
+	    if(afu_tlx_send_resp_and_data(&afu_event, afu_tlx_resp_opcode, afu_tlx_resp_dl,
+		afu_tlx_resp_capptag, afu_event.afu_tlx_resp_dp,
+		afu_tlx_resp_code, afu_tlx_rdata_valid,
+		afu_event.afu_tlx_rdata_bus, afu_event.afu_tlx_rdata_bad) != TLX_SUCCESS) {
+		error_msg("AFU: Failed afu_tlx_send_resp_and_data");
+	    }
+	}
+	else {
+	    error_msg("AFU: No response credit available");
+	}
     }
 }
 
@@ -950,7 +961,16 @@ AFU::tlx_pr_wr_mem()
 	}
 	else { 	// lpc memory address space
 	    printf("AFU: lpc addr = 0x%lx\n", afu_event.tlx_afu_cmd_pa);
+	    printf("AFU: cmd data bus addr = 0x%lx\n", afu_event.tlx_afu_cmd_data_bus);
 	    lpc.write_lpc_mem(afu_event.tlx_afu_cmd_pa, data_size, afu_event.tlx_afu_cmd_data_bus);
+	    if(TagManager::request_tlx_credit(RESP_CREDIT)) {
+		if(afu_tlx_send_resp(&afu_event, afu_resp_opcode, resp_dl, resp_capptag,
+			resp_dp, resp_code) != TLX_SUCCESS) {
+		    printf("AFU: Failed afu_tlx_send_resp\n");
+		}
+	    }
+	    debug_msg("set mem_state = IDLE");
+	    mem_state = IDLE;
 	}
     }
 }
