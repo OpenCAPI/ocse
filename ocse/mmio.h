@@ -89,6 +89,7 @@ struct afu_cfg_sp {
         uint32_t AFU_CTL_PASID_BASE_14;
         uint32_t AFU_CTL_ACTAG_LEN_EN_S;
         uint32_t AFU_CTL_ACTAG_BASE;
+        uint8_t  name_space[25];
         uint32_t global_MMIO_offset_high;
         uint32_t global_MMIO_offset_low;
         uint32_t global_MMIO_BAR;

@@ -225,6 +225,47 @@ static void _wait_for_done(enum ocse_state *state, pthread_mutex_t * lock)
 		lock_delay(lock);
 }
 
+// Read the AFU descriptor template 0 from the afu information DVSEC
+// pass in the address of the afu descriptor offset register
+//         the offset of the descriptor requested
+// returns an mmio event with the data from the requested offset
+static struct mmio_event *_read_afu_descriptor(struct mmio *mmio, uint64_t addr, uint64_t offset, pthread_mutex_t * lock)
+{
+  struct mmio_event *event0c;
+  struct mmio_event *event10;
+
+  #define AFU_DESC_DATA_VALID 0x80000000
+
+  // step 1: write the offset of the descriptor that we want in the afu descriptor register
+  debug_msg("_read_afu_descriptor: AFU descritor offset 0x%016lx indirect read", offset);
+  debug_msg("   AFU Information DVSEC write 0x%08x @ 0x%016lx", offset, addr);
+  event0c = _add_cfg(mmio, 0, 0, addr, offset);
+  _wait_for_done(&(event0c->state), lock);
+  debug_msg("   AFU Information DVSEC write 0x%08x @ 0x%016lx complete", offset, addr);
+  free(event0c);
+
+  // step 2: read the afu descriptor offset register looking for the data valid bit to become 1
+  event0c = _add_cfg(mmio, 1, 0, addr, 0L);
+  _wait_for_done(&(event0c->state), lock);
+  debug_msg("   AFU Information DVSEC read @ 0x%016lx = 0x%08x", addr, event0c->cmd_data);
+  
+  while ((event0c->cmd_data & AFU_DESC_DATA_VALID) == 0) {
+    free(event0c);
+    event0c = _add_cfg(mmio, 1, 0, addr, 0L);
+    _wait_for_done(&(event0c->state), lock);
+    debug_msg("   AFU Information DVSEC read @ 0x%016lx = 0x%08x", addr, event0c->cmd_data);
+  }
+  free(event0c);
+  debug_msg("   AFU descritor offset 0x%016lx indirect read ready", offset);
+
+  // step 3: read the data from the afu descriptor data register
+  event10 = _add_cfg(mmio, 1, 0, addr + 4, 0L);  // assuming the data register is adjacent to the offset register
+  _wait_for_done(&(event10->state), lock);
+  debug_msg("   AFU Information DVSEC afu descriptor data read 0x%08x @ 0x%016lx complete", event10->cmd_data, addr + 4);
+
+  return event10;
+}
+
 // Read the AFU config_record, extended capabilities (if any), PASID extended capabilities,
 // OpenCAPI TL extended capabilities, AFU info extended capabilites (AFU descriptor)
 // and AFU control information extended capabilities and keep a copy
@@ -446,7 +487,6 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	// PerPASID MMIO Offset low & Bar (0x30), PerPASID MMIO Offset high (0x34)
 	// and PerPASID MMIO Size (0x38)
 
-
 	// first afu descriptor indirect read gives us per pasid MMIO offset low & per pasid MMIO BAR
 	debug_msg("AFU descritor offset 0x30 indirect read");
 	debug_msg("   AFU Information DVSEC write 0x%08x @ 0x%016lx", 0x00000030, cmd_pa_f1+0x40c);
@@ -474,9 +514,9 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	debug_msg("   AFU Information DVSEC afu descriptor data read 0x%08x @ 0x%016lx complete", event410->cmd_data, cmd_pa_f1+0x410);
 
 	mmio->cfg.pp_MMIO_offset_low = (event410->cmd_data & 0xFFFFFFF8);
-	debug_msg("per process MMIO offset is 0x%x ", mmio->cfg.pp_MMIO_offset_low);
+	info_msg("per process MMIO offset is 0x%x ", mmio->cfg.pp_MMIO_offset_low);
 	mmio->cfg.pp_MMIO_BAR = (event410->cmd_data & 0x00000007);
-	debug_msg("per process MMIO BAR is 0x%x ", mmio->cfg.pp_MMIO_BAR);
+	info_msg("per process MMIO BAR is 0x%x ", mmio->cfg.pp_MMIO_BAR);
 	free(event410);
 
 	// second afu descriptor indirect read gives us per pasid MMIO offset high
@@ -505,7 +545,7 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	debug_msg("   AFU Information DVSEC afu descriptor data read 0x%08x @ 0x%016lx complete", event410->cmd_data, cmd_pa_f1+0x410);
 
 	mmio->cfg.pp_MMIO_offset_high = event410->cmd_data;
-	debug_msg("per process MMIO offset_high is 0x%x ", mmio->cfg.pp_MMIO_offset_high);
+	info_msg("per process MMIO offset_high is 0x%x ", mmio->cfg.pp_MMIO_offset_high);
 	free(event410);
 
 	// third afu descriptor indirect read gives us per process MMIO stride
@@ -537,9 +577,28 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 
 	// third read gives us per process MMIO stride
 	mmio->cfg.pp_MMIO_stride = event410->cmd_data;
-	debug_msg("per process MMIO stride is 0x%x ", mmio->cfg.pp_MMIO_stride);
+	info_msg("per process MMIO stride is 0x%x ", mmio->cfg.pp_MMIO_stride);
 	free(event410);
 
+	//
+	// lets make the indirect read a subroutine because we are go do it several times
+	//     get the "name", 6 reads to get all 24 bytes.
+	//     get the per process mmio info, 3 reads
+	//
+	// read part1 to 6 of the name
+	int i, j;
+	uint64_t name_offset = 0x04;
+	uint64_t name_stride = 0x04;
+	for (i = 0; i < 6; i++ ) {
+	  event410 = _read_afu_descriptor( mmio, cmd_pa_f1+0x40c, name_offset, lock );
+	  for ( j = 0; j < name_stride; j++ ) {
+	    mmio->cfg.name_space[(i*name_stride)+j] = ((uint8_t *)&event410->cmd_data)[j];
+	  }
+	  name_offset = name_offset + name_stride;
+	  free( event410 );
+	}
+	mmio->cfg.name_space[24] = 0; // make sure name space is null terminated
+	info_msg("name space is %s ", mmio->cfg.name_space);
 
 	// things we have to write to enable an afu operation
 	//    OpenCAPI Configuration Header 0x10 = bar0 low
