@@ -26,6 +26,7 @@ static void print_help(char *name)
 
 int main(int argc, char *argv[])
 {
+    int cr_device, cr_vendor;
     int opt, option_index, i;
     int rc, timeout;
     uint8_t *rcacheline, *wcacheline;
@@ -117,6 +118,13 @@ int main(int argc, char *argv[])
 	printf("FAILED: ocxl_global_mmio_map\n");
 	goto done;
     }
+
+    printf("Calling ocxl_get_cr_device and vendor\n");
+    ocxl_get_cr_device(mafu_h, 0, &cr_device);
+    ocxl_get_cr_vendor(mafu_h, 0, &cr_vendor);
+    printf("device = 0x%x\n", cr_device);
+    printf("vendor = 0x%x\n", cr_vendor);
+
     printf("Attempt lpc memory mapping\n");
     if(ocxl_lpc_map(mafu_h, OCXL_MMIO_LITTLE_ENDIAN) != 0) {
 	printf("FAILED: ocxl_lpc_map\n");
