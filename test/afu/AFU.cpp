@@ -305,7 +305,7 @@ AFU::~AFU ()
     for (std::map < uint16_t, MachineController * >::iterator it =
                 context_to_mc.begin (); it != context_to_mc.end (); ++it)
         delete it->second;
-
+  
     context_to_mc.clear ();
 }
 
