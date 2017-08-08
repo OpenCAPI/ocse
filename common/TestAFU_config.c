@@ -266,9 +266,15 @@ void set_machine_memory_base_address(MachineConfig * machine, uint64_t addr) {
 	machine->config[2] = addr;
 }
 
+// Dest address of the memory space
+void set_machine_memory_dest_address(MachineConfig *machine, uint64_t addr) {
+    machine->config[3] = addr;
+}
+
 // Size of the memory space the AFU machine operate in
-void set_machine_memory_size(MachineConfig * machine, uint64_t size) {
-	machine->config[3] = size;
+void set_machine_memory_size(MachineConfig * machine, uint16_t size) {
+    machine->config[1] &= ~0x000000000000FFFF;
+	machine->config[1] |= size;
 }
 
 //////////////////////////////////

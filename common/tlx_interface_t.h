@@ -45,8 +45,8 @@
 /* Select the initial value for credits??  */
 #define MAX_AFU_TLX_CMD_CREDITS 5
 #define MAX_AFU_TLX_RESP_CREDITS 10
-#define MAX_TLX_AFU_CMD_RESP_CREDITS 5
-#define MAX_TLX_AFU_DATA_CREDITS 10
+#define MAX_TLX_AFU_CMD_RESP_CREDITS 4
+#define MAX_TLX_AFU_DATA_CREDITS 16
 
 
 /* Return codes for TLX interface functions */

@@ -59,8 +59,8 @@
 #define OCSE_MMIO_FAIL		0x12
 #define OCSE_INTERRUPT		0x13
 #define OCSE_AFU_ERROR		0x14
-#define OCSE_MMIO_EBREAD	0x15
-#define OCSE_VSEC_INFO		0x16
+#define OCSE_WAKE_HOST_THREAD	0x15
+#define OCSE_INTERRUPT_D	0x16
 #define OCSE_WR_BE		0x21
 #define OCSE_AMO_RD		0x22
 #define OCSE_AMO_RW		0x23
@@ -70,6 +70,12 @@
 #define OCSE_GLOBAL_MMIO_WRITE64	0x27
 #define OCSE_GLOBAL_MMIO_READ32	        0x28
 #define OCSE_GLOBAL_MMIO_WRITE32	0x29
+#define OCSE_LPC_MAP     	        0x2a
+#define OCSE_LPC_READ	                0x2b
+#define OCSE_LPC_WRITE          	0x2c
+#define OCSE_LPC_WRITE_BE          	0x2d
+#define OCSE_LPC_ACK            	0x2e
+#define OCSE_LPC_FAIL            	0x2f
 #define MAX_INT32 0x7fffffffU
 #define MIN_INT32 0x80000000U
 #define MAX_UINT32 0xffffffffU

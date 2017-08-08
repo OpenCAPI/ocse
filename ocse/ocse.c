@@ -90,12 +90,13 @@ static void _INThandler(int sig)
 }
 
 // Find OCL for specific AFU id
-static struct ocl *_find_ocl(uint8_t id, uint8_t * major, uint8_t * minor)
+static struct ocl *_find_ocl(uint8_t id, uint8_t * major)
 {
 	struct ocl *ocl;
 
-	*major = id >> 4;
-	*minor = id & 0x3;
+	//*major = id >> 4;
+	//*minor = id & 0x3;
+	*major = id;
 	ocl = ocl_list;
 	while (ocl) {
 		if (id == ocl->dbg_id)
@@ -110,10 +111,10 @@ static void _query(struct client *client, uint8_t id)
 {
 	struct ocl *ocl;
 	uint8_t *buffer;
-	uint8_t major, minor;
+	uint8_t major;
 	int size, offset;
 
-	ocl = _find_ocl(id, &major, &minor);
+	ocl = _find_ocl(id, &major);
 	size = 1 + sizeof(ocl->mmio->cfg.AFU_CTL_ACTAG_LEN_EN_S) + sizeof(client->max_irqs) +
 	    sizeof(ocl->mmio->cfg.FUNC_CFG_MAXAFU) +
 	    sizeof(ocl->mmio->cfg.AFU_INFO_REVID) + sizeof(ocl->mmio->cfg.AFU_CTL_PASID_BASE_14) +
@@ -188,11 +189,11 @@ static void _max_irqs(struct client *client, uint8_t id)
 {
 	struct ocl *ocl;
 	uint8_t buffer[MAX_LINE_CHARS];
-	uint8_t major, minor;
+	uint8_t major;
 	uint16_t value;
 
 	// Retrieve requested new maximum interrupts
-	ocl = _find_ocl(id, &major, &minor);
+	ocl = _find_ocl(id, &major);
 	if (get_bytes(client->fd, 2, buffer, ocl->timeout, &(client->abort),
 		      ocl->dbg_fp, ocl->dbg_id, client->context) < 0) {
 		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
@@ -283,49 +284,51 @@ static struct client *_client_connect(int *fd, char *ip)
 }
 
 // Associate client to OCL
-static int _client_associate(struct client *client, uint8_t id, char afu_type)
+static int _client_associate(struct client *client, uint8_t id)
 {
 	struct ocl *ocl;
 	uint32_t mmio_offset, mmio_size;
-	uint8_t major, minor;
+	uint8_t major;
 	int i, context, clients;
 	uint8_t rc[2];
 
 	// Associate with OCL
+	// minor can go away
 	rc[0] = OCSE_DETACH;
-	ocl = _find_ocl(id, &major, &minor);
+	ocl = _find_ocl(id, &major);
 	if (!ocl) {
-		info_msg("Did not find valid OCL for afu%d.%d\n", major, minor);
+		info_msg("Did not find valid OCL for tlx%d\n", major);
 		put_bytes(client->fd, 1, &(rc[0]), fp, -1, -1);
 		close_socket(&(client->fd));
 		return -1;
 	}
 
 	// Check AFU type is valid for connection
-	switch (afu_type) {
-	case 'd':
-		warn_msg ("afu%d.%d is does not support dedicated mode\n",
-			     major, minor);
-			put_bytes(client->fd, 1, &(rc[0]), fp, ocl->dbg_id, -1);
-			close_socket(&(client->fd));
-			return -1;
-		break;
-	case 'm':
-		warn_msg("afu%d.%d is does not support directed mode (master)\n",
-				 major, minor);
-			put_bytes(client->fd, 1, &(rc[0]), fp, ocl->dbg_id, -1);
-			close_socket(&(client->fd));
-			return -1;
-		break;
-	case 's':
-		info_msg("AFU supports directed mode (slave) ");
-		break;
-	default:
-		warn_msg("AFU device type '%c' is not valid\n", afu_type);
-		put_bytes(client->fd, 1, &(rc[0]), fp, ocl->dbg_id, -1);
-		close_socket(&(client->fd));
-		return -1;
-	}
+	// afu_type can go away
+	/* switch (afu_type) { */
+	/* case 'd': */
+	/* 	warn_msg ("afu%d.%d is does not support dedicated mode\n", */
+	/* 		     major, minor); */
+	/* 		put_bytes(client->fd, 1, &(rc[0]), fp, ocl->dbg_id, -1); */
+	/* 		close_socket(&(client->fd)); */
+	/* 		return -1; */
+	/* 	break; */
+	/* case 'm': */
+	/* 	warn_msg("afu%d.%d is does not support directed mode (master)\n", */
+	/* 			 major, minor); */
+	/* 		put_bytes(client->fd, 1, &(rc[0]), fp, ocl->dbg_id, -1); */
+	/* 		close_socket(&(client->fd)); */
+	/* 		return -1; */
+	/* 	break; */
+	/* case 's': */
+	/* 	info_msg("AFU supports directed mode (slave) "); */
+	/* 	break; */
+	/* default: */
+	/* 	warn_msg("AFU device type '%c' is not valid\n", afu_type); */
+	/* 	put_bytes(client->fd, 1, &(rc[0]), fp, ocl->dbg_id, -1); */
+	/* 	close_socket(&(client->fd)); */
+	/* 	return -1; */
+	/* } */
 
 	// NO LONGER check to see if device is already open
 	// lgt - I think I can open any combination of m/s upto max
@@ -350,7 +353,7 @@ static int _client_associate(struct client *client, uint8_t id, char afu_type)
 		}
 	}
 	if (context < 0) {
-		info_msg("No room for new client on afu%d.%d\n", major, minor);
+		info_msg("No room for new client on tlx%d\n", major);
 		put_bytes(client->fd, 1, &(rc[0]), fp, ocl->dbg_id, -1);
 		close_socket(&(client->fd));
 		return -1;
@@ -373,7 +376,7 @@ static int _client_associate(struct client *client, uint8_t id, char afu_type)
 	client->mmio_offset = mmio_offset;
 	//client->max_irqs = OCL_MAX_IRQS / ocl->mmio->cfg.num_of_processes;
 	client->max_irqs = OCL_MAX_IRQS; // TODO FIX OR REMOVE
-	client->type = afu_type;
+	// client->type = afu_type;
 
 	// We NO LONGER Send reset to AFU, even if no other clients are connected
 	// don't even send a reset if we've dropped to 0 clients and are now opening a new one
@@ -430,14 +433,14 @@ static void *_client_loop(void *ptr)
 			continue;
 		}
 		if (data[0] == OCSE_OPEN) {
-			if (get_bytes_silent(client->fd, 2, data, timeout,
+			if (get_bytes_silent(client->fd, 1, data, timeout,
 					     &(client->abort)) < 0) {
 				client_drop(client, TLX_IDLE_CYCLES,
 					    CLIENT_NONE);
 				debug_msg("_client_loop: client associate failed; could not communicate with socket");
 				break;
 			}
-			_client_associate(client, data[0], (char)data[1]);
+			_client_associate(client, data[0]);
 			debug_msg("_client_loop: client associated");
 			break;
 		}

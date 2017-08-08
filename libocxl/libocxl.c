@@ -98,6 +98,7 @@ static void _all_idle(struct ocxl_afu_h *afu)
 	afu->open.state = LIBOCXL_REQ_IDLE;
 	afu->attach.state = LIBOCXL_REQ_IDLE;
 	afu->mmio.state = LIBOCXL_REQ_IDLE;
+	afu->mem.state = LIBOCXL_REQ_IDLE;
 	afu->mapped = 0;
 	afu->global_mapped = 0;
 	afu->attached = 0;
@@ -140,7 +141,91 @@ static int _handle_dsi(struct ocxl_afu_h *afu, uint64_t addr)
 	return i;
 }
 
-static int _handle_interrupt(struct ocxl_afu_h *afu)
+static int _handle_wake_host_thread(struct ocxl_afu_h *afu)
+{
+	uint16_t size;
+	uint64_t addr;
+	uint8_t cmd_flag;
+	uint8_t adata[8];
+	int i;
+
+	if (!afu) fatal_msg("_handle_wake_host_thread:NULL afu passed");
+
+	debug_msg("AFU WAKE HOST THREAD");
+
+	// in opencapi, we should get a 64 bit address (and maybe data)
+	// we should find that address in the afu's irq list
+	// if we find it, we should put some stuff(?) in the event array
+
+	// propose
+	// 1 byte of cmd flag
+	// 8 bytes of address aka tid
+
+	// HMP idea
+	//buffer[0] = OCSE_WAKE (already read)
+	//buffer[1] = event->cmd_flag
+	//buffer[2] = event->addr 
+
+	if (get_bytes_silent(afu->fd, 1, &cmd_flag, 1000, 0) < 0) {
+		warn_msg("Socket failure getting cmd_flags");
+		_all_idle(afu);
+		return -1;
+	}
+	if (get_bytes_silent(afu->fd, 8, adata, 1000, 0) < 0) {
+		warn_msg("Socket failure getting address");
+		_all_idle(afu);
+		return -1;
+	}
+	memcpy(&addr, adata, 8);
+	// addr = ntohs(addr);
+	debug_msg("_handle_wake_host_thread: received wake_host_thread thread id 0x%016lx", addr);
+
+	// not sure if we need this code block for wake_host_thread
+	// search for addr in tid list of afu
+	// if we don't find it, warn_msg
+	// if we do find it, add an event if it is new for this irq
+	/* tid = afu->tid; */
+	/* while (tid != NULL) { */
+	/*   debug_msg("_handle_wake: compare wake to addr : 0x%016lx ?= 0x%016lx", (uint64_t)tid, addr); */
+	/*   if ( (uint64_t)tid == addr ) { */
+	/*     break; */
+	/*   } */
+	/*   tid = tid->_next; */
+	/* } */
+	/* if ( tid == NULL ) { */
+	/*   warn_msg( "_handle_wake: no matching tid in this application" ); */
+	/*   return -1; */
+	/* } */
+
+	// we have the matching tid pointer
+
+	// Only track a single interrupt at a time
+	// but what about a second afu_interrupt to a different irq address?  
+	// should that be saved or coalecsed?
+	// this code would coalesce them
+	pthread_mutex_lock(&(afu->waitasec_lock));
+	if ( afu->waitasec != NULL ) {
+	  // we are already waiting for someone to see the wake_host_thread
+	  pthread_mutex_unlock(&(afu->waitasec_lock));
+	  return 0;
+	}
+
+	size = sizeof(struct ocxl_waitasec);
+
+	afu->waitasec = (struct ocxl_waitasec *)calloc(1, size);
+	afu->waitasec->type = OCXL_EVENT_AFU_INTERRUPT;
+	afu->waitasec->size = size;
+	afu->waitasec->process_element = afu->context; // might not need this
+
+	do {
+		i = write(afu->pipe[1], &(afu->waitasec->type), 1);
+	} while ((i == 0) || (errno == EINTR));
+
+	pthread_mutex_unlock(&(afu->waitasec_lock));
+	return i;
+}
+
+static int _handle_interrupt(struct ocxl_afu_h *afu, uint8_t data_is_valid)
 {
   // LGT idea
 	/* uint64_t irq; */
@@ -148,17 +233,18 @@ static int _handle_interrupt(struct ocxl_afu_h *afu)
 	/* uint8_t data[64]; */
 	/* uint8_t data_valid; */
   // HMP idea
-	uint16_t size;
+	uint16_t size, data_size;
 	//uint8_t data[sizeof(irq)];
 	struct ocxl_irq_h *irq;
 	uint64_t addr;
 	uint8_t cmd_flag;
 	uint8_t adata[8];
+	uint8_t ddata[32];
 	int i;
 
 	if (!afu) fatal_msg("_handle_interrupt:NULL afu passed");
 
-	debug_msg("AFU INTERRUPT");
+	debug_msg("_handle_interrupt:");
 
 	// in opencapi, we should get a 64 bit address (and maybe data)
 	// we should find that address in the afu's irq list
@@ -216,6 +302,23 @@ static int _handle_interrupt(struct ocxl_afu_h *afu)
 	memcpy(&addr, adata, 8);
 	// addr = ntohs(addr);
 	debug_msg("_handle_interrupt: received intrp_req addr 0x%016lx", addr);
+	
+	if (data_is_valid) {  //this is an AFU_CMD_INTRP_REQ_D
+	// For now, up to 32bytes of data is sent over, pulled  from the addr offset 
+	// in the 64B data flit, If you prefer  it floating in a 64B buffer, edit _handle_interrupt in cmd.c
+		if (get_bytes_silent(afu->fd, sizeof(uint16_t), ddata, 1000, 0) < 0) {
+			warn_msg("Socket failure getting data_size");
+			_all_idle(afu);
+			return -1;
+		}
+		memcpy((char *)&data_size, (char *)ddata, sizeof(uint16_t));
+	  	if (get_bytes_silent(afu->fd, data_size, ddata, 1000, 0) < 0) { 
+	    		 warn_msg("Socket failure getting interrupt data "); 
+	     		_all_idle(afu); 
+	     		return -1; 
+
+		}
+	}
 
 	// TODO Update the rest of this to actually search for address and then do 
 	// whatever is needed if it's valid.....
@@ -263,6 +366,7 @@ static int _handle_interrupt(struct ocxl_afu_h *afu)
 	afu->events[i]->header.process_element = afu->context; // might not need this
 	afu->events[i]->irq.irq = addr;  // which came in and matched irq
 	afu->events[i]->irq.flags = cmd_flag;
+	// notice we don't put ddata anywhere - that is because we don't have a place for it in Power ISA's interrupt scheme
 
 	do {
 		i = write(afu->pipe[1], &(afu->events[i]->header.type), 1);
@@ -271,6 +375,7 @@ static int _handle_interrupt(struct ocxl_afu_h *afu)
 	pthread_mutex_unlock(&(afu->event_lock));
 	return i;
 }
+
 
 static int _handle_afu_error(struct ocxl_afu_h *afu)
 {
@@ -456,7 +561,7 @@ static void _handle_ack(struct ocxl_afu_h *afu)
 	if (!afu)
 		fatal_msg("NULL afu passed to libocxl.c:_handle_ack");
 	DPRINTF("MMIO ACK\n");
-	if ((afu->mmio.type == OCSE_MMIO_READ64) | (afu->mmio.type == OCSE_GLOBAL_MMIO_READ64) | (afu->mmio.type == OCSE_MMIO_EBREAD)) {
+	if ((afu->mmio.type == OCSE_MMIO_READ64) | (afu->mmio.type == OCSE_GLOBAL_MMIO_READ64) ) {
 		if (get_bytes_silent(afu->fd, sizeof(uint64_t), data, 1000, 0) <
 		    0) {
 			warn_msg("Socket failure getting MMIO Ack");
@@ -609,8 +714,6 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 	else
 	    atomic_le = 0;
 	//cmd_endian == 0 when afu is LE, our old logic needs atomic_le == 1 for LE
-	//TODO Here is where I stopped updating this function from CAPI2 to OPEN CAPI
-	// Remove and read atomic_le from bit7 of data[0]
 	// if atomic_le == 1, afu is le, so no data issues (ocse is always le).
 	// if atomic_le == 0, we have to swap op1/op2 data before ops, and also swap
 	// data returned by fetches
@@ -640,9 +743,6 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 		warn_msg("unsupported op_size of 0x%2x \n", op_size);
 
 	switch (atomic_op) {
-			/* addr = location of an address aligned 4 or 8 byte first operand (op_A),
- *  which is modified with operand provided by AFU (op_1 or op_1l). AFU also provides the function
- *  encode (op_code). The result is returned to memory, the original value is returned to the AFU as completion data */
 			case AMO_WRMWF_ADD:
 				if  (op_size == 4) {
 				debug_msg("ADD %08"PRIx32" to %08"PRIx32 " store it & only return op_A for amo_rw ", op_A, op_1);
@@ -764,10 +864,6 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 				if (amo_op == OCSE_AMO_WR)
 					wb = 0;
 				break;
-			/* addr = location of an address aligned 4 or 8 byte first operand (op_A),
- * which is compared to the operand provided by AFU (op_1 or (op_1l). AFU also provides the function
- * encode (op_code. If result of compare is true, the third operand provided by AFU (op_2 or op_2l)
- * is written to memory at location specified for op_A. Original value of op_A is returned to AFU. */
 			case AMO_ARMWF_CAS_U:
 				if ((amo_op == OCSE_AMO_WR) || (amo_op == OCSE_AMO_RD)) {
 					info_msg("INVALID FUNCTION CODE FOR AMO_WR or AMO_RD - treated as NOP \n");
@@ -829,12 +925,6 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 				if (amo_op == OCSE_AMO_WR)
 					wb = 0;
 				break;
-			/* addr = location of two address aligned 4 or 8 byte operands.
- * The first operand A is found at the address specified; second operand A2 is found at
- * addr + 4 or addr +8, depending on widths of operands.
- *  • cannot target locations at 32n-2bin2dec(‘1L’), where n = 1,2,3... (armwf_inc_b, armwf_inc_e)
- *  • cannot target locations at 32n, when n = 0, 1, 2, 3... (armwf_dec_b)
- * The original value from memory, or (1 << (s*8 -1)) is returned (s = 4 or 8) */
 			case AMO_ARMWF_INC_B: //0xc0
 			//case AMO_W_CAS_T:
 				if (amo_op == OCSE_AMO_RW)  {
@@ -952,135 +1042,6 @@ static void _handle_DMO_OPs(struct ocxl_afu_h *afu, uint8_t amo_op, uint8_t op_s
 					wb = 2;
 				}
 				break;
-			/* addr = location of an address aligned 4 or 8 byte first operand (op_A),
- *  which is modified with operand provided by AFU (op_1 or op_1l). AFU also provides the function
- *  encode (op_code). The result is returned to memory, the original value is returned to the AFU as completion data */
-/*			case AMO_ARMW_ADD:
-				if  (op_size == 4) {
-				debug_msg("ADD %08"PRIx32" to %08"PRIx32 " and store it  ", op_A, op_1);
-					op_1 += op_A;
-				} else {
-				debug_msg("ADD %016"PRIx64" to %016"PRIx64 " and store it  ", op_Al, op_1l);
-					op_1l += op_Al;
-				}
-				wb = 0;
-				break;
-
-			case AMO_ARMW_XOR:
-				if  (op_size == 4) {
-				debug_msg("XOR %08"PRIx32" with %08"PRIx32 " and store it  ", op_A, op_1);
-					op_1 ^= op_A;
-				} else {
-				debug_msg("XOR %016"PRIx64" with %016"PRIx64 " and store it  ", op_Al, op_1l);
-					op_1l ^= op_Al;
-				}
-				wb = 0;
-				break;
-			case AMO_ARMW_OR:
-				if  (op_size == 4) {
-				debug_msg("OR %08"PRIx32" with %08"PRIx32 " and store it  ", op_A, op_1);
-					op_1 |= op_A;
-				} else {
-				debug_msg("OR %016"PRIx64" with %016"PRIx64 " and store it  ", op_Al, op_1l);
-					op_1l |= op_Al;
-				}
-				wb = 0;
-				break;
-			case AMO_ARMW_AND:
-				if  (op_size == 4) {
-				debug_msg("AND %08"PRIx32" with %08"PRIx32 " and store it ", op_A, op_1);
-					op_1 &= op_A;
-				} else {
-				debug_msg("AND %016"PRIx64" with %016"PRIx64 " and store it  ", op_Al, op_1l);
-					op_1l &= op_Al;
-				}
-				wb = 0;
-				break;
-			case AMO_ARMW_CAS_MAX_U:
-				if  (op_size == 4) {
-				debug_msg("UNSIGNED COMPARE %08"PRIx32" with %08"PRIx32 " store the larger ", op_A, op_1);
-					if (op_A > op_1)
-						op_1 = op_A;
-				} else {
-				debug_msg("UNSIGNED COMPARE %016"PRIx64" with %016"PRIx64 " store the larger  ", op_Al, op_1l);
-					if (op_Al > op_1l)
-						op_1l = op_Al;
-				}
-				wb = 0;
-				break;
-
-			case AMO_ARMW_CAS_MAX_S:
-				// sign extend op_A and op_1 and then cast as int and do comparison
-				if (op_size == 4) {
-					op_A = sign_extend(op_A);
-					op_1 = sign_extend(op_1);
-				debug_msg("SIGNED COMPARE %08"PRIx32" with %08"PRIx32 " store the larger ", op_A, op_1);
-					if ((int32_t)op_A > (int32_t)op_1)
-						op_1 = op_A;
-					wb = 0;
-				} else {
-					op_Al = sign_extend64(op_Al);
-					op_1l = sign_extend64(op_1l);
-				debug_msg("SIGNED COMPARE %016"PRIx64" with %016"PRIx64 " store the larger  ", op_Al, op_1l);
-					if ((int64_t)op_Al > (int64_t)op_1l)
-						op_1l = op_Al;
-					wb = 0;
-				}
-				break;
-			case AMO_ARMW_CAS_MIN_U:
-				if  (op_size == 4) {
-				debug_msg("UNSIGNED COMPARE %08"PRIx32" with %08"PRIx32 " store the smaller ", op_A, op_1);
-					if (op_A < op_1)
-						op_1 = op_A;
-				} else {
-				debug_msg("UNSIGNED COMPARE %016"PRIx64" with %016"PRIx64 " store the smaller  ", op_Al, op_1l);
-					if (op_Al < op_1l)
-						op_1l = op_Al;
-				}
-				wb = 0;
-				break;
-			case AMO_ARMW_CAS_MIN_S:
-				if (op_size == 4) {
-					op_A = sign_extend(op_A);
-					op_1 = sign_extend(op_1);
-				debug_msg("SIGNED COMPARE %08"PRIx32" with %08"PRIx32 " store the smaller ", op_A, op_1);
-					if ((int32_t)op_A < (int32_t)op_1)
-						op_1 = op_A;
-					wb = 0;
-				} else {
-					op_Al = sign_extend64(op_Al);
-					op_1l = sign_extend64(op_1l);
-				debug_msg("SIGNED COMPARE %016"PRIx64" with %016"PRIx64 " store the smaller  ", op_Al, op_1l);
-					if ((int64_t)op_Al < (int64_t)op_1l)
-						op_1l = op_Al;
-					wb = 0;
-				}
-				break; */
-			/* addr = location of two address aligned 4 or 8 byte operands.
- * The first operand A is at addr; second operand A2 is at addr+  or addr+8, depending on widths of operands.
- * The address must be naturally aligned and cannot target locations at 32n-2bin2dec(‘1L’), where n = 1,2,3...
- * The AFU provides a third operand, op_1 or op_1, and will be stored at addr and addr+4 if A1 == A2. */
-/*			case AMO_ARMW_CAS_T:
-				if  (op_size == 4) {
-					memcpy((char *) &lvalue, (void *)addr+4, op_size);
-					op_2 = (uint32_t)(lvalue);
-				debug_msg("STORE TWIN compare %08"PRIx32" with %08"PRIx32 ", if == store op_1 to both locations", op_A, op_2);
-					if (op_A == op_2)
-						op_2 = op_1;
-					else
-						op_1 = op_A;
-					wb = 0;
-				} else {
-					memcpy((char *) &llvalue, (void *)addr+8, op_size);
-					op_2l = (uint64_t)(llvalue);
-				debug_msg("STORE TWIN compare %016"PRIx64" with %016"PRIx64 ", if == store op_1l to both locations", op_Al, op_2l);
-					if (op_Al == op_2l)
-						op_2l = op_1l;
-					else
-						op_1l = op_Al;
-					wb = 0;
-				}
-				break; */
 			default:
 				wb = 0xf;
 				warn_msg("Unsupported AMO command 0x%04x", atomic_op);
@@ -1316,6 +1277,208 @@ static void _mmio_read(struct ocxl_afu_h *afu)
 	afu->mmio.state = LIBOCXL_REQ_PENDING;
 }
 
+static void _mem_map(struct ocxl_afu_h *afu)
+{
+  // _mem_map doesn't really need to do anything for ocse...  the fact that we have a socket is enough
+  // all the information we need is over in ocse already as it has gone through the config space
+
+        // uint8_t *buffer;
+        // uint32_t *flags_ptr;
+        // uint32_t flags;
+        // int size;
+
+
+        if (!afu)
+	      fatal_msg("NULL afu passed to libocxl.c:_mem_map");
+
+	/* size = 1 + sizeof(uint32_t); */
+	/* buffer = (uint8_t *) malloc(size); */
+	/* buffer[0] = afu->mem.type; */
+
+	/* flags = (uint32_t)afu->mmio.data; */
+	/* flags_ptr = (uint32_t *) & (buffer[1]); */
+	/* *flags_ptr = htonl(flags); */
+
+	/* if (put_bytes_silent(afu->fd, size, buffer) != size) { */
+	/* 	free(buffer); */
+	/* 	close_socket(&(afu->fd)); */
+	/* 	afu->opened = 0; */
+	/* 	afu->attached = 0; */
+	/* 	afu->mem.state = LIBOCXL_REQ_IDLE; */
+	/* 	return; */
+	/* } */
+
+	/* free(buffer); */
+
+	afu->mem.state = LIBOCXL_REQ_IDLE; // make pending if we really have to send something to ocse...
+	return;
+}
+
+static void _mem_read(struct ocxl_afu_h *afu)
+{
+	uint8_t *buffer;
+	int buffer_length;
+	int buffer_offset;
+
+	uint32_t offset;
+	uint32_t size;
+
+	debug_msg("_mem_read:");
+
+	if (!afu)
+		fatal_msg("NULL afu passed to libocxl.c:_mem_read");
+
+	// buffer length = 1 byte for type, buffer remainder?, 4 bytes for offset, 4 bytes for size
+	buffer_length = 1 + sizeof(offset) + sizeof(size);
+	debug_msg("_mem_read: buffer length %d", buffer_length);
+	buffer = (uint8_t *)malloc( buffer_length );
+
+	debug_msg("_mem_read: buffer[0]");
+	buffer[0] = afu->mem.type;
+
+	buffer_offset = 1;
+	debug_msg( "_mem_read: buffer[%d]", buffer_offset );
+	offset = htonl(afu->mem.addr);
+	memcpy( (char *)&(buffer[buffer_offset]), (char *)&offset, sizeof(offset));
+	buffer_offset += sizeof(offset);
+
+	debug_msg( "_mem_read: buffer[%d]", buffer_offset );
+	size = htonl(afu->mem.size);
+	memcpy((char *)&(buffer[buffer_offset]), (char *)&size, sizeof(size));
+
+	if (put_bytes_silent(afu->fd, buffer_length, buffer) != buffer_length) {
+		free(buffer);
+		close_socket(&(afu->fd));
+		afu->opened = 0;
+		afu->attached = 0;
+		afu->mem.state = LIBOCXL_REQ_IDLE;
+		return;
+	}
+
+	free(buffer);
+	afu->mem.state = LIBOCXL_REQ_PENDING;
+}
+
+static void _mem_write(struct ocxl_afu_h *afu)
+{
+	uint8_t *buffer;
+	int buffer_length;
+	int buffer_offset;
+
+	uint32_t offset;
+	uint32_t size;
+
+	debug_msg("_mem_write:");
+
+	if (!afu)
+		fatal_msg("NULL afu passed to libocxl.c:_mem_write");
+
+	// buffer length = 1 byte for type, buffer remainder?, 4 bytes for offset, n bytes for size, m bytes for data
+	buffer_length = 1 + sizeof(offset) + sizeof(size) + afu->mem.size;
+	debug_msg("_mem_write: buffer length %d", buffer_length);
+	buffer = (uint8_t *)malloc( buffer_length );
+
+	debug_msg("_mem_write: buffer[0]");
+	buffer[0] = afu->mem.type;
+
+	buffer_offset = 1;
+	debug_msg( "_mem_write: buffer[%d]", buffer_offset );
+	offset = htonl(afu->mem.addr);
+	memcpy( (char *)&(buffer[buffer_offset]), (char *)&offset, sizeof(offset));
+	buffer_offset += sizeof(offset);
+
+	debug_msg( "_mem_write: buffer[%d]", buffer_offset );
+	size = htonl(afu->mem.size);
+	memcpy((char *)&(buffer[buffer_offset]), (char *)&size, sizeof(size));
+	buffer_offset += sizeof(size);
+
+	// data = htonll(afu->mmio.data);
+	debug_msg( "_mem_write: buffer[%d]", buffer_offset );
+	memcpy( (char *)&(buffer[buffer_offset]), afu->mem.data, afu->mem.size );
+	if (put_bytes_silent(afu->fd, buffer_length, buffer) != buffer_length) {
+		free(buffer);
+		close_socket(&(afu->fd));
+		afu->opened = 0;
+		afu->attached = 0;
+		afu->mem.state = LIBOCXL_REQ_IDLE;
+		return;
+	}
+
+	free(buffer);
+	afu->mem.state = LIBOCXL_REQ_PENDING;
+}
+
+static void _mem_write_be(struct ocxl_afu_h *afu)
+{
+	uint8_t *buffer;
+	int buffer_length;
+	int buffer_offset;
+
+	uint32_t offset;
+	uint64_t be;
+
+	debug_msg("_mem_write_be:");
+
+	if (!afu)
+		fatal_msg("NULL afu passed to libocxl.c:_mem_write");
+
+	// buffer length = 1 byte for type, 4 bytes for offset, 8 bytes for be, 64 bytes for data
+	buffer_length = 1 + sizeof(offset) + sizeof( be ) + afu->mem.size;
+	debug_msg("_mem_write_be: buffer length %d", buffer_length);
+	buffer = (uint8_t *)malloc( buffer_length );
+
+	debug_msg("_mem_write_be: buffer[0]");
+	buffer[0] = afu->mem.type;
+
+	buffer_offset = 1;
+	debug_msg( "_mem_write_be: buffer[%d]", buffer_offset );
+	offset = htonl(afu->mem.addr);
+	memcpy( (char *)&(buffer[buffer_offset]), (char *)&offset, sizeof(offset));
+	buffer_offset += sizeof(offset);
+
+	debug_msg( "_mem_write: buffer[%d]", buffer_offset );
+	be = htonl(afu->mem.be);
+	memcpy((char *)&(buffer[buffer_offset]), (char *)&be, sizeof(be));
+	buffer_offset += sizeof(be);
+
+	// data = htonll(afu->mmio.data);
+	debug_msg( "_mem_write: buffer[%d]", buffer_offset );
+	memcpy( (char *)&(buffer[buffer_offset]), afu->mem.data, afu->mem.size );
+	if (put_bytes_silent(afu->fd, buffer_length, buffer) != buffer_length) {
+		free(buffer);
+		close_socket(&(afu->fd));
+		afu->opened = 0;
+		afu->attached = 0;
+		afu->mem.state = LIBOCXL_REQ_IDLE;
+		return;
+	}
+
+	free(buffer);
+	afu->mem.state = LIBOCXL_REQ_PENDING;
+}
+
+static void _handle_mem_ack(struct ocxl_afu_h *afu)
+{
+	debug_msg( "_handle_mem_ack" );
+
+	if (!afu)
+		fatal_msg("NULL afu passed to libocxl.c:_handle_mem_ack");
+
+	if ( afu->mem.type == OCSE_LPC_READ ) {
+	        // assuming it all worked, we already know the size in afu->mem.size
+	        debug_msg( "_handle_mem_ack: getting %d bytes from socket", afu->mem.size );
+		afu->mem.data = (uint8_t *)malloc( afu->mem.size );
+		if (get_bytes_silent(afu->fd, afu->mem.size, afu->mem.data, 1000, 0) < 0) {
+		      warn_msg("Socket failure getting MEM Ack data");
+		      free( afu->mem.data );
+		      _all_idle(afu);
+		}
+	}
+
+	afu->mem.state = LIBOCXL_REQ_IDLE;
+}
+
+
 static void *_psl_loop(void *ptr)
 {
 	struct ocxl_afu_h *afu = (struct ocxl_afu_h *)ptr;
@@ -1352,12 +1515,29 @@ static void *_psl_loop(void *ptr)
 			case OCSE_GLOBAL_MMIO_WRITE32:
 				_mmio_write32(afu);
 				break;
-			case OCSE_MMIO_EBREAD:
 			case OCSE_MMIO_READ64:
 			case OCSE_MMIO_READ32:	
 			case OCSE_GLOBAL_MMIO_READ64:
 			case OCSE_GLOBAL_MMIO_READ32: /*fall through */
 				_mmio_read(afu);
+				break;
+			default:
+				break;
+			}
+		}
+		if (afu->mem.state == LIBOCXL_REQ_REQUEST) {
+			switch (afu->mem.type) {
+			case OCSE_LPC_MAP:
+				_mem_map(afu);
+				break;
+			case OCSE_LPC_WRITE:
+				_mem_write(afu);
+				break;
+			case OCSE_LPC_WRITE_BE:
+				_mem_write_be(afu);
+				break;
+			case OCSE_LPC_READ:
+				_mem_read(afu);
 				break;
 			default:
 				break;
@@ -1379,7 +1559,7 @@ static void *_psl_loop(void *ptr)
 			break;
 		}
 
-		DPRINTF("OCL EVENT\n");
+		debug_msg("OCL EVENT = 0x%02x\n", buffer[0]);
 		switch (buffer[0]) {
 		case OCSE_OPEN:
 			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
@@ -1402,6 +1582,7 @@ static void *_psl_loop(void *ptr)
 			afu->open.state = LIBOCXL_REQ_IDLE;
 			afu->attach.state = LIBOCXL_REQ_IDLE;
 			afu->mmio.state = LIBOCXL_REQ_IDLE;
+			afu->mem.state = LIBOCXL_REQ_IDLE;
 			afu->int_req.state = LIBOCXL_REQ_IDLE;
 			break;
 		case OCSE_MAX_INT:
@@ -1697,16 +1878,34 @@ static void *_psl_loop(void *ptr)
 		case OCSE_MMIO_ACK:
 			_handle_ack(afu);
 			break;
-		case OCSE_INTERRUPT:
-			if (_handle_interrupt(afu) < 0) {
+		case OCSE_LPC_ACK:
+			_handle_mem_ack(afu);
+			break;
+		case OCSE_INTERRUPT_D:
+			debug_msg("AFU INTERRUPT D");
+			if (_handle_interrupt(afu, 1) < 0) {
 				perror("Interrupt Failure");
-				goto psl_fail;
+				goto ocl_fail;
+			}
+			break;
+		case OCSE_INTERRUPT:
+			debug_msg("AFU INTERRUPT");
+			if (_handle_interrupt(afu, 0) < 0) {
+				perror("Interrupt Failure");
+				goto ocl_fail;
+			}
+			break;
+		case OCSE_WAKE_HOST_THREAD:
+			debug_msg("AFU WAKE HOST THREAD");
+			if (_handle_wake_host_thread(afu) < 0) {
+				perror("Wake Host Thread Failure");
+				goto ocl_fail;
 			}
 			break;
 		case OCSE_AFU_ERROR:
 			if (_handle_afu_error(afu) < 0) {
 				perror("AFU ERROR Failure");
-				goto psl_fail;
+				goto ocl_fail;
 			}
 			break;
 		default:
@@ -1715,7 +1914,7 @@ static void *_psl_loop(void *ptr)
 		}
 	}
 
- psl_fail:
+ ocl_fail:
 	afu->attached = 0;
 	pthread_exit(NULL);
 }
@@ -1842,7 +2041,6 @@ static struct ocxl_afu_h *_new_afu(uint16_t afu_map, uint16_t position, int fd)
 	uint8_t *buffer;
 	int size;
 	struct ocxl_afu_h *afu;
-	uint16_t adapter_mask = 0xf000;
 	uint16_t afu_mask = 0x8000;
 	int major = 0;
 	int minor = 0;
@@ -1851,14 +2049,9 @@ static struct ocxl_afu_h *_new_afu(uint16_t afu_map, uint16_t position, int fd)
 		errno = ENODEV;
 		return NULL;
 	}
-	while ((position & adapter_mask) == 0) {
-		adapter_mask >>= 4;
-		afu_mask >>= 4;
-		++major;
-	}
 	while ((position & afu_mask) == 0) {
 		afu_mask >>= 1;
-		++minor;
+		++major;
 	}
 
 	afu = (struct ocxl_afu_h *)calloc(1, sizeof(struct ocxl_afu_h));
@@ -1873,7 +2066,7 @@ static struct ocxl_afu_h *_new_afu(uint16_t afu_map, uint16_t position, int fd)
 	pthread_mutex_init(&(afu->event_lock), NULL);
 	afu->fd = fd;
 	afu->map = afu_map;
-	afu->dbg_id = (major << 4) | minor;
+	afu->dbg_id = major;
 	debug_msg("opened host-side socket %d", afu->fd);
 
 	// Send OCSE query
@@ -1952,7 +2145,7 @@ static void _release_adapters(struct ocxl_adapter_h *adapter)
 }
 
 static struct ocxl_afu_h *_ocse_open(int *fd, uint16_t afu_map, uint8_t major,
-				     uint8_t minor, char afu_type)
+				     uint8_t minor)
 {
 	struct ocxl_afu_h *afu;
 	uint8_t *buffer;
@@ -1961,8 +2154,11 @@ static struct ocxl_afu_h *_ocse_open(int *fd, uint16_t afu_map, uint8_t major,
 	if ( !fd )
 		fatal_msg( "NULL fd passed to libocxl.c:_ocse_open" );
 	position = 0x8000;
-	position >>= 4 * major;
-	position >>= minor;
+	//position >>= 4 * major;
+	//position >>= minor;
+	position >>= major;
+	debug_msg("afu_map = 0x%04x", afu_map);
+	debug_msg("position = 0x%04x", position);
 	if ((afu_map & position) != position) {
 		warn_msg("open: AFU not in system");
 		close_socket(fd);
@@ -1978,9 +2174,9 @@ static struct ocxl_afu_h *_ocse_open(int *fd, uint16_t afu_map, uint8_t major,
 	buffer = (uint8_t *) calloc(1, MAX_LINE_CHARS);
 	buffer[0] = (uint8_t) OCSE_OPEN;
 	buffer[1] = afu->dbg_id;
-	buffer[2] = afu_type;
+	// buffer[2] = afu_type;
 	afu->fd = *fd;
-	if (put_bytes_silent(afu->fd, 3, buffer) != 3) {
+	if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
 		warn_msg("open:Failed to write to socket");
 		free(buffer);
 		goto open_fail;
@@ -2009,7 +2205,7 @@ static struct ocxl_afu_h *_ocse_open(int *fd, uint16_t afu_map, uint8_t major,
 		goto open_fail;
 	}
 
-	sprintf(afu->id, "afu%d.%d", major, minor);
+	sprintf(afu->id, "tlx%d", major);
 
 	return afu;
 
@@ -2266,31 +2462,42 @@ struct ocxl_afu_h *ocxl_afu_open_dev(char *path)
         // lgt - this part will change for opencapi, but is ok for now.
 	//       afu_type will always be directed, may not have a master/slave distinction
 	//       major and minor are yet to be defined.
+	// afu_map is now simply a number...
+	// the name is temporarily tlxM where M can be 0 - F
+	// type is no longer relevant
 	afu_id = strrchr(path, '/');
 	afu_id++;
-	if ((afu_id[3] < '0') || (afu_id[3] > '3')) {
+	debug_msg("afu id = %s", afu_id);
+	// check and map id[3] to an integer - be mindful of the hex upper/lower case character
+	if ( (afu_id[3] >= '0') && (afu_id[3] <= '9') ) {
+	  major = afu_id[3] - '0';
+	} else if ( (afu_id[3] >= 'A') && (afu_id[3] <= 'F') ) {
+	  major = afu_id[3] - 'A' + 10;
+	} else if ( (afu_id[3] >= 'a') && (afu_id[3] <= 'f') ) {
+	  major = afu_id[3] - 'a' + 10;
+	} else {
 		warn_msg("Invalid afu major: %c", afu_id[3]);
 		errno = ENODEV;
 		return NULL;
 	}
-	if ((afu_id[5] < '0') || (afu_id[5] > '3')) {
-		warn_msg("Invalid afu minor: %c", afu_id[5]);
-		errno = ENODEV;
-		return NULL;
-	}
-	major = afu_id[3] - '0';
-	minor = afu_id[5] - '0';
-	afu_type = afu_id[6];
+	debug_msg("major number = 0x%01x", major);
+	// if ((afu_id[5] < '0') || (afu_id[5] > '3')) {
+	// 	warn_msg("Invalid afu minor: %c", afu_id[5]);
+	//	errno = ENODEV;
+	// 	return NULL;
+	// }
+	minor = 0; // afu_id[5] - '0';  // minor is no longer used
+	afu_type = 'o';                 // afu_type is no longer used
 
-	return _ocse_open(&fd, afu_map, major, minor, afu_type);
+	return _ocse_open(&fd, afu_map, major, minor);
 }
 
 struct ocxl_afu_h *ocxl_afu_open_h(struct ocxl_afu_h *afu)
 {
 	uint8_t major, minor;
 	uint16_t mask;
-	char afu_type;
-	enum ocxl_views view = OCXL_VIEW_SLAVE;
+	// char afu_type;
+	// enum ocxl_views view = OCXL_VIEW_SLAVE;
 
 	if (afu == NULL) {
 		errno = EINVAL;
@@ -2313,24 +2520,24 @@ struct ocxl_afu_h *ocxl_afu_open_h(struct ocxl_afu_h *afu)
 		mask >>= 1;
 		minor++;
 	}
-	switch (view) {
-	case OCXL_VIEW_DEDICATED:
-		afu_type = 'd';
-		// afu->mode = OCXL_MODE_DEDICATED;
-		break;
-	case OCXL_VIEW_MASTER:
-		afu_type = 'm';
-		// afu->mode = OCXL_MODE_DIRECTED;
-		break;
-	case OCXL_VIEW_SLAVE:
-		afu_type = 's';
-		// afu->mode = OCXL_MODE_DIRECTED;
-		break;
-	default:
-		errno = ENODEV;
-		return NULL;
-	}
-	return _ocse_open(&(afu->fd), afu->map, major, minor, afu_type);
+	/* switch (view) { */
+	/* case OCXL_VIEW_DEDICATED: */
+	/* 	afu_type = 'd'; */
+	/* 	// afu->mode = OCXL_MODE_DEDICATED; */
+	/* 	break; */
+	/* case OCXL_VIEW_MASTER: */
+	/* 	afu_type = 'm'; */
+	/* 	// afu->mode = OCXL_MODE_DIRECTED; */
+	/* 	break; */
+	/* case OCXL_VIEW_SLAVE: */
+	/* 	afu_type = 's'; */
+	/* 	// afu->mode = OCXL_MODE_DIRECTED; */
+	/* 	break; */
+	/* default: */
+	/* 	errno = ENODEV; */
+	/* 	return NULL; */
+	/* } */
+	return _ocse_open(&(afu->fd), afu->map, major, minor);
 }
 
 void ocxl_afu_free(struct ocxl_afu_h *afu)
@@ -2375,7 +2582,7 @@ int ocxl_afu_opened(struct ocxl_afu_h *afu)
 	return afu->opened;
 }
 
-int ocxl_afu_attach(struct ocxl_afu_h *afu, uint64_t amr)
+int ocxl_afu_attach(struct ocxl_afu_h *afu)
 {
 	if (!afu) {
 		errno = EINVAL;
@@ -2394,7 +2601,7 @@ int ocxl_afu_attach(struct ocxl_afu_h *afu, uint64_t amr)
 		return -1;
 	}
 	// Perform OCSE attach
-	// lgt - dont need to send amr
+	// lgt - dont need to send amr - in fact, the parameter is gone now
 	// we don't model the change in permissions
 	afu->attach.state = LIBOCXL_REQ_REQUEST;
 	while (afu->attach.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
@@ -2630,6 +2837,9 @@ int ocxl_read_event(struct ocxl_afu_h *afu, struct ocxl_event *event)
 		errno = EINVAL;
 		return -1;
 	}
+
+	debug_msg("ocxl_read_event: waiting for event");
+
 	// Function will block until event occurs
 	pthread_mutex_lock(&(afu->event_lock));
 	while (afu->opened && !afu->events[0]) {	/*infinite loop */
@@ -2639,6 +2849,7 @@ int ocxl_read_event(struct ocxl_afu_h *afu, struct ocxl_event *event)
 		pthread_mutex_lock(&(afu->event_lock));
 	}
 
+	debug_msg("ocxl_read_event: received event");
 	// Copy event data, free and move remaining events in queue
 	memcpy(event, afu->events[0], afu->events[0]->header.size);
 	free(afu->events[0]);
@@ -3318,5 +3529,38 @@ int ocxl_work_set_wed(struct ocxl_ioctl_start_work *work, __u64 wed)
 	}
 	work->work_element_descriptor = wed;
 	return 0;
+}
+
+// ocxl_sleep should behave very much like read_event
+// however, I don't think we can use the event structure as is
+// maybe create another event struct so that interrupt events and 
+// wake host thread events cannot collide or stall each other.
+// only one waitasec at a time in a context/afu pair
+int ocxl_sleep(struct ocxl_afu_h *afu)
+{
+        struct ocxl_waitasec waitasec;
+	uint8_t type;
+	//int i;
+
+	if (afu == NULL ) {
+		errno = EINVAL;
+		return -1;
+	}
+	// Function will block until event occurs
+	pthread_mutex_lock( &(afu->waitasec_lock) );
+	while ( afu->opened && !afu->waitasec ) {	/*infinite loop */
+		pthread_mutex_unlock( &(afu->waitasec_lock) );
+		if (_delay_1ms() < 0)
+			return -1;
+		pthread_mutex_lock(&(afu->waitasec_lock));
+	}
+
+	// Copy event data, free and move remaining events in queue
+	memcpy( &waitasec, afu->waitasec, sizeof( struct ocxl_waitasec ) );
+	free( afu->waitasec );
+	pthread_mutex_unlock( &(afu->waitasec_lock) );
+	if (read(afu->pipe[0], &type, 1) > 0)
+		return 0;
+	return -1;
 }
 

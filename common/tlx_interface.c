@@ -501,7 +501,7 @@ int tlx_afu_send_cmd(struct AFU_EVENT *event,
 	debug_msg( "tlx_afu_send_cmd: afu_tlx_cmd_credits_available = %d", event->afu_tlx_cmd_credits_available );
 
 	if (event->afu_tlx_cmd_credits_available == 0) {
-	        warn_msg("      no command credits availble");
+	        warn_msg("      no command credits available");
 		return AFU_TLX_NO_CREDITS;
 	}
   	if ((tlx_cmd_opcode == TLX_CMD_CONFIG_READ) && (tlx_cmd_opcode == TLX_CMD_CONFIG_WRITE)) {
@@ -512,7 +512,7 @@ int tlx_afu_send_cmd(struct AFU_EVENT *event,
 		return TLX_AFU_DOUBLE_COMMAND;
 	} else {
 		event->afu_tlx_cmd_credits_available -= 1;
-		debug_msg("      afu_tlx_cmd_credits available is now %d", event->afu_tlx_cmd_credits_available);
+		debug_msg("      afu_tlx_cmd_credits_available is now %d", event->afu_tlx_cmd_credits_available);
 		event->tlx_afu_cmd_valid = 1;
 		event->tlx_afu_cmd_opcode = tlx_cmd_opcode;
 		event->tlx_afu_cmd_capptag = cmd_capptag;
@@ -548,10 +548,11 @@ int tlx_afu_send_cmd_data(struct AFU_EVENT *event,
 	event->tlx_afu_cmd_data_bdi = cmd_data_bdi;
 	memcpy(event->tlx_afu_cmd_data_bus, cmd_data, cmd_byte_cnt);
 	event->tlx_afu_cmd_data_byte_cnt = cmd_byte_cnt;
-	printf("cnd_rd_cnt is 0x%2x \n", event->afu_tlx_cmd_rd_cnt);
+	printf("cmd_rd_cnt is 0x%2x \n", event->afu_tlx_cmd_rd_cnt);
 	event->tlx_afu_cmd_data_valid = 1;
 	//may not be best place to do this but it has to be done
-	event->afu_tlx_cmd_rd_cnt = 0;
+	//event->afu_tlx_cmd_rd_cnt = 0; 
+	event->afu_tlx_cmd_rd_cnt -= 1; 
 	event->afu_tlx_cmd_rd_req = 0;
 	return TLX_SUCCESS;
 }
@@ -938,12 +939,17 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 	if ( bp == 5)
 		bp = 1;
 
+#ifdef DEBUG
 	// dump tbuf
-	if ( bp > 1 ) {
-	  printf( "lgt: tlx_signal_afu_model: tbuf length:0x%02x tbuf: 0x", bp );
-	  for ( i = 0; i < bp; i++ ) printf( "%02x", event->tbuf[i] );
-	  printf( "\n" );
+        // if (event->tbuf[0] != 0x40) { // but not for just a clock
+	if (event->tbuf[0] != 0x41) { // but not for just a clock and credit return
+	  if ( bp > 1 ) {
+	    printf( "lgt: tlx_signal_afu_model: tbuf length:0x%02x tbuf: 0x", bp );
+	    for ( i = 0; i < bp; i++ ) printf( "%02x", event->tbuf[i] );
+	    printf( "\n" );
+	  }
 	}
+#endif
 
 	bl = bp;
 	bp = 0;
@@ -1087,10 +1093,10 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 	if ( bp == 5)
 		bp = 1;
 
-#ifdef DEBUG1
+#ifdef DEBUG
         // dump tbuf
-        if (event->tbuf[0] != 0x10) { // but not for just a clock
-	// if (event->tbuf[0] != 0x11) { // but not for just a clock and credit return
+        // if (event->tbuf[0] != 0x10) { // but not for just a clock
+	if (event->tbuf[0] != 0x11) { // but not for just a clock and credit return
 	  if ( bp > 1 ) {
 	    printf( "lgt: tlx_signal_tlx_model: tbuf length:0x%02x tbuf: 0x", bp );
 	    for ( i = 0; i < bp; i++ ) printf( "%02x", event->tbuf[i] );
@@ -1133,7 +1139,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 	FD_ZERO(&watchset);
 	FD_SET(event->sockfd, &watchset);
 	select(event->sockfd + 1, &watchset, NULL, NULL, NULL);
-        debug_msg("tlx_get_afu_events:");
+        //debug_msg("tlx_get_afu_events:");
 	if (event->rbp == 0) {
 		if ((bc = recv(event->sockfd, event->rbuf, 1, 0)) == -1) {
 			if (errno == EWOULDBLOCK) {
@@ -1238,8 +1244,8 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 
 #ifdef DEBUG
 	// dump rbuf
-	if (event->rbuf[0]  != 0x10) { // except when just a clock
-	// if (event->rbuf[0]  != 0x11) { // except when just a clock and credit return
+	// if (event->rbuf[0]  != 0x10) { // except when just a clock
+	if (event->rbuf[0]  != 0x11) { // except when just a clock and credit return
 		printf( "lgt: tlx_get_afu_events: rbuf length:0x%02x rbuf: 0x", rbc );
 		for ( i = 0; i < rbc; i++ ) printf( "%02x", event->rbuf[i] );
 		printf( "\n" );
@@ -1534,9 +1540,6 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 	if (event->rbuf[0] & 0x10) {
 		event->tlx_afu_cmd_valid = 1;
 		 printf("tlx_get_tlx_events: just set tlx_afu_cmd_valid = %d \n", event->tlx_afu_cmd_valid);
-		// right now, tlx_interface is sending back credits to ocse...AFU should do this
-		event->afu_tlx_cmd_credit = 1;
-		event->afu_tlx_credit_req_valid = 1;
 		event->tlx_afu_cmd_opcode = event->rbuf[rbc++];
 		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
 		event->tlx_afu_cmd_capptag = event->rbuf[rbc++];
@@ -1594,9 +1597,6 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 	if (event->rbuf[0] & 0x04) {
 		event->tlx_afu_resp_valid = 1;
 		// printf("tlx_get_tlx_events: just set tlx_afu_resp_valid = %d \n", event->tlx_afu_resp_valid);
-		// right now, tlx_interface is sending back credits to ocse...AFU should do this
-		event->afu_tlx_resp_credit = 1;
-		event->afu_tlx_credit_req_valid = 1;
 		event->tlx_afu_resp_opcode = event->rbuf[rbc++];
 		// printf("tlx_get_tlx_events: event->rbuf[0x%02x] = 0x%02x\n", rbc, event->rbuf[rbc] );
 		event->tlx_afu_resp_afutag = event->rbuf[rbc++];

@@ -159,6 +159,7 @@ AFU::start ()
 	if (afu_event.tlx_cfg_resp_ack) {
 	    debug_msg("AFU: Received TLX config response 0x%x", afu_event.tlx_afu_resp_opcode);
 	    afu_event.cfg_tlx_credit_return = 1;	
+	    afu_event.afu_tlx_credit_req_valid = 1;	
 	    afu_event.tlx_cfg_resp_ack = 0;
 	}
 	// process tlx response data
@@ -304,7 +305,7 @@ AFU::~AFU ()
     for (std::map < uint16_t, MachineController * >::iterator it =
                 context_to_mc.begin (); it != context_to_mc.end (); ++it)
         delete it->second;
-
+  
     context_to_mc.clear ();
 }
 
@@ -435,7 +436,8 @@ AFU::resolve_tlx_afu_cmd()
 	error_msg("Failed: tlx_afu_read_cmd");
 	}
     }
-    
+
+    afu_event.tlx_afu_cmd_opcode = cmd_opcode;
     afu_event.afu_tlx_resp_capptag = cmd_capptag;
     info_msg("AFU:resolve_tlx_afu_cmd");
     info_msg("cmd_opcode = 0x%x", cmd_opcode);
@@ -457,6 +459,9 @@ AFU::resolve_tlx_afu_cmd()
 	case TLX_CMD_AMO_RW:
 	case TLX_CMD_AMO_W:
 	case TLX_CMD_WRITE_MEM:
+	    debug_msg("AFU: wr_mem cmd");
+	    tlx_pr_wr_mem();
+	    break;
 	case TLX_CMD_WRITE_MEM_BE:
 	case TLX_CMD_WRITE_META:
 	case TLX_CMD_PR_WR_MEM:
@@ -593,6 +598,9 @@ AFU::resolve_tlx_afu_resp()
 	case TLX_RSP_READ_RESP_OW:
 	case TLX_RSP_READ_RESP_XW:
 	case TLX_RSP_WAKE_HOST_RESP:
+	    printf("Received wake host response code = 0x%x\n", resp_code);
+	    write_app_status(status_address, 0x0);
+	    break;
 	case TLX_RSP_CL_RD_RESP_OW:
 	default:
 	    break;
@@ -808,13 +816,29 @@ AFU::tlx_pr_rd_mem()
     afu_tlx_rdata_valid = 0x0;
     afu_tlx_resp_capptag = afu_event.tlx_afu_cmd_capptag;
 
-    //mem_offset = afu_event.tlx_afu_cmd_pa;
-    if(afu_event.tlx_afu_cmd_pl == 3)
-	data_size = 8;
-    else if(afu_event.tlx_afu_cmd_pl == 2)
-	data_size = 4;
+    debug_msg("AFU: tlx_pr_rd_mem");
+    // calculate data size
+    switch(afu_event.tlx_afu_cmd_opcode) {
+	case TLX_CMD_RD_MEM:	// 0x20
+	    printf("AFU: TLX_CMD_RD_MEM 0x20\n");
+	    if(afu_event.tlx_afu_cmd_dl == 1)
+		data_size = 64;
+	    else if(afu_event.tlx_afu_cmd_dl == 2)
+		data_size = 128;
+	    else if(afu_event.tlx_afu_cmd_dl == 3)
+		data_size = 256;
+	    break;
+	case TLX_CMD_PR_RD_MEM:	// 0x28
+	    printf("AFU: TLX_CMD_PR_RD_MEM 0x28\n");
+    	    if(afu_event.tlx_afu_cmd_pl == 3)
+		data_size = 8;
+    	    else if(afu_event.tlx_afu_cmd_pl == 2)
+		data_size = 4;
+	    break;
+	default:
+	    break;
+    }
 
-    debug_msg("AFU:tlx_pr_rd_mem");
     if(is_mmio_addr(afu_event.tlx_afu_cmd_pa)) {    
     // mmio read data
 	mem_offset = afu_event.tlx_afu_cmd_pa;
@@ -836,8 +860,20 @@ AFU::tlx_pr_rd_mem()
 	    error_msg("AFU: No response credit available");
     	}
     }
-    else {
-	printf("AFU: addr = 0x%ul is not mmio address\n");
+    else {	// lpc memory space
+	printf("AFU: lpc addr = 0x%lx \n");
+	lpc.read_lpc_mem(afu_event.tlx_afu_cmd_pa, data_size, afu_event.afu_tlx_rdata_bus);
+	if(TagManager::request_tlx_credit(RESP_CREDIT)) {
+	    if(afu_tlx_send_resp_and_data(&afu_event, afu_tlx_resp_opcode, afu_tlx_resp_dl,
+		afu_tlx_resp_capptag, afu_event.afu_tlx_resp_dp,
+		afu_tlx_resp_code, afu_tlx_rdata_valid,
+		afu_event.afu_tlx_rdata_bus, afu_event.afu_tlx_rdata_bad) != TLX_SUCCESS) {
+		error_msg("AFU: Failed afu_tlx_send_resp_and_data");
+	    }
+	}
+	else {
+	    error_msg("AFU: No response credit available");
+	}
     }
 }
 
@@ -878,18 +914,34 @@ AFU::tlx_pr_wr_mem()
 		TLX_SUCCESS) {
 		printf("AFU: Failed tlx_afu_read_cmd_data\n");
 	    }
-	if(afu_event.tlx_afu_cmd_pl == 3)
-	    data_size = 8;
-	else if(afu_event.tlx_afu_cmd_pl == 2)
-	    data_size = 4;
-	printf("mem_data = 0x");
+	switch (afu_event.tlx_afu_cmd_opcode) {
+	    case TLX_CMD_WRITE_MEM:
+		if(afu_event.tlx_afu_cmd_dl == 1)
+		    data_size = 64;
+		else if(afu_event.tlx_afu_cmd_dl == 2)
+		    data_size == 128;
+		else if(afu_event.tlx_afu_cmd_dl == 3)
+		    data_size == 256;
+		break;
+	    case TLX_CMD_PR_WR_MEM:
+		if(afu_event.tlx_afu_cmd_pl == 3)
+	    	    data_size = 8;
+		else if(afu_event.tlx_afu_cmd_pl == 2)
+	    	    data_size = 4;
+		break;
+	    default:
+		break;
+	}
+	printf("wr cmd data bus = 0x");
 	for(int i=0; i<64; i++)
 	    printf("%02x", afu_event.tlx_afu_cmd_data_bus[i]);
 	printf("\n");
-	byte_shift(afu_event.tlx_afu_cmd_data_bus, data_size, byte_offset, LEFT);
-	memcpy(&mem_data, afu_event.tlx_afu_cmd_data_bus, data_size);
-	debug_msg("mem_data offset = 0x%x mem_data = 0x%016llx", cmd_pa, mem_data);
-	if(is_mmio_addr(afu_event.tlx_afu_cmd_pa)) {
+	//byte_shift(afu_event.tlx_afu_cmd_data_bus, data_size, byte_offset, LEFT);
+	//memcpy(&mem_data, afu_event.tlx_afu_cmd_data_bus, data_size);
+	//debug_msg("mem_data offset = 0x%x mem_data = 0x%016llx", cmd_pa, mem_data);
+	if(is_mmio_addr(afu_event.tlx_afu_cmd_pa)) {	// mmio address space
+	    byte_shift(afu_event.tlx_afu_cmd_data_bus, data_size, byte_offset, LEFT);
+	    memcpy(&mem_data, afu_event.tlx_afu_cmd_data_bus, data_size);
 	    // mmio write
 	    descriptor.set_mmio_mem(cmd_pa, (char*)&mem_data, data_size);
 	    //descriptor.set_port_reg(cmd_pa, mem_data);
@@ -907,16 +959,26 @@ AFU::tlx_pr_wr_mem()
 	    debug_msg("set mem_state = IDLE");
 	    mem_state = IDLE;
 	}
-	else {
-	    printf("AFU:addr = 0x%llx is not mmio address space\n", afu_event.tlx_afu_cmd_pa);
+	else { 	// lpc memory address space
+	    printf("AFU: lpc addr = 0x%lx\n", afu_event.tlx_afu_cmd_pa);
+	    printf("AFU: cmd data bus addr = 0x%lx\n", afu_event.tlx_afu_cmd_data_bus);
+	    lpc.write_lpc_mem(afu_event.tlx_afu_cmd_pa, data_size, afu_event.tlx_afu_cmd_data_bus);
+	    if(TagManager::request_tlx_credit(RESP_CREDIT)) {
+		if(afu_tlx_send_resp(&afu_event, afu_resp_opcode, resp_dl, resp_capptag,
+			resp_dp, resp_code) != TLX_SUCCESS) {
+		    printf("AFU: Failed afu_tlx_send_resp\n");
+		}
+	    }
+	    debug_msg("set mem_state = IDLE");
+	    mem_state = IDLE;
 	}
     }
 }
 uint32_t
 AFU::is_mmio_addr(uint64_t addr)
 {
-    printf("AFU: mmio addr = 0x%016llx\n", addr);
-    printf("AFU: bar addr  = 0x%016llx\n", bar);
+    printf("AFU: mmio addr = 0x%016lx\n", addr);
+    printf("AFU: bar addr  = 0x%016lx\n", bar);
     addr = addr & 0xFFFFFFFFFFF10000;
     if(addr >= bar && addr < bar+0x10000) {
 	return 1;

@@ -4,7 +4,7 @@ include Makefile.vars
 include Makefile.rules
 
 OBJS = tlx_interface.o utils.o debug.o
-CPPOBJS = Descriptor.o AFU.o TagManager.o MachineController.o Machine.o Commands.o
+CPPOBJS = Descriptor.o AFU.o TagManager.o MachineController.o Machine.o Commands.o Lpc.o
 
 all: afu
 

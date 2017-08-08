@@ -26,9 +26,6 @@
 #include "../common/tlx_interface.h"
 #include "../common/utils.h"
 
-#define PROG_MODEL_MASK 0x7fff
-#define PROG_MODEL_DEDICATED 0x0010
-#define PROG_MODEL_DIRECTED 0x0004
 #define MMIO_FULL_RANGE 0x4000000
 #define PSA_MASK             0x00FFFFFFFFFFFFFFL
 #define PSA_REQUIRED         0x0100000000000000L
@@ -40,10 +37,12 @@
 #define CXL_MMIO_ENDIAN_MASK 0x3
 
 
+// need to abstract dw - add a size element
+// need to allow for dl and dp - add dl and dp elements
 struct mmio_event {
 	uint32_t rnw;
 	uint32_t dw;    // TODO remove this ?  Maybe, we need to know 4/8 byte mmio  cmd_pL is an encoded length
-	uint32_t eb_rd; //TODO remove this
+	uint32_t eb_rd; // TODO remove this
 	uint32_t cfg;
 	uint64_t cmd_data;
 	uint64_t cmd_PA;
@@ -52,6 +51,14 @@ struct mmio_event {
 	uint8_t cmd_pL;
 	uint8_t cmd_TorR;  //may not need this
 	uint8_t cmd_rd_cnt;
+  // parallel records for general capp commands
+        uint8_t ack;    // use this to hold the ack value for the message back to libocxl
+        uint8_t be_valid;  // use this to let us know whether or not to use the byte enable
+        uint32_t size;  // if size = 0, we use dw to imply size
+        uint8_t *data;  // if size = 0, we use cmd_data as the data field
+        uint64_t be;  // if be_valid, use this as the byte enable in the command
+        uint8_t cmd_dL;     // dL, dP, and pL are encoded from either size or dw in send_mmio
+        uint8_t cmd_dP;
 	enum ocse_state state;
 	struct mmio_event *_next;
 };
@@ -82,6 +89,7 @@ struct afu_cfg_sp {
         uint32_t AFU_CTL_PASID_BASE_14;
         uint32_t AFU_CTL_ACTAG_LEN_EN_S;
         uint32_t AFU_CTL_ACTAG_BASE;
+        uint8_t  name_space[25];
         uint32_t global_MMIO_offset_high;
         uint32_t global_MMIO_offset_low;
         uint32_t global_MMIO_BAR;
@@ -92,17 +100,6 @@ struct afu_cfg_sp {
         uint32_t pp_MMIO_stride;
 	uint32_t num_ints_per_process;
 	uint32_t num_of_processes;
-//	uint16_t num_of_afu_CRs;
-//	uint16_t req_prog_model;
-//	uint64_t reserved1;
-//	uint64_t reserved2;
-//	uint64_t reserved3;
-//	uint64_t AFU_CR_len;
-//	uint64_t AFU_CR_offset;
-//	uint64_t PerProcessPSA;
-//	uint64_t PerProcessPSA_offset;
-//	uint64_t AFU_EB_len;
-//	uint64_t AFU_EB_offset;
 };
 
 struct mmio {
@@ -135,8 +132,8 @@ struct mmio_event *handle_mmio(struct mmio *mmio, struct client *client,
 
 struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client);
 
-//int dedicated_mode_support(struct mmio *mmio);
 
-//int directed_mode_support(struct mmio *mmio);
+struct mmio_event *handle_mem(struct mmio *mmio, struct client *client,
+			      int rnw, int region, int be_valid);
 
 #endif				/* _MMIO_H_ */

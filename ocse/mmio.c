@@ -75,6 +75,12 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 		return event;
 	event->rnw = rnw;
 	event->dw = dw;
+	event->size = 0;  // part of the new fields
+	event->be_valid = 0;  // part of the new fields
+	event->data = NULL;
+	event->be = 0;
+	event->cmd_dL = 0;
+	event->cmd_dP = 0;
 	if (client == NULL)  {
 	  // is this case where cfg = 1, that is, we want to read config space?
 	  // yes, when we do mmios to config space, we force client to null
@@ -123,6 +129,73 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 	return event;
 }
 
+// create a new _add_mem_event function that will use size instead of dw.
+// Add new mmio event for general memory transfer
+static struct mmio_event *_add_mem_event(struct mmio *mmio, struct client *client,
+				     uint32_t rnw, uint32_t size, int region, uint64_t addr,
+				     uint8_t *data, uint32_t be_valid, uint64_t be)
+{
+	struct mmio_event *event;
+	struct mmio_event **list;
+	uint16_t context;
+
+	// Add new event in IDLE state
+	event = (struct mmio_event *)malloc(sizeof(struct mmio_event));
+	if (!event)
+		return event;
+	event->cfg = 0;
+	event->rnw = rnw;
+	event->be_valid = be_valid;
+	event->dw = 0;
+	event->size = size;  // part of the new fields
+	event->data = data;
+	event->be = be;
+	if (client == NULL)  {
+	  // is this case where cfg = 1, that is, we want to read config space?
+	  // yes, when we do mmios to config space, we force client to null
+	  event->cmd_PA = addr;
+	} else {
+	  // for OpenCAPI, the memory space is split into LPC, global and per pasid
+	  // the region parm controls how we adjust the offset prior to adding the event
+	  // technically, all of these should be adjusted by the BAR specified in the configuration... ocse assumes a BA of 0
+	  //   region = 0 means we are LPC memory and offset is unadjusted
+	  //   region = 1 means we adjust offset based on the global mmio offset from the configuration
+	  //   region = 2 means we want to send the offset adjusted by the per pasid mmio offset, per pasid mmio stride, and client index
+	  //   for now, we are assuming the client index (context) maps directly to a pasid.  
+	  //        we could be more creative and relocate the pasid base and pasid length supported to 
+	  //        provide more verification coverage
+	  if (region == 0) {
+	    // lpc area
+	    event->cmd_PA = addr;
+	  } else if (region == 1) {
+	    // global mmio offset + offset
+	    // TODO offset is NOW 64b, comprised of offset_high & offset_low
+	    event->cmd_PA = mmio->cfg.global_MMIO_offset_low + addr;
+	  } else {
+	    // per pasid mmio offset + (client context * stride) + offset
+	    // TODO offset is NOW 64b, comprised of offset_high & offset_low
+	    event->cmd_PA = mmio->cfg.pp_MMIO_offset_low + (mmio->cfg.pp_MMIO_stride * client->context) + addr;
+	  }
+	}
+	event->state = OCSE_IDLE;
+	event->_next = NULL;
+
+	debug_msg("_add_mem_event:: rnw=%d, access word=0x%016lx (0x%016lx)", event->rnw, event->cmd_PA, addr);
+
+	// Add to end of list
+	list = &(mmio->list);
+	while (*list != NULL)
+		list = &((*list)->_next);
+	*list = event;
+	if (event->cfg)
+		context = -1;
+	else
+		context = client->context;
+	debug_mmio_add(mmio->dbg_fp, mmio->dbg_id, context, rnw, size, addr);
+
+	return event;
+}
+
 // Add AFU config space (config_rd, config_wr) access event
 static struct mmio_event *_add_cfg(struct mmio *mmio, uint32_t rnw,
 				    uint32_t dw, uint64_t addr, uint64_t data)
@@ -138,10 +211,59 @@ static struct mmio_event *_add_mmio(struct mmio *mmio, struct client *client,
 	return _add_event(mmio, client, rnw, dw, global, addr, 0, data);
 }
 
+// Add AFU general memory access command event
+static struct mmio_event *_add_mem(struct mmio *mmio, struct client *client,
+				    uint32_t rnw, uint32_t size, int region, uint64_t addr,
+				   uint8_t *data, uint32_t be_valid, uint64_t be)
+{
+  return _add_mem_event(mmio, client, rnw, size, region, addr, data, be_valid, be);
+}
+
 static void _wait_for_done(enum ocse_state *state, pthread_mutex_t * lock)
 {
 	while (*state != OCSE_DONE)	/* infinite loop */
 		lock_delay(lock);
+}
+
+// Read the AFU descriptor template 0 from the afu information DVSEC
+// pass in the address of the afu descriptor offset register
+//         the offset of the descriptor requested
+// returns an mmio event with the data from the requested offset
+static struct mmio_event *_read_afu_descriptor(struct mmio *mmio, uint64_t addr, uint64_t offset, pthread_mutex_t * lock)
+{
+  struct mmio_event *event0c;
+  struct mmio_event *event10;
+
+  #define AFU_DESC_DATA_VALID 0x80000000
+
+  // step 1: write the offset of the descriptor that we want in the afu descriptor register
+  debug_msg("_read_afu_descriptor: AFU descritor offset 0x%016lx indirect read", offset);
+  debug_msg("   AFU Information DVSEC write 0x%08x @ 0x%016lx", offset, addr);
+  event0c = _add_cfg(mmio, 0, 0, addr, offset);
+  _wait_for_done(&(event0c->state), lock);
+  debug_msg("   AFU Information DVSEC write 0x%08x @ 0x%016lx complete", offset, addr);
+  free(event0c);
+
+  // step 2: read the afu descriptor offset register looking for the data valid bit to become 1
+  event0c = _add_cfg(mmio, 1, 0, addr, 0L);
+  _wait_for_done(&(event0c->state), lock);
+  debug_msg("   AFU Information DVSEC read @ 0x%016lx = 0x%08x", addr, event0c->cmd_data);
+  
+  while ((event0c->cmd_data & AFU_DESC_DATA_VALID) == 0) {
+    free(event0c);
+    event0c = _add_cfg(mmio, 1, 0, addr, 0L);
+    _wait_for_done(&(event0c->state), lock);
+    debug_msg("   AFU Information DVSEC read @ 0x%016lx = 0x%08x", addr, event0c->cmd_data);
+  }
+  free(event0c);
+  debug_msg("   AFU descritor offset 0x%016lx indirect read ready", offset);
+
+  // step 3: read the data from the afu descriptor data register
+  event10 = _add_cfg(mmio, 1, 0, addr + 4, 0L);  // assuming the data register is adjacent to the offset register
+  _wait_for_done(&(event10->state), lock);
+  debug_msg("   AFU Information DVSEC afu descriptor data read 0x%08x @ 0x%016lx complete", event10->cmd_data, addr + 4);
+
+  return event10;
 }
 
 // Read the AFU config_record, extended capabilities (if any), PASID extended capabilities,
@@ -224,34 +346,34 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	//
 	_wait_for_done(&(event200->state), lock);
 	mmio->cfg.OCAPI_TL_CP = event200->cmd_data;
-	debug_msg("OCTL DVSEC 0x00 is 0x%08x ", mmio->cfg.OCAPI_TL_CP);
+	info_msg("OCTL DVSEC 0x00 is 0x%08x ", mmio->cfg.OCAPI_TL_CP);
 	free(event200);
 
 	_wait_for_done(&(event204->state), lock);
 	mmio->cfg.OCAPI_TL_REVID = event204->cmd_data;
-	debug_msg("OCTL DVSEC 0x04 is 0x%08x ", mmio->cfg.OCAPI_TL_REVID);
+	info_msg("OCTL DVSEC 0x04 is 0x%08x ", mmio->cfg.OCAPI_TL_REVID);
 	free(event204);
 
 	_wait_for_done(&(event20c->state), lock);
 	mmio->cfg.OCAPI_TL_VERS = event20c->cmd_data;
-	debug_msg("OCTL DVSEC 0x0c is 0x%08x ", mmio->cfg.OCAPI_TL_VERS);
+	info_msg("OCTL DVSEC 0x0c is 0x%08x ", mmio->cfg.OCAPI_TL_VERS);
 	free(event20c);
 
 	_wait_for_done(&(event224->state), lock);
 	mmio->cfg.OCAPI_TL_TMP_CFG = event224->cmd_data;
-	debug_msg("OCTL DVSEC 0x24 is 0x%08x ", mmio->cfg.OCAPI_TL_TMP_CFG);
+	info_msg("OCTL DVSEC 0x24 is 0x%08x ", mmio->cfg.OCAPI_TL_TMP_CFG);
 	free(event224);
 
 	_wait_for_done(&(event26c->state), lock);
 	mmio->cfg.OCAPI_TL_TX_RATE = event26c->cmd_data;
-	debug_msg("OCTL DVSEC 0x6c is 0x%08x ", mmio->cfg.OCAPI_TL_TX_RATE);
+	info_msg("OCTL DVSEC 0x6c is 0x%08x ", mmio->cfg.OCAPI_TL_TX_RATE);
 	free(event26c);
 
 	//
 	// Read device id and vendor id from OpenCAPI Conifiguration header
 	//
 	_wait_for_done(&(event00->state), lock);
-        debug_msg("OpenCAPI Configuration header %04x:%04x CR dev & vendor", mmio->cfg.cr_device, mmio->cfg.cr_vendor);
+        info_msg("OpenCAPI Configuration header %04x:%04x CR dev & vendor", mmio->cfg.cr_device, mmio->cfg.cr_vendor);
         // debug_msg("OpenCAPI Configuration header %04x:%04x CR dev & vendor swapped", ntohs(mmio->cfg.cr_device),ntohs(mmio->cfg.cr_vendor));
 	mmio->cfg.cr_device = (uint16_t) ((event00->cmd_data >> 16) & 0x0000FFFF);
 	mmio->cfg.cr_vendor = (uint16_t) (event00->cmd_data & 0x0000FFFF);
@@ -262,12 +384,12 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	//
 	_wait_for_done(&(event100->state), lock);
 	mmio->cfg.PASID_CP = event100->cmd_data;
-	debug_msg("PASID EC 0x00 is 0x%08x ", mmio->cfg.PASID_CP);
+	info_msg("PASID EC 0x00 is 0x%08x ", mmio->cfg.PASID_CP);
 	free(event100);
 
 	_wait_for_done(&(event104->state), lock);
 	mmio->cfg.PASID_CTL_STS = event104->cmd_data;
-	debug_msg("PASID EC 0x04 is 0x%08x ", mmio->cfg.PASID_CTL_STS);
+	info_msg("PASID EC 0x04 is 0x%08x ", mmio->cfg.PASID_CTL_STS);
 	free(event104);
 
 	//
@@ -275,17 +397,17 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	//
 	_wait_for_done(&(event300->state), lock);
 	mmio->cfg.FUNC_CFG_CP = event300->cmd_data;
-	debug_msg("Function DVSEC 0x00 is 0x%08x ", mmio->cfg.FUNC_CFG_CP);
+	info_msg("Function DVSEC 0x00 is 0x%08x ", mmio->cfg.FUNC_CFG_CP);
 	free(event300);
 
 	_wait_for_done(&(event304->state), lock);
 	mmio->cfg.FUNC_CFG_REVID = event304->cmd_data;
-	debug_msg("Function DVSEC 0x04 is 0x%08x ", mmio->cfg.FUNC_CFG_REVID);
+	info_msg("Function DVSEC 0x04 is 0x%08x ", mmio->cfg.FUNC_CFG_REVID);
 	free(event304);
 
 	_wait_for_done(&(event308->state), lock);
 	mmio->cfg.FUNC_CFG_MAXAFU = event308->cmd_data;
-	debug_msg("Function DVSEC 0x08 (maxafu) is 0x%08x ", mmio->cfg.FUNC_CFG_MAXAFU);
+	info_msg("Function DVSEC 0x08 (maxafu) is 0x%08x ", mmio->cfg.FUNC_CFG_MAXAFU);
 	free(event308);
 
 	//
@@ -293,17 +415,17 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	//
 	_wait_for_done(&(event400->state), lock);
 	mmio->cfg.AFU_INFO_CP = event400->cmd_data;
-	debug_msg("AFU Information DVSEC 0x00 is 0x%08x ", mmio->cfg.AFU_INFO_CP);
+	info_msg("AFU Information DVSEC 0x00 is 0x%08x ", mmio->cfg.AFU_INFO_CP);
 	free(event400);
 
 	_wait_for_done(&(event404->state), lock);
 	mmio->cfg.AFU_INFO_REVID = event404->cmd_data;
-	debug_msg("AFU Information DVSEC 0x04 is 0x%08x ", mmio->cfg.AFU_INFO_REVID);
+	info_msg("AFU Information DVSEC 0x04 is 0x%08x ", mmio->cfg.AFU_INFO_REVID);
 	free(event404);
 
 	_wait_for_done(&(event408->state), lock);
 	mmio->cfg.AFU_INFO_INDEX = event408->cmd_data;
-	debug_msg("AFU Information DVSEC 0x08 is 0x%08x ", mmio->cfg.AFU_INFO_INDEX);
+	info_msg("AFU Information DVSEC 0x08 is 0x%08x ", mmio->cfg.AFU_INFO_INDEX);
 	free(event408);
 
 	// we can't read the AFU descriptor indirect regs like this,
@@ -314,37 +436,37 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	//
 	_wait_for_done(&(event500->state), lock);
 	mmio->cfg.AFU_CTL_CP_0 = event500->cmd_data;
-	debug_msg("AFU Control DVSEC 0x00 is 0x%08x ", mmio->cfg.AFU_CTL_CP_0);
+	info_msg("AFU Control DVSEC 0x00 is 0x%08x ", mmio->cfg.AFU_CTL_CP_0);
 	free(event500);
 
 	_wait_for_done(&(event504->state), lock);
 	mmio->cfg.AFU_CTL_REVID_4 = event504->cmd_data;
-	debug_msg("AFU Control DVSEC 0x04 is 0x%08x ", mmio->cfg.AFU_CTL_REVID_4);
+	info_msg("AFU Control DVSEC 0x04 is 0x%08x ", mmio->cfg.AFU_CTL_REVID_4);
 	free(event504);
 
 	// we read 0x508 later on, right before writing it with ENABLE
 	
 	_wait_for_done(&(event50c->state), lock);
 	mmio->cfg.AFU_CTL_WAKE_TERM_C = event50c->cmd_data;
-	debug_msg("AFU Control DVSEC 0x0c is 0x%08x ", mmio->cfg.AFU_CTL_WAKE_TERM_C);
+	info_msg("AFU Control DVSEC 0x0c is 0x%08x ", mmio->cfg.AFU_CTL_WAKE_TERM_C);
 	free(event50c);
 
 	// Read pasid_len and use that value as num_of_processes
 	// also write that value back to PASID_EN (later on in code)
 	_wait_for_done(&(event510->state), lock);
 	mmio->cfg.AFU_CTL_PASID_LEN_10 = event510->cmd_data;
-	debug_msg("AFU Control DVSEC 0x10 (PASID_LEN) is 0x%08x ", mmio->cfg.AFU_CTL_PASID_LEN_10);
+	info_msg("AFU Control DVSEC 0x10 (PASID_LEN) is 0x%08x ", mmio->cfg.AFU_CTL_PASID_LEN_10);
 	mmio->cfg.num_of_processes =  (event510->cmd_data & 0x0000001f); 
 	free(event510);
 
 	_wait_for_done(&(event514->state), lock);
 	mmio->cfg.AFU_CTL_PASID_BASE_14 = event514->cmd_data;
-	debug_msg("AFU Control DVSEC 0x14 (PASID_base) is 0x%08x ", mmio->cfg.AFU_CTL_PASID_BASE_14);
+	info_msg("AFU Control DVSEC 0x14 (PASID_base) is 0x%08x ", mmio->cfg.AFU_CTL_PASID_BASE_14);
 	free(event514);
 
 	_wait_for_done(&(event518->state), lock);
 	mmio->cfg.AFU_CTL_ACTAG_LEN_EN_S = event518->cmd_data;
-	debug_msg("AFU Control DVSEC 0x18 (ACTAG_LEN) is 0x%08x ", mmio->cfg.AFU_CTL_ACTAG_LEN_EN_S);
+	info_msg("AFU Control DVSEC 0x18 (ACTAG_LEN) is 0x%08x ", mmio->cfg.AFU_CTL_ACTAG_LEN_EN_S);
 	// TODO  setting bits[27:16] to set # of actags allowed
 	// mmio->cfg.num_ints_per_process =  (event518->cmd_data & 0x0000ffff); 
 	// interrupts are now a contract between the application and the accelerator - we are not involved
@@ -352,7 +474,7 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 
 	_wait_for_done(&(event51c->state), lock);
 	mmio->cfg.AFU_CTL_ACTAG_BASE = event51c->cmd_data;
-	debug_msg("AFU Control DVSEC 0x1c (ACTAG_BASE) is 0x%08x ", mmio->cfg.AFU_CTL_ACTAG_BASE );
+	info_msg("AFU Control DVSEC 0x1c (ACTAG_BASE) is 0x%08x ", mmio->cfg.AFU_CTL_ACTAG_BASE );
 	// TODO  setting bits[11:0] to set actag base
 	free(event51c);
 
@@ -364,7 +486,6 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	// New (5/9/17) Cofig spec has updated Global & PerProcess MMIO fields, now
 	// PerPASID MMIO Offset low & Bar (0x30), PerPASID MMIO Offset high (0x34)
 	// and PerPASID MMIO Size (0x38)
-
 
 	// first afu descriptor indirect read gives us per pasid MMIO offset low & per pasid MMIO BAR
 	debug_msg("AFU descritor offset 0x30 indirect read");
@@ -393,9 +514,9 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	debug_msg("   AFU Information DVSEC afu descriptor data read 0x%08x @ 0x%016lx complete", event410->cmd_data, cmd_pa_f1+0x410);
 
 	mmio->cfg.pp_MMIO_offset_low = (event410->cmd_data & 0xFFFFFFF8);
-	debug_msg("per process MMIO offset is 0x%x ", mmio->cfg.pp_MMIO_offset_low);
+	info_msg("per process MMIO offset (low) is 0x%x ", mmio->cfg.pp_MMIO_offset_low);
 	mmio->cfg.pp_MMIO_BAR = (event410->cmd_data & 0x00000007);
-	debug_msg("per process MMIO BAR is 0x%x ", mmio->cfg.pp_MMIO_BAR);
+	info_msg("per process MMIO BAR is 0x%x ", mmio->cfg.pp_MMIO_BAR);
 	free(event410);
 
 	// second afu descriptor indirect read gives us per pasid MMIO offset high
@@ -424,7 +545,7 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	debug_msg("   AFU Information DVSEC afu descriptor data read 0x%08x @ 0x%016lx complete", event410->cmd_data, cmd_pa_f1+0x410);
 
 	mmio->cfg.pp_MMIO_offset_high = event410->cmd_data;
-	debug_msg("per process MMIO offset_high is 0x%x ", mmio->cfg.pp_MMIO_offset_high);
+	info_msg("per process MMIO offset (high) is 0x%x ", mmio->cfg.pp_MMIO_offset_high);
 	free(event410);
 
 	// third afu descriptor indirect read gives us per process MMIO stride
@@ -456,9 +577,28 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 
 	// third read gives us per process MMIO stride
 	mmio->cfg.pp_MMIO_stride = event410->cmd_data;
-	debug_msg("per process MMIO stride is 0x%x ", mmio->cfg.pp_MMIO_stride);
+	info_msg("per process MMIO stride is 0x%x ", mmio->cfg.pp_MMIO_stride);
 	free(event410);
 
+	//
+	// lets make the indirect read a subroutine because we are go do it several times
+	//     get the "name", 6 reads to get all 24 bytes.
+	//     get the per process mmio info, 3 reads
+	//
+	// read part1 to 6 of the name
+	int i, j;
+	uint64_t name_offset = 0x04;
+	uint64_t name_stride = 0x04;
+	for (i = 0; i < 6; i++ ) {
+	  event410 = _read_afu_descriptor( mmio, cmd_pa_f1+0x40c, name_offset, lock );
+	  for ( j = 0; j < name_stride; j++ ) {
+	    mmio->cfg.name_space[(i*name_stride)+j] = ((uint8_t *)&event410->cmd_data)[j];
+	  }
+	  name_offset = name_offset + name_stride;
+	  free( event410 );
+	}
+	mmio->cfg.name_space[24] = 0; // make sure name space is null terminated
+	info_msg("name space is %s ", mmio->cfg.name_space);
 
 	// things we have to write to enable an afu operation
 	//    OpenCAPI Configuration Header 0x10 = bar0 low
@@ -554,6 +694,7 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	return 0;
 }
 
+// modify to check command and use size, dl dp and stuff...
 // Send pending MMIO event to AFU; use config_read or config_write for descriptor
 // for MMIO use cmd_pr_rd_mem or cmd_pr_wr_mem
 void send_mmio(struct mmio *mmio)
@@ -570,15 +711,20 @@ void send_mmio(struct mmio *mmio)
 	uint8_t  cmd_byte_cnt;
 	uint64_t offset;
 
+	// debug_msg( "ocse:send_mmio:" );
+
 	event = mmio->list;
 
 	// Check for valid event
 	if ((event == NULL) || (event->state == OCSE_PENDING))
 		return;
 
+	// debug_msg( "ocse:send_mmio:valid command exists" );
+	event->ack = OCSE_MMIO_ACK;
 	if (event->cfg) {
-		sprintf(type, "CONFIG");
-	// Attempt to send config_rd or config_wr to AFU
+	        debug_msg( "ocse:send_mmio:mmio to config space" );
+		sprintf(type, "CFG");
+		// Attempt to send config_rd or config_wr to AFU
 		if (event->rnw) { //for config reads, no data to send
 			if ( tlx_afu_send_cfg_cmd_and_data(mmio->afu_event,
 			TLX_CMD_CONFIG_READ, 0xdead, 0, 2, 0, 0, 0, event->cmd_PA,
@@ -609,77 +755,159 @@ void send_mmio(struct mmio *mmio)
 				}
 			}
 
-       	}  else   {  // if not a CONFIG, then must be MMIO rd/wr
-		sprintf(type, "MMIO");
+       	}  else   {  // if not a CONFIG, then must be memory access MMIO rd/wr
+	        if ( event->size == 0 ) {
+                  // we have the old mmio style
+		  debug_msg( "ocse:send_mmio:mmio to mmio space" );
+		  sprintf(type, "MMIO");
 
-		// calculate event->pL from event->dw
-		// calculate cmd_byte_cnt from event->dw
-		if (event->dw == 1) {
-		  // pl = 3 ::= 8 bytes
-		  event->cmd_pL = 3;
-		  cmd_byte_cnt = 8;
+		  // calculate event->pL from event->dw
+		  // calculate cmd_byte_cnt from event->dw
+		  if (event->dw == 1) {
+		    // pl = 3 ::= 8 bytes
+		    event->cmd_pL = 3;
+		    cmd_byte_cnt = 8;
+		  } else {
+		    // pl = 2 ::= 4 bytes
+		    event->cmd_pL = 2;
+		    cmd_byte_cnt = 4;
+		  }
+
+		  // fix the data pointer for the write command later
+		  event->data = (uint8_t *)&(event->cmd_data);
+
 		} else {
-		  // pl = 2 ::= 4 bytes
-		  event->cmd_pL = 2;
-		  cmd_byte_cnt = 4;
-		}
+		  // we have the new general memory style
+		  debug_msg( "ocse:send_mmio:mmio to LPC space" );
+		  sprintf(type, "MEM");
+		  event->ack = OCSE_LPC_ACK;
 
-		// Attempt to send mmio to AFU
-		if (event->rnw && tlx_afu_send_cmd(mmio->afu_event,
-			TLX_CMD_PR_RD_MEM, 0xcafe, 0, event->cmd_pL, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
-			debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type,
-			  	event->dw ? 64 : 32, event->cmd_PA);
-			debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
-					event->rnw, event->dw, event->cmd_PA);
-			event->state = OCSE_PENDING;
+		  // calculate event->pL, dL, and dP from event->dw
+		  // calculate cmd_byte_cnt from event->size
+		  cmd_byte_cnt = event->size;
+		  event->cmd_pL = 0;
+		  event->cmd_dL = 0;
+		  event->cmd_dP = 0;
+		  switch (event->size) {
+		  case 1:
+		    break;
+		  case 2:
+		    event->cmd_pL = 1;
+		    break;
+		  case 4:
+		    event->cmd_pL = 2;
+		    break;
+		  case 8:
+		    event->cmd_pL = 3;
+		    break;
+		  case 16:
+		    event->cmd_pL = 4;
+		    break;
+		  case 32:
+		    event->cmd_pL = 5;
+		    break;
+		  case 64:
+		    event->cmd_dL= 1;
+		    break;
+		  case 128:
+		    event->cmd_dL= 2;
+		    break;
+		  case 256:
+		    event->cmd_dL= 3;
+		    break;
+		  default:
+		    warn_msg( "send_mmio: Invalid size given %d", event->size );
+		  }
+
 		}
+		
+		if (event->rnw) { // read
+		  if (cmd_byte_cnt < 64) { // partial
+		    if (tlx_afu_send_cmd(mmio->afu_event,
+					 TLX_CMD_PR_RD_MEM, 0xcafe, event->cmd_dL, event->cmd_pL, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
+		      debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type, event->dw ? 64 : 32, event->cmd_PA);
+		      debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw, event->cmd_PA);
+		      event->state = OCSE_PENDING;
+		    }
+		  } else { // full
+		    if (tlx_afu_send_cmd(mmio->afu_event,
+					 TLX_CMD_RD_MEM, 0xefac, event->cmd_dL, event->cmd_pL, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
+		      debug_msg("%s:%s READ size=%d offset=0x%05x", mmio->afu_name, type, cmd_byte_cnt, event->cmd_PA);
+		      debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw, event->cmd_PA);
+		      event->state = OCSE_PENDING;
+		    }
+		  }
+		} else { // write - 2 part operation
+		  if (event->state == OCSE_RD_RQ_PENDING) { // part 2 - send the data
+		    // we can send 1, 2, 4, 8, 16, 32, 64, 128, or 256 bytes of data
+		    // sizes less that 64 are embedded in a 64 byte value at the offset implied by cmd_PA
+		    // sizes greater than 64 are not yet supported, but the idea is they would either be sent in a number of 64 byte
+		    // packets or as a total packet to be dispursed by tlx_interface somehow...
+		    // init a 64 byte space
+		    memcpy(tdata_bus, null_buff, 64); //not sure if we always have to do this, but better safe than...
+		    uint8_t * dptr = tdata_bus;
+
+		    offset = event->cmd_PA & 0x000000000000003F ;  // this works for addresses >= 64 too
+		    memcpy( dptr+offset, event->data, cmd_byte_cnt);  // copy the data to the tdata buffer
+
+		    if (tlx_afu_send_cmd_data(mmio->afu_event, 64, 0, dptr) == TLX_SUCCESS) {
+		      /* if (event->dw) */
+		      /* 	sprintf(data, "%016" PRIx64, event->cmd_data); */
+		      /* else */
+		      /* 	sprintf(data, "%08" PRIx32, (uint32_t) event->cmd_data); */
+		      /* debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s offset=0x%x", */
+		      /* 		mmio->afu_name, type, event->dw ? 64 : 32, */
+		      /* 		event->cmd_PA, data, offset); */
+		      debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
+				      event->rnw, event->dw, event->cmd_PA);
+		      event->state = OCSE_PENDING;
+		      debug_msg("send_mmio: got rd_req and sent data, now wait for cmd resp from AFU"); 
+		    }
+		  } else { // part 1 - send the command
+		    if (cmd_byte_cnt < 64) { // partial
+		      if (tlx_afu_send_cmd(mmio->afu_event,
+					   TLX_CMD_PR_WR_MEM, 0xbead, event->cmd_dL, event->cmd_pL, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
+			event->state = OCSE_RD_RQ_PENDING;
+		      }
+		    } else { // full
+		      if (event->be_valid == 0) {
+			if (tlx_afu_send_cmd(mmio->afu_event,
+					     TLX_CMD_WRITE_MEM, 0xdaeb, event->cmd_dL, event->cmd_pL, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
+			  event->state = OCSE_RD_RQ_PENDING;
+			}
+		      } else {
+			if (tlx_afu_send_cmd(mmio->afu_event,
+					     TLX_CMD_WRITE_MEM_BE, 0xbebe, event->cmd_dL, event->cmd_pL, event->be, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
+			  event->state = OCSE_RD_RQ_PENDING;
+			}
+		      }
+		    }
+		    debug_msg("send_mmio: sent write command, now wait for rd_req from AFU \n"); 
+		  }
+		}
+		// Attempt to send mmio to AFU
 		if (!event->rnw) { // MMIO write - two part operation
-			// We only do 4B or 8B MMIO writes - caller has to specify in pL, HOWEVER
-			// We now have to offset the data into a 64B buffer and send it
-			if (event->state == OCSE_RD_RQ_PENDING) {
-				memcpy(tdata_bus, null_buff, 64); //not sure if we always have to do this, but better safe than...
-				uint8_t * dptr = tdata_bus;;
-			  	offset = event->cmd_PA & 0x000000000000003F ;
-				memcpy(dptr +offset, &(event->cmd_data), cmd_byte_cnt);
-				//memcpy(ddata, &(event->cmd_data), cmd_byte_cnt);
-				//if (tlx_afu_send_cmd_data(mmio->afu_event, cmd_byte_cnt, 0, dptr) == TLX_SUCCESS) {
-				if (tlx_afu_send_cmd_data(mmio->afu_event, 64, 0, dptr) == TLX_SUCCESS) {
-				  if (event->dw)
-				    sprintf(data, "%016" PRIx64, event->cmd_data);
-				  else
-				    sprintf(data, "%08" PRIx32, (uint32_t) event->cmd_data);
-				  debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s offset=0x%x",
-					    mmio->afu_name, type, event->dw ? 64 : 32,
-					    event->cmd_PA, data, offset);
-				  debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
-						  event->rnw, event->dw, event->cmd_PA);
-				  event->state = OCSE_PENDING;
-				  printf("got rd_req and sent data, now wait for cmd resp from AFU \n");
-				}
-       	 		} else if ( tlx_afu_send_cmd(mmio->afu_event,
-				TLX_CMD_PR_WR_MEM, 0xbead, 0, event->cmd_pL, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
-					event->state = OCSE_RD_RQ_PENDING;
-					printf("sent mmio_pr_wr cmd, now wait for rd_req from AFU \n"); }
-				}
+		}
 	}
 }
 
 // Handle MMIO ack if returned by AFU
 void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 {
-	uint64_t read_data;
 	int rc;
 //	char data[17];
 	char type[7];
 	uint8_t afu_resp_opcode, resp_dl,resp_dp, resp_data_is_valid, resp_code, rdata_bad;
 	uint16_t resp_capptag;
 	uint32_t cfg_read_data = 0;
+        uint64_t read_data; // data can now be up to 64 bytes, not just upto 8
 	uint8_t *  rdata;
 	unsigned char   rdata_bus[64];
 	unsigned char   cfg_rdata_bus[4];
+	unsigned char   mem_data[64];
 	int offset, length;
 
-	// int i;
+	int i;
 
 	// handle config and mmio responses
 	// length can be calculated from the mmio->list->dw or cmd_pL
@@ -694,85 +922,121 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 		if (mmio->list->rnw) {
 			rdata = cfg_rdata_bus;
 			rc = afu_tlx_read_cfg_resp_and_data (mmio->afu_event,
-		    	&afu_resp_opcode, &resp_dl,&resp_capptag, 0xdead, &resp_dp,
-		   	&resp_data_is_valid, &resp_code, rdata_bus, &rdata_bad);
+							     &afu_resp_opcode, &resp_dl,&resp_capptag, 0xdead, &resp_dp,
+							     &resp_data_is_valid, &resp_code, rdata_bus, &rdata_bad);
 		} else {
 			rc = afu_tlx_read_cfg_resp_and_data (mmio->afu_event,
-		    	&afu_resp_opcode, &resp_dl,&resp_capptag, 0xbeef, &resp_dp,
-		   	&resp_data_is_valid, &resp_code, 0, 0);
+							     &afu_resp_opcode, &resp_dl,&resp_capptag, 0xbeef, &resp_dp,
+							     &resp_data_is_valid, &resp_code, 0, 0);
 		}
 
 	} else {
-
-	rc = afu_tlx_read_resp_and_data(mmio->afu_event,
-	 	&afu_resp_opcode, &resp_dl,
-	   	&resp_capptag, &resp_dp,
-	    	&resp_data_is_valid, &resp_code, rdata_bus, &rdata_bad);
+	        rc = afu_tlx_read_resp_and_data(mmio->afu_event,
+						&afu_resp_opcode, &resp_dl,
+						&resp_capptag, &resp_dp,
+						&resp_data_is_valid, &resp_code, rdata_bus, &rdata_bad);
 	}
 
-	// printf( "lgt:handle_mmio_ack: rdata_bus[0 to 3] = 0x" );
-	// for (i=0; i<4; i++) {
-	//   printf( "%02x", rdata_bus[i] );
-	// }
-	// printf( "\n" );
-
+	// this section needs to handle lpc memory data
+	// send_mmio set mmio.ack field with the type of ack we need to send back to libocxl (mmio or lpc)
+	// we can leverage that to decide how do interpret the data and respective size information
+	// the data will always come in the 64 byte buffer.
+	// we only want to send the exact size of the data back to libocxl
+	// we get the data from the offset implied by the PA.
 	if (rc == TLX_SUCCESS) {
-	  // should we scan the mmio list looking for a matching CAPPtag here? Not yet, assume in order responses
-	  // but we can check it...
-			debug_mmio_ack(mmio->dbg_fp, mmio->dbg_id);
-			if (!mmio->list || (mmio->list->state != OCSE_PENDING)) {
-				warn_msg("Unexpected MMIO ack from AFU");
-				return;
-			}
+	      //
+              // at this point, we have 64 bytes of data in rdata_bus
+	      //
+	      // should we scan the mmio list looking for a matching CAPPtag here? Not yet, assume in order responses
+              // but we can check it...
+	      debug_mmio_ack(mmio->dbg_fp, mmio->dbg_id);
+	      if (!mmio->list || (mmio->list->state != OCSE_PENDING)) {
+	      		warn_msg("Unexpected MMIO ack from AFU");
+			return;
+	      }
 
-			// check the CAPPtag - later
+	      // check the CAPPtag - later
 
-			if (mmio->list->cfg) {
-				sprintf(type, "CONFIG");
-			} else {
-				sprintf(type, "MMIO");
-			}
+	      if (mmio->list->cfg) {
+		    sprintf(type, "CONFIG");
+	      } else if ( mmio->list->size == 0 ) {
+		    sprintf(type, "MMIO");
+	      } else {
+	            sprintf(type, "MEM");
+	      }
 
-			debug_msg("IN handle_mmio_ack and resp_capptag = %x and resp_code = %x! ",
-				resp_capptag, resp_code);
+	      debug_msg("IN handle_mmio_ack and resp_capptag = %x and resp_code = %x! ", resp_capptag, resp_code);
 
-			if (resp_data_is_valid) {
-				if (mmio->list->cfg) {
-					//TODO data is only 4B, for now don't put into uint64_t, put in uint32_t 
-					//we will fix this lateri and use cfg_resp_data_byte cnt!
-					length = 4;
-			  		memcpy( &cfg_read_data, &rdata_bus[0], length );
-			  		debug_msg("%s:%s CFG CMD RESP  length=%d data=0x%08x code=0x%02x", mmio->afu_name, type, 
-				                  length, cfg_read_data, resp_code ); // ???
-				} else {
-			  		// extract data from address aligned offset in vector
-			 		 offset = mmio->list->cmd_PA & 0x000000000000003F ;
-			  		if (mmio->list->cmd_pL == 0x02) {
-			   			 length = 4;
-			  		} else {
-			   	 		length = 8;
-			  		}
-			  		memcpy( &read_data, &rdata_bus[offset], length );
-			  		debug_msg("%s:%s CMD RESP offset=%d length=%d data=0x%x code=0x%x", mmio->afu_name, type, offset, length,
-				    		read_data, resp_code );
-					}
-			} else {
-				if ((afu_resp_opcode == 2) && (resp_capptag == 0xdead))
-					printf("CFG RD FAILED! afu_resp_opcode = 0x%x and resp_code = 0x%x \n",
-						afu_resp_opcode, resp_code);
-				debug_msg("%s:%s CMD RESP code=0x%x", mmio->afu_name, type, resp_code);
-				}
+	      if (resp_data_is_valid) {
+#ifdef DEBUG
+    	            printf( "rdata_bus = 0x" );
+		    for (i = 0; i < 64; i++) {
+		      printf( "%02x", rdata_bus[i] );
+		    }
+		    printf( "\n" );
+#endif	  
+		    if (mmio->list->cfg) {
+		          //TODO data is only 4B, for now don't put into uint64_t, put in uint32_t 
+		          //we will fix this lateri and use cfg_resp_data_byte cnt!
+		          length = 4;
+			  memcpy( &cfg_read_data, &rdata_bus[0], length );
+			  debug_msg("%s:%s CFG CMD RESP  length=%d data=0x%08x code=0x%02x", mmio->afu_name, type, length, cfg_read_data, resp_code ); // ???
+		    } else {
+		          // if this is an lpc response, the data could be a number of sizes at varying offsets in rdata
+		          // extract data from address aligned offset in vector - this might not work if size > 64...
+		          offset = mmio->list->cmd_PA & 0x000000000000003F ;
 
-		// Keep data for MMIO reads
-		if (mmio->list->rnw) {
-				if (mmio->list->cfg)
-					mmio->list->cmd_data = (uint64_t) (cfg_read_data);
-				else
-					mmio->list->cmd_data = read_data;
-			}
-		mmio->list->state = OCSE_DONE;
-		mmio->list = mmio->list->_next;
+			  // calculate length.  
+			  //    for lpc, we can just use mmio->list->size if we want.  Or we can decode dl/dp
+			  //    for mmio, we use pL - maybe we could set up mmio->list->size even for the old mmio path - then this is always use the size...
+			  if ( mmio->list->size == 0 ) {
+			    if (mmio->list->cmd_pL == 0x02) {
+			      length = 4;
+			    } else {
+			      length = 8;
+			    }
+			    memcpy( &read_data, &rdata_bus[offset], length );
+			    debug_msg("%s:%s CMD RESP offset=%d length=%d data=0x%016x code=0x%x", mmio->afu_name, type, offset, length, read_data, resp_code );
+			  } else {
+			    length = mmio->list->size;
+			    memcpy( mem_data, &rdata_bus[offset], length );
+			    debug_msg("%s:%s CMD RESP offset=%d length=%d code=0x%x", mmio->afu_name, type, offset, length, resp_code );
+#ifdef DEBUG
+    	                    printf( "mem_data = 0x" );
+			    for (i = 0; i < 64; i++) {
+			      printf( "%02x", mem_data[i] );
+			    }
+			    printf( "\n" );
+#endif	  
+			  }
+		    }
+	      } else {
+		    if ((afu_resp_opcode == 2) && (resp_capptag == 0xdead))
+		          printf("CFG/MMIO/MEM RD FAILED! afu_resp_opcode = 0x%x and resp_code = 0x%x \n",
+				 afu_resp_opcode, resp_code);
+		    debug_msg("%s:%s CMD RESP code=0x%x", mmio->afu_name, type, resp_code);
+	      }
+
+	      // Keep data for MMIO reads
+	      if (mmio->list->rnw) {
+		if (mmio->list->cfg) {
+		      mmio->list->cmd_data = (uint64_t) (cfg_read_data);
+		} else if ( mmio->list->size == 0 ) {
+                      mmio->list->cmd_data = read_data;
+		} else {
+		      memcpy( mmio->list->data, mem_data, length );
+#ifdef DEBUG
+		      printf( "mmio->list->data = 0x" );
+		      for (i = 0; i < 64; i++) {
+			printf( "%02x", mmio->list->data[i] );
+		      }
+		      printf( "\n" );
+#endif	  
 		}
+	      }
+	      mmio->list->state = OCSE_DONE;
+	      mmio->list = mmio->list->_next;
+	}
 
 }
 
@@ -964,37 +1228,46 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 		return event;
 
 	if (event->rnw) {
-		// Return acknowledge with read data
-		if (event->dw) {
-			buffer = (uint8_t *) malloc(9);
-			buffer[0] = OCSE_MMIO_ACK;
-			data64 = htonll(event->cmd_data);
-			memcpy(&(buffer[1]), &data64, 8);
-			if (put_bytes(fd, 9, buffer, mmio->dbg_fp, mmio->dbg_id,
-				      client->context) < 0) {
-				client_drop(client, TLX_IDLE_CYCLES,
-					    CLIENT_NONE);
-			}
-		} else {
-			buffer = (uint8_t *) malloc(5);
-			buffer[0] = OCSE_MMIO_ACK;
-			data32 = htonl(event->cmd_data);
-			memcpy(&(buffer[1]), &data32, 4);
-			if (put_bytes(fd, 5, buffer, mmio->dbg_fp, mmio->dbg_id,
-				      client->context) < 0) {
-				client_drop(client, TLX_IDLE_CYCLES,
-					    CLIENT_NONE);
-			}
-		}
+	      // Return acknowledge with read data
+	      if ( event->size !=0 ) {
+   		    // this is an lpc mem request coming back
+		    debug_msg("handle_mmio_done:sending OCSE_LPC_ACK for a READ to client!!!!");
+		    buffer = (uint8_t *) malloc(event->size + 1);
+		    buffer[0] = event->ack;
+		    memcpy( &(buffer[1]), event->data, event->size );
+		    if (put_bytes(fd, event->size + 1, buffer, mmio->dbg_fp, mmio->dbg_id, client->context) < 0) {
+		          client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		    }
+		    free( event->data );
+	      } else if ( event->dw ) {
+		    debug_msg("handle_mmio_done:sending OCSE_MMIO_ACK for a dw READ to client!!!!");
+		    buffer = (uint8_t *) malloc(9);
+		    buffer[0] = event->ack;
+		    data64 = htonll(event->cmd_data);
+		    memcpy(&(buffer[1]), &data64, 8);
+		    if (put_bytes(fd, 9, buffer, mmio->dbg_fp, mmio->dbg_id, client->context) < 0) {
+		          client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		    }
+	      } else {
+		    debug_msg("handle_mmio_done:sending OCSE_MMIO_ACK for a READ to client!!!!");
+	    	    buffer = (uint8_t *) malloc(5);
+		    buffer[0] = event->ack;
+		    data32 = htonl(event->cmd_data);
+		    memcpy(&(buffer[1]), &data32, 4);
+		    if (put_bytes(fd, 5, buffer, mmio->dbg_fp, mmio->dbg_id, client->context) < 0) {
+		          client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		    }
+	      }
 	} else {
 		// Return acknowledge for write
-		printf("READY TO SEND OCSE_MMIO_ACK to client!!!!\n");
+		debug_msg("READY TO SEND OCSE_*_ACK for a WRITE to client!!!!");
 		buffer = (uint8_t *) malloc(1);
-		buffer[0] = OCSE_MMIO_ACK;
+		buffer[0] = event->ack;
 		if (put_bytes(fd, 1, buffer, mmio->dbg_fp, mmio->dbg_id,
 			      client->context) < 0) {
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		}
+		debug_msg("SENT OCSE_*_ACK for a WRITE to client!!!!");
 	}
 	debug_mmio_return(mmio->dbg_fp, mmio->dbg_id, client->context);
 	free(event);
@@ -1003,14 +1276,117 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 	return NULL;
 }
 
-//int dedicated_mode_support(struct mmio *mmio)
-//{
-//	return ((mmio->cfg.req_prog_model & PROG_MODEL_MASK) ==
-//		PROG_MODEL_DEDICATED);
-//}
+// Add mem write event to offset in memory space
+static struct mmio_event *_handle_mem_write(struct mmio *mmio, struct client *client, int region, int be_valid)
+{
+	struct mmio_event *event;
+	uint32_t offset;
+	uint32_t size;
+	uint64_t be;
+	uint8_t *data;
+	int fd = client->fd;
 
-//int directed_mode_support(struct mmio *mmio)
-//{
-//	return ((mmio->cfg.req_prog_model & PROG_MODEL_MASK) ==
-//		PROG_MODEL_DIRECTED);
-//}
+	// get offset from socket
+	if (get_bytes_silent(fd, 4, (uint8_t *)&offset, mmio->timeout,
+			     &(client->abort)) < 0) {
+		goto write_fail;
+	}
+	offset = ntohl(offset);
+
+	if (be_valid == 0) {
+	  // get size from socket
+	  if (get_bytes_silent(fd, 4, (uint8_t *)&size, mmio->timeout,
+			       &(client->abort)) < 0) {
+	    goto write_fail;
+	  }
+	  size = ntohl(size);
+	  be = 0;
+	} else {
+	  // get byte_enable from socket (size is always 64)
+	  if (get_bytes_silent(fd, 8, (uint8_t *)&be, mmio->timeout,
+			       &(client->abort)) < 0) {
+	    goto write_fail;
+	  }
+	  be = ntohl(be);
+	  size = 64;
+	}	  
+
+	// allocate a buffer for the data
+	data = (uint8_t *)malloc( size );
+
+	// get size bytes of data from socket
+	if ( get_bytes_silent( fd, size, data, mmio->timeout, &(client->abort) ) < 0 ) {
+	  goto write_fail;
+	}
+
+	event = _add_mem( mmio, client, 0, size, region, offset, data, be_valid, be );
+
+	return event;
+
+ write_fail:
+	// Socket connection is dead
+	debug_msg("%s:_handle_mmio_write failed context=%d",
+		  mmio->afu_name, client->context);
+	client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	return NULL;
+}
+
+// Add mmio read event of register at offset to list
+static struct mmio_event *_handle_mem_read(struct mmio *mmio, struct client *client, int region)
+{
+	struct mmio_event *event;
+	uint32_t offset;
+	uint32_t size;
+	uint8_t *data;
+	int fd = client->fd;
+
+	if (get_bytes_silent(fd, 4, (uint8_t *) &offset, mmio->timeout, &(client->abort)) < 0) {
+		goto read_fail;
+	}
+	offset = ntohl(offset);
+
+	if (get_bytes_silent(fd, 4, (uint8_t *) &size, mmio->timeout, &(client->abort)) < 0) {
+		goto read_fail;
+	}
+	size = ntohl(size);
+
+	// allocate a buffer for the data coming back
+	data = (uint8_t *)malloc( size );
+
+	event = _add_mem( mmio, client, 1, size, region, offset, data, 0, 0 );
+
+	return event;
+
+ read_fail:
+	// Socket connection is dead
+	debug_msg("%s:_handle_mmio_read failed context=%d",
+		  mmio->afu_name, client->context);
+	client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	return NULL;
+}
+
+// Handle mem request from client
+struct mmio_event *handle_mem(struct mmio *mmio, struct client *client,
+			      int rnw, int region, int be_valid)
+{
+	uint8_t ack;
+
+	debug_msg( "_handle_mem: rnw=%d", rnw );
+
+	// Only allow mem access when client is valid
+	if (client->state != CLIENT_VALID) {
+	        debug_msg( "_handle_mem: invalid client" );
+		ack = OCSE_LPC_FAIL;
+		if (put_bytes(client->fd, 1, &ack, mmio->dbg_fp, mmio->dbg_id,
+			      client->context) < 0) {
+			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		}
+		return NULL;
+	}
+
+	if (rnw)
+		return _handle_mem_read(mmio, client, region);
+	else
+	        return _handle_mem_write(mmio, client, region, be_valid);
+}
+

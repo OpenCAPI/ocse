@@ -45,7 +45,9 @@ typedef struct ConfigParam
 //    uint16_t	max_delay;
     uint32_t	status_address;
     uint64_t	mem_base_address;
-    uint64_t	mem_size;
+//    uint64_t	mem_size;
+    uint64_t  	mem_dest_address;	// config[3]
+    uint16_t	mem_size;		// config[1]
     uint8_t	enable_always;
 } MachineConfigParam;
 
@@ -116,8 +118,11 @@ void set_machine_config_status_address(MachineConfig* machine, uint32_t status_a
 // Base address of the memory space the AFU machine operate in
 void set_machine_memory_base_address(MachineConfig * machine, uint64_t addr);
 
+// Dest address of the memory space
+void set_machine_memory_dest_address(MachineConfig *machine, uint64_t addr);
+
 // Size of the memory space the AFU machine operate in
-void set_machine_memory_size(MachineConfig * machine, uint64_t size);
+void set_machine_memory_size(MachineConfig * machine, uint16_t size);
 
 // Command code field is bit[0] of double-word 0
 void get_machine_config_enable_always(MachineConfig *machine, uint8_t* enable_always);
