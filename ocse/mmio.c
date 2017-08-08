@@ -346,34 +346,34 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	//
 	_wait_for_done(&(event200->state), lock);
 	mmio->cfg.OCAPI_TL_CP = event200->cmd_data;
-	debug_msg("OCTL DVSEC 0x00 is 0x%08x ", mmio->cfg.OCAPI_TL_CP);
+	info_msg("OCTL DVSEC 0x00 is 0x%08x ", mmio->cfg.OCAPI_TL_CP);
 	free(event200);
 
 	_wait_for_done(&(event204->state), lock);
 	mmio->cfg.OCAPI_TL_REVID = event204->cmd_data;
-	debug_msg("OCTL DVSEC 0x04 is 0x%08x ", mmio->cfg.OCAPI_TL_REVID);
+	info_msg("OCTL DVSEC 0x04 is 0x%08x ", mmio->cfg.OCAPI_TL_REVID);
 	free(event204);
 
 	_wait_for_done(&(event20c->state), lock);
 	mmio->cfg.OCAPI_TL_VERS = event20c->cmd_data;
-	debug_msg("OCTL DVSEC 0x0c is 0x%08x ", mmio->cfg.OCAPI_TL_VERS);
+	info_msg("OCTL DVSEC 0x0c is 0x%08x ", mmio->cfg.OCAPI_TL_VERS);
 	free(event20c);
 
 	_wait_for_done(&(event224->state), lock);
 	mmio->cfg.OCAPI_TL_TMP_CFG = event224->cmd_data;
-	debug_msg("OCTL DVSEC 0x24 is 0x%08x ", mmio->cfg.OCAPI_TL_TMP_CFG);
+	info_msg("OCTL DVSEC 0x24 is 0x%08x ", mmio->cfg.OCAPI_TL_TMP_CFG);
 	free(event224);
 
 	_wait_for_done(&(event26c->state), lock);
 	mmio->cfg.OCAPI_TL_TX_RATE = event26c->cmd_data;
-	debug_msg("OCTL DVSEC 0x6c is 0x%08x ", mmio->cfg.OCAPI_TL_TX_RATE);
+	info_msg("OCTL DVSEC 0x6c is 0x%08x ", mmio->cfg.OCAPI_TL_TX_RATE);
 	free(event26c);
 
 	//
 	// Read device id and vendor id from OpenCAPI Conifiguration header
 	//
 	_wait_for_done(&(event00->state), lock);
-        debug_msg("OpenCAPI Configuration header %04x:%04x CR dev & vendor", mmio->cfg.cr_device, mmio->cfg.cr_vendor);
+        info_msg("OpenCAPI Configuration header %04x:%04x CR dev & vendor", mmio->cfg.cr_device, mmio->cfg.cr_vendor);
         // debug_msg("OpenCAPI Configuration header %04x:%04x CR dev & vendor swapped", ntohs(mmio->cfg.cr_device),ntohs(mmio->cfg.cr_vendor));
 	mmio->cfg.cr_device = (uint16_t) ((event00->cmd_data >> 16) & 0x0000FFFF);
 	mmio->cfg.cr_vendor = (uint16_t) (event00->cmd_data & 0x0000FFFF);
@@ -384,12 +384,12 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	//
 	_wait_for_done(&(event100->state), lock);
 	mmio->cfg.PASID_CP = event100->cmd_data;
-	debug_msg("PASID EC 0x00 is 0x%08x ", mmio->cfg.PASID_CP);
+	info_msg("PASID EC 0x00 is 0x%08x ", mmio->cfg.PASID_CP);
 	free(event100);
 
 	_wait_for_done(&(event104->state), lock);
 	mmio->cfg.PASID_CTL_STS = event104->cmd_data;
-	debug_msg("PASID EC 0x04 is 0x%08x ", mmio->cfg.PASID_CTL_STS);
+	info_msg("PASID EC 0x04 is 0x%08x ", mmio->cfg.PASID_CTL_STS);
 	free(event104);
 
 	//
@@ -397,17 +397,17 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	//
 	_wait_for_done(&(event300->state), lock);
 	mmio->cfg.FUNC_CFG_CP = event300->cmd_data;
-	debug_msg("Function DVSEC 0x00 is 0x%08x ", mmio->cfg.FUNC_CFG_CP);
+	info_msg("Function DVSEC 0x00 is 0x%08x ", mmio->cfg.FUNC_CFG_CP);
 	free(event300);
 
 	_wait_for_done(&(event304->state), lock);
 	mmio->cfg.FUNC_CFG_REVID = event304->cmd_data;
-	debug_msg("Function DVSEC 0x04 is 0x%08x ", mmio->cfg.FUNC_CFG_REVID);
+	info_msg("Function DVSEC 0x04 is 0x%08x ", mmio->cfg.FUNC_CFG_REVID);
 	free(event304);
 
 	_wait_for_done(&(event308->state), lock);
 	mmio->cfg.FUNC_CFG_MAXAFU = event308->cmd_data;
-	debug_msg("Function DVSEC 0x08 (maxafu) is 0x%08x ", mmio->cfg.FUNC_CFG_MAXAFU);
+	info_msg("Function DVSEC 0x08 (maxafu) is 0x%08x ", mmio->cfg.FUNC_CFG_MAXAFU);
 	free(event308);
 
 	//
@@ -415,17 +415,17 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	//
 	_wait_for_done(&(event400->state), lock);
 	mmio->cfg.AFU_INFO_CP = event400->cmd_data;
-	debug_msg("AFU Information DVSEC 0x00 is 0x%08x ", mmio->cfg.AFU_INFO_CP);
+	info_msg("AFU Information DVSEC 0x00 is 0x%08x ", mmio->cfg.AFU_INFO_CP);
 	free(event400);
 
 	_wait_for_done(&(event404->state), lock);
 	mmio->cfg.AFU_INFO_REVID = event404->cmd_data;
-	debug_msg("AFU Information DVSEC 0x04 is 0x%08x ", mmio->cfg.AFU_INFO_REVID);
+	info_msg("AFU Information DVSEC 0x04 is 0x%08x ", mmio->cfg.AFU_INFO_REVID);
 	free(event404);
 
 	_wait_for_done(&(event408->state), lock);
 	mmio->cfg.AFU_INFO_INDEX = event408->cmd_data;
-	debug_msg("AFU Information DVSEC 0x08 is 0x%08x ", mmio->cfg.AFU_INFO_INDEX);
+	info_msg("AFU Information DVSEC 0x08 is 0x%08x ", mmio->cfg.AFU_INFO_INDEX);
 	free(event408);
 
 	// we can't read the AFU descriptor indirect regs like this,
@@ -436,37 +436,37 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	//
 	_wait_for_done(&(event500->state), lock);
 	mmio->cfg.AFU_CTL_CP_0 = event500->cmd_data;
-	debug_msg("AFU Control DVSEC 0x00 is 0x%08x ", mmio->cfg.AFU_CTL_CP_0);
+	info_msg("AFU Control DVSEC 0x00 is 0x%08x ", mmio->cfg.AFU_CTL_CP_0);
 	free(event500);
 
 	_wait_for_done(&(event504->state), lock);
 	mmio->cfg.AFU_CTL_REVID_4 = event504->cmd_data;
-	debug_msg("AFU Control DVSEC 0x04 is 0x%08x ", mmio->cfg.AFU_CTL_REVID_4);
+	info_msg("AFU Control DVSEC 0x04 is 0x%08x ", mmio->cfg.AFU_CTL_REVID_4);
 	free(event504);
 
 	// we read 0x508 later on, right before writing it with ENABLE
 	
 	_wait_for_done(&(event50c->state), lock);
 	mmio->cfg.AFU_CTL_WAKE_TERM_C = event50c->cmd_data;
-	debug_msg("AFU Control DVSEC 0x0c is 0x%08x ", mmio->cfg.AFU_CTL_WAKE_TERM_C);
+	info_msg("AFU Control DVSEC 0x0c is 0x%08x ", mmio->cfg.AFU_CTL_WAKE_TERM_C);
 	free(event50c);
 
 	// Read pasid_len and use that value as num_of_processes
 	// also write that value back to PASID_EN (later on in code)
 	_wait_for_done(&(event510->state), lock);
 	mmio->cfg.AFU_CTL_PASID_LEN_10 = event510->cmd_data;
-	debug_msg("AFU Control DVSEC 0x10 (PASID_LEN) is 0x%08x ", mmio->cfg.AFU_CTL_PASID_LEN_10);
+	info_msg("AFU Control DVSEC 0x10 (PASID_LEN) is 0x%08x ", mmio->cfg.AFU_CTL_PASID_LEN_10);
 	mmio->cfg.num_of_processes =  (event510->cmd_data & 0x0000001f); 
 	free(event510);
 
 	_wait_for_done(&(event514->state), lock);
 	mmio->cfg.AFU_CTL_PASID_BASE_14 = event514->cmd_data;
-	debug_msg("AFU Control DVSEC 0x14 (PASID_base) is 0x%08x ", mmio->cfg.AFU_CTL_PASID_BASE_14);
+	info_msg("AFU Control DVSEC 0x14 (PASID_base) is 0x%08x ", mmio->cfg.AFU_CTL_PASID_BASE_14);
 	free(event514);
 
 	_wait_for_done(&(event518->state), lock);
 	mmio->cfg.AFU_CTL_ACTAG_LEN_EN_S = event518->cmd_data;
-	debug_msg("AFU Control DVSEC 0x18 (ACTAG_LEN) is 0x%08x ", mmio->cfg.AFU_CTL_ACTAG_LEN_EN_S);
+	info_msg("AFU Control DVSEC 0x18 (ACTAG_LEN) is 0x%08x ", mmio->cfg.AFU_CTL_ACTAG_LEN_EN_S);
 	// TODO  setting bits[27:16] to set # of actags allowed
 	// mmio->cfg.num_ints_per_process =  (event518->cmd_data & 0x0000ffff); 
 	// interrupts are now a contract between the application and the accelerator - we are not involved
@@ -474,7 +474,7 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 
 	_wait_for_done(&(event51c->state), lock);
 	mmio->cfg.AFU_CTL_ACTAG_BASE = event51c->cmd_data;
-	debug_msg("AFU Control DVSEC 0x1c (ACTAG_BASE) is 0x%08x ", mmio->cfg.AFU_CTL_ACTAG_BASE );
+	info_msg("AFU Control DVSEC 0x1c (ACTAG_BASE) is 0x%08x ", mmio->cfg.AFU_CTL_ACTAG_BASE );
 	// TODO  setting bits[11:0] to set actag base
 	free(event51c);
 
@@ -514,7 +514,7 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	debug_msg("   AFU Information DVSEC afu descriptor data read 0x%08x @ 0x%016lx complete", event410->cmd_data, cmd_pa_f1+0x410);
 
 	mmio->cfg.pp_MMIO_offset_low = (event410->cmd_data & 0xFFFFFFF8);
-	info_msg("per process MMIO offset is 0x%x ", mmio->cfg.pp_MMIO_offset_low);
+	info_msg("per process MMIO offset (low) is 0x%x ", mmio->cfg.pp_MMIO_offset_low);
 	mmio->cfg.pp_MMIO_BAR = (event410->cmd_data & 0x00000007);
 	info_msg("per process MMIO BAR is 0x%x ", mmio->cfg.pp_MMIO_BAR);
 	free(event410);
@@ -545,7 +545,7 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	debug_msg("   AFU Information DVSEC afu descriptor data read 0x%08x @ 0x%016lx complete", event410->cmd_data, cmd_pa_f1+0x410);
 
 	mmio->cfg.pp_MMIO_offset_high = event410->cmd_data;
-	info_msg("per process MMIO offset_high is 0x%x ", mmio->cfg.pp_MMIO_offset_high);
+	info_msg("per process MMIO offset (high) is 0x%x ", mmio->cfg.pp_MMIO_offset_high);
 	free(event410);
 
 	// third afu descriptor indirect read gives us per process MMIO stride

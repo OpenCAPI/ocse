@@ -2582,7 +2582,7 @@ int ocxl_afu_opened(struct ocxl_afu_h *afu)
 	return afu->opened;
 }
 
-int ocxl_afu_attach(struct ocxl_afu_h *afu, uint64_t amr)
+int ocxl_afu_attach(struct ocxl_afu_h *afu)
 {
 	if (!afu) {
 		errno = EINVAL;
@@ -2601,7 +2601,7 @@ int ocxl_afu_attach(struct ocxl_afu_h *afu, uint64_t amr)
 		return -1;
 	}
 	// Perform OCSE attach
-	// lgt - dont need to send amr
+	// lgt - dont need to send amr - in fact, the parameter is gone now
 	// we don't model the change in permissions
 	afu->attach.state = LIBOCXL_REQ_REQUEST;
 	while (afu->attach.state != LIBOCXL_REQ_IDLE)	/*infinite loop */

@@ -108,6 +108,7 @@ struct ocxl_afu_h *ocxl_name_afu_next(char *afu_name, struct ocxl_afu_h *afu);
         for (afu = ocxl_name_afu_next(afu_name, NULL); afu; afu = ocxl_name_afu_next(NULL, afu))
 
 // do we still have the notion of master and slave modes of the afu?  We do not have dedicated anymore.
+// deprecate views.
 enum ocxl_views {
 	OCXL_VIEW_DEDICATED = 0,
 	OCXL_VIEW_MASTER,
@@ -121,7 +122,7 @@ enum ocxl_views {
  */
 struct ocxl_afu_h *ocxl_afu_open_dev(char *path);
 struct ocxl_afu_h *ocxl_afu_open_h(struct ocxl_afu_h *afu);
-//struct ocxl_afu_h * ocxl_afu_fd_to_h(int fd);
+struct ocxl_afu_h * ocxl_afu_fd_to_h(int fd);  // ocse does not support this route to an afu handle
 void ocxl_afu_free(struct ocxl_afu_h *afu);
 int ocxl_afu_opened(struct ocxl_afu_h *afu);
 
@@ -131,17 +132,17 @@ int ocxl_afu_opened(struct ocxl_afu_h *afu);
 struct ocxl_ioctl_start_work *ocxl_work_alloc(void);
 int ocxl_work_free(struct ocxl_ioctl_start_work *work);
 int ocxl_work_get_amr(struct ocxl_ioctl_start_work *work, __u64 *valp);
-int ocxl_work_get_num_irqs(struct ocxl_ioctl_start_work *work, __s16 *valp);
-int ocxl_work_get_wed(struct ocxl_ioctl_start_work *work, __u64 *valp);
+  // deprecate - int ocxl_work_get_num_irqs(struct ocxl_ioctl_start_work *work, __s16 *valp);
+  // deprecate - int ocxl_work_get_wed(struct ocxl_ioctl_start_work *work, __u64 *valp);
 int ocxl_work_set_amr(struct ocxl_ioctl_start_work *work, __u64 amr);
-int ocxl_work_set_num_irqs(struct ocxl_ioctl_start_work *work, __s16 num_irqs);
-int ocxl_work_set_wed(struct ocxl_ioctl_start_work *work, __u64 wed);
+  // deprecate - int ocxl_work_set_num_irqs(struct ocxl_ioctl_start_work *work, __s16 num_irqs);
+  // deprecate - int ocxl_work_set_wed(struct ocxl_ioctl_start_work *work, __u64 wed);
 
-  int ocxl_afu_attach(struct ocxl_afu_h *afu, uint64_t amr); // new
-  // old - int ocxl_afu_attach(struct ocxl_afu_h *afu);
-  //int ocxl_afu_attach(struct ocxl_afu_h *afu, uint64_t wed);
-  //int ocxl_afu_attach_work(struct ocxl_afu_h *afu,
-  //			struct ocxl_ioctl_start_work *work);
+  // old - int ocxl_afu_attach(struct ocxl_afu_h *afu, uint64_t amr); // old
+  int ocxl_afu_attach(struct ocxl_afu_h *afu); // new
+  // deprecate - int ocxl_afu_attach(struct ocxl_afu_h *afu, uint64_t wed);
+  int ocxl_afu_attach_work(struct ocxl_afu_h *afu,
+			   struct ocxl_ioctl_start_work *work);
 
 /* Deprecated interface */
 //int ocxl_afu_attach_full(struct ocxl_afu_h *afu, uint64_t wed,
@@ -150,7 +151,7 @@ int ocxl_work_set_wed(struct ocxl_ioctl_start_work *work, __u64 wed);
 /*
  * Get AFU process element
  */
-int ocxl_afu_get_process_element(struct ocxl_afu_h *afu);
+  // deprecate - int ocxl_afu_get_process_element(struct ocxl_afu_h *afu);
 
 /*
  * Returns the file descriptor for the open AFU to use with event loops.
@@ -166,9 +167,10 @@ int ocxl_afu_fd(struct ocxl_afu_h *afu);
  * NOTE: On success, this function automatically allocates the returned
  * buffer, which must be freed by the caller (much like asprintf).
  */
-//int ocxl_afu_sysfs_pci(struct ocxl_afu_h *afu, char **pathp);
+int ocxl_afu_sysfs_pci(struct ocxl_afu_h *afu, char **pathp); // but not supported in ocse
 
 /* Flags for ocxl_get/set_mode and ocxl_get_modes_supported */
+// deprecate mode
 #define OCXL_MODE_DEDICATED   0x1
 #define OCXL_MODE_DIRECTED    0x2
 #define OCXL_MODE_TIME_SLICED 0x4
@@ -191,27 +193,26 @@ enum ocxl_image {
  * Return 0 on success, -1 on error.
  */
 // this list will change based on the definitions in the pcie 0 header and vsec's supported for opencapi
-int ocxl_get_api_version(struct ocxl_afu_h *afu, long *valp);
-int ocxl_get_api_version_compatible(struct ocxl_afu_h *afu, long *valp);
-int ocxl_get_num_irqs(struct ocxl_afu_h *afu, long *valp);
-int ocxl_get_irqs_max(struct ocxl_afu_h *afu, long *valp);
-int ocxl_set_irqs_max(struct ocxl_afu_h *afu, long value);
-int ocxl_get_irqs_min(struct ocxl_afu_h *afu, long *valp);
+  // deprecate - int ocxl_get_api_version(struct ocxl_afu_h *afu, long *valp);
+  // deprecate - int ocxl_get_api_version_compatible(struct ocxl_afu_h *afu, long *valp);
+  // deprecate - int ocxl_get_num_irqs(struct ocxl_afu_h *afu, long *valp);
+  // deprecate - int ocxl_get_irqs_max(struct ocxl_afu_h *afu, long *valp);
+  // deprecate - int ocxl_set_irqs_max(struct ocxl_afu_h *afu, long value);
+  // deprecate - int ocxl_get_irqs_min(struct ocxl_afu_h *afu, long *valp);
 int ocxl_get_mmio_size(struct ocxl_afu_h *afu, long *valp);
 int ocxl_get_global_mmio_size(struct ocxl_afu_h *afu, long *valp);
-int ocxl_get_mode(struct ocxl_afu_h *afu, long *valp);
-int ocxl_set_mode(struct ocxl_afu_h *afu, long value);
-int ocxl_get_modes_supported(struct ocxl_afu_h *afu, long *valp);
-int ocxl_get_prefault_mode(struct ocxl_afu_h *afu, enum ocxl_prefault_mode *valp);
-int ocxl_set_prefault_mode(struct ocxl_afu_h *afu, enum ocxl_prefault_mode value);
-//int ocxl_get_dev(struct ocxl_afu_h *afu, long *majorp, long *minorp);
-int ocxl_get_pp_mmio_len(struct ocxl_afu_h *afu, long *valp);
-int ocxl_get_pp_mmio_off(struct ocxl_afu_h *afu, long *valp);
-int ocxl_get_base_image(struct ocxl_adapter_h *adapter, long *valp);
-int ocxl_get_caia_version(struct ocxl_adapter_h *adapter, long *majorp,
-                       long *minorp);
-int ocxl_get_image_loaded(struct ocxl_adapter_h *adapter, enum ocxl_image *valp);
-int ocxl_get_psl_revision(struct ocxl_adapter_h *adapter, long *valp);
+  // deprecate - int ocxl_get_mode(struct ocxl_afu_h *afu, long *valp);
+  // deprecate - int ocxl_set_mode(struct ocxl_afu_h *afu, long value);
+  // deprecate - int ocxl_get_modes_supported(struct ocxl_afu_h *afu, long *valp);
+  // deprecate - int ocxl_get_prefault_mode(struct ocxl_afu_h *afu, enum ocxl_prefault_mode *valp);
+  // deprecate - int ocxl_set_prefault_mode(struct ocxl_afu_h *afu, enum ocxl_prefault_mode value);
+  //int ocxl_get_dev(struct ocxl_afu_h *afu, long *majorp, long *minorp);
+  // deprecate - int ocxl_get_pp_mmio_len(struct ocxl_afu_h *afu, long *valp);
+  // deprecate - int ocxl_get_pp_mmio_off(struct ocxl_afu_h *afu, long *valp);
+  // deprecate - int ocxl_get_base_image(struct ocxl_adapter_h *adapter, long *valp);
+  // deprecate - int ocxl_get_caia_version(struct ocxl_adapter_h *adapter, long *majorp, long *minorp);
+  // deprecate - int ocxl_get_image_loaded(struct ocxl_adapter_h *adapter, enum ocxl_image *valp);
+  // deprecate - int ocxl_get_psl_revision(struct ocxl_adapter_h *adapter, long *valp);
 
 /*
  * Events (interrupts)
@@ -232,7 +233,7 @@ void ocxl_irq_free(struct ocxl_irq_h *irq );
 int ocxl_event_pending(struct ocxl_afu_h *afu);
 int ocxl_read_event(struct ocxl_afu_h *afu, struct ocxl_event *event);
 int ocxl_read_expected_event(struct ocxl_afu_h *afu, struct ocxl_event *event,
-			    uint32_t type, uint16_t irq);
+			     uint32_t type, uint16_t irq);
 
 /*
  * fprint wrappers to print out OCXL events - useful for debugging.
@@ -240,8 +241,8 @@ int ocxl_read_expected_event(struct ocxl_afu_h *afu, struct ocxl_event *event,
  * event type and ocxl_fprint_unknown_event will print out a hex dump of the
  * raw event.
  */
-//int ocxl_fprint_event(FILE *stream, struct ocxl_event *event);
-//int ocxl_fprint_unknown_event(FILE *stream, struct ocxl_event *event);
+int ocxl_fprint_event(FILE *stream, struct ocxl_event *event); // but not supported in ocse
+int ocxl_fprint_unknown_event(FILE *stream, struct ocxl_event *event); // but not supported in ocse
 
 /*
  * AFU MMIO functions
@@ -301,16 +302,16 @@ int ocxl_global_mmio_read32(struct ocxl_afu_h *afu, uint64_t offset, uint32_t * 
 //use JK's temp fix for this
 static inline int ocxl_mmio_install_sigbus_handler(void)
 {
-/* nothing to be done yet */
-return 0;
+  /* nothing to be done yet */
+  return 0;
 }
 
 // these probably access vsec information, so the names will likely change
-int ocxl_get_cr_device(struct ocxl_afu_h *afu, long cr_num, long *valp);
-int ocxl_get_cr_vendor(struct ocxl_afu_h *afu, long cr_num, long *valp);
-int ocxl_get_cr_class(struct ocxl_afu_h *afu, long cr_num, long *valp);
-int ocxl_errinfo_size(struct ocxl_afu_h *afu, size_t *valp);
-int ocxl_errinfo_read(struct ocxl_afu_h *afu, void *dst, off_t off, size_t len);
+  // deprecate - int ocxl_get_cr_device(struct ocxl_afu_h *afu, long cr_num, long *valp);
+  // deprecate - int ocxl_get_cr_vendor(struct ocxl_afu_h *afu, long cr_num, long *valp);
+  // deprecate - int ocxl_get_cr_class(struct ocxl_afu_h *afu, long cr_num, long *valp);
+  // deprecate - int ocxl_errinfo_size(struct ocxl_afu_h *afu, size_t *valp);
+  // deprecate - int ocxl_errinfo_read(struct ocxl_afu_h *afu, void *dst, off_t off, size_t len);
 
 /*
  * "wait a sec"
@@ -319,10 +320,11 @@ int ocxl_errinfo_read(struct ocxl_afu_h *afu, void *dst, off_t off, size_t len);
 // the routine will block until someone issues a "wake_host_thead" or asb_notify
 int ocxl_sleep(struct ocxl_afu_h *afu);
 
+// the followin notion can be found in libocxl_lpc.  they are not part of the normal reference user api
 // think about an lpc or "host agent memory" set of helper functions
 // maybe a map function
-// read functions
-// write functions
+// read function
+// write function
 // and an unmap
 
 #ifdef __cplusplus
