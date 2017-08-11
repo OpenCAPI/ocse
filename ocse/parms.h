@@ -27,6 +27,11 @@ struct parms {
 	unsigned int pagesize;
 	unsigned int resp_percent;
 	unsigned int paged_percent;
+	unsigned int retry_percent;
+	unsigned int failed_percent;
+	unsigned int pending_percent;
+	unsigned int derror_percent;
+	unsigned int bdi_percent;
 	unsigned int reorder_percent;
 	unsigned int buffer_percent;
 	unsigned int oppa_version;
@@ -40,6 +45,21 @@ int allow_resp(struct parms *parms);
 
 // Randomly decide to allow PAGED response
 int allow_paged(struct parms *parms);
+
+// Randomly decide to allow RETRY response
+int allow_retry(struct parms *parms);
+
+// Randomly decide to allow FAILED response
+int allow_failed(struct parms *parms);
+
+// Randomly decide to allow PENDING response
+int allow_pending(struct parms *parms);
+
+// Randomly decide to allow dERROR response
+int allow_derror(struct parms *parms);
+
+// Randomly decide to allow setting of BDI bit
+int allow_bdi(struct parms *parms);
 
 // Randomly decide to allow command to be handled out of order
 int allow_reorder(struct parms *parms);
