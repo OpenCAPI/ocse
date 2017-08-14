@@ -450,6 +450,7 @@ AFU::resolve_tlx_afu_cmd()
 	case TLX_CMD_XLATE_DONE:
 	case TLX_CMD_RETURN_ADR_TAG:
 	case TLX_CMD_INTRP_RDY:
+	    break;
 	case TLX_CMD_RD_MEM:
 	case TLX_CMD_PR_RD_MEM:
 	    debug_msg("AFU: pr_rd_mem cmd:");
@@ -464,6 +465,7 @@ AFU::resolve_tlx_afu_cmd()
 	    break;
 	case TLX_CMD_WRITE_MEM_BE:
 	case TLX_CMD_WRITE_META:
+	    break;
 	case TLX_CMD_PR_WR_MEM:
 	    debug_msg("AFU: pr_wr_mem cmd:");
 	    tlx_pr_wr_mem();
@@ -471,6 +473,7 @@ AFU::resolve_tlx_afu_cmd()
 	case TLX_CMD_FORCE_EVICT:
 	case TLX_CMD_FORCE_UR:
 	case TLX_CMD_WAKE_AFU_THREAD:
+	    break;
 	case TLX_CMD_CONFIG_READ:
 	    info_msg("AFU: Configuration Read command");
 	    if(afu_event.tlx_afu_cmd_t == 0) {

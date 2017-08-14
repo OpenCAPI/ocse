@@ -159,6 +159,7 @@ int main(int argc, char *argv[])
 	goto done;
     }
     while(status[0] != 0x00) {
+	sleep(1);
 	printf("Polling write completion status = 0x%x\n", *status);
     }
     
