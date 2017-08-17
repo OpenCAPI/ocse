@@ -557,10 +557,17 @@ static void _handle_touch(struct ocxl_afu_h *afu, uint64_t addr, uint8_t functio
 static void _handle_ack(struct ocxl_afu_h *afu)
 {
 	uint8_t data[sizeof(uint64_t)];
+	uint8_t resp_code;
 
 	if (!afu)
 		fatal_msg("NULL afu passed to libocxl.c:_handle_ack");
 	DPRINTF("MMIO ACK\n");
+	if (get_bytes_silent(afu->fd, 1, &resp_code, 1000, 0) < 0) {
+		warn_msg("Socket failure getting resp_code");
+		_all_idle(afu);
+	} 
+	if (resp_code !=0) // TODO update this to handle resp code retry requests
+		error_msg ("handle_ack: AFU sent RD or WR FAILED response code = 0x%d ", resp_code);
 	if ((afu->mmio.type == OCSE_MMIO_READ64) | (afu->mmio.type == OCSE_GLOBAL_MMIO_READ64) ) {
 		if (get_bytes_silent(afu->fd, sizeof(uint64_t), data, 1000, 0) <
 		    0) {
@@ -1459,11 +1466,19 @@ static void _mem_write_be(struct ocxl_afu_h *afu)
 
 static void _handle_mem_ack(struct ocxl_afu_h *afu)
 {
+	uint8_t resp_code;
+
 	debug_msg( "_handle_mem_ack" );
 
 	if (!afu)
 		fatal_msg("NULL afu passed to libocxl.c:_handle_mem_ack");
 
+	if (get_bytes_silent(afu->fd, 1, &resp_code, 1000, 0) < 0) {
+		warn_msg("Socket failure getting resp_code");
+		_all_idle(afu);
+	} 
+	if (resp_code !=0) // TODO update this to handle resp code retry requests
+		error_msg ("handle_mem_ack: AFU sent RD or WR FAILED response code = 0x%d ", resp_code);
 	if ( afu->mem.type == OCSE_LPC_READ ) {
 	        // assuming it all worked, we already know the size in afu->mem.size
 	        debug_msg( "_handle_mem_ack: getting %d bytes from socket", afu->mem.size );

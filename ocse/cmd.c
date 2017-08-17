@@ -865,7 +865,8 @@ void handle_buffer_write(struct cmd *cmd)
 		debug_msg("handle_buffer_write: we've decided to DERROR this cmd =0x%x \n", event->command);
 		return;
 	}
-	// TODO for xlate_pending response, ocse has to THEN follow up with an xlate_done response (at some unknown time later)
+	// TODO for xlate_pending response, ocse has to THEN follow up with an xlate_done response 
+	// (at some unknown time later) and that will "complete" the original cmd (no rd/write )
 	if ( allow_pending(cmd->parms)) {
 		event->state = MEM_XLATE_PENDING;
 		event->type = CMD_FAILED;
@@ -1066,7 +1067,8 @@ void handle_afu_tlx_cmd_data_read(struct cmd *cmd)
 		return;
 	}
 
-		// TODO for xlate_pending response, ocse has to THEN follow up with an xlate_done response (at some unknown time later)
+		// TODO for xlate_pending response, ocse has to THEN follow up with an xlate_done response
+		// (at some unknown time later) and that will "complete" the original cmd (no rd/write )
 		if ( allow_pending(cmd->parms)) {
 			event->state = MEM_XLATE_PENDING;
 			event->type = CMD_FAILED;
@@ -1178,7 +1180,8 @@ void handle_write_be_or_amo(struct cmd *cmd)
 		return;
 	}
 
-	// TODO for xlate_pending response, ocse has to THEN follow up with an xlate_done response (at some unknown time later)
+	// TODO for xlate_pending response, ocse has to THEN follow up with an xlate_done response 
+	// (at some unknown time later) and that will "complete" the original cmd (no rd/write )
 	if ( allow_pending(cmd->parms)) {
 		event->state = MEM_XLATE_PENDING;
 		event->type = CMD_FAILED;
@@ -1257,6 +1260,73 @@ void handle_write_be_or_amo(struct cmd *cmd)
 }
 
 
+// Handle randomly selected xlate_pending and send AFU back a xlate_done cmd 
+void handle_xlate_pending_sent(struct cmd *cmd)
+{
+	struct cmd_event **head;
+	struct cmd_event *event;
+	struct client *client;
+
+	// Make sure cmd structure is valid
+	if (cmd == NULL)
+		return;
+
+	// Randomly select a pending touch (or none)
+	head = &cmd->list;
+	while (*head != NULL) {
+		// if the state of the event is mem_done, we can potentially stop the loop and send a response for it.
+		// if we not allowing reordering, we'll break the loop and use this event.
+		// don't allow reordering while we sort this out.
+		if ( ( (*head)->state == MEM_PENDING_SENT ) ) { // && !allow_reorder(cmd->parms)) 
+		  break;
+		}
+		
+		head = &((*head)->_next);
+	}
+
+	event = *head;
+
+	// Randomly select a pending touch (or none)
+	/*event = cmd->list;
+	while (event != NULL) {
+		if ((event->state == MEM_PENDING_SENT)
+		    && ((event->client_state != CLIENT_VALID)
+			|| !allow_reorder(cmd->parms))) {
+			break;
+		}
+
+		event = event->_next;
+	} */
+
+	// Test for client disconnect
+	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
+		return;
+
+	debug_msg("%s:handle xlate_pending_done cmd_flag=0x%x tag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
+		  event->cmd_flag, event->afutag, event->addr);
+	// Check to see if this cmd gets selected for a RETRY or FAILED or PENDING read_failed response
+	if ( allow_retry(cmd->parms)) {
+		event->resp = 0x02;
+		debug_msg("handle_xlate_pending_done: we've decided to RETRY this cmd =0x%x \n", event->command);
+	} else if ( allow_failed(cmd->parms)) {
+		event->resp = 0x0f;
+		debug_msg("handle_xlate_pending_done: we've decided to FAIL this cmd =0x%x \n", event->command);
+		return;
+	} else
+		event->resp = 0x0;  // send completed resp code in the xlate_done cmd
+	if (tlx_afu_send_posted_cmd(cmd->afu_event,
+			TLX_CMD_XLATE_DONE, 0xefac, event->resp) == TLX_SUCCESS){ 
+			debug_msg("%s:XLATE_DONE CMD event @ 0x%016" PRIx64 ", sent tag=0x%02x code=0x%x", cmd->afu_name,
+			    event, event->afutag, event->resp);
+			*head = event->_next;
+		 	free(event->data);
+		 	free(event->parity);
+		 	free(event);
+			cmd->credits++;
+		}
+	}
+
+
 
 
 // Handle randomly selected memory touch
@@ -1267,7 +1337,6 @@ void handle_touch(struct cmd *cmd)
 	uint8_t *buffer;
 	uint64_t *addr;
 
-	// debug_msg( "ocse:handle_touch:" );
 	// Make sure cmd structure is valid
 	if (cmd == NULL)
 		return;
@@ -1310,7 +1379,8 @@ void handle_touch(struct cmd *cmd)
 		debug_msg("handle_touch: we've decided to FAIL this cmd =0x%x \n", event->command);
 		return;
 	}
-	// TODO for xlate_pending response, ocse has to THEN follow up with an xlate_done response (at some unknown time later)
+	// TODO for xlate_pending response, ocse has to THEN follow up with an xlate_done response 
+	// (at some unknown time later) and that will "complete" the original cmd (no rd/write )
 	if ( allow_pending(cmd->parms)) {
 		event->state = MEM_XLATE_PENDING;
 		event->type = CMD_FAILED;
@@ -1538,7 +1608,9 @@ static void _handle_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
 			     event->abort) < 0) {
 	        	debug_msg("%s:_handle_mem_read failed afutag=0x%04x size=%d addr=0x%016"PRIx64,
 				  cmd->afu_name, event->afutag, event->size, event->addr);
-			//event->resp = TLX_RESPONSE_DERROR;
+			event->state = MEM_DONE;
+			event->type = CMD_FAILED;
+			event->resp = 0x0e;
 			debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->tag,
 				 event->context, event->resp);
 			return;
@@ -1559,8 +1631,9 @@ static void _handle_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
 			     event->abort) < 0) {
 	        	debug_msg("%s:_handle_amo_mem_read failed tag=0x%02x size=%d addr=0x%016"PRIx64,
 				  cmd->afu_name, event->afutag, event->size, event->addr);
-			//event->resp = TLX_RESPONSE_DERROR;
 			event->state = MEM_DONE;
+			event->type = CMD_FAILED;
+			event->resp = 0x0e;
 			debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->tag,
 				 event->context, event->resp);
 			return;
@@ -1661,8 +1734,8 @@ void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd)
 	debug_msg("%s:MEMORY ACK tag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
 		  event->tag, event->addr);
 
-	// Randomly cause paged response
-	if (((event->type != CMD_WRITE) || (event->state != MEM_REQUEST)) &&
+	// Randomly cause paged response TODO, if still needed, this needs to be updated for ocse
+	/*if (((event->type != CMD_WRITE) || (event->state != MEM_REQUEST)) &&
 	    (client->flushing == FLUSH_NONE) && !_page_cached(cmd, event->addr)
 	    && allow_paged(cmd->parms)) {
 		if (event->type == CMD_READ)
@@ -1673,7 +1746,7 @@ void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd)
 		debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->tag,
 				 event->context, event->resp);
 		return;
-	}
+	} */
 	_update_age(cmd, event->addr);
 	// TODO update this entire section to work for new AMO_RD and AMO_RW that return data!!
 	//if ((event->type == CMD_READ) ||
@@ -1710,9 +1783,10 @@ void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd)
 // Mark memory event as address error in preparation for response
 void handle_aerror(struct cmd *cmd, struct cmd_event *event)
 {
-//	event->resp = TLX_RESPONSE_AERROR;
-  // debug_msg( "ocse:handle_aerror:" );
+  	debug_msg( "ocse:handle_aerror:" );
 	event->state = MEM_DONE;
+	event->type = CMD_FAILED;
+	event->resp = 0xe0;
 	debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->tag,
 			 event->context, event->resp);
 }
@@ -1759,14 +1833,6 @@ void handle_response(struct cmd *cmd)
 	  return;
 	}
 
-	// Send response, remove command from list and free memory
-/*	if ((event->resp == TLX_RESPONSE_PAGED) ||
-	    (event->resp == TLX_RESPONSE_AERROR) ||
-	    (event->resp == TLX_RESPONSE_DERROR)) {
-	        debug_msg( "%s:RESPONSE flushing events because this one is an error", cmd->afu_name );
-		client->flushing = FLUSH_FLUSHING;
-		_update_pending_resps(cmd, TLX_RESPONSE_FLUSHED);
-	} */
 
  //`drive_resp:
 	// debug - dump the event we picked...
@@ -1882,21 +1948,24 @@ void handle_response(struct cmd *cmd)
 		printf("SENDING TOUCH_RESP \n");
 		}
 	   
-	if ((rc == TLX_SUCCESS) && (event->resp != 0x4)) {
+	if (rc == TLX_SUCCESS) {
 		//if we sent a failed resp=0x4 (xlate_pending) we need to schedule to send a xlate_done cmd
-		// how to do this? Can't free this event, need to handle MEM_XLATE_PENDING state somewhere
-		// else and send xlate_done cmd and then free (no respnse expected back from AFU?)
-		debug_msg("%s:RESPONSE event @ 0x%016" PRIx64 ", sent tag=0x%02x code=0x%x", cmd->afu_name,
-			 event, event->afutag, event->resp);
-		debug_cmd_response(cmd->dbg_fp, cmd->dbg_id, event->tag);
-		         debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", free event",
-			 cmd->afu_name,
-			 event );
-		 *head = event->_next;
-		 free(event->data);
-		 free(event->parity);
-		 free(event);
-		 cmd->credits++;
+		// Can't free this event, will handle MEM_PENDING_SENT state in new routine 
+		// it'll send xlate_done cmd and then free (no respnse expected back from AFU)
+		if ( event->state == MEM_XLATE_PENDING) 
+			event->state = MEM_PENDING_SENT;
+		else {
+			debug_msg("%s:RESPONSE event @ 0x%016" PRIx64 ", sent tag=0x%02x code=0x%x", cmd->afu_name,
+			    event, event->afutag, event->resp);
+			debug_cmd_response(cmd->dbg_fp, cmd->dbg_id, event->tag);
+		            debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", free event",
+			    cmd->afu_name, event );
+			*head = event->_next;
+		 	free(event->data);
+		 	free(event->parity);
+		 	free(event);
+			cmd->credits++;
+		}
 	} else {
 		  debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", _response() failed",
 			     cmd->afu_name,

@@ -427,14 +427,42 @@ void tlx_bfm(
       if(invalidVal != 0) {
 	  event.afu_tlx_resp_credit = 0;
       }
+           if(invalidVal != 0) {
+	printf("%08lld: ", (long long) c_sim_time);
+	printf(" The AFU-TLX Resp return value has either X or Z value \n" );
+      } else {
+	if (c_afu_tlx_resp_credit == 1 ) {
+	  printf( "returning resp credit\n" );
+	  event.afu_tlx_resp_credit = 1;
+	  event.afu_tlx_credit_req_valid = 1;
+	} else {
+	  printf( "no resp credit to return\n" );
+	  event.afu_tlx_resp_credit = 0;
+	}
+      }
+
       invalidVal = 0;
       c_afu_tlx_cmd_credit  	= (afu_tlx_cmd_credit_top & 0x2) ? 0 : (afu_tlx_cmd_credit_top & 0x1);
       invalidVal		+= afu_tlx_cmd_credit_top & 0x2;
       // if value is invalid, force the credit to 0
       if(invalidVal != 0) {
 	  event.afu_tlx_cmd_credit = 0;
+	  printf( "AFU_TLX_CMD_CREDIT INVALID RESPONSE !!!!\n" );
       }
-      
+           if(invalidVal != 0) {
+	printf("%08lld: ", (long long) c_sim_time);
+	printf(" The AFU-TLX Credit return value has either X or Z value \n" );
+      } else {
+	if (c_afu_tlx_cmd_credit == 1 ) {
+	  printf( "returning cmd credit\n" );
+	  event.afu_tlx_cmd_credit = 1;
+	  event.afu_tlx_credit_req_valid = 1;
+	} else {
+	  printf( "no cmd credit to return\n" );
+	  event.afu_tlx_cmd_credit = 0;
+	}
+      }
+ 
       invalidVal = 0;
 
       //	Code to access the AFU->TLX command interface
