@@ -88,13 +88,13 @@ struct ocxl_adapter_image {
 #define OCXL_READ_MIN_SIZE 0x1000 /* 4K */
 
 /* Events from read() */
-enum ocxl_event_type {
-	OCXL_EVENT_RESERVED      = 0,
-	OCXL_EVENT_AFU_INTERRUPT = 1,
-	OCXL_EVENT_DATA_STORAGE  = 2,
-	OCXL_EVENT_AFU_ERROR     = 3,
-	OCXL_EVENT_AFU_DRIVER    = 4,
-};
+/* enum ocxl_event_type { */
+/* 	OCXL_EVENT_RESERVED      = 0, */
+/* 	OCXL_EVENT_AFU_INTERRUPT = 1, */
+/* 	OCXL_EVENT_DATA_STORAGE  = 2, */
+/* 	OCXL_EVENT_AFU_ERROR     = 3, */
+/* 	OCXL_EVENT_AFU_DRIVER    = 4, */
+/* }; */
 
 struct ocxl_event_header {
 	__u16 type;
@@ -140,14 +140,14 @@ struct ocxl_event_afu_driver_reserved {
 	__u8 data[];
 };
 
-struct ocxl_event {
-	struct ocxl_event_header header;
-	union {
-		struct ocxl_event_afu_interrupt irq;
-		struct ocxl_event_data_storage fault;
-		struct ocxl_event_afu_error afu_error;
-		struct ocxl_event_afu_driver_reserved afu_driver_event;
-	};
-};
+/* struct ocxl_event { */
+/* 	struct ocxl_event_header header; */
+/* 	union { */
+/* 		struct ocxl_event_afu_interrupt irq; */
+/* 		struct ocxl_event_data_storage fault; */
+/* 		struct ocxl_event_afu_error afu_error; */
+/* 		struct ocxl_event_afu_driver_reserved afu_driver_event; */
+/* 	}; */
+/* }; */
 
 #endif /* _UAPI_MISC_OCXL_H */

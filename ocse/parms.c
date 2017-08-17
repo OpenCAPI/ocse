@@ -43,6 +43,30 @@ int allow_paged(struct parms *parms)
 	return percent_chance(parms->paged_percent);
 }
 
+// Randomly decide to allow RETRY response
+int allow_retry(struct parms *parms)
+{
+	return percent_chance(parms->retry_percent);
+}
+
+// Randomly decide to allow FAILED response
+int allow_failed(struct parms *parms)
+{
+	return percent_chance(parms->failed_percent);
+}
+
+// Randomly decide to allow dERROR response
+int allow_derror(struct parms *parms)
+{
+	return percent_chance(parms->derror_percent);
+}
+
+// Randomly decide to allow PENDING response
+int allow_pending(struct parms *parms)
+{
+	return percent_chance(parms->pending_percent);
+}
+
 // Randomly decide to allow command to be handled out of order
 int allow_reorder(struct parms *parms)
 {
@@ -97,6 +121,9 @@ struct parms *parse_parms(char *filename, FILE * dbg_fp)
 	parms->seed = (unsigned int)time(NULL);
 	parms->resp_percent = 20;
 	parms->paged_percent = 5;
+	parms->retry_percent = 5;
+	parms->failed_percent = 5;
+	parms->pending_percent = 5;
 	parms->reorder_percent = 20;
 	parms->buffer_percent = 50;
 
@@ -177,6 +204,46 @@ struct parms *parse_parms(char *filename, FILE * dbg_fp)
 				parms->paged_percent = data;
 			debug_parm(dbg_fp, DBG_PARM_PAGED_PERCENT,
 				   parms->paged_percent);
+		} else if (!(strcmp(parm, "RETRY_PERCENT"))) {
+			percent_parm(value, &data);
+			if ((data >= 100) || (data < 0))
+				warn_msg("RETRY_PERCENT must be 0-99");
+			else
+				parms->retry_percent = data;
+			debug_parm(dbg_fp, DBG_PARM_RETRY_PERCENT,
+				   parms->retry_percent);
+		} else if (!(strcmp(parm, "FAILED_PERCENT"))) {
+			percent_parm(value, &data);
+			if ((data >= 100) || (data < 0))
+				warn_msg("FAILED_PERCENT must be 0-99");
+			else
+				parms->failed_percent = data;
+			debug_parm(dbg_fp, DBG_PARM_FAILED_PERCENT,
+				   parms->failed_percent);
+		} else if (!(strcmp(parm, "PENDING_PERCENT"))) {
+			percent_parm(value, &data);
+			if ((data >= 100) || (data < 0))
+				warn_msg("PENDING_PERCENT must be 0-99");
+			else
+				parms->pending_percent = data;
+			debug_parm(dbg_fp, DBG_PARM_PENDING_PERCENT,
+				   parms->pending_percent);
+		} else if (!(strcmp(parm, "DERROR_PERCENT"))) {
+			percent_parm(value, &data);
+			if ((data >= 100) || (data < 0))
+				warn_msg("DERROR_PERCENT must be 0-99");
+			else
+				parms->derror_percent = data;
+			debug_parm(dbg_fp, DBG_PARM_DERROR_PERCENT,
+				   parms->derror_percent);
+		} else if (!(strcmp(parm, "BDI_PERCENT"))) {
+			percent_parm(value, &data);
+			if ((data >= 100) || (data < 0))
+				warn_msg("BDI_PERCENT must be 0-99");
+			else
+				parms->bdi_percent = data;
+			debug_parm(dbg_fp, DBG_PARM_BDI_PERCENT,
+				   parms->bdi_percent);
 		} else if (!(strcmp(parm, "REORDER_PERCENT"))) {
 			percent_parm(value, &data);
 			if ((data >= 100) || (data < 0))

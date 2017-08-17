@@ -32,6 +32,8 @@
 #define LOG2_ENTRIES 4		// log2(PAGE_ENTRIES) = log2(64/4) = log2(16) = 4
 #define PAGE_ADDR_BITS 12
 #define PAGE_MASK 0xFFF
+#define BAD_OPERAND_SIZE 2
+#define BAD_ADDR_OFFSET 3
 
 enum cmd_type {
 	CMD_READ,
@@ -45,11 +47,13 @@ enum cmd_type {
 	CMD_AMO_WR,
 	CMD_XLAT_RD_TOUCH,
 	CMD_XLAT_WR_TOUCH,
+	CMD_FAILED,
 	CMD_OTHER
 };
 
 enum mem_state {
 	MEM_IDLE,
+	MEM_XLATE_PENDING,
 	MEM_TOUCH,
 	MEM_TOUCHED,
 	MEM_BUFFER,

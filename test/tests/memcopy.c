@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
     
     // attach device
     printf("Attaching device ...\n");
-    rc = ocxl_afu_attach(mafu_h, 0);
+    rc = ocxl_afu_attach(mafu_h);
     if(rc != 0) {
 	perror("cxl_afu_attach:"MDEVICE);
 	return rc;
@@ -159,6 +159,7 @@ int main(int argc, char *argv[])
 	goto done;
     }
     while(status[0] != 0x00) {
+	sleep(1);
 	printf("Polling write completion status = 0x%x\n", *status);
     }
     

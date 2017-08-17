@@ -483,10 +483,10 @@ static void _handle_write(struct ocxl_afu *afu, uint64_t addr, uint16_t size,
 	DPRINTF("WRITE to addr @ 0x%016" PRIx64 "\n", addr);
 }
 
-static void _handle_touch(struct ocxl_afu *afu, uint64_t addr, uint8_t size)
+static void _handle_touch(struct ocxl_afu *afu, uint64_t addr, uint8_t function_code, uint8_t cmd_pg_size)
 {
 	uint8_t buffer;
-
+// TODO check pg size; decide if to fail cmd for various other reasons and send back a fail resp code
 	if (!afu)
 		fatal_msg("NULL afu passed to libocxl.c:_handle_touch");
 	if (!_testmemaddr((uint8_t *) addr)) {
@@ -1439,7 +1439,7 @@ static void *_psl_loop(void *ptr)
 {
 	struct ocxl_afu *afu = (struct ocxl_afu *)ptr;
 	uint8_t buffer[MAX_LINE_CHARS];
-	uint8_t op_size, function_code, amo_op, cmd_endian;
+	uint8_t op_size, function_code, amo_op, cmd_endian, cmd_pg_size;
 	uint64_t addr, wr_be;
 	uint16_t size;
 	uint32_t value, lvalue;
@@ -1812,14 +1812,7 @@ static void *_psl_loop(void *ptr)
 
 
 		case OCSE_MEMORY_TOUCH:
-			DPRINTF("AFU MEMORY TOUCH\n");
-			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
-				warn_msg
-				    ("Socket failure getting memory touch size");
-				_all_idle(afu);
-				break;
-			}
-			size = buffer[0];
+			DPRINTF("AFU XLATE TOUCH\n");
 			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
 					     -1, 0) < 0) {
 				warn_msg
@@ -1829,7 +1822,20 @@ static void *_psl_loop(void *ptr)
 			}
 			memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
 			addr = ntohll(addr);
-			_handle_touch(afu, addr, size);
+			DPRINTF("to addr 0x%016" PRIx64 "\n", addr);
+			if (get_bytes_silent(afu->fd, 2, buffer,
+					     -1, 0) < 0) {
+				warn_msg
+				    ("Socket failure getting cmd_flag and cmd_pg_size");
+				_all_idle(afu);
+				break;
+			}
+			memcpy( (char *)&function_code, &buffer[0], sizeof( function_code ) );
+			memcpy( (char *)&cmd_pg_size, &buffer[1], sizeof( cmd_pg_size ) );
+			DPRINTF("xlate_touch cmd_flag= 0x%x\n", function_code);
+			DPRINTF("xlate_touch cmd_pg_size= 0x%x\n", cmd_pg_size);
+
+			_handle_touch(afu, addr, function_code, cmd_pg_size);
 			break;
 		case OCSE_MMIO_ACK:
 			_handle_ack(afu);

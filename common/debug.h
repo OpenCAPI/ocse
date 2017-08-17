@@ -66,6 +66,11 @@ typedef uint8_t DBG_HEADER;
 #define DBG_TLX_REV_LVL			0x8
 #define DBG_IMAGE_LOADED		0x9
 #define DBG_BASE_IMAGE			0xA
+#define DBG_PARM_RETRY_PERCENT		0xb
+#define DBG_PARM_FAILED_PERCENT		0xc
+#define DBG_PARM_PENDING_PERCENT		0xd
+#define DBG_PARM_DERROR_PERCENT		0xe
+#define DBG_PARM_BDI_PERCENT		0xf
 
 size_t debug_get_64(FILE * fp, uint64_t * value);
 size_t debug_get_32(FILE * fp, uint32_t * value);
