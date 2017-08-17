@@ -966,7 +966,8 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 	      }
 
 	      debug_msg("IN handle_mmio_ack and resp_capptag = %x and resp_code = %x! ", resp_capptag, resp_code);
-
+	      mmio->list->resp_code = resp_code;  //save this to send back to libocxl/client
+	      mmio->list->resp_opcode = afu_resp_opcode;  //save this to send back to libocxl/client
 	      if (resp_data_is_valid) {
 #ifdef DEBUG
     	            printf( "rdata_bus = 0x" );
@@ -1011,10 +1012,19 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 			  }
 		    }
 	      } else {
-		    if ((afu_resp_opcode == 2) && (resp_capptag == 0xdead))
+		    if ((afu_resp_opcode == 2) && ((resp_capptag == 0xdead) || 
+			(resp_capptag == 0xcafe) || (resp_capptag == 0xefac))) {
 		          printf("CFG/MMIO/MEM RD FAILED! afu_resp_opcode = 0x%x and resp_code = 0x%x \n",
 				 afu_resp_opcode, resp_code);
-		    debug_msg("%s:%s CMD RESP code=0x%x", mmio->afu_name, type, resp_code);
+		    	debug_msg("%s:%s CMD RESP code=0x%x", mmio->afu_name, type, resp_code);
+		    }
+		// do we get an ack back for write?
+		    if ((afu_resp_opcode == 2) && ((resp_capptag == 0xbeef) || 
+			(resp_capptag == 0xbead) || (resp_capptag == 0xdaeb))) {
+		          printf("CFG/MMIO/MEM WR FAILED! afu_resp_opcode = 0x%x and resp_code = 0x%x \n",
+				 afu_resp_opcode, resp_code);
+		    	debug_msg("%s:%s CMD RESP code=0x%x", mmio->afu_name, type, resp_code);
+		    }
 	      }
 
 	      // Keep data for MMIO reads
@@ -1044,6 +1054,7 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 void handle_mmio_map(struct mmio *mmio, struct client *client)
 {
 	uint32_t flags;
+	uint8_t *buffer;
 	uint8_t ack = OCSE_MMIO_ACK;
 	int fd = client->fd;
 
@@ -1077,11 +1088,19 @@ void handle_mmio_map(struct mmio *mmio, struct client *client)
 	}
 
  map_done:
-	// Send acknowledge to client
-	if (put_bytes(fd, 1, &ack, mmio->dbg_fp, mmio->dbg_id, client->context)
-	    < 0) {
-		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
-	}
+	// Send acknowledge to client	   
+	   buffer = (uint8_t *) malloc(2);
+	   buffer[0] = ack;
+	   buffer[1] = 0;
+	      if (put_bytes(fd, 2, buffer, mmio->dbg_fp, mmio->dbg_id,
+			      client->context) < 0) {
+			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		}
+
+	//if (put_bytes(fd, 1, &ack, mmio->dbg_fp, mmio->dbg_id, client->context)
+	//    < 0) {
+	//	client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	//}
 }
 
 // Add mmio write event of register at offset to list
@@ -1227,43 +1246,64 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 	if (event->state != OCSE_DONE)
 		return event;
 
+	// if AFU sent a mem_rd_fail or mem_wr_fail response, send them on to libocxl so it can interpret the resp_code
+	// and retry if needed, or fail simulation 
+	if (((event->resp_opcode == 0x02) || (event->resp_opcode == 0x04)) && (event->resp_code != 0))  {
+	      debug_msg("handle mmio_done: sending OCSE_ACK for failed READ or WRITE to client");
+	      buffer = (uint8_t *) malloc(2);
+	      buffer[0] = event->ack;
+	      buffer[1] = event->resp_code;
+	      if (put_bytes(fd, 2, buffer, mmio->dbg_fp, mmio->dbg_id,
+			      client->context) < 0) {
+			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		}
+	debug_mmio_return(mmio->dbg_fp, mmio->dbg_id, client->context);
+	free(event);
+	free(buffer);
+	return NULL;
+	}
+
 	if (event->rnw) {
 	      // Return acknowledge with read data
 	      if ( event->size !=0 ) {
    		    // this is an lpc mem request coming back
 		    debug_msg("handle_mmio_done:sending OCSE_LPC_ACK for a READ to client!!!!");
-		    buffer = (uint8_t *) malloc(event->size + 1);
+		    buffer = (uint8_t *) malloc(event->size + 2);
 		    buffer[0] = event->ack;
-		    memcpy( &(buffer[1]), event->data, event->size );
-		    if (put_bytes(fd, event->size + 1, buffer, mmio->dbg_fp, mmio->dbg_id, client->context) < 0) {
+		    buffer[1] = event->resp_code;
+		    memcpy( &(buffer[2]), event->data, event->size );
+		    if (put_bytes(fd, event->size + 2, buffer, mmio->dbg_fp, mmio->dbg_id, client->context) < 0) {
 		          client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		    }
 		    free( event->data );
 	      } else if ( event->dw ) {
 		    debug_msg("handle_mmio_done:sending OCSE_MMIO_ACK for a dw READ to client!!!!");
-		    buffer = (uint8_t *) malloc(9);
+		    buffer = (uint8_t *) malloc(10);
 		    buffer[0] = event->ack;
+		    buffer[1] = event->resp_code;
 		    data64 = htonll(event->cmd_data);
-		    memcpy(&(buffer[1]), &data64, 8);
-		    if (put_bytes(fd, 9, buffer, mmio->dbg_fp, mmio->dbg_id, client->context) < 0) {
+		    memcpy(&(buffer[2]), &data64, 8);
+		    if (put_bytes(fd, 10, buffer, mmio->dbg_fp, mmio->dbg_id, client->context) < 0) {
 		          client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		    }
 	      } else {
 		    debug_msg("handle_mmio_done:sending OCSE_MMIO_ACK for a READ to client!!!!");
-	    	    buffer = (uint8_t *) malloc(5);
+	    	    buffer = (uint8_t *) malloc(6);
 		    buffer[0] = event->ack;
+		    buffer[1] = event->resp_code;
 		    data32 = htonl(event->cmd_data);
-		    memcpy(&(buffer[1]), &data32, 4);
-		    if (put_bytes(fd, 5, buffer, mmio->dbg_fp, mmio->dbg_id, client->context) < 0) {
+		    memcpy(&(buffer[2]), &data32, 4);
+		    if (put_bytes(fd, 6, buffer, mmio->dbg_fp, mmio->dbg_id, client->context) < 0) {
 		          client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		    }
 	      }
 	} else {
 		// Return acknowledge for write
 		debug_msg("READY TO SEND OCSE_*_ACK for a WRITE to client!!!!");
-		buffer = (uint8_t *) malloc(1);
+		buffer = (uint8_t *) malloc(2);
 		buffer[0] = event->ack;
-		if (put_bytes(fd, 1, buffer, mmio->dbg_fp, mmio->dbg_id,
+		buffer[1] = event->resp_code;
+		if (put_bytes(fd, 2, buffer, mmio->dbg_fp, mmio->dbg_id,
 			      client->context) < 0) {
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		}

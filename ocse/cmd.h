@@ -54,6 +54,7 @@ enum cmd_type {
 enum mem_state {
 	MEM_IDLE,
 	MEM_XLATE_PENDING,
+	MEM_PENDING_SENT,
 	MEM_TOUCH,
 	MEM_TOUCHED,
 	MEM_BUFFER,
@@ -64,9 +65,6 @@ enum mem_state {
 	MEM_RECEIVED,
 	AMO_MEM_RESP,
 	DMA_PARTIAL,
-	AMO_OP_REQ,
-	DMA_OP_REQ,
-	DMA_MEM_REQ,
 	DMA_MEM_RESP,
 	MEM_DONE
 };
@@ -161,6 +159,8 @@ void handle_aerror(struct cmd *cmd, struct cmd_event *event);
 void handle_response(struct cmd *cmd);
 
 void handle_write_be_or_amo(struct cmd *cmd);
+
+void handle_xlate_pending_sent(struct cmd *cmd);
 
 
 int client_cmd(struct cmd *cmd, struct client *client);

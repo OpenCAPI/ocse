@@ -53,6 +53,8 @@ struct mmio_event {
 	uint8_t cmd_rd_cnt;
   // parallel records for general capp commands
         uint8_t ack;    // use this to hold the ack value for the message back to libocxl
+        uint8_t resp_code;    // use this to hold the resp value for the message back to libocxl
+        uint8_t resp_opcode;    // use this to hold the resp opcode for the message back to libocxl
         uint8_t be_valid;  // use this to let us know whether or not to use the byte enable
         uint32_t size;  // if size = 0, we use dw to imply size
         uint8_t *data;  // if size = 0, we use cmd_data as the data field
