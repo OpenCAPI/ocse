@@ -5,6 +5,7 @@
 #include "TestAFU_config.h"
 #include "tlx_interface_t.h"
 #include "../../libocxl/libocxl.h"
+#include <time.h>
 
 #define CACHELINE 128
 #define MDEVICE "/dev/cxl/afu0.0s"
@@ -25,6 +26,7 @@ static void print_help(char *name)
 
 int main(int argc, char *argv[])
 {
+    struct timespec t;
     int opt, option_index, i;
     int rc, timeout;
     char *rcacheline, *wcacheline;
@@ -62,6 +64,8 @@ int main(int argc, char *argv[])
 	}
     }
 
+    t.tv_sec = 0;
+    t.tv_nsec = 2000000;
     // initialize machine
     init_machine(&machine_config);
 
@@ -136,12 +140,13 @@ int main(int argc, char *argv[])
     }
     timeout = 0;
     while(status[0] != 0x0) {
+	nanosleep(&t, &t);
 	printf("Polling read completion status = 0x%x\n", *status);
     }
 
     // Attemp write command
     printf("Attempt Write command\n");
-    status[0] = 0xff;
+    //status[0] = 0xff;
     config_param.command = AFU_CMD_DMA_W;
     config_param.mem_size = 64;
     config_param.mem_base_address = (uint64_t)wcacheline;
@@ -158,8 +163,13 @@ int main(int argc, char *argv[])
 	printf("FAILED: config_enable_and_run_machine\n");
 	goto done;
     }
+    status[0] = 0xff;
     while(status[0] != 0x00) {
-	sleep(1);
+	nanosleep(&t, &t);
+	nanosleep(&t, &t);
+	nanosleep(&t, &t);
+	nanosleep(&t, &t);
+	nanosleep(&t, &t);
 	printf("Polling write completion status = 0x%x\n", *status);
     }
     

@@ -167,10 +167,10 @@ int config_enable_and_run_machine(struct ocxl_afu_h *afu, MachineConfig *machine
 	if (config_and_enable_machine(afu, machine, param, mode) < 0)
 		return -1;
 
-	rc = get_response(afu, machine, context, mode);
-	if (rc==0xFF)
-		return -1;
-
+	//rc = get_response(afu, machine, context, mode);
+	//if (rc==0xFF)
+	//	return -1;
+	rc = 0;
 	return rc;
 }
 
