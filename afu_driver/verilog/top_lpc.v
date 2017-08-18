@@ -713,7 +713,7 @@ end
   always @ ( tlx_clock ) begin
     simulationTime = $time;
     set_simulation_time(simulationTime);
-    tlx_bfm( tlx_clock,
+    #0 tlx_bfm( tlx_clock,
              afu_clock,
              reset,
 				// Table 1: TLX to AFU Response Interface
