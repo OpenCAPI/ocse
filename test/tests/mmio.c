@@ -4,7 +4,7 @@
 #include <inttypes.h>
 #include "../../libocxl/libocxl.h"
 
-#define MDEVICE "/dev/cxl/afu0.0s"
+#define MDEVICE "/dev/cxl/tlx0"
 
 static int verbose;
 static unsigned int buffer_cl = 64;
@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
     int opt, option_index;
     int rc;
     uint64_t wed, result;
-    struct ocxl_afu_h *mafu_h;
+    ocxl_afu_h mafu_h;
     uint32_t result32;
 
     static struct option long_options[] = {
@@ -60,8 +60,8 @@ int main(int argc, char *argv[])
     // open master device
     printf("Calling ocxl_afu_open_dev\n");
     
-    mafu_h = ocxl_afu_open_dev(MDEVICE);
-    if(!mafu_h) {
+    rc = ocxl_afu_open_from_dev(MDEVICE, &mafu_h);
+    if(rc != 0) {
 	perror("cxl_afu_open_dev: "MDEVICE);
 	return -1;
     }
@@ -112,7 +112,7 @@ int main(int argc, char *argv[])
 done:
     // free device
     printf("Freeing device ... \n");
-    ocxl_afu_free(mafu_h);
+    ocxl_afu_free(&mafu_h);
 
     return 0;
 }

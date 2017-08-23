@@ -73,7 +73,7 @@ static int _machine_base_address_index(uint16_t machine_number, int mode)
 }
 
 // Function to write config to AFU MMIO space
-int enable_machine(struct ocxl_afu_h *afu, MachineConfig *machine, MachineConfigParam param, int mode)
+int enable_machine(ocxl_afu_h afu, MachineConfig *machine, MachineConfigParam param, int mode)
 {
 	int i;
 	uint16_t machine_number;
@@ -108,7 +108,7 @@ int enable_machine(struct ocxl_afu_h *afu, MachineConfig *machine, MachineConfig
 }
 
 // Function to read config from AFU
-int poll_machine(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t context, int mode) {
+int poll_machine(ocxl_afu_h afu, MachineConfig *machine, uint16_t context, int mode) {
 	int i;
 
 	int machineConfig_baseaddress = _machine_base_address_index(context, mode);
@@ -129,7 +129,7 @@ int poll_machine(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t contex
 }
 
 // Function to set most commonly used elements and write to AFU MMIO space
-int config_and_enable_machine(struct ocxl_afu_h *afu, MachineConfig *machine, 
+int config_and_enable_machine(ocxl_afu_h afu, MachineConfig *machine, 
 		MachineConfigParam param, int mode)
 {
 	if (config_machine(machine, param))
@@ -140,7 +140,7 @@ int config_and_enable_machine(struct ocxl_afu_h *afu, MachineConfig *machine,
 }
 
 // Wait for response from AFU machine
-int get_response(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t context, int mode)
+int get_response(ocxl_afu_h afu, MachineConfig *machine, uint16_t context, int mode)
 {
 	uint8_t response;
 
@@ -156,13 +156,13 @@ int get_response(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t contex
 
 // Function to set most commonly used elements, write to AFU MMIO space and
 // wait for command completion
-int config_enable_and_run_machine(struct ocxl_afu_h *afu, MachineConfig *machine, 
+int config_enable_and_run_machine(ocxl_afu_h afu, MachineConfig *machine, 
 			MachineConfigParam param, int mode)
 {
 	int rc;
-	uint16_t context;
+//	uint16_t context;
 
-	context = param.context;
+//	context = param.context;
 
 	if (config_and_enable_machine(afu, machine, param, mode) < 0)
 		return -1;

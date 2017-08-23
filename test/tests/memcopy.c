@@ -8,7 +8,7 @@
 #include <time.h>
 
 #define CACHELINE 128
-#define MDEVICE "/dev/cxl/afu0.0s"
+#define MDEVICE "/dev/cxl/tlx0"
 
 static int verbose;
 static unsigned int buffer_cl = 64;
@@ -28,10 +28,10 @@ int main(int argc, char *argv[])
 {
     struct timespec t;
     int opt, option_index, i;
-    int rc, timeout;
+    int rc;
     char *rcacheline, *wcacheline;
     char *status;
-    struct ocxl_afu_h *mafu_h;
+    ocxl_afu_h mafu_h;
     MachineConfig machine_config;
     MachineConfigParam config_param;
 
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
     }
 
     t.tv_sec = 0;
-    t.tv_nsec = 2000000;
+    t.tv_nsec = 100000;
     // initialize machine
     init_machine(&machine_config);
 
@@ -96,8 +96,8 @@ int main(int argc, char *argv[])
     // open master device
     printf("Calling ocxl_afu_open_dev\n");
     
-    mafu_h = ocxl_afu_open_dev(MDEVICE);
-    if(!mafu_h) {
+    rc = ocxl_afu_open_from_dev(MDEVICE, &mafu_h);
+    if(rc != 0) {
 	perror("cxl_afu_open_dev: "MDEVICE);
 	return -1;
     }
@@ -166,10 +166,6 @@ int main(int argc, char *argv[])
     status[0] = 0xff;
     while(status[0] != 0x00) {
 	nanosleep(&t, &t);
-	nanosleep(&t, &t);
-	nanosleep(&t, &t);
-	nanosleep(&t, &t);
-	nanosleep(&t, &t);
 	printf("Polling write completion status = 0x%x\n", *status);
     }
     
@@ -182,7 +178,7 @@ int main(int argc, char *argv[])
 done:
     // free device
     printf("Freeing device ... \n");
-    ocxl_afu_free(mafu_h);
+    ocxl_afu_free(&mafu_h);
 
     return 0;
 }
