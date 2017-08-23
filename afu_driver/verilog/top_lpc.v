@@ -553,7 +553,7 @@ end
 
   always @ ( tlx_clock ) begin
     if(resetCnt == RESET_CYCLES + 2)
-      tlx_bfm_init();
+      #0 tlx_bfm_init();
   end
 
   always @ ( tlx_clock ) begin
@@ -712,7 +712,7 @@ end
 
   always @ ( tlx_clock ) begin
     simulationTime = $time;
-    set_simulation_time(simulationTime);
+    #0 set_simulation_time(simulationTime);
     #0 tlx_bfm( tlx_clock,
              afu_clock,
              reset,
@@ -843,7 +843,7 @@ end
   end
 
   always @ (negedge tlx_clock) begin
-    get_simuation_error(simulationError);
+    #0 get_simuation_error(simulationError);
   end
 
   always @ (posedge tlx_clock) begin
