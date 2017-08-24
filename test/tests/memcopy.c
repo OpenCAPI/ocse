@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
     }
 
     t.tv_sec = 0;
-    t.tv_nsec = 100000;
+    t.tv_nsec = 1000000;
     // initialize machine
     init_machine(&machine_config);
 

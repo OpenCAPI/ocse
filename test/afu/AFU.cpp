@@ -29,7 +29,8 @@ uint32_t wr_config_data;
 uint32_t bar_h0, bar_l0, bar_h1, bar_l1, bar_h2, bar_l2;
 uint64_t bar = 0x00000000ll;
 uint8_t enable_bar = 0;
-uint8_t read_status_flag = 0;
+uint8_t read_status_resp = 0;
+uint8_t write_status_resp = 0;
 
 AFU::AFU (int port, string filename, bool parity, bool jerror):
     descriptor (filename),
@@ -85,10 +86,6 @@ AFU::start ()
 {
     uint32_t cycle = 0;
     uint8_t  initial_credit_flag = 0;
-    struct timespec time;
-
-    time.tv_sec = 0;
-    time.tv_nsec = 1000000;
 
     while (1) {
         fd_set watchset;
@@ -226,7 +223,6 @@ AFU::start ()
 		printf("AFU: writing app status\n");
 	   	if(!insert_cycle) {
 	  	    write_app_status(status_address, 0x00);
-		    //nanosleep(&time1, &time2);
 		    insert_cycle = 1;
 		}
 		else {
@@ -238,22 +234,29 @@ AFU::start ()
 		}
 	    }
 	    else if(next_cmd) {
-		debug_msg("AFU: reading app status");
-	 	if(read_status_flag == 0) {
+	 	if(write_status_resp) {
+		    debug_msg("AFU: reading app status");	
 		    read_app_status(status_address);
-		    debug_msg("AFU: status data = 0x%x", status_data[0]);
+		    write_status_resp = 0;
+		}
+		else if(read_status_resp) {
 		    if(status_data[0] == 0xff) {
+			printf("AFU: status data = 0x%x\n", status_data[0]);
 		    	debug_msg("AFU: get next cmd from app");
 		    	next_cmd = 0;
 		    	cmd_ready = 1;
+			read_status_resp = 0;
 		    	get_machine_context();
 		    }
-		    else {
-		    	debug_msg("AFU: waiting for new cmd from app");
+		    else if(status_data[0] == 0x0) {
+			printf("AFU: status data = 0x%x\n", status_data[0]);
+			debug_msg("AFU: reading app status");
+			read_app_status(status_address);
+			printf("AFU: waiting for read resp\n");
 		    }
 		}
 		else {
-			printf("AFU: waiting for read app status response\n");
+		    debug_msg("AFU: waiting for new cmd from app");
 		}
 	    }
             else if(cmd_ready) {
@@ -584,7 +587,7 @@ AFU::resolve_tlx_afu_resp()
 	    break;
 	case TLX_RSP_READ_RESP:
 	    debug_msg("AFU: read_resp: calling afu_tlx_resp_data_read_req");
-	    read_status_flag = 0;
+	    read_status_resp = 1;
 	    cmd_rd_req = 0x1;	
 	    cmd_rd_cnt = 0x1; 	// 0=512B, 1=64B, 2=128B
 	    if(afu_tlx_resp_data_read_req(&afu_event, cmd_rd_req, cmd_rd_cnt) != TLX_SUCCESS) {
@@ -613,7 +616,7 @@ AFU::resolve_tlx_afu_resp()
 	    cdata_bad = 0;
 	    afu_tlx_send_cmd_data(&afu_event, cdata_bad, memory);
 	    write_resp_completed = 1;
-	    read_status_flag = 0;	// release read status
+	    write_status_resp = 1;	
 	    break;
 	case TLX_RSP_WRITE_FAILED:
 	case TLX_RSP_MEM_FLUSH_DONE:
@@ -1061,7 +1064,7 @@ AFU::write_app_status(uint8_t *address, uint32_t data)
 	afu_event.afu_tlx_cmd_pasid, afu_event.afu_tlx_cmd_pg_size, 
 	afu_event.afu_tlx_cdata_bus, afu_event.afu_tlx_cdata_bad);
 
-    read_status_flag = 1;	// stall read status until write resp
+    read_status_resp = 0;	// stall read status until write resp
     return;
 }
 
@@ -1088,7 +1091,7 @@ AFU::read_app_status(uint8_t *address)
 	afu_event.afu_tlx_cmd_endian, afu_event.afu_tlx_cmd_bdf,
 	afu_event.afu_tlx_cmd_pasid, afu_event.afu_tlx_cmd_pg_size);
     
-    read_status_flag = 1;	
+    read_status_resp = 0;	
     return;
 }
 

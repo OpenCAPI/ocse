@@ -158,7 +158,7 @@ int main(int argc, char *argv[])
 
     rc = ocxl_afu_event_check(mafu_h, NULL, &event, 1);
     printf("Returned from ocxl_read_event -> there is an interrupt\n");
-    if(rc != 0) {
+    if(rc == 0) {
 	printf("Error retrieving interrupt event\n");
   	return -1;
     }
@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
 done:
     // free device
     printf("Freeing device ... \n");
-    ocxl_afu_free(mafu_h);
+    ocxl_afu_free(&mafu_h);
 
     return 0;
 }
