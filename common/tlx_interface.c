@@ -1110,7 +1110,9 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		event->tbuf[bp++] = event->afu_tlx_cmd_rd_req;
 		event->tbuf[bp++] = event->afu_tlx_cmd_rd_cnt;
 		if (event->afu_tlx_cmd_credit == 1)
-			debug_msg("TLX_SIGNAL_TLX_MODEL setting afu_tlx_cmd_credit = 1");
+			debug_msg("TLX_SIGNAL_TLX_MODEL SETTING afu_tlx_cmd_credit = 1");
+		if (event->afu_tlx_resp_credit == 1)
+			debug_msg("TLX_SIGNAL_TLX_MODEL SETTING afu_tlx_resp_credit = 1");
 		printf("setting afu_tlx_credit_req_valid=0 in tlx_signal_tlx_model \n");
 		event->afu_tlx_credit_req_valid = 0;
 		event->afu_tlx_cmd_credit = 0;

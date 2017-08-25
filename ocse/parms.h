@@ -22,7 +22,6 @@
 
 struct parms {
 	unsigned int timeout;
-	unsigned int credits;
 	unsigned int seed;
 	unsigned int pagesize;
 	unsigned int resp_percent;
@@ -31,13 +30,13 @@ struct parms {
 	unsigned int failed_percent;
 	unsigned int pending_percent;
 	unsigned int derror_percent;
+	unsigned int int_retry_percent;
+	unsigned int int_failed_percent;
+	unsigned int int_pending_percent;
+	unsigned int int_derror_percent;
 	unsigned int bdi_percent;
 	unsigned int reorder_percent;
 	unsigned int buffer_percent;
-	unsigned int oppa_version;
-	unsigned int tlx_rev_level;
-	unsigned int image_loaded;
-	unsigned int base_image;
 };
 
 // Randomly decide to allow response to AFU
@@ -57,6 +56,18 @@ int allow_pending(struct parms *parms);
 
 // Randomly decide to allow dERROR response
 int allow_derror(struct parms *parms);
+
+// Randomly decide to allow RETRY response for interrupt
+int allow_int_retry(struct parms *parms);
+
+// Randomly decide to allow FAILED response for interrupt
+int allow_int_failed(struct parms *parms);
+
+// Randomly decide to allow PENDING response for interrupt
+int allow_int_pending(struct parms *parms);
+
+// Randomly decide to allow dERROR response for interrupt
+int allow_int_derror(struct parms *parms);
 
 // Randomly decide to allow setting of BDI bit
 int allow_bdi(struct parms *parms);

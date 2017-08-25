@@ -15,10 +15,6 @@
 # NOTE: Must be a single value, not a min,max range
 #TIMEOUT:10
 
-# Credits:  Normally the 64 will always provide 64 credits.  Tweaking this
-# value is primarily for OCSE testing purposes only.
-# NOTE: Must be a single value, not a min,max range
-#CREDITS:64
 
 # NOTE - Pagesize parm is valid ONLY for OCL9 models
 # Pagesize: By default, the ocse will always send back encoding for a 4K page
@@ -58,11 +54,27 @@ PENDING_PERCENT:0
 DERROR_PERCENT:0
 #DERROR_PERCENT:50, 70
 
+# Percentage chance of OCL responding with RETRY for any interrupt response.
+#RETRY_PERCENT:60, 80
+INT_RETRY_PERCENT:0
+
+# Percentage chance of OCL responding with FAILED for any interrupt response.
+#FAILED_PERCENT:50, 60
+INT_FAILED_PERCENT:0
+
+# Percentage chance of OCL responding with PENDING for any interrupt response.
+INT_PENDING_PERCENT:90
+
+# Percentage chance of OCL responding with dERROR for any interrupt response.
+INT_DERROR_PERCENT:0
+#DERROR_PERCENT:50, 70
+
+
 # Percentage chance of OCL setting bdi for any cfg data, resp data or cmd data sent to AFU.
 BDI_PERCENT:0
 
 # Percentage chance of OCL reordering the execution of commands.
-REORDER_PERCENT:80,90
+REORDER_PERCENT:30,40
 
 # Percentage chance of OCL generating extra buffer read/write activity.
 # BUFFER_PERCENT:80,90
