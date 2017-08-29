@@ -70,9 +70,13 @@ INT_DERROR_PERCENT:0
 #DERROR_PERCENT:50, 70
 
 
-# Percentage chance of OCL setting bdi for any cfg data, resp data or cmd data sent to AFU.
-BDI_PERCENT:0
+# Percentage chance of OCL setting bdi for any resp data  sent to AFU.
+BDI_RESP_ERR_PERCENT:0
 
+# Percentage chance of OCL setting bdi for any cmd data sent to AFU.
+BDI_CMD_ERR_PERCENT:0
+
+# Percentage chance of OCL reordering the execution of commands.
 # Percentage chance of OCL reordering the execution of commands.
 REORDER_PERCENT:30,40
 

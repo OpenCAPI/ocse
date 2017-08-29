@@ -846,11 +846,19 @@ void send_mmio(struct mmio *mmio)
 		    // init a 64 byte space
 		    memcpy(tdata_bus, null_buff, 64); //not sure if we always have to do this, but better safe than...
 		    uint8_t * dptr = tdata_bus;
+		    uint8_t BDI = 0;
 
 		    offset = event->cmd_PA & 0x000000000000003F ;  // this works for addresses >= 64 too
 		    memcpy( dptr+offset, event->data, cmd_byte_cnt);  // copy the data to the tdata buffer
+	  	    // TODO finish this bid_resp_err code in sprinti
+		    //if ( allow_bdi_resp_err(event->cmd->parms)) {
+		    //		debug_msg("send_mmio: we've decided to BDI the cmd data  \n");
+		    //		BDI = 1;
+		    //} else
+			BDI = 0;
 
-		    if (tlx_afu_send_cmd_data(mmio->afu_event, 64, 0, dptr) == TLX_SUCCESS) {
+
+		    if (tlx_afu_send_cmd_data(mmio->afu_event, 64, BDI, dptr) == TLX_SUCCESS) {
 		      /* if (event->dw) */
 		      /* 	sprintf(data, "%016" PRIx64, event->cmd_data); */
 		      /* else */
@@ -1174,38 +1182,11 @@ static struct mmio_event *_handle_mmio_read(struct mmio *mmio,
 	return NULL;
 }
 
-// Add mmio read event of error buffer at offset to list
-static struct mmio_event *_handle_mmio_read_eb(struct mmio *mmio,
-					    struct client *client, int dw)
-{
-	struct mmio_event *event;
-	uint32_t offset;
-	int fd = client->fd;
-
-	if (get_bytes_silent(fd, 4, (uint8_t *) & offset, mmio->timeout,
-			     &(client->abort)) < 0) {
-		goto read_fail;
-	}
-	offset = ntohl(offset);
-        //offset = offset + (uint32_t)mmio->cfg.AFU_EB_offset;
-        debug_msg("offset for eb read is %x\n", offset);
-//	event = _add_event(mmio, client, 1, dw, offset>>2, 1, 0);
-	event = _add_cfg(mmio, 1, dw, offset>>2, 0);
-//        _wait_for_done(&(event->state), ocl->lock);
-	return event;
-
- read_fail:
-	// Socket connection is dead
-	debug_msg("%s:_handle_mmio_read failed context=%d",
-		  mmio->afu_name, client->context);
-	client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
-	return NULL;
-}
 
 
 // Handle MMIO request from client
 struct mmio_event *handle_mmio(struct mmio *mmio, struct client *client,
-			       int rnw, int dw, int eb_rd, int global)
+			       int rnw, int dw, int global)
 {
 	uint8_t ack;
 
@@ -1218,9 +1199,6 @@ struct mmio_event *handle_mmio(struct mmio *mmio, struct client *client,
 		}
 		return NULL;
 	}
-
-	if (eb_rd)
-		return _handle_mmio_read_eb(mmio, client, dw);
 
 	if (rnw)
 		return _handle_mmio_read(mmio, client, dw, global);

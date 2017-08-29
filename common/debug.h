@@ -69,7 +69,8 @@ typedef uint8_t DBG_HEADER;
 #define DBG_PARM_INT_FAILED_PERCENT	0xb
 #define DBG_PARM_INT_PENDING_PERCENT	0xc
 #define DBG_PARM_INT_DERROR_PERCENT	0xd
-#define DBG_PARM_BDI_PERCENT		0xf
+#define DBG_PARM_BDI_RESP_ERR_PERCENT	0xe
+#define DBG_PARM_BDI_CMD_ERR_PERCENT	0xf
 
 size_t debug_get_64(FILE * fp, uint64_t * value);
 size_t debug_get_32(FILE * fp, uint32_t * value);
