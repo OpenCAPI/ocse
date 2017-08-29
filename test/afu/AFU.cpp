@@ -17,6 +17,7 @@ using std::vector;
 
 uint8_t memory[256];
 uint8_t next_cmd = 0;
+uint8_t retry_cmd = 0;
 uint8_t read_resp_completed = 0;
 uint8_t write_resp_completed = 0;
 uint8_t cmd_ready = 1;
@@ -31,6 +32,7 @@ uint64_t bar = 0x00000000ll;
 uint8_t enable_bar = 0;
 uint8_t read_status_resp = 0;
 uint8_t write_status_resp = 0;
+uint32_t write_status_tag;
 
 AFU::AFU (int port, string filename, bool parity, bool jerror):
     descriptor (filename),
@@ -171,6 +173,9 @@ AFU::start ()
 	    afu_event.tlx_afu_resp_data_credit = 1;	// return TLX resp data credit
 	    afu_event.tlx_afu_resp_data_valid = 0;
 	}
+	if(afu_event.tlx_afu_resp_data_valid && mem_state != WAITING_FOR_DATA) {
+	    afu_event.tlx_afu_resp_data_credit = 1;	// return TLX resp data credit
+	}
 	// configuration write response
 	//if (afu_event.tlx_afu_cmd_data_valid && config_state == READY) {
 	if (afu_event.tlx_cfg_resp_ack && config_state == READY) {
@@ -276,6 +281,10 @@ AFU::start ()
                 	} while (++highest_priority_mc != prev);
 		}
             }
+	    else if(retry_cmd) {
+		highest_priority_mc->second->resend_command(&afu_event, cycle);
+		retry_cmd = 0;
+	    }
         }
         else if (state == RESET) {
 	    debug_msg("AFU: resetting");
@@ -602,6 +611,7 @@ AFU::resolve_tlx_afu_resp()
 	case TLX_RSP_UGRADE_RESP:
 	    break;
 	case TLX_RSP_READ_FAILED:
+	    printf("AFU: TLX read response failed\n");
 	    break;
 	case TLX_RSP_CL_RD_RESP:
 	    break;
@@ -616,12 +626,34 @@ AFU::resolve_tlx_afu_resp()
 	    cdata_bad = 0;
 	    afu_tlx_send_cmd_data(&afu_event, cdata_bad, memory);
 	    write_resp_completed = 1;
-	    write_status_resp = 1;	
+	    printf("write status tag = 0x%x\n", write_status_tag);
+	    printf("afutag = 0x%x\n", afu_event.tlx_afu_resp_afutag);
+	    if(write_status_tag == afu_event.tlx_afu_resp_afutag)
+	    	write_status_resp = 1;	
 	    break;
 	case TLX_RSP_WRITE_FAILED:
+	    printf("AFU: TLX write response failed\n");
+	    break;
 	case TLX_RSP_MEM_FLUSH_DONE:
 	case TLX_RSP_INTRP_RESP:
 	    printf("Receive interrupt response code = 0x%x\n",resp_code);
+	    switch(resp_code) {
+		case 0x0:
+		    printf("AFU: Interrupt request accepted\n");
+		    break;
+		case 0x2:
+		    printf("AFU: Retry request\n");
+		    retry_cmd = 1;
+		    break;
+		case 0x4:
+		    printf("AFU: Interrupt pending\n");
+		    break;
+		case 0xe:
+		    printf("AFU: Interrupt failed\n");
+		    break;
+		default:
+		    break;
+		}
 	    write_app_status(status_address, 0x0);
 	    break;
 	case TLX_RSP_READ_RESP_OW:
@@ -1064,6 +1096,7 @@ AFU::write_app_status(uint8_t *address, uint32_t data)
 	afu_event.afu_tlx_cmd_pasid, afu_event.afu_tlx_cmd_pg_size, 
 	afu_event.afu_tlx_cdata_bus, afu_event.afu_tlx_cdata_bad);
 
+    write_status_tag = cmd_afutag;
     read_status_resp = 0;	// stall read status until write resp
     return;
 }

@@ -116,7 +116,7 @@ int main(int argc, char *argv[])
 	goto done;
     }
     printf("Attempt Read command\n");
-    status[0] = 0xff;
+    //status[0] = 0xff;
     config_param.context = 0;
     config_param.enable_always = 1;
     config_param.mem_size = CACHELINE;
@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
     printf("command = 0x%x\n", config_param.command);
     printf("mem base address = 0x%"PRIx64"\n", config_param.mem_base_address);
     rc = config_enable_and_run_machine(mafu_h, &machine_config, config_param, DIRECTED);
-    //status[0] = 0xff;
+    status[0] = 0xff;
     if( rc != -1) {
 	printf("Response = 0x%x\n", rc);
 	printf("config_enable_and_run_machine PASS\n");
