@@ -1259,12 +1259,13 @@ void handle_write_be_or_amo(struct cmd *cmd)
 }
 
 
-// Handle randomly selected xlate_pending and send AFU back a xlate_done cmd 
-void handle_xlate_pending_sent(struct cmd *cmd)
+// Handle randomly selected xlate_pending or intrp_pending and send AFU back a xlate_done or intrp_rdy cmd 
+void handle_xlate_intrp_pending_sent(struct cmd *cmd)
 {
 	struct cmd_event **head;
 	struct cmd_event *event;
 	struct client *client;
+	uint8_t cmd_to_send;
 
 	// Make sure cmd structure is valid
 	if (cmd == NULL)
@@ -1302,22 +1303,26 @@ void handle_xlate_pending_sent(struct cmd *cmd)
 	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
 		return;
 
-	debug_msg("%s:handle xlate_pending_done cmd_flag=0x%x tag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
+	debug_msg("%s:handle xlate_intrp_pending_done cmd_flag=0x%x tag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
 		  event->cmd_flag, event->afutag, event->addr);
 	// Check to see if this cmd gets selected for a RETRY or FAILED or PENDING read_failed response
 	if ( allow_retry(cmd->parms)) {
 		event->resp = 0x02;
-		debug_msg("handle_xlate_pending_done: we've decided to RETRY this cmd =0x%x \n", event->command);
+		debug_msg("handle_xlate_intrp_pending_done: we've decided to RETRY this cmd =0x%x \n", event->command);
 	} else if ( allow_failed(cmd->parms)) {
 		event->resp = 0x0f;
-		debug_msg("handle_xlate_pending_done: we've decided to FAIL this cmd =0x%x \n", event->command);
+		debug_msg("handle_xlate_intrp_pending_done: we've decided to FAIL this cmd =0x%x \n", event->command);
 		return;
 	} else
 		event->resp = 0x0;  // send completed resp code in the xlate_done cmd
+	if ((event->command == AFU_CMD_XLATE_TOUCH) || (event->command == AFU_CMD_XLATE_TOUCH_N))
+		cmd_to_send = TLX_CMD_XLATE_DONE;
+	else
+		cmd_to_send = TLX_CMD_INTRP_RDY;
 	if (tlx_afu_send_posted_cmd(cmd->afu_event,
-			TLX_CMD_XLATE_DONE, 0xefac, event->resp) == TLX_SUCCESS){ 
-			debug_msg("%s:XLATE_DONE CMD event @ 0x%016" PRIx64 ", sent tag=0x%02x code=0x%x", cmd->afu_name,
-			    event, event->afutag, event->resp);
+			cmd_to_send, 0xefac, event->resp) == TLX_SUCCESS){ 
+			debug_msg("%s:XLATE_INTRP_DONE CMD event @ 0x%016" PRIx64 ", sent tag=0x%02x code=0x%x cmd=0x%x", cmd->afu_name,
+			    event, event->afutag, event->resp, cmd_to_send);
 			*head = event->_next;
 		 	free(event->data);
 		 	free(event->parity);

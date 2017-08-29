@@ -63,7 +63,7 @@ INT_RETRY_PERCENT:0
 INT_FAILED_PERCENT:0
 
 # Percentage chance of OCL responding with PENDING for any interrupt response.
-INT_PENDING_PERCENT:90
+INT_PENDING_PERCENT:0
 
 # Percentage chance of OCL responding with dERROR for any interrupt response.
 INT_DERROR_PERCENT:0
@@ -78,7 +78,7 @@ BDI_CMD_ERR_PERCENT:0
 
 # Percentage chance of OCL reordering the execution of commands.
 # Percentage chance of OCL reordering the execution of commands.
-REORDER_PERCENT:30,40
+REORDER_PERCENT:40,60
 
 # Percentage chance of OCL generating extra buffer read/write activity.
 # BUFFER_PERCENT:80,90
