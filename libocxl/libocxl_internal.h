@@ -83,6 +83,11 @@ struct ocxl_afu {
 	struct ocxl_waitasec *waitasec;
 	int adapter;
 	char *id;
+        char *name;
+        uint8_t bus;
+        uint8_t dev;
+        uint8_t fcn;
+        uint8_t afu_id;
 	uint16_t context;
 	uint16_t map;
 	uint16_t position;

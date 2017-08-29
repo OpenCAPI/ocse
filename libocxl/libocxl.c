@@ -2256,7 +2256,14 @@ ocxl_err ocxl_afu_open_from_dev( char *path, ocxl_afu_h *afu )
 {
 	uint16_t afu_map;
 	uint8_t major, minor;
+	char *my_afuid;
 	char *afu_id;
+	char *afu_name;
+	char *dev_domain;
+	char *dev_bus;
+	char *dev_device;
+	char *dev_function;
+	char *afu_index;
 	char afu_type;
 	int fd;
 	struct ocxl_afu *my_afu;
@@ -2270,27 +2277,53 @@ ocxl_err ocxl_afu_open_from_dev( char *path, ocxl_afu_h *afu )
         // lgt - this part will change for opencapi, but is ok for now.
 	//       afu_type will always be directed, may not have a master/slave distinction
 	//       major and minor are yet to be defined.
-	// afu_map is now simply a number...
+	// afu_map is now simply a number...  the bits that are on represent the tlx's that are present
 	// the name is temporarily tlxM where M can be 0 - F
 	// type is no longer relevant
 	// ocapi - /dev/ocxl/<afu_name>.<domain>:<bus>:<device>.<function>.<afu_index>
+	// we initially support only 1 afu per function per bus. bus maps to major
+	// e.g. /dev/ocxl/IBM,MEMCPY3.0000:00:00.1.0
+
 	afu_id = strrchr(path, '/');
 	afu_id++;
 	debug_msg("afu id = %s", afu_id);
 
+	// copy to a non-constant string...
+	my_afuid = malloc( strlen( afu_id ) + 1 );
+	strcpy( my_afuid, afu_id );
+	
+	// afu_id is now <afu_name>.<domain>:<bus>:<device>.<function>.<afu_index>
+	// we can discard domain
+	afu_name = strtok( my_afuid, "." );  // something like "IBM,MEMCPY"
+	dev_domain = strtok( NULL, ":" );  // probably "0000"
+	dev_bus = strtok( NULL, ":" );     // two chars "bb" (0 to FF) (256 "slots") (from shimhost.dat tlxb)
+	dev_device = strtok( NULL, "." );  // two chars "dd" (0) (always 0)
+	dev_function = strtok( NULL, "." );// one char  "f"  (0 to 7)  (8 "slots") (from discovery always 1 for now)
+	afu_index = strtok( NULL, "." );   // two chars "ii" (0 to 63) (64 "slots") (from discovery always 0 for now)
+
+	debug_msg( "afu name = %s, domain = %s, bus = %s, device = %s, function = %s, afu control index = %s", afu_name, dev_domain, dev_bus, dev_device, dev_function, afu_index );
+	// this means we can use dev_bus as the major number for now, be we have to rework this totally...
+
+	// we need a new way to map the afus that are available.  which comes from osce during connect
+	// bus, function, and afu_index are interesting to us.  device is always 0.  domain can be ignored.
+	// maybe we should just send the numbers over and let ocse find it or return a bad device result.  
+	// yes, just send to ocse and let it sort it out
+
 	// check and map id[3] to an integer - be mindful of the hex upper/lower case character
-	if ( (afu_id[3] >= '0') && (afu_id[3] <= '9') ) {
-	  major = afu_id[3] - '0';
-	} else if ( (afu_id[3] >= 'A') && (afu_id[3] <= 'F') ) {
-	  major = afu_id[3] - 'A' + 10;
-	} else if ( (afu_id[3] >= 'a') && (afu_id[3] <= 'f') ) {
-	  major = afu_id[3] - 'a' + 10;
-	} else {
-		warn_msg("Invalid afu major: %c", afu_id[3]);
-		errno = ENODEV;
-		return OCXL_NO_DEV;
-	}
+	/* if ( (afu_id[3] >= '0') && (afu_id[3] <= '9') ) { */
+	/*   major = afu_id[3] - '0'; */
+	/* } else if ( (afu_id[3] >= 'A') && (afu_id[3] <= 'F') ) { */
+	/*   major = afu_id[3] - 'A' + 10; */
+	/* } else if ( (afu_id[3] >= 'a') && (afu_id[3] <= 'f') ) { */
+	/*   major = afu_id[3] - 'a' + 10; */
+	/* } else { */
+	/* 	warn_msg("Invalid afu major: %c", afu_id[3]); */
+	/* 	errno = ENODEV; */
+	/* 	return OCXL_NO_DEV; */
+	/* } */
+	major = (uint8_t)strtol( dev_bus, NULL, 16 );
 	debug_msg("major number = 0x%01x", major);
+
 	// if ((afu_id[5] < '0') || (afu_id[5] > '3')) {
 	// 	warn_msg("Invalid afu minor: %c", afu_id[5]);
 	//	errno = ENODEV;
@@ -2301,6 +2334,11 @@ ocxl_err ocxl_afu_open_from_dev( char *path, ocxl_afu_h *afu )
 
 	// return _ocse_open(&fd, afu_map, major, minor);
 	my_afu = _ocse_open(&fd, afu_map, major, minor);
+	my_afu->name = afu_name;
+	my_afu->bus = (uint8_t)strtol( dev_bus, NULL, 16 );
+	my_afu->dev = (uint8_t)strtol( dev_device, NULL, 16 );
+	my_afu->fcn = (uint8_t)strtol( dev_function, NULL, 16 );
+	my_afu->afu_id = (uint8_t)strtol( afu_index, NULL, 16 );
 
 	// now, how do I return afu_h (struct ocxl_afu *) through afu (ocxl_afu_h *)?
 	*afu = ( ocxl_afu_h )my_afu;
