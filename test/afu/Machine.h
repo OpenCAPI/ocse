@@ -15,6 +15,7 @@ extern "C" {
 class MachineController::Machine {
 private:
     Command * command;
+    Command *resend_command;
 
     /* to keep the cache line of data from load and store command */
     uint8_t cache_line[SIZE_CACHE_LINE];
@@ -99,7 +100,8 @@ public:
      * command, returns true if a command is sent */
     bool attempt_new_command (AFU_EVENT *, uint32_t tag, bool error_state,
                               uint16_t cycle);
-
+    bool attempt_resend_command(AFU_EVENT*, uint32_t tag, bool error_state, 
+			uint16_t cycle);
     /* process reponse received from simulator */
     void process_response (AFU_EVENT *, bool error_state, uint16_t cycle);
 

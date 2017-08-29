@@ -206,11 +206,12 @@ bool MachineController::Machine::attempt_new_command (AFU_EVENT * afu_event,
         address_offset =
             (rand () % (memory_size - (command_size - 1))) & ~(command_size -
                     1);
-	debug_msg("Machine::attempt_new_command: command->send_command");
+	debug_msg("Machine::attempt_new_command: command->send_command with tag = 0x%x", tag);
         command->send_command (afu_event, tag,
                                memory_base_address,
                                command_size, abort, context);
 
+	resend_command = command;
         record_command (error_state, cycle);
         clear_response ();
 
@@ -222,6 +223,16 @@ bool MachineController::Machine::attempt_new_command (AFU_EVENT * afu_event,
     }
 
     return false;
+}
+
+bool
+MachineController::Machine::attempt_resend_command(AFU_EVENT *afu_event, uint32_t tag, 
+		bool error_state, uint16_t cycle)
+{
+    debug_msg("Machine::attempt_resend_command with afutag = 0x%x", tag);
+    resend_command->send_command(afu_event, tag, memory_base_address, command_size, abort, context);
+    
+    return true;
 }
 
 void

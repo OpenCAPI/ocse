@@ -54,6 +54,7 @@ enum cmd_type {
 enum mem_state {
 	MEM_IDLE,
 	MEM_XLATE_PENDING,
+	MEM_INT_PENDING,
 	MEM_PENDING_SENT,
 	MEM_TOUCH,
 	MEM_TOUCHED,
@@ -125,7 +126,7 @@ struct cmd {
 	uint8_t dbg_id;
 	uint64_t lock_addr;
 	uint64_t res_addr;
-	uint32_t credits;
+	//uint32_t credits;
 	int max_clients;
 	uint32_t pagesize;
 	uint16_t irq;

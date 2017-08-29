@@ -24,6 +24,11 @@ class MachineController
     uint64_t  machine_enable_bit;
     std::vector < Machine * >machines;
     std::map < uint32_t, Machine * >tag_to_machine;
+    // resend variables
+    AFU_EVENT resend_afu_event;
+    uint32_t resend_tag;
+    Machine *resend_machine;
+    
 
 public:
 
@@ -38,6 +43,7 @@ public:
      * set up intersting test cases returns true if a command is actually sent,
      * false otherwise */
     bool send_command (AFU_EVENT *, uint32_t cycle);
+    bool resend_command(AFU_EVENT *, uint32_t cycle);
 
     /* call this function when AFU receives a response to pass the AFU_EVENT to
      * the corresponding machine and react accordingly*/
