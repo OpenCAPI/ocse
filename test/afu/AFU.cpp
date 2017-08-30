@@ -18,6 +18,7 @@ using std::vector;
 uint8_t memory[256];
 uint8_t next_cmd = 0;
 uint8_t retry_cmd = 0;
+uint8_t interrupt_pending = 0;
 uint8_t read_resp_completed = 0;
 uint8_t write_resp_completed = 0;
 uint8_t cmd_ready = 1;
@@ -282,6 +283,7 @@ AFU::start ()
 		}
             }
 	    else if(retry_cmd) {
+		printf("AFU: attempt retry command\n");
 		highest_priority_mc->second->resend_command(&afu_event, cycle);
 		retry_cmd = 0;
 	    }
@@ -471,6 +473,12 @@ AFU::resolve_tlx_afu_cmd()
     switch (cmd_opcode) {
 	case TLX_CMD_NOP:
 	case TLX_CMD_XLATE_DONE:
+	    printf("AFU: receive xlate done command\n");
+	    if(interrupt_pending) {
+		interrupt_pending = 0;
+		retry_cmd = 1;
+	    }
+	    break;
 	case TLX_CMD_RETURN_ADR_TAG:
 	case TLX_CMD_INTRP_RDY:
 	    break;
@@ -647,6 +655,7 @@ AFU::resolve_tlx_afu_resp()
 		    break;
 		case 0x4:
 		    printf("AFU: Interrupt pending\n");
+		    interrupt_pending = 1;
 		    break;
 		case 0xe:
 		    printf("AFU: Interrupt failed\n");
