@@ -542,10 +542,10 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 		goto init_fail;
 	}
 	// Load in VSEC data (read in from ocse.parms file)
-	ocl->vsec_oppa_version = parms->oppa_version;
-	ocl->vsec_tlx_rev_level= parms->tlx_rev_level;
-	ocl->vsec_image_loaded= parms->image_loaded;
-	ocl->vsec_base_image= parms->base_image;
+	//ocl->vsec_oppa_version = parms->oppa_version;
+	//ocl->vsec_tlx_rev_level= parms->tlx_rev_level;
+	//ocl->vsec_image_loaded= parms->image_loaded;
+	//ocl->vsec_base_image= parms->base_image;
 
 	// Set credits for TLX interface
 	ocl->state = OCSE_DESC;
