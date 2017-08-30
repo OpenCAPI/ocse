@@ -54,6 +54,8 @@ struct mmio_req {
 };
 
 struct ocxl_irq {
+        uint16_t irq;
+        uint64_t id;
 	struct ocxl_afu *afu;
 	struct ocxl_irq *_next;
 };
@@ -83,11 +85,10 @@ struct ocxl_afu {
 	struct ocxl_waitasec *waitasec;
 	int adapter;
 	char *id;
-        char *name;
+        ocxl_identifier ocxl_id;
         uint8_t bus;
         uint8_t dev;
         uint8_t fcn;
-        uint8_t afu_id;
 	uint16_t context;
 	uint16_t map;
 	uint16_t position;
@@ -103,6 +104,7 @@ struct ocxl_afu {
         long mmio_offset;  // this pasid mmio offset - f(pasid, per pasid stride, per pasid mmio offset)
 	uint16_t cr_device;
 	uint16_t cr_vendor;
+        int irq_count;
 	struct int_req int_req;
 	struct open_req open;
 	struct attach_req attach;

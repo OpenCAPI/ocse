@@ -23,6 +23,7 @@
 #include <stdio.h>
 
 #include "client.h"
+#include "parms.h"
 #include "../common/tlx_interface.h"
 #include "../common/utils.h"
 
@@ -130,7 +131,7 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled);
 void handle_mmio_map(struct mmio *mmio, struct client *client);
 
 struct mmio_event *handle_mmio(struct mmio *mmio, struct client *client,
-			       int rnw, int dw, int eb_rd, int global);
+			       int rnw, int dw, int global);
 
 struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client);
 

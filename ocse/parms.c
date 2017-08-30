@@ -90,6 +90,18 @@ int allow_int_pending(struct parms *parms)
 	return percent_chance(parms->int_pending_percent);
 }
 
+// Randomly decide to allow BDI error for response data
+int allow_bdi_resp_err(struct parms *parms)
+{
+	return percent_chance(parms->bdi_resp_err_percent);
+}
+
+// Randomly decide to allow BDI error for cmd data
+int allow_bdi_cmd_err(struct parms *parms)
+{
+	return percent_chance(parms->bdi_cmd_err_percent);
+}
+
 // Randomly decide to allow command to be handled out of order
 int allow_reorder(struct parms *parms)
 {
@@ -282,14 +294,22 @@ struct parms *parse_parms(char *filename, FILE * dbg_fp)
 				parms->int_derror_percent = data;
 			debug_parm(dbg_fp, DBG_PARM_INT_DERROR_PERCENT,
 				   parms->int_derror_percent);
-		} else if (!(strcmp(parm, "BDI_PERCENT"))) {
+		} else if (!(strcmp(parm, "BDI_RESP_ERR_PERCENT"))) {
 			percent_parm(value, &data);
 			if ((data >= 100) || (data < 0))
-				warn_msg("BDI_PERCENT must be 0-99");
+				warn_msg("BDI_RESP_ERR_PERCENT must be 0-99");
 			else
-				parms->bdi_percent = data;
-			debug_parm(dbg_fp, DBG_PARM_BDI_PERCENT,
-				   parms->bdi_percent);
+				parms->bdi_resp_err_percent = data;
+			debug_parm(dbg_fp, DBG_PARM_BDI_RESP_ERR_PERCENT,
+				   parms->bdi_resp_err_percent);
+		} else if (!(strcmp(parm, "BDI_CMD_ERR_PERCENT"))) {
+			percent_parm(value, &data);
+			if ((data >= 100) || (data < 0))
+				warn_msg("BDI_CMD_ERR_PERCENT must be 0-99");
+			else
+				parms->bdi_cmd_err_percent = data;
+			debug_parm(dbg_fp, DBG_PARM_BDI_CMD_ERR_PERCENT,
+				   parms->bdi_cmd_err_percent);
 		} else if (!(strcmp(parm, "REORDER_PERCENT"))) {
 			percent_parm(value, &data);
 			if ((data >= 100) || (data < 0))
@@ -334,7 +354,8 @@ struct parms *parse_parms(char *filename, FILE * dbg_fp)
 	printf("\tINT_Failed  = %d%%\n", parms->int_failed_percent);
 	printf("\tINT_Pending = %d%%\n", parms->int_pending_percent);
 	printf("\tINT_Derror  = %d%%\n", parms->int_derror_percent);
-	printf("\tBDI      = %d%%\n", parms->bdi_percent);
+	printf("\tBDI_RESP_ERR= %d%%\n", parms->bdi_resp_err_percent);
+	printf("\tBDI_CMD_ERR = %d%%\n", parms->bdi_cmd_err_percent);
 	printf("\tReorder  = %d%%\n", parms->reorder_percent);
 	printf("\tBuffer   = %d%%\n", parms->buffer_percent);
 

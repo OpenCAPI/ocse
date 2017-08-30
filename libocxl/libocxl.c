@@ -284,8 +284,8 @@ static int _handle_interrupt(struct ocxl_afu *afu, uint8_t data_is_valid)
 	// if we do find it, add an event if it is new for this irq
 	irq = afu->irq;
 	while (irq != NULL) {
-	  debug_msg("_handle_interrupt: compare irq to addr : 0x%016lx ?= 0x%016lx", (uint64_t)irq, addr);
-	  if ( (uint64_t)irq == addr ) {
+	  debug_msg("_handle_interrupt: compare irq id to addr : 0x%016lx ?= 0x%016lx", irq->id, addr);
+	  if ( irq->id == addr ) {
 	    break;
 	  }
 	  irq = irq->_next;
@@ -318,7 +318,8 @@ static int _handle_interrupt(struct ocxl_afu *afu, uint8_t data_is_valid)
 	afu->events[i]->type = OCXL_EVENT_IRQ;
 	//afu->events[i]->header.size = size;
 	//afu->events[i]->header.process_element = afu->context; // might not need this
-	afu->events[i]->irq.handle = addr;  // which came in and matched irq
+	afu->events[i]->irq.irq = irq->irq;  // which came in and matched irq
+	afu->events[i]->irq.id = addr;  // which came in and matched irq
 	afu->events[i]->irq.count = 1;  
 	// should we store data from an interrupt d at the info pointer?
 	// afu->events[i]->irq.flags = cmd_flag;
@@ -2218,13 +2219,14 @@ const ocxl_identifier *ocxl_afu_get_identifier( ocxl_afu_h afu )
 		errno = EINVAL;
 		return NULL;
 	}
-	// return my_afu->id;
-	return NULL;
+
+	return &my_afu->ocxl_id;
 }
 
 const char *ocxl_afu_get_device_pathname( ocxl_afu_h afu )
 {
-        struct ocxl_afu *my_afu;
+        struct ocxl_afu *my_afu;	
+	char *pathname = NULL;
 
 	my_afu = (struct ocxl_afu *)afu;
 
@@ -2232,14 +2234,22 @@ const char *ocxl_afu_get_device_pathname( ocxl_afu_h afu )
 		errno = EINVAL;
 		return NULL;
 	}
-	// return my_afu->id;
 	// return /dev/ocxl/<name>.<domain>:<bus>:<device>.<function>.<index>
-	return NULL;
+	// use sprintf and strcpy to build pathname
+	sprintf( pathname, "/dev/ocxl/%s.0000:%02x:%02x.%x.%x", 
+		 (char *)&(my_afu->ocxl_id.afu_name[0]),
+		 my_afu->bus, 
+		 my_afu->dev, 
+		 my_afu->fcn, 
+		 my_afu->ocxl_id.afu_index );
+
+	return pathname;
 }
 
 const char *ocxl_afu_get_sysfs_pathname( ocxl_afu_h afu )
 {
         struct ocxl_afu *my_afu;
+	char *pathname = NULL;
 
 	my_afu = (struct ocxl_afu *)afu;
 
@@ -2247,8 +2257,16 @@ const char *ocxl_afu_get_sysfs_pathname( ocxl_afu_h afu )
 		errno = EINVAL;
 		return NULL;
 	}
-	// return my_afu->id;
 	// return /dev/sysfs/class/ocxl/<name>.<domain>:<bus>:<device>.<function>.<index>
+	// use sprintf and strcpy to build pathname
+	sprintf( pathname, "/dev/sysfs/class/ocxl/%s.0000:%02x:%02x.%x.%x", 
+		 (char *)&(my_afu->ocxl_id.afu_name[0]),
+		 my_afu->bus, 
+		 my_afu->dev, 
+		 my_afu->fcn, 
+		 my_afu->ocxl_id.afu_index );
+
+	return pathname;
 	return NULL;
 }
 
@@ -2334,11 +2352,11 @@ ocxl_err ocxl_afu_open_from_dev( char *path, ocxl_afu_h *afu )
 
 	// return _ocse_open(&fd, afu_map, major, minor);
 	my_afu = _ocse_open(&fd, afu_map, major, minor);
-	my_afu->name = afu_name;
+	strcpy( (char *)&(my_afu->ocxl_id.afu_name[0]), afu_name );
 	my_afu->bus = (uint8_t)strtol( dev_bus, NULL, 16 );
 	my_afu->dev = (uint8_t)strtol( dev_device, NULL, 16 );
 	my_afu->fcn = (uint8_t)strtol( dev_function, NULL, 16 );
-	my_afu->afu_id = (uint8_t)strtol( afu_index, NULL, 16 );
+	my_afu->ocxl_id.afu_index = (uint8_t)strtol( afu_index, NULL, 16 );
 
 	// now, how do I return afu_h (struct ocxl_afu *) through afu (ocxl_afu_h *)?
 	*afu = ( ocxl_afu_h )my_afu;
@@ -2650,9 +2668,11 @@ ocxl_err ocxl_afu_irq_alloc( ocxl_afu_h afu, void *info, ocxl_irq_h *irq_handle 
 		return OCXL_NO_IRQ;
 	}
 
+	new_irq->irq = my_afu->irq_count; // the index of this new irq is the current counter value
+	new_irq->id = (uint64_t)new_irq;  // the id of this new irq is the address of the irq
 	new_irq->_next = NULL;
 	new_irq->afu = my_afu;
-	*irq_handle = (ocxl_irq_h)new_irq;
+	*irq_handle = (ocxl_irq_h)new_irq->irq;
 
 	// add new irq to the end of the afu's list of irqs
 	if (my_afu->irq == NULL) {
@@ -2668,54 +2688,81 @@ ocxl_err ocxl_afu_irq_alloc( ocxl_afu_h afu, void *info, ocxl_irq_h *irq_handle 
 	}
 	// we have the last one now
 	current_irq->_next = new_irq;
+	my_afu->irq_count++;
 
 	return OCXL_OK;
 }
 
-ocxl_err ocxl_afu_irq_free( ocxl_afu_h afu, ocxl_irq_h *irq_handle )
+/* ocxl_err ocxl_afu_irq_free( ocxl_afu_h afu, ocxl_irq_h *irq_handle ) */
+/* { */
+/*   // remove this irq from it's afu and free the storage */
+/*         struct ocxl_irq *current_irq; */
+/*         struct ocxl_afu *my_afu; */
+/* 	struct ocxl_irq *my_irq; */
+
+/* 	my_afu = (struct ocxl_afu *)afu; */
+/* 	my_irq = (struct ocxl_irq *)*irq_handle; */
+
+/*         if (!my_irq) { */
+/* 		warn_msg("ocxl_irq_free: No irq given"); */
+/* 		errno = ENODEV; */
+/* 		return OCXL_NO_IRQ; */
+/* 	} */
+
+/* 	// afu = irq->afu; */
+
+/* 	// find this irq in the list on the afu */
+/* 	if (my_afu->irq == my_irq) { */
+/* 	  // irq is the first in the list */
+/* 	  my_afu->irq = my_irq->_next; */
+/* 	  free( my_irq ); */
+/* 	  return OCXL_OK; */
+/* 	} */
+
+/* 	current_irq = my_afu->irq; */
+/* 	// the current irq is not it, take a peek a the next irq */
+/* 	while (current_irq->_next != NULL) { */
+/* 	  if (current_irq->_next == my_irq) { */
+/* 	    // the next irq is the one we are looking for */
+/* 	    // make the current irq skip over it and free it */
+/* 	    current_irq->_next = my_irq->_next; */
+/* 	    free( my_irq ); */
+/* 	    return OCXL_OK; */
+/* 	  } else { */
+/* 	    // the next irq is not it, so make it the current irq */
+/* 	    current_irq = current_irq->_next; */
+/* 	  } */
+/* 	} */
+
+/* 	// if we get here, we didn't find irq in the afu! */
+/* 	warn_msg("ocxl_irq_free: irq not found in afu"); */
+/* 	return OCXL_NO_IRQ; */
+/* } */
+
+uint64_t ocxl_afu_irq_get_id( ocxl_afu_h afu, ocxl_irq_h irq )
 {
-  // remove this irq from it's afu and free the storage
+  // scan the irq list of the afu for an irq with a matching ocxl_irq_h
+  // return the id of the irq we found or 0 if none found
         struct ocxl_irq *current_irq;
         struct ocxl_afu *my_afu;
-	struct ocxl_irq *my_irq;
 
 	my_afu = (struct ocxl_afu *)afu;
-	my_irq = (struct ocxl_irq *)*irq_handle;
-
-        if (!my_irq) {
-		warn_msg("ocxl_irq_free: No irq given");
-		errno = ENODEV;
-		return OCXL_NO_IRQ;
-	}
-
-	// afu = irq->afu;
-
-	// find this irq in the list on the afu
-	if (my_afu->irq == my_irq) {
-	  // irq is the first in the list
-	  my_afu->irq = my_irq->_next;
-	  free( my_irq );
-	  return OCXL_OK;
-	}
 
 	current_irq = my_afu->irq;
-	// the current irq is not it, take a peek a the next irq
-	while (current_irq->_next != NULL) {
-	  if (current_irq->_next == my_irq) {
-	    // the next irq is the one we are looking for
-	    // make the current irq skip over it and free it
-	    current_irq->_next = my_irq->_next;
-	    free( my_irq );
-	    return OCXL_OK;
+	while (current_irq != NULL) {
+	  if (current_irq->irq  == irq) {
+	    // this is the irq we are looking for
+	    // return the id in current_irq
+	    return current_irq->id;
 	  } else {
-	    // the next irq is not it, so make it the current irq
+	    // follow the linked list
 	    current_irq = current_irq->_next;
 	  }
 	}
 
 	// if we get here, we didn't find irq in the afu!
 	warn_msg("ocxl_irq_free: irq not found in afu");
-	return OCXL_NO_IRQ;
+	return 0;
 }
 
 uint16_t ocxl_afu_event_check( ocxl_afu_h afu, struct timeval *timeout, ocxl_event *events, uint16_t event_count )

@@ -160,7 +160,7 @@ static void _handle_afu(struct ocl *ocl)
 	if (ocl->cmd != NULL) {
 	  handle_response(ocl->cmd);  // sends response and data (if required)
 	  handle_buffer_write(ocl->cmd);  // just finishes up the read command structures
-	  handle_xlate_pending_sent(ocl->cmd);  // just finishes up an xlate_pending resp 
+	  handle_xlate_intrp_pending_sent(ocl->cmd);  // just finishes up an xlate_pending resp 
 	  handle_cmd(ocl->cmd, ocl->latency);
 	  handle_afu_tlx_cmd_data_read(ocl->cmd);  // just fills up the write command structures
 	  handle_touch(ocl->cmd);
@@ -175,7 +175,6 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 	struct cmd_event *cmd;
 	uint8_t buffer[MAX_LINE_CHARS];
 	int dw = 0;  // 1 means mmio that is 64 bits
-	int eb_rd = 0;  // 1 means mmio for event based read
 	int global = 0;  // 1 means mmio to the global space
 	int region = 0;  // 0 = lpc memory, 1 = global mmio, 2 = per process mmio
 
@@ -192,7 +191,6 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 	cmd = (struct cmd_event *)client->mem_access;
 	mmio = NULL;
 	dw = 0;
-	eb_rd = 0;
 	global = 0;
 	region = 0;
 	if (bytes_ready(client->fd, 1, &(client->abort))) {
@@ -229,34 +227,34 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 		case OCSE_GLOBAL_MMIO_WRITE64:
 			global = 1;
 			dw = 1;
-			mmio = handle_mmio(ocl->mmio, client, 0, dw, 0, global);
+			mmio = handle_mmio(ocl->mmio, client, 0, dw, global);
 			break;
 		case OCSE_MMIO_WRITE64:
 			dw = 1;
-			mmio = handle_mmio(ocl->mmio, client, 0, dw, 0, global);
+			mmio = handle_mmio(ocl->mmio, client, 0, dw, global);
 			break;
 		case OCSE_GLOBAL_MMIO_WRITE32:
 			global = 1;
-			mmio = handle_mmio(ocl->mmio, client, 0, dw, 0, global);
+			mmio = handle_mmio(ocl->mmio, client, 0, dw, global);
 			break;
 		case OCSE_MMIO_WRITE32:
-			mmio = handle_mmio(ocl->mmio, client, 0, dw, 0, global);
+			mmio = handle_mmio(ocl->mmio, client, 0, dw, global);
 			break;
 		case OCSE_GLOBAL_MMIO_READ64:
 			global = 1;
 			dw = 1;
-			mmio = handle_mmio(ocl->mmio, client, 1, dw, 0, global);
+			mmio = handle_mmio(ocl->mmio, client, 1, dw, global);
 			break;
 		case OCSE_MMIO_READ64:
 			dw = 1;
-			mmio = handle_mmio(ocl->mmio, client, 1, dw, 0, global);
+			mmio = handle_mmio(ocl->mmio, client, 1, dw, global);
 			break;
 		case OCSE_GLOBAL_MMIO_READ32:
 			global = 1;
-			mmio = handle_mmio(ocl->mmio, client, 1, dw, 0, global);
+			mmio = handle_mmio(ocl->mmio, client, 1, dw, global);
 			break;
 		case OCSE_MMIO_READ32:
-			mmio = handle_mmio(ocl->mmio, client, 1, dw, 0, global);
+			mmio = handle_mmio(ocl->mmio, client, 1, dw, global);
 			break;
 		case OCSE_LPC_WRITE:
 		  mmio = handle_mem(ocl->mmio, client, 0, region, 0);
@@ -541,11 +539,6 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 		perror("cmd_init");
 		goto init_fail;
 	}
-	// Load in VSEC data (read in from ocse.parms file)
-	//ocl->vsec_oppa_version = parms->oppa_version;
-	//ocl->vsec_tlx_rev_level= parms->tlx_rev_level;
-	//ocl->vsec_image_loaded= parms->image_loaded;
-	//ocl->vsec_base_image= parms->base_image;
 
 	// Set credits for TLX interface
 	ocl->state = OCSE_DESC;

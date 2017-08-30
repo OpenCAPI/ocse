@@ -1259,12 +1259,13 @@ void handle_write_be_or_amo(struct cmd *cmd)
 }
 
 
-// Handle randomly selected xlate_pending and send AFU back a xlate_done cmd 
-void handle_xlate_pending_sent(struct cmd *cmd)
+// Handle randomly selected xlate_pending or intrp_pending and send AFU back a xlate_done or intrp_rdy cmd 
+void handle_xlate_intrp_pending_sent(struct cmd *cmd)
 {
 	struct cmd_event **head;
 	struct cmd_event *event;
 	struct client *client;
+	uint8_t cmd_to_send;
 
 	// Make sure cmd structure is valid
 	if (cmd == NULL)
@@ -1302,22 +1303,26 @@ void handle_xlate_pending_sent(struct cmd *cmd)
 	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
 		return;
 
-	debug_msg("%s:handle xlate_pending_done cmd_flag=0x%x tag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
+	debug_msg("%s:handle xlate_intrp_pending_done cmd_flag=0x%x tag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
 		  event->cmd_flag, event->afutag, event->addr);
 	// Check to see if this cmd gets selected for a RETRY or FAILED or PENDING read_failed response
 	if ( allow_retry(cmd->parms)) {
 		event->resp = 0x02;
-		debug_msg("handle_xlate_pending_done: we've decided to RETRY this cmd =0x%x \n", event->command);
+		debug_msg("handle_xlate_intrp_pending_done: we've decided to RETRY this cmd =0x%x \n", event->command);
 	} else if ( allow_failed(cmd->parms)) {
 		event->resp = 0x0f;
-		debug_msg("handle_xlate_pending_done: we've decided to FAIL this cmd =0x%x \n", event->command);
+		debug_msg("handle_xlate_intrp_pending_done: we've decided to FAIL this cmd =0x%x \n", event->command);
 		return;
 	} else
 		event->resp = 0x0;  // send completed resp code in the xlate_done cmd
+	if ((event->command == AFU_CMD_XLATE_TOUCH) || (event->command == AFU_CMD_XLATE_TOUCH_N))
+		cmd_to_send = TLX_CMD_XLATE_DONE;
+	else
+		cmd_to_send = TLX_CMD_INTRP_RDY;
 	if (tlx_afu_send_posted_cmd(cmd->afu_event,
-			TLX_CMD_XLATE_DONE, 0xefac, event->resp) == TLX_SUCCESS){ 
-			debug_msg("%s:XLATE_DONE CMD event @ 0x%016" PRIx64 ", sent tag=0x%02x code=0x%x", cmd->afu_name,
-			    event, event->afutag, event->resp);
+			cmd_to_send, 0xefac, event->resp) == TLX_SUCCESS){ 
+			debug_msg("%s:XLATE_INTRP_DONE CMD event @ 0x%016" PRIx64 ", sent tag=0x%02x code=0x%x cmd=0x%x", cmd->afu_name,
+			    event, event->afutag, event->resp, cmd_to_send);
 			*head = event->_next;
 		 	free(event->data);
 		 	free(event->parity);
@@ -1918,8 +1923,15 @@ void handle_response(struct cmd *cmd)
 
 	    // we can just send the 64 bytes of data back
 	    // and complete the event
-		else
-		    	rc = tlx_afu_send_resp_and_data( cmd->afu_event, 
+		else {
+			if ( allow_bdi_resp_err(cmd->parms)) {
+				debug_msg("handle_response: we've decided to BDI the resp data for afutag=0x%x \n",
+				 event->afutag);
+		    		 rc = tlx_afu_send_resp_and_data( cmd->afu_event, TLX_RSP_READ_RESP, 
+					     event->afutag, 0, 0, 1, 0, 0, 1, event->data ) ; 
+	    			} 
+			else 
+		    		rc = tlx_afu_send_resp_and_data( cmd->afu_event, 
 					     TLX_RSP_READ_RESP, 
 					     event->afutag, 
 					     0, // resp_code - not really used for a good response
@@ -1927,8 +1939,9 @@ void handle_response(struct cmd *cmd)
 					     1, // for partials, dl is 1 (64 B)
 					     0, // for partials, dp is 0 (the 0th part)
 					     0, // resp_addr_tag, - not used by response
-					     0, // resp_data_bdi - not used by response
+					     0, // - now used by response
 					     event->data ) ; // data in this case is already at the proper offset in the 64 B data packet
+		}
 	} else if ( (event->command == AFU_CMD_RD_WNITC) || (event->command == AFU_CMD_RD_WNITC_N) ){
 	    // we can:
 	    //    send a complete response, with all the data
@@ -1952,8 +1965,15 @@ void handle_response(struct cmd *cmd)
 		      
 		if (event->type == CMD_FAILED) //have to send a read_failed response
 			rc = tlx_afu_send_resp( cmd->afu_event, TLX_RSP_READ_FAILED, event->afutag, event->resp,0,resp_dl,0,0);
-	    	else
-			rc = tlx_afu_send_resp_and_data( cmd->afu_event, 
+	    	else {
+			if ( allow_bdi_resp_err(cmd->parms)) {
+				debug_msg("handle_response: we've decided to BDI the resp data for afutag=0x%x \n",
+			 	event->afutag);
+		    		 rc = tlx_afu_send_resp_and_data( cmd->afu_event, TLX_RSP_READ_RESP, 
+					     event->afutag, 0, 0, 1, 0, 0, 1, event->data ) ; 
+	    			} 
+			else 
+				rc = tlx_afu_send_resp_and_data( cmd->afu_event, 
 					     TLX_RSP_READ_RESP, 
 					     event->afutag, 
 					     0, // resp_code - not really used for a good response
@@ -1961,8 +1981,9 @@ void handle_response(struct cmd *cmd)
 					     resp_dl, // for partials, dl is 1 (64 B) - need to calculate dl from size or keep dl and dp around from initial command
 					     0, // for partials, dp is 0 (the 0th part)
 					     0, // resp_addr_tag, - not used by response
-					     0, // resp_data_bdi - not used by good response
+					     0, // - now used by good response
 					     event->data ) ; // data in this case is already the complete length
+			}
 		}
 	} else if ((event->command == AFU_CMD_INTRP_REQ ) || (event->command == AFU_CMD_INTRP_REQ_D)) {
   		rc = tlx_afu_send_resp( cmd->afu_event,TLX_RSP_INTRP_RESP,event->afutag, 

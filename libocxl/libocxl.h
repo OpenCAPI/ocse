@@ -53,11 +53,11 @@ extern "C" {
  */
 // deprecate struct ocxl_adapter_h;
 // deprecate struct ocxl_ioctl_start_work;
-  typedef void *ocxl_afu_h;    // was - struct ocxl_afu_h;
+  typedef void *ocxl_afu_h;
 #define OCXL_INVALID_AFU NULL
 
-  typedef uint64_t ocxl_irq_h; // was - struct ocxl_irq_h;
-#define OCXL_INVALID_IRQ 0;
+  typedef uint16_t ocxl_irq_h; 
+#define OCXL_INVALID_IRQ UINT16_MAX;
 
   /*
    * various return codes from ocxl functions
@@ -85,7 +85,8 @@ extern "C" {
    * the data for a triggered irq event
    */
   typedef struct {
-    ocxl_irq_h handle;
+    uint16_t irq;
+    uint64_t id;
     void *info;
     uint64_t count;
   } ocxl_event_irq;
@@ -166,7 +167,8 @@ extern "C" {
   // returns an interrupt handle describing the a new interrupt of the given afu
   ocxl_err ocxl_afu_irq_alloc( ocxl_afu_h afu, void *info, ocxl_irq_h *irq_handle );
   // free the data structures of an afu interrupt
-  ocxl_err ocxl_afu_irq_free( ocxl_afu_h afu, ocxl_irq_h *irq_handle );
+  // ocxl_err ocxl_afu_irq_free( ocxl_afu_h afu, ocxl_irq_h *irq_handle );
+  uint64_t ocxl_afu_irq_get_id( ocxl_afu_h afu, ocxl_irq_h irq );
   // check/read an event
   uint16_t ocxl_afu_event_check( ocxl_afu_h afu, struct timeval *timeout, ocxl_event *events, uint16_t event_count );
 

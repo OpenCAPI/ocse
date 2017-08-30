@@ -34,7 +34,8 @@ struct parms {
 	unsigned int int_failed_percent;
 	unsigned int int_pending_percent;
 	unsigned int int_derror_percent;
-	unsigned int bdi_percent;
+	unsigned int bdi_resp_err_percent;
+	unsigned int bdi_cmd_err_percent;
 	unsigned int reorder_percent;
 	unsigned int buffer_percent;
 };
@@ -70,7 +71,10 @@ int allow_int_pending(struct parms *parms);
 int allow_int_derror(struct parms *parms);
 
 // Randomly decide to allow setting of BDI bit
-int allow_bdi(struct parms *parms);
+int allow_bdi_resp_err(struct parms *parms);
+
+// Randomly decide to allow setting of BDI bit
+int allow_bdi_cmd_err(struct parms *parms);
 
 // Randomly decide to allow command to be handled out of order
 int allow_reorder(struct parms *parms);

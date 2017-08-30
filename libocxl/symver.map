@@ -15,7 +15,7 @@ LIBOCXL_1 {
 		ocxl_afu_free;
 
 		ocxl_afu_irq_alloc;
-		ocxl_afu_irq_free;
+		ocxl_afu_irq_get_id;
 		ocxl_afu_event_check;
 
 		ocxl_mmio_map;

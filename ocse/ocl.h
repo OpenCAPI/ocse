@@ -54,10 +54,6 @@ struct ocl {
 	int attached_clients;
 	int timeout;
 	int has_been_reset;
-	uint16_t vsec_oppa_version;
-	uint16_t vsec_tlx_rev_level;
-	uint16_t vsec_image_loaded;
-	uint16_t vsec_base_image;
 };
 
 uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
