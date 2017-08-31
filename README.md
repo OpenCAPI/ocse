@@ -9,5 +9,8 @@ mention startup guides
 mention demo kit(s)
 mention apache 2.0 license
 
-sprint g
+sprint h
 
+version 1.0 Known limitations:
+	we've simulated with Cadence NCSim, Xilinx Xsim
+	allows modeling of multiple tlx interfaces - however only a single afu is permitted.  "function 0" is reserved for config space.  "function 1" may have a single afu.

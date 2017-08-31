@@ -8,7 +8,7 @@
 #include "../../libocxl/libocxl_lpc.h"
 
 #define CACHELINE 128
-#define MDEVICE "/dev/cxl/afu0.0s"
+#define MDEVICE "/dev/cxl/tlx0.0000:00:00.1.0"
 
 static int verbose;
 static unsigned int buffer_cl = 64;
@@ -26,14 +26,14 @@ static void print_help(char *name)
 
 int main(int argc, char *argv[])
 {
-    int cr_device, cr_vendor;
+    //int cr_device, cr_vendor;
     int opt, option_index, i;
-    int rc, timeout;
+    int rc;
     uint8_t *rcacheline, *wcacheline;
     char *status;
-    struct ocxl_afu_h *mafu_h;
+    ocxl_afu_h mafu_h;
     MachineConfig machine_config;
-    MachineConfigParam config_param;
+    //MachineConfigParam config_param;
 
     static struct option long_options[] = {
 	{"cachelines", required_argument, 0	  , 'c'},
@@ -94,15 +94,15 @@ int main(int argc, char *argv[])
     // open master device
     printf("Calling ocxl_afu_open_dev\n");
     
-    mafu_h = ocxl_afu_open_dev(MDEVICE);
-    if(!mafu_h) {
+    rc = ocxl_afu_open_from_dev(MDEVICE, &mafu_h);
+    if(rc != 0) {
 	perror("cxl_afu_open_dev: "MDEVICE);
 	return -1;
     }
     
     // attach device
     printf("Attaching device ...\n");
-    rc = ocxl_afu_attach(mafu_h, 0);
+    rc = ocxl_afu_attach(mafu_h);
     if(rc != 0) {
 	perror("cxl_afu_attach:"MDEVICE);
 	return rc;
@@ -119,11 +119,11 @@ int main(int argc, char *argv[])
 	goto done;
     }
 
-    printf("Calling ocxl_get_cr_device and vendor\n");
-    ocxl_get_cr_device(mafu_h, 0, &cr_device);
-    ocxl_get_cr_vendor(mafu_h, 0, &cr_vendor);
-    printf("device = 0x%x\n", cr_device);
-    printf("vendor = 0x%x\n", cr_vendor);
+    //printf("Calling ocxl_get_cr_device and vendor\n");
+    //ocxl_get_cr_device(mafu_h, 0, &cr_device);
+    //ocxl_get_cr_vendor(mafu_h, 0, &cr_vendor);
+    //printf("device = 0x%x\n", cr_device);
+    //printf("vendor = 0x%x\n", cr_vendor);
 
     printf("Attempt lpc memory mapping\n");
     if(ocxl_lpc_map(mafu_h, OCXL_MMIO_LITTLE_ENDIAN) != 0) {
@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
 done:
     // free device
     printf("Freeing device ... \n");
-    ocxl_afu_free(mafu_h);
+    ocxl_afu_free(&mafu_h);
 
     return 0;
 }

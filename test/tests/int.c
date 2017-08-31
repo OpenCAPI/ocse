@@ -12,7 +12,7 @@
 #define ProcessInterruptObject_REGISTER 0x0028
 #define ProcessInterruptData_REGISTER 0x0030
 #define CACHELINE 128
-#define MDEVICE "/dev/cxl/afu0.0s"
+#define MDEVICE "/dev/cxl/tlx0.0000:00:00.1.0"
 
 static int verbose;
 static unsigned int buffer_cl = 64;
@@ -33,10 +33,10 @@ int main(int argc, char *argv[])
     int opt, option_index, i;
     int rc;
     char *status, *rcacheline;
-    struct ocxl_afu_h *mafu_h;
-    struct ocxl_irq_h *irq_h;
-    struct ocxl_irq_h *err_irq_h;
-    struct ocxl_event event;
+    ocxl_afu_h mafu_h;
+    ocxl_irq_h irq_h;
+    ocxl_irq_h err_irq_h;
+    ocxl_event event;
 
     MachineConfig machine_config;
     MachineConfigParam config_param;
@@ -92,15 +92,15 @@ int main(int argc, char *argv[])
     // open master device
     printf("Calling ocxl_afu_open_dev\n");
     
-    mafu_h = ocxl_afu_open_dev(MDEVICE);
-    if(!mafu_h) {
+    rc = ocxl_afu_open_from_dev(MDEVICE, &mafu_h);
+    if(rc != 0) {
 	perror("cxl_afu_open_dev: "MDEVICE);
 	return -1;
     }
     
     // attach device
     printf("Attaching device ...\n");
-    rc = ocxl_afu_attach(mafu_h, 0);
+    rc = ocxl_afu_attach(mafu_h);
     if(rc != 0) {
 	perror("cxl_afu_attach:"MDEVICE);
 	return rc;
@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
 //    	printf("initializing interrupt data (unused by us)\n");
 //    ocxl_mmio_write64( mafu_h, ProcessInterruptData_REGISTER, 0x00000000);
 
-    irq_h = ocxl_afu_new_irq(mafu_h);
+    rc = ocxl_afu_irq_alloc(mafu_h, NULL, &irq_h);
     printf("Set irq (source) ea field = 0x%016lx\n", (uint64_t)irq_h);
 
     printf("Attempt Interrupt command\n");
@@ -155,10 +155,10 @@ int main(int argc, char *argv[])
 //	printf("Polling read completion status = 0x%x\n", *status);
 //    }
 
-    rc = ocxl_read_event(mafu_h, &event);
+    rc = ocxl_afu_event_check(mafu_h, NULL, &event, 1);
     printf("Returned from ocxl_read_event -> there is an interrupt\n");
-    if(rc != 0) {
-	printf("Error retrieving interrupt event\n");
+    if(rc == 0) {
+	printf("Error retrieving interrupt event %d\n", rc);
   	return -1;
     }
 
@@ -173,7 +173,7 @@ int main(int argc, char *argv[])
 done:
     // free device
     printf("Freeing device ... \n");
-    ocxl_afu_free(mafu_h);
+    ocxl_afu_free(&mafu_h);
 
     return 0;
 }

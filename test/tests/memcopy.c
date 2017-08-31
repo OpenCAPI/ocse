@@ -5,9 +5,10 @@
 #include "TestAFU_config.h"
 #include "tlx_interface_t.h"
 #include "../../libocxl/libocxl.h"
+#include <time.h>
 
 #define CACHELINE 128
-#define MDEVICE "/dev/cxl/afu0.0s"
+#define MDEVICE "/dev/cxl/tlx0.0000:00:00.1.0"
 
 static int verbose;
 static unsigned int buffer_cl = 64;
@@ -25,11 +26,12 @@ static void print_help(char *name)
 
 int main(int argc, char *argv[])
 {
+    struct timespec t;
     int opt, option_index, i;
-    int rc, timeout;
+    int rc;
     char *rcacheline, *wcacheline;
     char *status;
-    struct ocxl_afu_h *mafu_h;
+    ocxl_afu_h mafu_h;
     MachineConfig machine_config;
     MachineConfigParam config_param;
 
@@ -62,6 +64,8 @@ int main(int argc, char *argv[])
 	}
     }
 
+    t.tv_sec = 0;
+    t.tv_nsec = 1000000;
     // initialize machine
     init_machine(&machine_config);
 
@@ -92,15 +96,15 @@ int main(int argc, char *argv[])
     // open master device
     printf("Calling ocxl_afu_open_dev\n");
     
-    mafu_h = ocxl_afu_open_dev(MDEVICE);
-    if(!mafu_h) {
+    rc = ocxl_afu_open_from_dev(MDEVICE, &mafu_h);
+    if(rc != 0) {
 	perror("cxl_afu_open_dev: "MDEVICE);
 	return -1;
     }
     
     // attach device
     printf("Attaching device ...\n");
-    rc = ocxl_afu_attach(mafu_h, 0);
+    rc = ocxl_afu_attach(mafu_h);
     if(rc != 0) {
 	perror("cxl_afu_attach:"MDEVICE);
 	return rc;
@@ -112,7 +116,7 @@ int main(int argc, char *argv[])
 	goto done;
     }
     printf("Attempt Read command\n");
-    status[0] = 0xff;
+    //status[0] = 0xff;
     config_param.context = 0;
     config_param.enable_always = 1;
     config_param.mem_size = CACHELINE;
@@ -125,7 +129,7 @@ int main(int argc, char *argv[])
     printf("command = 0x%x\n", config_param.command);
     printf("mem base address = 0x%"PRIx64"\n", config_param.mem_base_address);
     rc = config_enable_and_run_machine(mafu_h, &machine_config, config_param, DIRECTED);
-    //status[0] = 0xff;
+    status[0] = 0xff;
     if( rc != -1) {
 	printf("Response = 0x%x\n", rc);
 	printf("config_enable_and_run_machine PASS\n");
@@ -136,12 +140,13 @@ int main(int argc, char *argv[])
     }
     timeout = 0;
     while(status[0] != 0x0) {
+	nanosleep(&t, &t);
 	printf("Polling read completion status = 0x%x\n", *status);
     }
 
     // Attemp write command
     printf("Attempt Write command\n");
-    status[0] = 0xff;
+    //status[0] = 0xff;
     config_param.command = AFU_CMD_DMA_W;
     config_param.mem_size = 64;
     config_param.mem_base_address = (uint64_t)wcacheline;
@@ -158,7 +163,9 @@ int main(int argc, char *argv[])
 	printf("FAILED: config_enable_and_run_machine\n");
 	goto done;
     }
+    status[0] = 0xff;
     while(status[0] != 0x00) {
+	nanosleep(&t, &t);
 	printf("Polling write completion status = 0x%x\n", *status);
     }
     
@@ -171,7 +178,7 @@ int main(int argc, char *argv[])
 done:
     // free device
     printf("Freeing device ... \n");
-    ocxl_afu_free(mafu_h);
+    ocxl_afu_free(&mafu_h);
 
     return 0;
 }

@@ -48,16 +48,16 @@ extern "C" {
 #define OCXL_LPC_LITTLE_ENDIAN 0x2
 #define OCXL_LPC_HOST_ENDIAN 0x3
 
-int ocxl_lpc_map(struct ocxl_afu_h *afu, uint32_t flags);
-int ocxl_lpc_unmap(struct ocxl_afu_h *afu);
+ocxl_err ocxl_lpc_map(ocxl_afu_h afu, uint32_t flags);
+ocxl_err ocxl_lpc_unmap(ocxl_afu_h afu);
 
 // write the "size" bytes starting at "data" to the location starting at "offset" in lpc memory known to "afu"
-int ocxl_lpc_write(struct ocxl_afu_h *afu, uint64_t offset, uint8_t *data, uint64_t size );
+ocxl_err ocxl_lpc_write(ocxl_afu_h afu, uint64_t offset, uint8_t *val, uint64_t size );
 // write_be is always 64 bytes of data to the offset under control of byte_enable
-int ocxl_lpc_write_be(struct ocxl_afu_h *afu, uint64_t offset, uint8_t *data, uint64_t byte_enable );
+ocxl_err ocxl_lpc_write_be(ocxl_afu_h afu, uint64_t offset, uint8_t *val, uint64_t byte_enable );
 
 // read the "size" bytes starting at "offset" in lpc memory known to "afu" and save them starting at "data"
-int ocxl_lpc_read(struct ocxl_afu_h *afu, uint64_t offset, uint8_t *data, uint64_t size );
+ocxl_err ocxl_lpc_read(ocxl_afu_h afu, uint64_t offset, uint8_t *out, uint64_t size );
 
 
 #ifdef __cplusplus

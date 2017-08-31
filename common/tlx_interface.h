@@ -91,6 +91,12 @@ int tlx_afu_send_resp_and_data(struct AFU_EVENT *event,
 		 uint8_t resp_dp, uint32_t resp_addr_tag,
 		 uint8_t resp_data_bdi,uint8_t * resp_data);
 
+/* Call this from ocse to send an xlate_done cmd  to tlx/afu*/
+
+int tlx_afu_send_posted_cmd(struct AFU_EVENT *event,
+		 uint8_t tlx_resp_opcode,
+		 uint16_t resp_afutag, uint8_t resp_code);
+
 
 /* Call this from ocse to send a command to tlx/afu */
 

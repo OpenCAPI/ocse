@@ -33,292 +33,197 @@ extern "C" {
 #define OCXL_SYSFS_CLASS "/sys/class/ocxl"
 #define OCXL_DEV_DIR "/dev/ocxl"
 
+  typedef enum {
+    OCXL_MMIO_BIG_ENDIAN = 0x0,
+    OCXL_MMIO_LITTLE_ENDIAN = 0x1, 
+    OCXL_MMIO_HOST_ENDIAN = 0x2
+  } ocxl_endian;
+
+#define OCXL_MMIO_ENDIAN_MASK 0x3
+#define OCXL_MMIO_FLAGS 0x3
+
+#define AFU_NAME_MAX 24
+  typedef struct ocxl_identifier {
+    uint8_t afu_index;
+    const char afu_name[AFU_NAME_MAX + 1];
+  } ocxl_identifier;
+
 /*
  * Opaque types
  */
-struct ocxl_adapter_h;
-struct ocxl_afu_h;
-struct ocxl_irq_h;
-struct ocxl_ioctl_start_work;
+// deprecate struct ocxl_adapter_h;
+// deprecate struct ocxl_ioctl_start_work;
+  typedef void *ocxl_afu_h;
+#define OCXL_INVALID_AFU NULL
 
-/*
- * Adapter Enumeration
- *
- * Repeatedly call ocxl_adapter_next() (or use the ocxl_for_each_adapter macro)
- * to enumerate the available OCXL adapters.
- *
- * ocxl_adapter_next() will implicitly free used buffers if it is called on the
- * last adapter, or ocxl_adapter_free() can be called explicitly.
- */
-// return the next opencapi adapter in the system - null if the are no more
-struct ocxl_adapter_h *ocxl_adapter_next(struct ocxl_adapter_h *adapter);
+  typedef uint16_t ocxl_irq_h; 
+#define OCXL_INVALID_IRQ UINT16_MAX;
 
-// return the basename of the device at this adapter handle
-char *ocxl_adapter_dev_name(struct ocxl_adapter_h *adapter);
+  /*
+   * various return codes from ocxl functions
+   */
+  typedef enum {
+    OCXL_OK = 0,
+    OCXL_NO_MEM = -1,
+    OCXL_NO_DEV = -2,
+    OCXL_NO_CONTEXT = -3,
+    OCXL_NO_IRQ = -4,
+    OCXL_INTERNAL_ERROR = -5,
+    OCXL_ALREADY_DONE = -6,
+    OCXL_OUT_OF_BOUNDS = -7,
+  } ocxl_err;
 
-// free the adapter and its associated data structures and memory buffers  
-void ocxl_adapter_free(struct ocxl_adapter_h *adapter);
+  /*
+   * ocxl event types
+   */
+  typedef enum {
+    OCXL_EVENT_IRQ = 0,
+    OCXL_EVENT_TRANSLATION_FAULT = 1,
+  } ocxl_event_type;
 
-// a loop that will allow you to visit each adapter in the system - the user must program the body of the for loop including the enclosing {}'s
-#define ocxl_for_each_adapter(adapter) \
-	for (adapter = ocxl_adapter_next(NULL); adapter; adapter = ocxl_adapter_next(adapter))
+  /*
+   * the data for a triggered irq event
+   */
+  typedef struct {
+    uint16_t irq;
+    uint64_t id;
+    void *info;
+    uint64_t count;
+  } ocxl_event_irq;
 
-/*
- * AFU Enumeration
- *
- * Repeatedly call ocxl_adapter_afu_next() (or use the
- * ocxl_for_each_adapter_afu macro) to enumerate AFUs on a specific OCXL
- * adapter, or use ocxl_afu_next() or ocxl_for_each_afu to enumerate AFUs over
- * all OCXL adapters in the system.
- *
- * For instance, if you just want to find any AFU attached to the system but
- * don't particularly care which one, just do:
- * struct ocxl_afu_h *afu_h = ocxl_afu_next(NULL);
- *
- * ocxl_[adapter]_afu_next() will implicitly free used buffers if it is called
- * on the last AFU, or ocxl_afu_free() can be called explicitly.
- */
+  /*
+   * the data for a triggered translation fault event
+   */
+  typedef struct {
+    void *addr;
+    //#ifdef __ARCH_PPC64
+    uint64_t dsisr;
+    //#endif
+  } ocxl_event_translation_fault;
 
-// given an adapter, return the next accelerator on that adapater - null if the are no more
-struct ocxl_afu_h *ocxl_adapter_afu_next(struct ocxl_adapter_h *adapter,
-				       struct ocxl_afu_h *afu);
+  /*
+   * an ocxl event
+   * 
+   * may be an afu interrupt or a translation fault
+   */
+  typedef struct ocxl_event {
+    ocxl_event_type type;
+    union {
+      ocxl_event_irq irq;
+      ocxl_event_translation_fault translation_fault;
+      uint64_t padding[16];
+    };
+  } ocxl_event;
 
-// return the next opencapi afu in the system - null if the are no more
-struct ocxl_afu_h *ocxl_afu_next(struct ocxl_afu_h *afu);
+  /* 
+   *setup routines 
+   */
+  void ocxl_want_verbose_errors( int verbose );
+  void ocxl_set_errmsg_filehandle( FILE *handle );
 
-// return the basename of the device the opencapi afu at this afu handle
-char *ocxl_afu_dev_name(struct ocxl_afu_h *afu);
+  /* 
+   * afu get functions - get some info from afu 
+   */
+  // return the identifier structure for the afu - name and index
+  const ocxl_identifier *ocxl_afu_get_identifier( ocxl_afu_h afu );
+  // return the canonical device pathname of the afu
+  const char *ocxl_afu_get_device_path( ocxl_afu_h afu );
+  // return the canonical sysfs pathname of the afu
+  const char *ocxl_afu_get_sysfs_path( ocxl_afu_h afu );
+  /*
+   * Returns the file descriptor for the open AFU to use with event loops.
+   * Returns -1 if the AFU is not open.
+   */
+  int ocxl_afu_get_fd( ocxl_afu_h afu );
+  // return the size of the global mmio space for this afu
+  size_t ocxl_afu_get_global_mmio_size( ocxl_afu_h afu );
+  // return the size of the per process mmio space for this afu
+  size_t ocxl_afu_get_mmio_size( ocxl_afu_h afu );
 
-// a loop that will allow you to visit each afu on a given adapter in the system - the user must program the body of the for loop including the enclosing {}'s
-#define ocxl_for_each_adapter_afu(adapter, afu) \
-	for (afu = ocxl_adapter_afu_next(adapter, NULL); afu; afu = ocxl_adapter_afu_next(adapter, afu))
+  /* 
+   * afu operations - like open, attach and free 
+   */
+  // open an afu by passing in the device path name
+  ocxl_err ocxl_afu_open_from_dev( char *path, ocxl_afu_h *afu );
+  // close an afu but keep the structures and info that we obtained during the open
+  ocxl_err ocxl_afu_close( ocxl_afu_h afu );
+  // close an afu and free the structures and info that we obtained during the open
+  void ocxl_afu_free( ocxl_afu_h *afu );
+  // open an afu by passing in the afu structure that we had before
+  ocxl_err ocxl_afu_open( ocxl_afu_h afu );
+  // attach this process to the afu we have opened - permits the afu to utilze the virtual address space of this process
+  ocxl_err ocxl_afu_attach( ocxl_afu_h afu );
 
-// a loop that will allow you to visit each afu in the system - the user must program the body of the for loop including the enclosing {}'s
-#define ocxl_for_each_afu(afu) \
-	for (afu = ocxl_afu_next(NULL); afu; afu = ocxl_afu_next(afu))
+  /* 
+   * high level wrappers 
+   */
+#ifdef __ARCH_PPC64
+  ocxl_err ocxl_afu_use( ocxl_afu_h afu, uint64_t amr, ocxl_endian global_endianess, enum ocxl_endian per_pasid_endianess );
+  ocxl_err ocxl_afu_use_from_dev( const char *path, ocxl_afu_h *afu, uint64_t amr, enum ocxl_endian global_endianess, enum ocxl_endian per_pasid_endianess );
+#endif
+  /* 
+   * afu irq functions 
+   */
+  // returns an interrupt handle describing the a new interrupt of the given afu
+  ocxl_err ocxl_afu_irq_alloc( ocxl_afu_h afu, void *info, ocxl_irq_h *irq_handle );
+  // free the data structures of an afu interrupt
+  // ocxl_err ocxl_afu_irq_free( ocxl_afu_h afu, ocxl_irq_h *irq_handle );
+  uint64_t ocxl_afu_irq_get_id( ocxl_afu_h afu, ocxl_irq_h irq );
+  // check/read an event
+  uint16_t ocxl_afu_event_check( ocxl_afu_h afu, struct timeval *timeout, ocxl_event *events, uint16_t event_count );
 
-// return the afu name at this afu handle
-char *ocxl_afu_name(struct ocxl_afu_h *afu);
+  /*
+   * platform specific: PPC64
+   */
+#ifdef __ARCH_PPC64
+  ocxl_err ocxl_afu_set_ppc_amr( ocxl_afu_h afu, uint64_t amr );
+#endif
 
-// return the next opencapi afu in the system with the name afu_name - null if the are no more
-struct ocxl_afu_h *ocxl_name_afu_next(char *afu_name, struct ocxl_afu_h *afu);
+  /* 
+   * afu mmio functions 
+   */
+  /*
+   * The below assessors will byte swap based on what is passed to map.  Also a
+   * full memory barrier 'sync' will proceed a write and follow a read.  More
+   * relaxed assessors can be created using a pointer derived from ocxl_mmio_ptr().
+   */
+  ocxl_err ocxl_global_mmio_map( ocxl_afu_h afu, ocxl_endian endian );
+  ocxl_err ocxl_mmio_map( ocxl_afu_h afu, ocxl_endian endian );
 
-// a loop that will allow you to visit each afu of name afu_name in the system - the user must program the body of the for loop including the enclosing {}'s
-#define ocxl_for_each_name_afu(afu_name, afu) \
-        for (afu = ocxl_name_afu_next(afu_name, NULL); afu; afu = ocxl_name_afu_next(NULL, afu))
+  /*
+   * AFU global MMIO functions
+   *
+   * The below assessors will access the global area assoicated with the 
+   * PASID that has been connected to the context of the afu.  One may call 
+   * ocxl_get_global_mmio_size to obtain information on the upper bound of this
+   * area.
+   */
+  ocxl_err ocxl_global_mmio_read32( ocxl_afu_h afu, size_t offset, uint32_t *out );
+  ocxl_err ocxl_global_mmio_read64( ocxl_afu_h afu, size_t offset, uint64_t *out );
+  ocxl_err ocxl_global_mmio_write32( ocxl_afu_h afu, size_t offset, uint32_t val );
+  ocxl_err ocxl_global_mmio_write64( ocxl_afu_h afu, size_t offset, uint64_t val );
+  /*
+   * AFU per process MMIO functions
+   *
+   * The below assessors will access the per process area assoicated with the 
+   * PASID that has been connected to the context of the afu.
+   */
+  ocxl_err ocxl_mmio_read32( ocxl_afu_h afu, size_t offset, uint32_t *out );
+  ocxl_err ocxl_mmio_read64( ocxl_afu_h afu, size_t offset, uint64_t *out );
+  ocxl_err ocxl_mmio_write32( ocxl_afu_h afu, size_t offset, uint32_t val );
+  ocxl_err ocxl_mmio_write64( ocxl_afu_h afu, size_t offset, uint64_t val );
+  
+  ocxl_err ocxl_global_mmio_unmap( ocxl_afu_h afu );
+  ocxl_err ocxl_mmio_unmap( ocxl_afu_h afu );
 
-// do we still have the notion of master and slave modes of the afu?  We do not have dedicated anymore.
-// deprecate views.
-enum ocxl_views {
-	OCXL_VIEW_DEDICATED = 0,
-	OCXL_VIEW_MASTER,
-	OCXL_VIEW_SLAVE
-};
 
-/*
- * Open AFU - either by path, by AFU being enumerated, or tie into an AFU file
- * descriptor that has already been opened. The AFU file descriptor will be
- * closed by ocxl_afu_free() regardless of how it was opened.
- */
-struct ocxl_afu_h *ocxl_afu_open_dev(char *path);
-struct ocxl_afu_h *ocxl_afu_open_h(struct ocxl_afu_h *afu);
-struct ocxl_afu_h * ocxl_afu_fd_to_h(int fd);  // ocse does not support this route to an afu handle
-void ocxl_afu_free(struct ocxl_afu_h *afu);
-int ocxl_afu_opened(struct ocxl_afu_h *afu);
-
-/*
- * Attach AFU context to this process
- */
-struct ocxl_ioctl_start_work *ocxl_work_alloc(void);
-int ocxl_work_free(struct ocxl_ioctl_start_work *work);
-int ocxl_work_get_amr(struct ocxl_ioctl_start_work *work, __u64 *valp);
-  // deprecate - int ocxl_work_get_num_irqs(struct ocxl_ioctl_start_work *work, __s16 *valp);
-  // deprecate - int ocxl_work_get_wed(struct ocxl_ioctl_start_work *work, __u64 *valp);
-int ocxl_work_set_amr(struct ocxl_ioctl_start_work *work, __u64 amr);
-  // deprecate - int ocxl_work_set_num_irqs(struct ocxl_ioctl_start_work *work, __s16 num_irqs);
-  // deprecate - int ocxl_work_set_wed(struct ocxl_ioctl_start_work *work, __u64 wed);
-
-  // old - int ocxl_afu_attach(struct ocxl_afu_h *afu, uint64_t amr); // old
-  int ocxl_afu_attach(struct ocxl_afu_h *afu); // new
-  // deprecate - int ocxl_afu_attach(struct ocxl_afu_h *afu, uint64_t wed);
-  int ocxl_afu_attach_work(struct ocxl_afu_h *afu,
-			   struct ocxl_ioctl_start_work *work);
-
-/* Deprecated interface */
-//int ocxl_afu_attach_full(struct ocxl_afu_h *afu, uint64_t wed,
-//			uint16_t num_interrupts, uint64_t amr);
-
-/*
- * Get AFU process element
- */
-  // deprecate - int ocxl_afu_get_process_element(struct ocxl_afu_h *afu);
-
-/*
- * Returns the file descriptor for the open AFU to use with event loops.
- * Returns -1 if the AFU is not open.
- */
-int ocxl_afu_fd(struct ocxl_afu_h *afu);
-
-/*
- * sysfs helpers
- */
-
-/*
- * NOTE: On success, this function automatically allocates the returned
- * buffer, which must be freed by the caller (much like asprintf).
- */
-int ocxl_afu_sysfs_pci(struct ocxl_afu_h *afu, char **pathp); // but not supported in ocse
-
-/* Flags for ocxl_get/set_mode and ocxl_get_modes_supported */
-// deprecate mode
-#define OCXL_MODE_DEDICATED   0x1
-#define OCXL_MODE_DIRECTED    0x2
-#define OCXL_MODE_TIME_SLICED 0x4
-
-/* Values for ocxl_get/set_prefault_mode */
-enum ocxl_prefault_mode {
-	OCXL_PREFAULT_MODE_NONE = 0,
-	OCXL_PREFAULT_MODE_WED,
-	OCXL_PREFAULT_MODE_ALL,
-};
-
-/* Values for ocxl_get_image_loaded */
-enum ocxl_image {
-	OCXL_IMAGE_FACTORY = 0,
-	OCXL_IMAGE_USER,
-};
-
-/*
- * Get/set attribute values.
- * Return 0 on success, -1 on error.
- */
-// this list will change based on the definitions in the pcie 0 header and vsec's supported for opencapi
-  // deprecate - int ocxl_get_api_version(struct ocxl_afu_h *afu, long *valp);
-  // deprecate - int ocxl_get_api_version_compatible(struct ocxl_afu_h *afu, long *valp);
-  // deprecate - int ocxl_get_num_irqs(struct ocxl_afu_h *afu, long *valp);
-  // deprecate - int ocxl_get_irqs_max(struct ocxl_afu_h *afu, long *valp);
-  // deprecate - int ocxl_set_irqs_max(struct ocxl_afu_h *afu, long value);
-  // deprecate - int ocxl_get_irqs_min(struct ocxl_afu_h *afu, long *valp);
-int ocxl_get_mmio_size(struct ocxl_afu_h *afu, long *valp);
-int ocxl_get_global_mmio_size(struct ocxl_afu_h *afu, long *valp);
-  // deprecate - int ocxl_get_mode(struct ocxl_afu_h *afu, long *valp);
-  // deprecate - int ocxl_set_mode(struct ocxl_afu_h *afu, long value);
-  // deprecate - int ocxl_get_modes_supported(struct ocxl_afu_h *afu, long *valp);
-  // deprecate - int ocxl_get_prefault_mode(struct ocxl_afu_h *afu, enum ocxl_prefault_mode *valp);
-  // deprecate - int ocxl_set_prefault_mode(struct ocxl_afu_h *afu, enum ocxl_prefault_mode value);
-  //int ocxl_get_dev(struct ocxl_afu_h *afu, long *majorp, long *minorp);
-  // deprecate - int ocxl_get_pp_mmio_len(struct ocxl_afu_h *afu, long *valp);
-  // deprecate - int ocxl_get_pp_mmio_off(struct ocxl_afu_h *afu, long *valp);
-  // deprecate - int ocxl_get_base_image(struct ocxl_adapter_h *adapter, long *valp);
-  // deprecate - int ocxl_get_caia_version(struct ocxl_adapter_h *adapter, long *majorp, long *minorp);
-  // deprecate - int ocxl_get_image_loaded(struct ocxl_adapter_h *adapter, enum ocxl_image *valp);
-  // deprecate - int ocxl_get_psl_revision(struct ocxl_adapter_h *adapter, long *valp);
-
-/*
- * Events (interrupts)
- */
-// returns an interrupt handle describing the a new interrupt of the given afu
-struct ocxl_irq_h *ocxl_afu_new_irq(struct ocxl_afu_h *afu);
-
-// returns an interrupt handle describing the next interrupt of the given afu
-struct ocxl_irq_h *ocxl_afu_irq_next(struct ocxl_afu_h *afu, struct ocxl_irq_h *irq);
-
-// free the data structures of an afu interrupt
-void ocxl_irq_free(struct ocxl_irq_h *irq );
-
-// a loop that will allow you to visit each interrupt allocated for a given afu - the user must program the body of the for loop including the enclosing {}'s
-#define ocxl_for_each_afu_irq(afu, irq) \
-        for (irq = ocxl_afu_irq_next(afu, NULL); irq; irq = ocxl_afu_irq_next(NULL, irq))
-
-int ocxl_event_pending(struct ocxl_afu_h *afu);
-int ocxl_read_event(struct ocxl_afu_h *afu, struct ocxl_event *event);
-int ocxl_read_expected_event(struct ocxl_afu_h *afu, struct ocxl_event *event,
-			     uint32_t type, uint16_t irq);
-
-/*
- * fprint wrappers to print out OCXL events - useful for debugging.
- * ocxl_fprint_event will select the appropriate implementation based on the
- * event type and ocxl_fprint_unknown_event will print out a hex dump of the
- * raw event.
- */
-int ocxl_fprint_event(FILE *stream, struct ocxl_event *event); // but not supported in ocse
-int ocxl_fprint_unknown_event(FILE *stream, struct ocxl_event *event); // but not supported in ocse
-
-/*
- * AFU MMIO functions
- *
- * The below assessors will byte swap based on what is passed to map.  Also a
- * full memory barrier 'sync' will proceed a write and follow a read.  More
- * relaxed assessors can be created using a pointer derived from ocxl_mmio_ptr().
- */
-#define OCXL_MMIO_BIG_ENDIAN 0x1
-#define OCXL_MMIO_LITTLE_ENDIAN 0x2
-#define OCXL_MMIO_HOST_ENDIAN 0x3
-#define OCXL_MMIO_ENDIAN_MASK 0x3
-#define OCXL_MMIO_FLAGS 0x3
-int ocxl_mmio_map(struct ocxl_afu_h *afu, uint32_t flags);
-int ocxl_mmio_unmap(struct ocxl_afu_h *afu);
-int ocxl_global_mmio_map(struct ocxl_afu_h *afu, uint32_t flags);
-int ocxl_global_mmio_unmap(struct ocxl_afu_h *afu);
-
-/* WARNING: Use of ocxl_mmio_ptr and ocxl_global_mmio_ptr are not supported for PSL Simulation Engine.
- * It is recommended that this function not be used but use the following MMIO
- * read/write functions instead. */
-void *ocxl_mmio_ptr(struct ocxl_afu_h *afu);
-void *ocxl_global_mmio_ptr(struct ocxl_afu_h *afu);
-
-/*
- * AFU per process MMIO functions
- *
- * The below assessors will access the per process area assoicated with the 
- * PASID that has been connected to the context of the afu.
- */
-int ocxl_mmio_write64(struct ocxl_afu_h *afu, uint64_t offset, uint64_t data);
-int ocxl_mmio_read64(struct ocxl_afu_h *afu, uint64_t offset, uint64_t * data);
-int ocxl_mmio_write32(struct ocxl_afu_h *afu, uint64_t offset, uint32_t data);
-int ocxl_mmio_read32(struct ocxl_afu_h *afu, uint64_t offset, uint32_t * data);
-
-/*
- * AFU global MMIO functions
- *
- * The below assessors will access the global area assoicated with the 
- * PASID that has been connected to the context of the afu.  One may call 
- * ocxl_get_global_mmio_size to obtain information on the upper bound of this
- * area.
- */
-int ocxl_global_mmio_write64(struct ocxl_afu_h *afu, uint64_t offset, uint64_t data);
-int ocxl_global_mmio_read64(struct ocxl_afu_h *afu, uint64_t offset, uint64_t * data);
-int ocxl_global_mmio_write32(struct ocxl_afu_h *afu, uint64_t offset, uint32_t data);
-int ocxl_global_mmio_read32(struct ocxl_afu_h *afu, uint64_t offset, uint32_t * data);
-
-/*
- * Calling this function will install the libocxl SIGBUS handler. This will
- * catch bad MMIO accesses (e.g. due to hardware failures) that would otherwise
- * terminate the program and make the above mmio functions return errors
- * instead.
- *
- * Call this once per process prior to any MMIO accesses.
- */
-//use JK's temp fix for this
-static inline int ocxl_mmio_install_sigbus_handler(void)
-{
-  /* nothing to be done yet */
-  return 0;
-}
-
-// these probably access vsec information, so the names will likely change
-  // deprecate - int ocxl_get_cr_device(struct ocxl_afu_h *afu, long cr_num, long *valp);
-  // deprecate - int ocxl_get_cr_vendor(struct ocxl_afu_h *afu, long cr_num, long *valp);
-  // deprecate - int ocxl_get_cr_class(struct ocxl_afu_h *afu, long cr_num, long *valp);
-  // deprecate - int ocxl_errinfo_size(struct ocxl_afu_h *afu, size_t *valp);
-  // deprecate - int ocxl_errinfo_read(struct ocxl_afu_h *afu, void *dst, off_t off, size_t len);
 
 /*
  * "wait a sec"
  */
 // a routine that models the behavior of the Power ISA wait instruction
 // the routine will block until someone issues a "wake_host_thead" or asb_notify
-int ocxl_sleep(struct ocxl_afu_h *afu);
+ocxl_err ocxl_sleep( ocxl_afu_h afu );
 
 // the followin notion can be found in libocxl_lpc.  they are not part of the normal reference user api
 // think about an lpc or "host agent memory" set of helper functions

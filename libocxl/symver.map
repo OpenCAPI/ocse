@@ -1,45 +1,25 @@
 LIBOCXL_1 {
 	global:
-		ocxl_adapter_next;
-		ocxl_adapter_dev_name;
-		ocxl_adapter_free;
-		ocxl_adapter_afu_next;
-		ocxl_afu_next;
-		ocxl_afu_dev_name;
+	        ocxl_want_verbose_errors;
+	        ocxl_set_errmsg_filehandle;
 
-		ocxl_afu_open_dev;
-		ocxl_afu_open_h;
-		ocxl_afu_free;
-		ocxl_afu_opened;
-		ocxl_afu_attach_full;
+		ocxl_afu_get_identifier;
+		ocxl_afu_get_device_path;
+		ocxl_afu_get_sysfs_path;
+		ocxl_afu_get_fd;
+
+		ocxl_afu_open_from_dev;
+		ocxl_afu_open;
 		ocxl_afu_attach;
-		ocxl_afu_get_process_element;
-		ocxl_afu_fd;
+		ocxl_afu_close;
+		ocxl_afu_free;
 
-		ocxl_get_api_version;
-		ocxl_get_api_version_compatible;
-		ocxl_get_cr_device;
-		ocxl_get_cr_vendor;
-		ocxl_get_cr_class;
-		ocxl_get_irqs_max;
-		ocxl_get_irqs_min;
-		ocxl_get_caia_version;
-		ocxl_get_psl_revision;
-
-		ocxl_errinfo_size;
-		ocxl_errinfor_read;
-
-		ocxl_afu_new_irq;
-		ocxl_afu_irq_next;
-		ocxl_afu_irq_free;
-
-		ocxl_pending_event;
-		ocxl_read_event;
-		ocxl_read_expected_event;
+		ocxl_afu_irq_alloc;
+		ocxl_afu_irq_get_id;
+		ocxl_afu_event_check;
 
 		ocxl_mmio_map;
 		ocxl_mmio_unmap;
-		ocxl_mmio_ptr;
 		ocxl_mmio_write64;
 		ocxl_mmio_read64;
 		ocxl_mmio_write32;
@@ -47,7 +27,6 @@ LIBOCXL_1 {
 
 		ocxl_global_mmio_map;
 		ocxl_global_mmio_unmap;
-		ocxl_global_mmio_ptr;
 		ocxl_global_mmio_write64;
 		ocxl_global_mmio_read64;
 		ocxl_global_mmio_write32;

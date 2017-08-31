@@ -16,7 +16,8 @@ private:
     std::vector<uint8_t>::iterator it_x64;
     std::list<uint64_t> addr_list;
     std::list<uint64_t>::iterator it_list;
-    uint8_t *lpc_memory;
+    //uint8_t *lpc_memory;
+    std::vector<uint8_t> lpc_memory; 
 
 public:
     Lpc();

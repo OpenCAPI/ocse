@@ -17,6 +17,7 @@
 #ifndef _LIBOCXL_INTERNAL_H
 #define _LIBOCXL_INTERNAL_H
 
+#include <libocxl.h>
 #include <dirent.h>
 #include <inttypes.h>
 #include <poll.h>
@@ -52,16 +53,18 @@ struct mmio_req {
 	uint64_t data;
 };
 
-struct ocxl_irq_h {
-	struct ocxl_afu_h *afu;
-	struct ocxl_irq_h *_next;
+struct ocxl_irq {
+        uint16_t irq;
+        uint64_t id;
+	struct ocxl_afu *afu;
+	struct ocxl_irq *_next;
 };
 
 struct ocxl_waitasec {
-	__u16 type;
-	__u16 size;
-	__u16 process_element;
-	__u16 reserved1;
+	ocxl_event_type type;
+	uint16_t size;
+	uint16_t process_element;
+	uint16_t reserved1;
 };
 
 struct mem_req {
@@ -73,14 +76,19 @@ struct mem_req {
 	uint8_t *data;
 };
 
-struct ocxl_afu_h {
+// struct ocxl_afu_h {
+struct ocxl_afu {
 	pthread_t thread;
 	pthread_mutex_t event_lock;
 	pthread_mutex_t waitasec_lock;
-	struct ocxl_event *events[EVENT_QUEUE_MAX];
+	ocxl_event *events[EVENT_QUEUE_MAX];
 	struct ocxl_waitasec *waitasec;
 	int adapter;
 	char *id;
+        ocxl_identifier ocxl_id;
+        uint8_t bus;
+        uint8_t dev;
+        uint8_t fcn;
 	uint16_t context;
 	uint16_t map;
 	uint16_t position;
@@ -96,15 +104,16 @@ struct ocxl_afu_h {
         long mmio_offset;  // this pasid mmio offset - f(pasid, per pasid stride, per pasid mmio offset)
 	uint16_t cr_device;
 	uint16_t cr_vendor;
+        int irq_count;
 	struct int_req int_req;
 	struct open_req open;
 	struct attach_req attach;
 	struct mmio_req mmio;
 	struct mem_req mem;
-	struct ocxl_irq_h *irq;
-	struct ocxl_afu_h *_head;
-	struct ocxl_afu_h *_next;
-        struct ocxl_afu_h *_next_adapter; // ???
+	struct ocxl_irq *irq;
+	struct ocxl_afu *_head;
+	struct ocxl_afu *_next;
+        struct ocxl_afu *_next_adapter; // ???
 };
   /*
 	long irqs_max;
@@ -132,7 +141,7 @@ struct ocxl_adapter_h {
 	uint16_t position;
 	struct ocxl_adapter_h *_head;
 	struct ocxl_adapter_h *_next;
-	struct ocxl_afu_h *afu_list;
+	struct ocxl_afu *afu_list;
 };
 
 #endif

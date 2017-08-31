@@ -16,7 +16,7 @@
 
 `timescale 1ns / 1ns
 
-module top (
+module top_lpc (
   output          breakpoint
 );
 
@@ -853,9 +853,10 @@ end
 
 //  mcp3_top a0 (		- UMA 30/Mar/2017 - the top instance name on
 //  mcp changed
-  mcp3_device a0 (
-    .clock_tlx(tlx_clock),
-    .clock_afu(afu_clock),
+  lpc_device a0 (
+    //.clock_tlx(tlx_clock),
+    //.clock_afu(afu_clock),
+    .clock(tlx_clock),
     .reset_n(reset_n),
   // Table 1: TLX to AFU Response Interface
     .tlx_afu_resp_valid               (tlx_afu_resp_valid),

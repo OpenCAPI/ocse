@@ -35,11 +35,6 @@ bool MachineController::send_command (AFU_EVENT * afu_event, uint32_t cycle)
     }
 
     // attempt to send a command with the allocated tag
-//    for(uint32_t i=0; i< machines.size(); i++) {
-//	if(machines[i]->is_enabled()) {
-//	    printf("MC machine %d is enabled\n", i);
-//	}
-//    }
     for (uint32_t i = 0; i < machines.size (); ++i) {
         if (try_send && machines[i]->is_enabled ()
                 && machines[i]->attempt_new_command (afu_event, tag,
@@ -49,6 +44,9 @@ bool MachineController::send_command (AFU_EVENT * afu_event, uint32_t cycle)
             ("MachineController::send_command: machine id %d sent new command", i);
             try_send = false;
             tag_to_machine[tag] = machines[i];
+	    resend_machine = machines[i];
+  	    resend_tag = tag;
+	    memcpy(&resend_afu_event, afu_event, sizeof(resend_afu_event));
 	    debug_msg("MachineController::send_command tag = 0x%x machine = 0x%x", tag, machines[i]);
         }
 
@@ -63,6 +61,17 @@ bool MachineController::send_command (AFU_EVENT * afu_event, uint32_t cycle)
     return !try_send;
 }
 
+bool
+MachineController::resend_command(AFU_EVENT *afu_event, uint32_t cycle)
+{
+    bool try_send = true;
+
+    debug_msg("MachineController::resend_command");
+    resend_machine->attempt_resend_command(&resend_afu_event, resend_tag, flushed_state, 
+			(uint16_t)(cycle & 0x7FFF));
+    return try_send;     
+}
+ 
 void
 MachineController::set_machine_enable_bit(uint8_t position)
 {

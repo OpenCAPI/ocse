@@ -22,7 +22,6 @@
 #include "../common/utils.h"
 #include "../common/debug.h"
 
-#define DEFAULT_CREDITS 64
 #define DEFAULT_PAGESIZE 0
 
 // Randomly decide based on percent chance
@@ -41,6 +40,66 @@ int allow_resp(struct parms *parms)
 int allow_paged(struct parms *parms)
 {
 	return percent_chance(parms->paged_percent);
+}
+
+// Randomly decide to allow RETRY response
+int allow_retry(struct parms *parms)
+{
+	return percent_chance(parms->retry_percent);
+}
+
+// Randomly decide to allow FAILED response
+int allow_failed(struct parms *parms)
+{
+	return percent_chance(parms->failed_percent);
+}
+
+// Randomly decide to allow dERROR response
+int allow_derror(struct parms *parms)
+{
+	return percent_chance(parms->derror_percent);
+}
+
+// Randomly decide to allow PENDING response
+int allow_pending(struct parms *parms)
+{
+	return percent_chance(parms->pending_percent);
+}
+
+// Randomly decide to allow RETRY response for interrupts
+int allow_int_retry(struct parms *parms)
+{
+	return percent_chance(parms->int_retry_percent);
+}
+
+// Randomly decide to allow FAILED response for interrupts
+int allow_int_failed(struct parms *parms)
+{
+	return percent_chance(parms->int_failed_percent);
+}
+
+// Randomly decide to allow dERROR response for interrupts
+int allow_int_derror(struct parms *parms)
+{
+	return percent_chance(parms->int_derror_percent);
+}
+
+// Randomly decide to allow PENDING response for interrupts
+int allow_int_pending(struct parms *parms)
+{
+	return percent_chance(parms->int_pending_percent);
+}
+
+// Randomly decide to allow BDI error for response data
+int allow_bdi_resp_err(struct parms *parms)
+{
+	return percent_chance(parms->bdi_resp_err_percent);
+}
+
+// Randomly decide to allow BDI error for cmd data
+int allow_bdi_cmd_err(struct parms *parms)
+{
+	return percent_chance(parms->bdi_cmd_err_percent);
 }
 
 // Randomly decide to allow command to be handled out of order
@@ -92,11 +151,13 @@ struct parms *parse_parms(char *filename, FILE * dbg_fp)
 
 	// Set default parameter values
 	parms->timeout = 10;
-	parms->credits = DEFAULT_CREDITS;
 	parms->pagesize = DEFAULT_PAGESIZE;
 	parms->seed = (unsigned int)time(NULL);
 	parms->resp_percent = 20;
 	parms->paged_percent = 5;
+	parms->retry_percent = 5;
+	parms->failed_percent = 5;
+	parms->pending_percent = 5;
 	parms->reorder_percent = 20;
 	parms->buffer_percent = 50;
 
@@ -146,14 +207,6 @@ struct parms *parse_parms(char *filename, FILE * dbg_fp)
 		} else if (!(strcmp(parm, "TIMEOUT"))) {
 			parms->timeout = atoi(value);
 			debug_parm(dbg_fp, DBG_PARM_TIMEOUT, parms->timeout);
-		} else if (!(strcmp(parm, "CREDITS"))) {
-			data = atoi(value);
-			if ((data > DEFAULT_CREDITS) || (data <= 0))
-				warn_msg("CREDITS must be 1-%d",
-					 DEFAULT_CREDITS);
-			else
-				parms->credits = data;
-			debug_parm(dbg_fp, DBG_PARM_CREDITS, parms->credits);
 		} else if (!(strcmp(parm, "PAGESIZE"))) {
 			data = atoi(value);
 			if ((data < DEFAULT_PAGESIZE) || (data == 1) || (data == 6) || (data >= 8))
@@ -177,6 +230,86 @@ struct parms *parse_parms(char *filename, FILE * dbg_fp)
 				parms->paged_percent = data;
 			debug_parm(dbg_fp, DBG_PARM_PAGED_PERCENT,
 				   parms->paged_percent);
+		} else if (!(strcmp(parm, "RETRY_PERCENT"))) {
+			percent_parm(value, &data);
+			if ((data >= 100) || (data < 0))
+				warn_msg("RETRY_PERCENT must be 0-99");
+			else
+				parms->retry_percent = data;
+			debug_parm(dbg_fp, DBG_PARM_RETRY_PERCENT,
+				   parms->retry_percent);
+		} else if (!(strcmp(parm, "FAILED_PERCENT"))) {
+			percent_parm(value, &data);
+			if ((data >= 100) || (data < 0))
+				warn_msg("FAILED_PERCENT must be 0-99");
+			else
+				parms->failed_percent = data;
+			debug_parm(dbg_fp, DBG_PARM_FAILED_PERCENT,
+				   parms->failed_percent);
+		} else if (!(strcmp(parm, "PENDING_PERCENT"))) {
+			percent_parm(value, &data);
+			if ((data >= 100) || (data < 0))
+				warn_msg("PENDING_PERCENT must be 0-99");
+			else
+				parms->pending_percent = data;
+			debug_parm(dbg_fp, DBG_PARM_PENDING_PERCENT,
+				   parms->pending_percent);
+		} else if (!(strcmp(parm, "DERROR_PERCENT"))) {
+			percent_parm(value, &data);
+			if ((data >= 100) || (data < 0))
+				warn_msg("DERROR_PERCENT must be 0-99");
+			else
+				parms->derror_percent = data;
+			debug_parm(dbg_fp, DBG_PARM_DERROR_PERCENT,
+				   parms->derror_percent);
+		} else if (!(strcmp(parm, "INT_RETRY_PERCENT"))) {
+			percent_parm(value, &data);
+			if ((data >= 100) || (data < 0))
+				warn_msg("INT_RETRY_PERCENT must be 0-99");
+			else
+				parms->int_retry_percent = data;
+			debug_parm(dbg_fp, DBG_PARM_INT_RETRY_PERCENT,
+				   parms->int_retry_percent);
+		} else if (!(strcmp(parm, "INT_FAILED_PERCENT"))) {
+			percent_parm(value, &data);
+			if ((data >= 100) || (data < 0))
+				warn_msg("INT_FAILED_PERCENT must be 0-99");
+			else
+				parms->int_failed_percent = data;
+			debug_parm(dbg_fp, DBG_PARM_INT_FAILED_PERCENT,
+				   parms->int_failed_percent);
+		} else if (!(strcmp(parm, "INT_PENDING_PERCENT"))) {
+			percent_parm(value, &data);
+			if ((data >= 100) || (data < 0))
+				warn_msg("INT_PENDING_PERCENT must be 0-99");
+			else
+				parms->int_pending_percent = data;
+			debug_parm(dbg_fp, DBG_PARM_INT_PENDING_PERCENT,
+				   parms->int_pending_percent);
+		} else if (!(strcmp(parm, "INT_DERROR_PERCENT"))) {
+			percent_parm(value, &data);
+			if ((data >= 100) || (data < 0))
+				warn_msg("INT_DERROR_PERCENT must be 0-99");
+			else
+				parms->int_derror_percent = data;
+			debug_parm(dbg_fp, DBG_PARM_INT_DERROR_PERCENT,
+				   parms->int_derror_percent);
+		} else if (!(strcmp(parm, "BDI_RESP_ERR_PERCENT"))) {
+			percent_parm(value, &data);
+			if ((data >= 100) || (data < 0))
+				warn_msg("BDI_RESP_ERR_PERCENT must be 0-99");
+			else
+				parms->bdi_resp_err_percent = data;
+			debug_parm(dbg_fp, DBG_PARM_BDI_RESP_ERR_PERCENT,
+				   parms->bdi_resp_err_percent);
+		} else if (!(strcmp(parm, "BDI_CMD_ERR_PERCENT"))) {
+			percent_parm(value, &data);
+			if ((data >= 100) || (data < 0))
+				warn_msg("BDI_CMD_ERR_PERCENT must be 0-99");
+			else
+				parms->bdi_cmd_err_percent = data;
+			debug_parm(dbg_fp, DBG_PARM_BDI_CMD_ERR_PERCENT,
+				   parms->bdi_cmd_err_percent);
 		} else if (!(strcmp(parm, "REORDER_PERCENT"))) {
 			percent_parm(value, &data);
 			if ((data >= 100) || (data < 0))
@@ -193,18 +326,6 @@ struct parms *parse_parms(char *filename, FILE * dbg_fp)
 				parms->buffer_percent = data;
 			debug_parm(dbg_fp, DBG_PARM_BUFFER_PERCENT,
 				   parms->buffer_percent);
-		} else if (!(strcmp(parm, "OPPA_VERSION"))) {
-			parms->oppa_version = atoi(value);
-			debug_parm(dbg_fp, DBG_OPPA_VERSION, parms->oppa_version);
-		} else if (!(strcmp(parm, "OCL_REV_LEVEL"))) {
-			parms->tlx_rev_level = atoi(value);
-			debug_parm(dbg_fp, DBG_TLX_REV_LVL, parms->tlx_rev_level);
-		} else if (!(strcmp(parm, "IMAGE_LOADED"))) {
-			parms->image_loaded = atoi(value);
-			debug_parm(dbg_fp, DBG_IMAGE_LOADED, parms->image_loaded);
-		} else if (!(strcmp(parm, "BASE_IMAGE_REV_LEVEL"))) {
-			parms->base_image = atoi(value);
-			debug_parm(dbg_fp, DBG_BASE_IMAGE, parms->base_image);
 		} else {
 			warn_msg("Ignoring invalid parm in %s: %s\n",
 				 filename, parm);
@@ -219,21 +340,24 @@ struct parms *parse_parms(char *filename, FILE * dbg_fp)
 	// Print out parm settings
 	info_msg("OCSE parm values:");
 	printf("\tSeed     = %d\n", parms->seed);
-	if (parms->credits != DEFAULT_CREDITS)
-		printf("\tCredits  = %d\n", parms->credits);
 	if (parms->timeout)
 		printf("\tTimeout  = %d seconds\n", parms->timeout);
 	else
 		printf("\tTimeout  = DISABLED\n");
 	printf("\tResponse = %d%%\n", parms->resp_percent);
 	printf("\tPaged    = %d%%\n", parms->paged_percent);
+	printf("\tRetry    = %d%%\n", parms->retry_percent);
+	printf("\tFailed   = %d%%\n", parms->failed_percent);
+	printf("\tPending  = %d%%\n", parms->pending_percent);
+	printf("\tDerror   = %d%%\n", parms->derror_percent);
+	printf("\tINT_Retry   = %d%%\n", parms->int_retry_percent);
+	printf("\tINT_Failed  = %d%%\n", parms->int_failed_percent);
+	printf("\tINT_Pending = %d%%\n", parms->int_pending_percent);
+	printf("\tINT_Derror  = %d%%\n", parms->int_derror_percent);
+	printf("\tBDI_RESP_ERR= %d%%\n", parms->bdi_resp_err_percent);
+	printf("\tBDI_CMD_ERR = %d%%\n", parms->bdi_cmd_err_percent);
 	printf("\tReorder  = %d%%\n", parms->reorder_percent);
 	printf("\tBuffer   = %d%%\n", parms->buffer_percent);
-//When we start reading these values in from ocse.parms, uncomment
-//	printf("\tCAIA_Ver     = %4d\n", parms->caia_version);
-//	printf("\tOCL_REV      = %d\n", parms->ocl_rev_level);
-//	printf("\tImage_Loaded = %d\n", parms->image_loaded);
-//	printf("\tBase_Image   = %d\n", parms->base_image);
 
 	// Adjust timeout to milliseconds
 	parms->timeout *= 1000;

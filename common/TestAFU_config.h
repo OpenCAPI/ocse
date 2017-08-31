@@ -58,20 +58,20 @@ void init_machine(MachineConfig *machine);
 int config_machine(MachineConfig *machine, MachineConfigParam configparam);
 
 // Function to write config to AFU MMIO space
-int enable_machine(struct ocxl_afu_h *afu, MachineConfig *machine, MachineConfigParam param, int mode);
+int enable_machine(ocxl_afu_h afu, MachineConfig *machine, MachineConfigParam param, int mode);
 
 // Function to set most commonly used elements and write to AFU MMIO space
-int config_and_enable_machine(struct ocxl_afu_h *afu, MachineConfig *machine, MachineConfigParam param, int mode);
+int config_and_enable_machine(ocxl_afu_h afu, MachineConfig *machine, MachineConfigParam param, int mode);
 
 // Function to read config from AFU
-int poll_machine(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t context, int mode);
+int poll_machine(ocxl_afu_h afu, MachineConfig *machine, uint16_t context, int mode);
 
 // Wait for response from AFU machine
-int get_response(struct ocxl_afu_h *afu, MachineConfig *machine, uint16_t context, int mode);
+int get_response(ocxl_afu_h afu, MachineConfig *machine, uint16_t context, int mode);
 
 // Function to set most commonly used elements, write to AFU MMIO space and
 // wait for command completion
-int config_enable_and_run_machine(struct ocxl_afu_h *afu, MachineConfig *machine, MachineConfigParam param, int mode);
+int config_enable_and_run_machine(ocxl_afu_h afu, MachineConfig *machine, MachineConfigParam param, int mode);
 
 // Enable always field is bits[0] of double-word 0
 void set_machine_config_enable_always(MachineConfig* machine);
