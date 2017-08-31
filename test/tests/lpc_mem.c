@@ -8,7 +8,7 @@
 #include "../../libocxl/libocxl_lpc.h"
 
 #define CACHELINE 128
-#define MDEVICE "/dev/cxl/tlx0"
+#define MDEVICE "/dev/cxl/tlx0.0000:00:00.1.0"
 
 static int verbose;
 static unsigned int buffer_cl = 64;

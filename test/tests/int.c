@@ -12,7 +12,7 @@
 #define ProcessInterruptObject_REGISTER 0x0028
 #define ProcessInterruptData_REGISTER 0x0030
 #define CACHELINE 128
-#define MDEVICE "/dev/cxl/tlx0"
+#define MDEVICE "/dev/cxl/tlx0.0000:00:00.1.0"
 
 static int verbose;
 static unsigned int buffer_cl = 64;
