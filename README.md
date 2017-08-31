@@ -9,7 +9,7 @@ mention startup guides
 mention demo kit(s)
 mention apache 2.0 license
 
-sprint h
+sprint i
 
 version 1.0 Known limitations:
 	we've simulated with Cadence NCSim, Xilinx Xsim
