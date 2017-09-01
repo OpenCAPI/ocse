@@ -2455,7 +2455,7 @@ ocxl_err ocxl_afu_close( ocxl_afu_h afu )
 	return OCXL_OK;
 }
 
-void ocxl_afu_free( ocxl_afu_h *afu)
+void ocxl_afu_free( ocxl_afu_h afu )
 {
 	uint8_t buffer;
 	int rc;
@@ -2463,7 +2463,7 @@ void ocxl_afu_free( ocxl_afu_h *afu)
 
 	debug_msg( "ocxl_afu_free:AFU FREE" );
 
-	my_afu = (struct ocxl_afu *)*afu;
+	my_afu = (struct ocxl_afu *)afu;
 
 	if (!my_afu) {
 		warn_msg("ocxl_afu_free: No AFU given");
@@ -2491,7 +2491,7 @@ void ocxl_afu_free( ocxl_afu_h *afu)
 		free( my_afu->id );
  free_done_no_afu:
 	pthread_mutex_destroy( &(my_afu->event_lock) );
-	free( *afu );
+	free( afu );
 }
 
 /* int ocxl_afu_opened(struct ocxl_afu_h *afu) */

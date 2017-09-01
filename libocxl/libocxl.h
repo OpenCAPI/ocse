@@ -148,7 +148,7 @@ extern "C" {
   // close an afu but keep the structures and info that we obtained during the open
   ocxl_err ocxl_afu_close( ocxl_afu_h afu );
   // close an afu and free the structures and info that we obtained during the open
-  void ocxl_afu_free( ocxl_afu_h *afu );
+  void ocxl_afu_free( ocxl_afu_h afu );
   // open an afu by passing in the afu structure that we had before
   ocxl_err ocxl_afu_open( ocxl_afu_h afu );
   // attach this process to the afu we have opened - permits the afu to utilze the virtual address space of this process
