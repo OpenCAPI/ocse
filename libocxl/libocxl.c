@@ -3150,11 +3150,11 @@ ocxl_err ocxl_global_mmio_write64( ocxl_afu_h afu, uint64_t offset, uint64_t val
 		return OCXL_OUT_OF_BOUNDS;
 	}
 
-	if ( offset >= my_afu->mmio_offset ) {
-		warn_msg("ocxl_global_mmio_write64: offset out of bounds!");
-		errno = EINVAL;
-		return OCXL_OUT_OF_BOUNDS;
-	}
+	/* if ( offset >= my_afu->mmio_offset ) { */
+	/* 	warn_msg("ocxl_global_mmio_write64: offset out of bounds!"); */
+	/* 	errno = EINVAL; */
+	/* 	return OCXL_OUT_OF_BOUNDS; */
+	/* } */
 
 	// Send MMIO map to OCSE
 	my_afu->mmio.type = OCSE_GLOBAL_MMIO_WRITE64;
@@ -3189,11 +3189,11 @@ ocxl_err ocxl_global_mmio_read64( ocxl_afu_h afu, uint64_t offset, uint64_t *out
 		return OCXL_OUT_OF_BOUNDS;
 	}
 
-	if ( offset >= my_afu->mmio_offset ) {
-		warn_msg("ocxl_global_mmio_read64: offset out of bounds!");
-		errno = EINVAL;
-		return OCXL_OUT_OF_BOUNDS;
-	}
+	/* if ( offset >= my_afu->mmio_offset ) { */
+	/* 	warn_msg("ocxl_global_mmio_read64: offset out of bounds!"); */
+	/* 	errno = EINVAL; */
+	/* 	return OCXL_OUT_OF_BOUNDS; */
+	/* } */
 
 	// Send MMIO map to OCSE
 	my_afu->mmio.type = OCSE_GLOBAL_MMIO_READ64;
@@ -3228,11 +3228,11 @@ ocxl_err ocxl_global_mmio_write32( ocxl_afu_h afu, uint64_t offset, uint32_t val
 		return OCXL_OUT_OF_BOUNDS;
 	}
 
-	if ( offset >= my_afu->mmio_offset ) {
-		warn_msg("ocxl_global_mmio_write32: offset out of bounds!");
-		errno = EINVAL;
-		return OCXL_OUT_OF_BOUNDS;
-	}
+	/* if ( offset >= my_afu->mmio_offset ) { */
+	/* 	warn_msg("ocxl_global_mmio_write32: offset out of bounds!"); */
+	/* 	errno = EINVAL; */
+	/* 	return OCXL_OUT_OF_BOUNDS; */
+	/* } */
 
 	// Send MMIO map to OCSE
 	my_afu->mmio.type = OCSE_GLOBAL_MMIO_WRITE32;
@@ -3267,11 +3267,11 @@ ocxl_err ocxl_global_mmio_read32( ocxl_afu_h afu, uint64_t offset, uint32_t *out
 		return OCXL_OUT_OF_BOUNDS;
 	}
 	
-	if (offset >= my_afu->mmio_offset) {
-		warn_msg("ocxl_global_mmio_read32: offset out of bounds");
-		errno = EINVAL;
-		return OCXL_OUT_OF_BOUNDS;
-	}
+	/* if (offset >= my_afu->mmio_offset) { */
+	/* 	warn_msg("ocxl_global_mmio_read32: offset out of bounds"); */
+	/* 	errno = EINVAL; */
+	/* 	return OCXL_OUT_OF_BOUNDS; */
+	/* } */
 
 	// Send MMIO map to OCSE
 	my_afu->mmio.type = OCSE_GLOBAL_MMIO_READ32;
