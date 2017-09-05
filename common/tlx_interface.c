@@ -744,6 +744,8 @@ int afu_tlx_read_resp_and_data(struct AFU_EVENT *event,
 			//return TLX_SUCCESS;
 			}
 	//	return AFU_TLX_RESP_NO_DATA;
+		event->tlx_afu_resp_credit = 1;
+		event->tlx_afu_credit_valid = 1;
 		return TLX_SUCCESS;
 		}
 }
@@ -1352,8 +1354,8 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 	if ((event->rbuf[0] & 0x08) != 0) {
 	        debug_msg("      parsing afu tlx resp");
 		event->afu_tlx_resp_valid = 1;
-		event->tlx_afu_resp_credit = 1;
-		event->tlx_afu_credit_valid = 1;
+		// event->tlx_afu_resp_credit = 1;  // allow ocse to process the response and return the credit
+		// event->tlx_afu_credit_valid = 1;
 		event->afu_tlx_resp_opcode = event->rbuf[rbc++];
 		event->afu_tlx_resp_dl = event->rbuf[rbc++];
 		event->afu_tlx_resp_capptag = event->rbuf[rbc++];
