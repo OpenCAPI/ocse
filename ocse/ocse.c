@@ -107,14 +107,37 @@ static struct ocl *_find_ocl(uint8_t id, uint8_t * major)
 }
 
 // Query AFU descriptor data
-static void _query(struct client *client, uint8_t id)
+static void _query(struct client *client)
 {
 	struct ocl *ocl;
 	uint8_t *buffer;
-	uint8_t major;
+	uint8_t major, bus, dev, fcn, afuid;
 	int size, offset;
 
-	ocl = _find_ocl(id, &major);
+	if (get_bytes_silent(client->fd, 1, &bus, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_query: could not communicate with socket");
+	  return;
+	}
+	if (get_bytes_silent(client->fd, 1, &dev, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_query: could not communicate with socket");
+	  return;
+	}
+	if (get_bytes_silent(client->fd, 1, &fcn, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_query: could not communicate with socket");
+	  return;
+	}
+	if (get_bytes_silent(client->fd, 1, &afuid, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_query: could not communicate with socket");
+	  return;
+	}
+
+	// use bus for id into _find_ocl for now - the pointers to all of the following values will change later.
+	ocl = _find_ocl(bus, &major);
+
 	size = 1 + sizeof(ocl->mmio->cfg.AFU_CTL_ACTAG_LEN_EN_S) + sizeof(client->max_irqs) +
 	    sizeof(ocl->mmio->cfg.FUNC_CFG_MAXAFU) +
 	    sizeof(ocl->mmio->cfg.AFU_INFO_REVID) + sizeof(ocl->mmio->cfg.AFU_CTL_PASID_BASE_14) +
@@ -284,54 +307,45 @@ static struct client *_client_connect(int *fd, char *ip)
 }
 
 // Associate client to OCL
-static int _client_associate(struct client *client, uint8_t id)
+static int _client_associate(struct client *client)
 {
 	struct ocl *ocl;
 	uint32_t mmio_offset, mmio_size;
-	uint8_t major;
+	uint8_t major, bus, dev, fcn, afuid;
 	int i, context, clients;
 	uint8_t rc[2];
 
+	// retreive bus, dev, fcn, and afuid from socket
+	if (get_bytes_silent(client->fd, 1, &bus, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_query: could not communicate with socket");
+	  return -1;
+	}
+	if (get_bytes_silent(client->fd, 1, &dev, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_query: could not communicate with socket");
+	  return -1;
+	}
+	if (get_bytes_silent(client->fd, 1, &fcn, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_query: could not communicate with socket");
+	  return -1;
+	}
+	if (get_bytes_silent(client->fd, 1, &afuid, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_query: could not communicate with socket");
+	  return -1;
+	}
+
 	// Associate with OCL
-	// minor can go away
 	rc[0] = OCSE_DETACH;
-	ocl = _find_ocl(id, &major);
+	ocl = _find_ocl(bus, &major);
 	if (!ocl) {
 		info_msg("Did not find valid OCL for tlx%d\n", major);
 		put_bytes(client->fd, 1, &(rc[0]), fp, -1, -1);
 		close_socket(&(client->fd));
 		return -1;
 	}
-
-	// Check AFU type is valid for connection
-	// afu_type can go away
-	/* switch (afu_type) { */
-	/* case 'd': */
-	/* 	warn_msg ("afu%d.%d is does not support dedicated mode\n", */
-	/* 		     major, minor); */
-	/* 		put_bytes(client->fd, 1, &(rc[0]), fp, ocl->dbg_id, -1); */
-	/* 		close_socket(&(client->fd)); */
-	/* 		return -1; */
-	/* 	break; */
-	/* case 'm': */
-	/* 	warn_msg("afu%d.%d is does not support directed mode (master)\n", */
-	/* 			 major, minor); */
-	/* 		put_bytes(client->fd, 1, &(rc[0]), fp, ocl->dbg_id, -1); */
-	/* 		close_socket(&(client->fd)); */
-	/* 		return -1; */
-	/* 	break; */
-	/* case 's': */
-	/* 	info_msg("AFU supports directed mode (slave) "); */
-	/* 	break; */
-	/* default: */
-	/* 	warn_msg("AFU device type '%c' is not valid\n", afu_type); */
-	/* 	put_bytes(client->fd, 1, &(rc[0]), fp, ocl->dbg_id, -1); */
-	/* 	close_socket(&(client->fd)); */
-	/* 	return -1; */
-	/* } */
-
-	// NO LONGER check to see if device is already open
-	// lgt - I think I can open any combination of m/s upto max
 
 	// Look for open client slot
 	// dedicated - client[0] is the only client.
@@ -410,14 +424,7 @@ static void *_client_loop(void *ptr)
 			break;
 		}
 		if (data[0] == OCSE_QUERY) {
-			if (get_bytes_silent(client->fd, 1, data, timeout,
-					     &(client->abort)) < 0) {
-			        debug_msg("_client_loop failed OCSE_QUERY");
-				client_drop(client, TLX_IDLE_CYCLES,
-					    CLIENT_NONE);
-				break;
-			}
-			_query(client, data[0]);
+			_query(client);
 			lock_delay(&lock);
 			continue;
 		}
@@ -433,14 +440,7 @@ static void *_client_loop(void *ptr)
 			continue;
 		}
 		if (data[0] == OCSE_OPEN) {
-			if (get_bytes_silent(client->fd, 1, data, timeout,
-					     &(client->abort)) < 0) {
-				client_drop(client, TLX_IDLE_CYCLES,
-					    CLIENT_NONE);
-				debug_msg("_client_loop: client associate failed; could not communicate with socket");
-				break;
-			}
-			_client_associate(client, data[0]);
+			_client_associate(client);
 			debug_msg("_client_loop: client associated");
 			break;
 		}
@@ -636,6 +636,7 @@ int main(int argc, char **argv)
 		pthread_mutex_unlock(&lock);
 		pthread_join(client->thread, NULL);
 		pthread_mutex_lock(&lock);
+
 		close_socket(&(client->fd));
 		_free_client(client);
 	}

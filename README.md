@@ -13,4 +13,4 @@ sprint i
 
 version 1.0 Known limitations:
 	we've simulated with Cadence NCSim, Xilinx Xsim
-	allows modeling of multiple tlx interfaces - however only a single afu is permitted.  "function 0" is reserved for config space.  "function 1" may have a single afu.
+	we allow up to 16 tlx event simulations (numbered tlx0 to to tlxf in shim_host.dat)

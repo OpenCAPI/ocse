@@ -83,7 +83,7 @@ struct ocxl_afu {
 	pthread_mutex_t waitasec_lock;
 	ocxl_event *events[EVENT_QUEUE_MAX];
 	struct ocxl_waitasec *waitasec;
-	int adapter;
+  //    int adapter;
 	char *id;
         ocxl_identifier ocxl_id;
         uint8_t bus;
@@ -91,7 +91,7 @@ struct ocxl_afu {
         uint8_t fcn;
 	uint16_t context;
 	uint16_t map;
-	uint16_t position;
+  //	uint16_t position;
 	uint8_t dbg_id;
 	int fd;
 	int opened;
@@ -115,17 +115,6 @@ struct ocxl_afu {
 	struct ocxl_afu *_next;
         struct ocxl_afu *_next_adapter; // ???
 };
-  /*
-	long irqs_max;
-	long irqs_min;
-	long mode;
-	long modes_supported;
-	long mmio_len;
-	long mmio_off;
-	long prefault_mode;
-        size_t eb_len;
-	long cr_class;
-  */
 
 struct ocxl_adapter_h {
 	DIR *enum_dir;
