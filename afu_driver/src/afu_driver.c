@@ -867,7 +867,7 @@ void tlx_bfm(
 	// only drive initial credits if the credit event is valid.
 	// should we only do this once some how?
 	setDpiSignal32(tlx_afu_cmd_resp_initial_credit_top, event.tlx_afu_cmd_resp_initial_credit, 3);
-	setDpiSignal32(tlx_afu_data_initial_credit_top, event.tlx_afu_data_initial_credit, 4);
+	setDpiSignal32(tlx_afu_data_initial_credit_top, event.tlx_afu_data_initial_credit, 5);
 
       }
       // printf("lgt: tlx_bfm: driving tlx to afu credits\n");
