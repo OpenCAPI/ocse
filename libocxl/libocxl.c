@@ -3016,20 +3016,16 @@ size_t ocxl_afu_get_global_mmio_size( ocxl_afu_h afu )
 
 }
 
-/* inline */
-/* int ocxl_work_set_amr(struct ocxl_ioctl_start_work *work, __u64 amr) */
-/* { */
-/* 	if (work == NULL) { */
-/* 		errno = EINVAL; */
-/* 		return -1; */
-/* 	} */
-/* 	work->amr = amr; */
-/* 	if (amr) */
-/* 		work->flags |= OCXL_START_WORK_AMR; */
-/* 	else */
-/* 		work->flags &= ~(OCXL_START_WORK_AMR); */
-/* 	return 0; */
-/* } */
+ocxl_err ocxl_afu_set_ppc64_amr( ocxl_afu_h afu, uint64_t amr)
+{
+        struct ocxl_afu *my_afu;
+
+	my_afu = (struct ocxl_afu *)afu;
+	
+	my_afu->ppc64_amr = amr;
+
+	return OCXL_OK;
+}
 
 // ocxl_sleep should behave very much like read_event
 // however, I don't think we can use the event structure as is

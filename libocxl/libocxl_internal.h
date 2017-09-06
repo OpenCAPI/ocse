@@ -84,6 +84,7 @@ struct ocxl_afu {
 	ocxl_event *events[EVENT_QUEUE_MAX];
 	struct ocxl_waitasec *waitasec;
   //    int adapter;
+        uint64_t ppc64_amr;
 	char *id;
         ocxl_identifier ocxl_id;
         uint8_t bus;

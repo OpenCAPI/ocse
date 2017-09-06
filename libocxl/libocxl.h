@@ -174,6 +174,7 @@ extern "C" {
 
   /*
    * platform specific: PPC64
+   * if we want to model this in ocse, perhaps we should expose it all the time rather than hide it behind __ARCH_PPC64
    */
 #ifdef __ARCH_PPC64
   ocxl_err ocxl_afu_set_ppc_amr( ocxl_afu_h afu, uint64_t amr );
