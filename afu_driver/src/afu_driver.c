@@ -368,12 +368,12 @@ void tlx_bfm(
     if ( tlx_clock == sv_0 ) {
       // printf("lgt: tlx_bfm: clock = 0\n" );
       // Accessing inputs from the AFX
-      c_afu_tlx_cmd_initial_credit  	= (afu_tlx_cmd_initial_credit_top->aval) & 0x1F;
-      invalidVal			+= (afu_tlx_cmd_initial_credit_top->bval) & 0x1F;
-      c_afu_tlx_resp_initial_credit  	= (afu_tlx_resp_initial_credit_top->aval) & 0x1F;
-      invalidVal			+= (afu_tlx_resp_initial_credit_top->bval) & 0x1F;
-      c_cfg0_tlx_initial_credit  	= (cfg0_tlx_initial_credit_top->aval) & 0x1F;
-      invalidVal			+= (cfg0_tlx_initial_credit_top->bval) & 0x1F;
+      c_afu_tlx_cmd_initial_credit  	= (afu_tlx_cmd_initial_credit_top->aval) & 0x7F;
+      invalidVal			+= (afu_tlx_cmd_initial_credit_top->bval) & 0x7F;
+      c_afu_tlx_resp_initial_credit  	= (afu_tlx_resp_initial_credit_top->aval) & 0x7F;
+      invalidVal			+= (afu_tlx_resp_initial_credit_top->bval) & 0x7F;
+      c_cfg0_tlx_initial_credit  	= (cfg0_tlx_initial_credit_top->aval) & 0x0F;
+      invalidVal			+= (cfg0_tlx_initial_credit_top->bval) & 0x0F;
       if(!c_reset)
       {
 	if (afu_tlx_credits_initialized == 0 ) {
