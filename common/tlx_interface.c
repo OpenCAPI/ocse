@@ -1240,8 +1240,8 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		        debug_msg("      extract cmd data byte count");
 			cmd_data_byte_cnt = event->rbuf[1];
 			cmd_data_byte_cnt = ((cmd_data_byte_cnt << 8) | event->rbuf[2]);
-			cmd_data_byte_cnt +=1;   //add bdi byte
 			rbc += cmd_data_byte_cnt; 
+			rbc += 1; //add bdi byte
 			//rbc += 65; //TODO for now, cmd data always 65 total
 			}
 		if ((event->rbuf[0] & 0x02) != 0) {
