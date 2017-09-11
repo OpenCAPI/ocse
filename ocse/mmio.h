@@ -66,6 +66,61 @@ struct mmio_event {
 	struct mmio_event *_next;
 };
 
+// per function structure
+// this is where we save the interesting per function config space data during discovery and configuration
+// query/open will look for this based on function number parsed from the given device name
+struct fcn_cfg {
+  // from config space header
+  uint16_t device_id;
+  uint16_t vendor_id;
+  uint64_t bar0; // TODO: discover - write all 1's, read back size, configure - write configured base address
+  uint64_t bar1; // "
+  uint64_t bar2; // "
+  // from process address space id extended capability
+  uint8_t max_pasid_width; // per process dvsec.max pasid width
+  // from OpenCAPI Transport Layer DVSEC (designated vendor specific extended capability)
+  uint8_t capability_version; // 0x00
+  uint8_t dvsec_revid;        // 0x04
+  uint8_t tl_major_version_capability; // 0x0c
+  uint8_t tl_minor_version_capability; // 0x0c
+  // uint8_t tl_major_version_configuration;
+  // uint8_t tl_minor_version_configuration;
+  uint32_t tl_xmit_template_cfg; // 0x24
+  uint32_t tl_xmit_rate_per_template_cfg; // 0x6c
+  // from Function DVSEC
+  uint8_t max_afu_index;
+  uint16_t actag_base;
+  uint16_t function_actag_length_enabled;
+  // pointer to an array of pointers to per afu structures null if no afus (afu_function_dvsec.afu_present=0), 
+  // length of array is function_dvsec.max_afu_index+1
+  // this array will be indexed by the afu index part of the device name
+  struct afu_cfg **afu_cfg_p_array;
+};
+
+// per afu structure
+// this is where we save the per afu config space data during discovery
+// query/open will look for this based on the afu index parsed from the given device name
+struct afu_cfg {
+  // from AFU Control DVSEC
+  uint8_t pasid_base;
+  uint8_t pasid_len_enabled;   // TODO: constrain enabled randomly or by configuration calculations
+  uint8_t pasid_len_supported;
+  uint16_t actag_base;
+  uint16_t actag_length_enabled;  // TODO: contrain enabled randomly or by configuration calculations
+  uint16_t actag_length_supported;
+  // from AFU Descriptor Template 0 via AFU Information DVSEC
+  char namespace[25];  // (24 characters +1 to capture \0)
+  uint8_t afu_version_major;
+  uint8_t afu_version_minor;
+  uint8_t  global_mmio_bar;
+  uint64_t global_mmio_offset;
+  uint32_t global_mmio_size;
+  uint8_t  pp_mmio_bar;
+  uint64_t pp_mmio_offset;
+  uint32_t pp_mmio_stride;
+  uint64_t mem_base_address;
+  uint8_t  mem_size;
+};
 
 struct afu_cfg_sp {
         uint16_t cr_device;
@@ -107,6 +162,7 @@ struct afu_cfg_sp {
 
 struct mmio {
 	struct AFU_EVENT *afu_event;
+        struct fcn_cfg **fcn_cfg_array_p;  // this array will be indexed by the function part of the device name
 	struct afu_cfg_sp cfg;
 	struct mmio_event *list;
 	char *afu_name;
