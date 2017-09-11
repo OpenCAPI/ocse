@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include "../../common/utils.h"
+#include "../../common/debug.h"
 #include "tlx_interface.h"
 #include "vpi_user.h"
 #include "svdpi.h"
