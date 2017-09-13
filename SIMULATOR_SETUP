@@ -2,9 +2,7 @@ Quick start instructions for various simulators:
 
 tested:
 A) NCsim
-
-untested:
-B) modelsim_ase (Free version for ModelSim with Quartus)
+B) Modelsim SE
 C) VCS
 C) Xsim
 
@@ -29,62 +27,49 @@ A) NCsim
 	6) At this point the simulator will be waiting for ocse to connect.
 		Refer back to QUICK_START for those instructions.
 
-B) modelsim_ase
+B) modelsim_se
 
 	1) Build your AFU logic with the file afu_driver/verilog/top.v as your
 		top level logic that instances your AFU logic underneath.
-		Use "Analysis & Synthesis" to build your model.
+		Use the vsim command to get the compile done (on the command prompt)
+			vlog -64 -sv -work work -vopt -nocovercells  $OCSE_INSTALL_DIR/afu_driver/verilog/top.v -f <afu_file_list>
 
-	2) Create a symbolic link in your {quartus_dir} to point to veriuser.sl
+	2) Create a symbolic link in your run directory to point to the libdpi.so, 
+		which has been created upon the "make" on $OCSE_INSTALL_DIR/afu_driver/src/
 		that you built when following the instructions in QUICK_START.
-		***NOTE: modelsim_ase is a 32-bit executable.  If you are
-		building on a 64-bit machine you need to do "BIT32=y make" when
-		you build veriuser.sl to force a 32-bit compile.
 
-	3) Start the simulator from Quartus by pressing the "RTL Simulation"
-		button.
+	3) Start the simulator on command prompt using:
+			vsim -64 -c -sv_lib libdpi work.top
 
-	4) Each time the simulator is started it creates the file:
-		{quartus_dir}/simulation/modelsim/modelsim.ini
-		Since it is created automatically you'll need to change it
-		every time you start the simulator.  Edit this file, search
-		for Veriuser and uncomment this line to point to veriuser.sl.
+	4) If we use the command above, without the "-c" argument, the GUI will open up and we can simulate accordingly
 
-	5) Get simulator to recognize changes to modelsim.ini file by clicking
-		Compile->Compile Options->OK.
+	5) "Run" you simulation.
 
-	6) Find a better solution for steps 4) & 5).  ;-)
-
-	7) Press the "Simulate" button and select "work->top".  Press OK.
-
-	8) Set up any simulation parmeters you like such as run time or load
-		a waveform macro, etc.
-
-	9) "Run" you simulation.
-
-	10) At this point the simulator will be waiting for pslse to connect.
+	6) At this point the simulator will be waiting for ocse to connect.
 		Refer back to QUICK_START for those instructions.
+
+
 
 
 C) VCS
 	1) Set the VPI_USER_H_DIR environment variable to
-		"$VCS_HOME/`vcs -platform`/lib"
+		"$VCS_HOME/include"
 
-	2) Comment out the VLI instatiation code in afu_driver.c
-
-	3) Use vcs to compile afu_driver.c, psl_interface.c, top.v, as well as
+	2) Use vcs to compile afu_driver.c (and its dependant code, as given below),  top.v, as well as
 		your AFU HDL files. The following command has been tested and
 		works:
 		
-		$VCS_HOME/bin/vcs -q -sverilog -gui -R -file ./pslse/vcs_include ./pslse/afu_driver/src/afu_driver.c ./pslse/common/psl_interface.c +vpi ./pslse/afu_driver/verilog/top.v [path to your AFU]/*		
+		vcs  -l compile.log -sverilog -gui -R -file $OCSE_INSTALL_DIR/vcs_include $OCSE_INSTALL_DIR/afu_driver/src/afu_driver.c $OCSE_INSTALL_DIR/common/tlx_interface.c $OCSE_INSTALL_DIR/common/utils.c $OCSE_INSTALL_DIR/common/debug.c +vpi $OCSE_INSTALL_DIR/afu_driver/verilog/top.v +incdir+$VERILOG_INIT -f <afu_file_list>
+		
+		Apparently, this will mean, that we are doing the afu_driver.c compile 
+		along with the testbench and the DUT compile, while using vcs
+		
+	3) "Run" you simulation.
 
-		When invoked from the parent directory of PSLSE [eg. ~/project/], 
-		this will compile the necessary C files, as well as include 
-		the needed header files, compile your AFU source code 
-		(additional flags may need to be passed for VHDL), link 
-		everything, then run the simulation with a gui.
+	4) At this point the simulator will be waiting for ocse to connect.
+		Refer back to QUICK_START for those instructions.
 
-D) XSIM
+D) Xsim
 	1) Set the VPI_USER_H_DIR environment variable to 
 		"$XSIM_HOME/../data/xsim/include"
 

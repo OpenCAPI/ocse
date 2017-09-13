@@ -19,6 +19,20 @@ ifndef VPI_USER_H_DIR
   endif
 endif
 
+# if VPI_USER_H_DIR is still not set, try to use Modelsim install path
+ifndef VPI_USER_H_DIR
+  ifdef MODELSIM
+    VPI_USER_H_DIR=$(MODELSIM)/include
+  endif
+endif
+
+# if VPI_USER_H_DIR is still not set, try to use Vcs install path
+ifndef VPI_USER_H_DIR
+  ifdef VCS_HOME
+    VPI_USER_H_DIR=$(VCS_HOME)/include
+  endif
+endif
+
 # if VPI_USER_H_DIR is STILL not set, print an error message
 ifndef VPI_USER_H_DIR
   $(error Must set VPI_USER_H_DIR to point to include path for the simulator)
