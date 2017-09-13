@@ -43,7 +43,6 @@
 struct mmio_event {
 	uint32_t rnw;
 	uint32_t dw;    // TODO remove this ?  Maybe, we need to know 4/8 byte mmio  cmd_pL is an encoded length
-	uint32_t eb_rd; // TODO remove this
 	uint32_t cfg;
 	uint64_t cmd_data;
 	uint64_t cmd_PA;
@@ -160,10 +159,54 @@ struct afu_cfg_sp {
 	uint32_t num_of_processes;
 };
 
+
+struct afu_ctl_desc_sp {
+        uint32_t AFU_CTL_CP_0;
+        uint32_t AFU_CTL_REVID_4;
+        uint32_t AFU_CTL_EN_RST_INDEX_8;
+        uint32_t AFU_CTL_WAKE_TERM_C;
+        uint32_t AFU_CTL_PASID_LEN_10;
+        uint32_t AFU_CTL_PASID_BASE_14;
+        uint32_t AFU_CTL_ACTAG_LEN_EN_S;
+        uint32_t AFU_CTL_ACTAG_BASE;
+        uint8_t  name_space[25];
+        uint32_t global_MMIO_offset_high;
+        uint32_t global_MMIO_offset_low;
+        uint32_t global_MMIO_BAR;
+        uint32_t global_MMIO_size;
+        uint32_t pp_MMIO_offset_high;
+        uint32_t pp_MMIO_offset_low;
+        uint32_t pp_MMIO_BAR;
+        uint32_t pp_MMIO_stride;
+	uint32_t num_ints_per_process;
+	uint32_t num_of_processes;
+};
+
+struct fun_cfg_sp {
+        uint16_t cr_device;
+        uint16_t cr_vendor;
+        uint32_t PASID_CP;
+        uint32_t PASID_CTL_STS;
+        uint32_t OCAPI_TL_CP;
+        uint32_t OCAPI_TL_REVID;
+        uint32_t OCAPI_TL_VERS;
+        uint32_t OCAPI_TL_TMP_CFG;
+        uint32_t OCAPI_TL_TX_RATE;
+        uint32_t OCAPI_TL_MAXAFU;
+        uint32_t FUNC_CFG_CP;
+        uint32_t FUNC_CFG_REVID;
+        uint32_t FUNC_CFG_MAXAFU;
+        uint32_t AFU_INFO_CP;
+        uint32_t AFU_INFO_REVID;
+        uint32_t AFU_INFO_INDEX;
+	struct afu_ctl_desc_sp *acdsptr;
+};
+
 struct mmio {
 	struct AFU_EVENT *afu_event;
         struct fcn_cfg **fcn_cfg_array_p;  // this array will be indexed by the function part of the device name
 	struct afu_cfg_sp cfg;
+	//struct fun_cfg_sp *fun_array;
 	struct mmio_event *list;
 	char *afu_name;
 	FILE *dbg_fp;
