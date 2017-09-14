@@ -13,8 +13,8 @@ uint8_t TagManager::cmd_data_credit  = 0;
 bool TagManager::request_tag (uint32_t * new_tag)
 {
 
-    if (max_credits == 0)
-        warn_msg("TagManager: attempting to request tag when maximum available credit is 0. Did you forget to set room? ");
+//    if (max_credits == 0)
+//        warn_msg("TagManager: attempting to request tag when maximum available credit is 0. Did you forget to set room? ");
 
     // no more available credits
     if (num_credits == 0)
@@ -29,7 +29,7 @@ bool TagManager::request_tag (uint32_t * new_tag)
 
 //    debug_msg("TagManager::request_tag: insert new_tag = %d", *new_tag);
 
-    --num_credits;
+//    --num_credits;
 
     return true;
 }
