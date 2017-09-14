@@ -1479,8 +1479,12 @@ static void *_psl_loop(void *ptr)
 			afu->int_req.state = LIBOCXL_REQ_IDLE;
 			break;
 		case OCSE_QUERY: {
-    		        // update to reflect opencapi configuration information
 		        // right now we only save the cr_device and cr_vendor
+		        // TODO - new list:
+		        // afu version major (uint8_t)
+		        // afu version minor (uint8_t)
+		        // global mmio size  (uint32_t)
+		        // per process mmio size (uint32_t)
 		        size = sizeof(uint32_t) + // AFU_CTL_ACTAG_LEN_EN_S
 			       sizeof(uint16_t) + // max_irqs
 			  sizeof(uint32_t) + // OCAPI_TL_MAXAFU
@@ -1500,19 +1504,6 @@ static void *_psl_loop(void *ptr)
 				_all_idle(afu);
 				break;
 			}
-			// from pcie 0 header
-			// device id
-			// vendor id
-			// revision id
-			// maybe subsystem id and subsystem vendor id
-			// from vsec's
-			// tl version capability and configuration
-			// lpc size = lpc memory always starts at 0
-			// there is a bit of cleverness in the mmio space...  need to think more about this.
-			// from afu_descriptor vsec
-			// mmio offset, stride
-			// number of pasid s and offset
-			// and stuff
 			memcpy((char *)&value, (char *)&(buffer[0]), 4); // AFU_CTL_ACTAG_LEN_EN_S
 			//afu->irqs_min = (long)(value);
 			memcpy((char *)&value, (char *)&(buffer[4]), 2); // max_irqs
@@ -1891,6 +1882,7 @@ static int _ocse_connect(uint16_t * afu_map, int *fd)
 	// afu_map contains a 1 at each position a tlx interface exists - i.e. the bus numbers that have been "discovered"
 	memcpy((char *)afu_map, (char *)buffer, 2);
 	*afu_map = (long)ntohs(*afu_map);
+	debug_msg("opened host-side socket %d", fd);
 	return 0;
 
  connect_fail:
@@ -1952,6 +1944,108 @@ static int _ocse_connect(uint16_t * afu_map, int *fd)
 
 /* 	return afu_h; */
 /* } */
+
+ocxl_err _alloc_afu( ocxl_afu_h *afu_out ) 
+{
+	struct ocxl_afu *afu;
+
+	debug_msg( "_alloc_afu" );
+	afu = (struct ocxl_afu *)calloc(1, sizeof(struct ocxl_afu));
+	if (afu == NULL) {
+         	error_msg( "Could not alloc memory for afu structure" );
+		return OCXL_NO_MEM;
+	}
+
+	*afu_out = (ocxl_afu_h)afu;
+
+	return OCXL_OK;
+}
+
+ocxl_err _query_afu( struct ocxl_afu *afu_h, int fd, uint8_t bus, uint8_t dev, uint8_t fcn, uint8_t afuid )
+{
+	uint8_t *buffer;
+	int size;
+
+	debug_msg( "_query_afu" );
+	if ( pipe( afu_h->pipe ) < 0 )
+		return OCXL_NO_DEV;
+
+	pthread_mutex_init( &(afu_h->event_lock), NULL);
+
+	afu_h->fd = fd;
+	afu_h->bus = bus;
+	afu_h->dev = dev;
+	afu_h->fcn = fcn;
+	afu_h->ocxl_id.afu_index = afuid;
+
+	// Send OCSE query
+	size = 1 + ( 4 * sizeof( uint8_t ) );
+	buffer = (uint8_t *) malloc(size);
+	buffer[0] = OCSE_QUERY;
+	buffer[1] = bus;
+	buffer[2] = dev;
+	buffer[3] = fcn;
+	buffer[4] = afuid;
+	if (put_bytes_silent(afu_h->fd, size, buffer) != size) {
+		free(buffer);
+		close_socket(&(afu_h->fd));
+		return OCXL_NO_DEV;
+	}
+	free(buffer);
+
+	_all_idle( afu_h );
+
+	afu_h->id = calloc(11, sizeof(char));
+	sprintf(afu_h->id, "afu%02x.%02x.%02x.%02x", bus, dev, fcn, afuid);
+
+	return OCXL_OK;
+}
+
+ocxl_err _open_afu( struct ocxl_afu *afu_h )
+{
+	uint8_t *buffer;
+
+	debug_msg( "_open_afu" );
+	buffer = (uint8_t *) calloc(1, MAX_LINE_CHARS);
+	buffer[0] = (uint8_t) OCSE_OPEN;
+	buffer[1] = afu_h->bus;
+	buffer[2] = afu_h->dev;
+	buffer[3] = afu_h->fcn;
+	buffer[4] = afu_h->ocxl_id.afu_index;
+	if (put_bytes_silent(afu_h->fd, 5, buffer) != 5) {
+		warn_msg("open:Failed to write to socket");
+		free(buffer);
+		goto open_fail;
+	}
+	free(buffer);
+
+	afu_h->irq = NULL;
+	afu_h->_head = afu_h;
+	afu_h->open.state = LIBOCXL_REQ_PENDING;
+
+	// Start thread
+	if (pthread_create(&(afu_h->thread), NULL, _psl_loop, afu_h)) {
+		perror("pthread_create");
+		close_socket(&(afu_h->fd));
+		goto open_fail;
+	}
+
+	// Wait for open acknowledgement
+	while (afu_h->open.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+		_delay_1ms();
+
+	if (!afu_h->opened) {
+		pthread_join(afu_h->thread, NULL);
+		goto open_fail;
+	}
+
+	return OCXL_OK;
+
+ open_fail:
+	pthread_mutex_destroy(&(afu_h->event_lock));
+	free( afu_h );
+	return OCXL_INTERNAL_ERROR;
+}
 
 static struct ocxl_afu *_new_afu_bdfa( uint16_t afu_map,  uint8_t bus, uint8_t dev, uint8_t fcn,
 				       uint8_t afuid, int fd)
@@ -2231,21 +2325,24 @@ ocxl_err ocxl_afu_open_from_dev( char *path, ocxl_afu_h *afu )
 	char *dev_device;
 	char *dev_function;
 	char *afu_index;
+	int rc;
 	int fd;
 	struct ocxl_afu *my_afu;
 
-	if ( !path )
-		return OCXL_NO_DEV;
-	if ( _ocse_connect(&afu_map, &fd) < 0 )
-		return OCXL_NO_DEV;
+	// is there a way to see if this is already done?
 
+	if ( !path ) return OCXL_NO_DEV;
+
+	// allocate afu structure
+	rc = _alloc_afu( (ocxl_afu_h *)&my_afu );
+	if (  rc != 0 ) return rc;
+
+	if ( _ocse_connect(&afu_map, &fd) < 0 ) return OCXL_NO_DEV;
+
+	// check the map after we know the bus or maybe just ignore it and let query fail...
+
+	// parse the given pathname and query the "afu" bus, device, function, and index that we've asked for
 	// Discover AFU position
-        // lgt - this part will change for opencapi, but is ok for now.
-	//       afu_type will always be directed, may not have a master/slave distinction
-	//       major and minor are yet to be defined.
-	// afu_map is now simply a number...  the bits that are on represent the tlx's that are present
-	// the name is temporarily tlxM where M can be 0 - F
-	// type is no longer relevant
 	// ocapi - /dev/ocxl/<afu_name>.<domain>:<bus>:<device>.<function>.<afu_index>
 	// we initially support only 1 afu per function per bus. bus maps to major
 	// e.g. /dev/ocxl/IBM,MEMCPY3.0000:00:00.1.0
@@ -2257,7 +2354,8 @@ ocxl_err ocxl_afu_open_from_dev( char *path, ocxl_afu_h *afu )
 	// copy to a non-constant string...
 	my_afuid = malloc( strlen( afu_id ) + 1 );
 	strcpy( my_afuid, afu_id );
-	
+
+	// see populate_metadata in the real libocxl for a nicer way to do this
 	// afu_id is now <afu_name>.<domain>:<bus>:<device>.<function>.<afu_index>
 	// we can discard domain
 	afu_name = strtok( my_afuid, "." );  // something like "IBM,MEMCPY"
@@ -2278,15 +2376,27 @@ ocxl_err ocxl_afu_open_from_dev( char *path, ocxl_afu_h *afu )
 	dev = (uint8_t)strtol( dev_device, NULL, 16 );
 	fcn = (uint8_t)strtol( dev_function, NULL, 16 );
 	afuid = (uint8_t)strtol( afu_index, NULL, 16 );
+
+	strcpy( (char *)&(my_afu->ocxl_id.afu_name[0]), afu_name );
+
 	debug_msg("major number = 0x%01x", bus);
 
-	// my_afu = _ocse_open(&fd, afu_map, major, minor);
-	my_afu = _ocse_open_bdfa( &fd, afu_map, bus, dev, fcn, afuid );
-	strcpy( (char *)&(my_afu->ocxl_id.afu_name[0]), afu_name );
+	rc = _query_afu( my_afu, fd, bus, dev, fcn, afuid );
+
+	// open the "afu"
+	rc = _open_afu( my_afu );
 
 	// now, how do I return afu_h (struct ocxl_afu *) through afu (ocxl_afu_h *)?
 	*afu = ( ocxl_afu_h )my_afu;
 	return OCXL_OK;
+}
+
+ocxl_err ocxl_afu_open_by_name( char *name, ocxl_afu_h *afu ){
+        warn_msg( "ocxl_afu_open_by_name is not yet supported" );
+	// connect
+	// query name
+	// open_from_dev
+	return OCXL_NO_DEV;
 }
 
 /* ocxl_err ocxl_afu_open( ocxl_afu_h afu ) */
@@ -3013,6 +3123,23 @@ size_t ocxl_afu_get_global_mmio_size( ocxl_afu_h afu )
         // this is the per pasid mmio offset for this afu
 	// there might be a more accurate method - look for it
         return my_afu->mmio_offset;
+
+}
+
+ocxl_err ocxl_afu_get_version( ocxl_afu_h afu, uint8_t *major, uint8_t *minor )
+{
+        struct ocxl_afu *my_afu;
+
+	my_afu = (struct ocxl_afu *)afu;
+
+	if (my_afu == NULL)
+                   return OCXL_NO_DEV;
+
+        // these are from the afu descriptor that we retrieved when we opened the afu
+	*major = my_afu->version_major;
+	*minor = my_afu->version_minor;
+
+        return OCXL_OK;
 
 }
 

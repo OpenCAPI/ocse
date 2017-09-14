@@ -139,12 +139,16 @@ extern "C" {
   size_t ocxl_afu_get_global_mmio_size( ocxl_afu_h afu );
   // return the size of the per process mmio space for this afu
   size_t ocxl_afu_get_mmio_size( ocxl_afu_h afu );
+  // return the "major" and "minor" version numbers of the given afu
+  ocxl_err ocxl_afu_get_version( ocxl_afu_h afu, uint8_t *major, uint8_t *minor );
 
   /* 
    * afu operations - like open, attach and free 
    */
   // open an afu by passing in the device path name
   ocxl_err ocxl_afu_open_from_dev( char *path, ocxl_afu_h *afu );
+  // open an afu by passing in the simple afu_name
+  ocxl_err ocxl_afu_open_by_name( char *name, ocxl_afu_h *afu );
   // close an afu but keep the structures and info that we obtained during the open
   ocxl_err ocxl_afu_close( ocxl_afu_h afu );
   // close an afu and free the structures and info that we obtained during the open
@@ -156,11 +160,15 @@ extern "C" {
 
   /* 
    * high level wrappers 
+   * platform specific: PPC64
+   * if we want to model this in ocse, perhaps we should expose it all the time rather than hide it behind __ARCH_PPC64
    */
 #ifdef __ARCH_PPC64
   ocxl_err ocxl_afu_use( ocxl_afu_h afu, uint64_t amr, ocxl_endian global_endianess, enum ocxl_endian per_pasid_endianess );
   ocxl_err ocxl_afu_use_from_dev( const char *path, ocxl_afu_h *afu, uint64_t amr, enum ocxl_endian global_endianess, enum ocxl_endian per_pasid_endianess );
+  ocxl_err ocxl_afu_use_by_name( const char *name, ocxl_afu_h *afu, uint64_t amr, enum ocxl_endian global_endianess, enum ocxl_endian per_pasid_endianess );
 #endif
+
   /* 
    * afu irq functions 
    */
