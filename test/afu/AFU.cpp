@@ -53,6 +53,7 @@ AFU::AFU (int port, string filename, bool parity, bool jerror):
     state = IDLE;
     config_state = IDLE;
     mem_state = IDLE;
+    resp_state = IDLE;
     debug_msg("AFU: Set AFU and CONFIG state = IDLE");
     afu_event.afu_tlx_resp_initial_credit = MAX_AFU_TLX_RESP_CREDITS; 
     afu_event.afu_tlx_cmd_initial_credit = MAX_AFU_TLX_CMD_CREDITS;
@@ -168,13 +169,15 @@ AFU::start ()
 	    afu_event.tlx_cfg_resp_ack = 0;
 	}
 	// process tlx response data
-	if(afu_event.tlx_afu_resp_data_valid && mem_state == WAITING_FOR_DATA) {
+	//if(afu_event.tlx_afu_resp_data_valid && mem_state == WAITING_FOR_DATA) {
+	if(afu_event.tlx_afu_resp_data_valid && resp_state == WAITING_FOR_DATA) {
 	    debug_msg("AFU: Received TLX response data");
 	    resolve_tlx_afu_resp();
 	    afu_event.tlx_afu_resp_data_credit = 1;	// return TLX resp data credit
 	    afu_event.tlx_afu_resp_data_valid = 0;
 	}
-	if(afu_event.tlx_afu_resp_data_valid && mem_state != WAITING_FOR_DATA) {
+	//if(afu_event.tlx_afu_resp_data_valid && mem_state != WAITING_FOR_DATA) {
+	if(afu_event.tlx_afu_resp_data_valid && resp_state != WAITING_FOR_DATA) {
 	    afu_event.tlx_afu_resp_data_credit = 1;	// return TLX resp data credit
 	}
 	// configuration write response
@@ -225,7 +228,7 @@ AFU::start ()
 	// initial cmd_ready=1; next_cmd=0;
         else if (state == RUNNING) {
 	    if((read_resp_completed ||  write_resp_completed) &&
-		!(next_cmd) && !(next_cmd) && !(cmd_ready)) {
+		!(next_cmd) && !(cmd_ready)) {
 		printf("AFU: writing app status\n");
 	   	if(!insert_cycle) {
 	  	    write_app_status(status_address, 0x00);
@@ -553,7 +556,8 @@ AFU::resolve_tlx_afu_resp()
     tlx_resp_opcode = 0;
     resp_data_bdi = afu_event.tlx_afu_resp_data_bdi;
 
-    if(mem_state == WAITING_FOR_DATA) {
+    //if(mem_state == WAITING_FOR_DATA) {
+    if(resp_state == WAITING_FOR_DATA) {
 	debug_msg("AFU: calling tlx_afu_read_resp_data");
 	if(status_resp_valid) {
 	    debug_msg("AFU: read_resp_data for status_resp_valid");
@@ -574,14 +578,10 @@ AFU::resolve_tlx_afu_resp()
 	    }
 	    printf("\n");
 	}
-	debug_msg("AFU: set mem_state = IDLE");
-	mem_state = IDLE;
-//	debug_msg("AFU: set state = READY");
-//	state = READY;
-//	printf("memory: = 0x");
-//	for(i=0; i<64; i++)
-//	    printf("%02x", (uint8_t)memory[i]);
-//	printf("\n");
+	//debug_msg("AFU: set mem_state = IDLE");
+	//mem_state = IDLE;
+	debug_msg("AFU: set resp_state = IDLE");
+	resp_state = IDLE;
     }
     else {
     	tlx_afu_read_resp(&afu_event, &tlx_resp_opcode, &resp_afutag, 
@@ -611,8 +611,10 @@ AFU::resolve_tlx_afu_resp()
 		error_msg("AFU: FAILED tlx_afu_read_resp");
 	    }
 	    else {
-		debug_msg("AFU: set mem_state = WAITING_FOR_DATA");
-		mem_state = WAITING_FOR_DATA;
+		//debug_msg("AFU: set mem_state = WAITING_FOR_DATA");
+		//mem_state = WAITING_FOR_DATA;
+		debug_msg("AFU: set resp_state = WAITING_FOR_DATA");
+		resp_state = WAITING_FOR_DATA;
 	    }
 
 	    break;
@@ -663,7 +665,8 @@ AFU::resolve_tlx_afu_resp()
 		default:
 		    break;
 		}
-	    write_app_status(status_address, 0x0);
+	    //printf("AFU: write_app_status\n");
+	    //write_app_status(status_address, 0x0);
 	    break;
 	case TLX_RSP_READ_RESP_OW:
 	case TLX_RSP_READ_RESP_XW:

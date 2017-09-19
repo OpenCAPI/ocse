@@ -37,7 +37,7 @@ private:
 
     AFU_State state;
     AFU_State config_state;
-    AFU_State mem_state;
+    AFU_State mem_state, resp_state;
     uint8_t *status_address;
 //    uint8_t  memory[128];
     uint64_t global_configs[3];	// stores MMIO registers for global configurations

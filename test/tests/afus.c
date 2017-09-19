@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
     }
 
     t.tv_sec = 0;
-    t.tv_nsec = 1000000;
+    t.tv_nsec = 100000;
     // initialize machine
     init_machine(&machine_config);
 
@@ -142,7 +142,6 @@ int main(int argc, char *argv[])
 	goto done;
     }
     printf("Attempt Read command\n");
-    //status[0] = 0xff;
     config_param.context = 0;
     config_param.enable_always = 1;
     config_param.mem_size = CACHELINE;
@@ -156,7 +155,7 @@ int main(int argc, char *argv[])
     printf("mem base address = 0x%"PRIx64"\n", config_param.mem_base_address);
     rc = config_enable_and_run_machine(mafu_h, &machine_config, config_param, DIRECTED);
     printf("set status data = 0xff\n");
-    status[0] = 0xff;
+    //status[0] = 0xff;
     if( rc != -1) {
 	printf("Response = 0x%x\n", rc);
 	printf("config_enable_and_run_machine PASS\n");
@@ -201,7 +200,14 @@ int main(int argc, char *argv[])
 	nanosleep(&t, &t);
 	printf("Polling write completion status = 0x%x\n", *status);
     }
-    
+
+    // clear machine config
+    rc = clear_machine_config(mafu_h, &machine_config, config_param, DIRECTED);
+    if(rc != 0) {
+	printf("Failed to clear machine config\n");
+	goto done;
+    }
+
     printf("wcacheline = 0x");
     for(i=0; i<CACHELINE; i++) {
 	printf("%02x", (uint8_t)wcacheline[i]);
@@ -231,6 +237,13 @@ int main(int argc, char *argv[])
     	nanosleep(&t, &t);
 	printf("Polling interrupt completion status = 0x%x\n", status[0]);
     }
+    // clear machine config
+    rc = clear_machine_config(safu_h, &machine_config, config_param, DIRECTED);
+    if(rc != 0) {
+	printf("Failed to clear machine config\n");
+	goto done;
+    }
+
     rc = ocxl_afu_event_check(safu_h, NULL, &event, 1);
     printf("Returned from ocxl_read_event -> there is an interrupt\n");
     if(rc == 0) {
@@ -239,7 +252,8 @@ int main(int argc, char *argv[])
     }
     ocxl_mmio_write64(safu_h, ProcessControl_REGISTER, PROCESS_CONTROL_RESTART);
 //    while(status[0] != 0x0) {
-//	printf("Polling completion status = 0x%x\n", status[0]);
+//	nanosleep(&t, &t);
+//	printf("Polling interrupt completion status = 0x%x\n", status[0]);
 //    }
 
 done:
