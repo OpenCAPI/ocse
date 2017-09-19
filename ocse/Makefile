@@ -9,7 +9,7 @@ OBJS = $(subst .c,.o,$(SRCS)) debug.o tlx_interface.o utils.o
 all: ocse
 
 ocse: $(OBJS)
-	$(call Q,CC, $(CC) $(CFLAGS) -o $@ $^ -lpthread, $@)
+	$(call Q,CC, $(CC) $(CFLAGS) -o $@ $^ -lpthread -lm, $@)
 
 clean:
 	rm -rf *.[od] *.d-e gmon.out ocse

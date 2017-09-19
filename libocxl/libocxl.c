@@ -1365,9 +1365,13 @@ static void *_psl_loop(void *ptr)
 	uint8_t op_size, function_code, amo_op, cmd_endian, cmd_pg_size;
 	uint64_t addr, wr_be;
 	uint16_t size;
-	uint32_t value, lvalue;
-	uint64_t llvalue, op1, op2;
+	uint8_t bvalue;
+	uint16_t value;
+	uint32_t lvalue;
+	uint64_t llvalue;
+	uint64_t op1, op2;
 	int rc;
+	int offset;
 
 	if (!afu)
 		fatal_msg("NULL afu passed to libocxl.c:_psl_loop");
@@ -1479,59 +1483,67 @@ static void *_psl_loop(void *ptr)
 			afu->int_req.state = LIBOCXL_REQ_IDLE;
 			break;
 		case OCSE_QUERY: {
-		        // right now we only save the cr_device and cr_vendor
-		        // TODO - new list:
-		        // afu version major (uint8_t)
-		        // afu version minor (uint8_t)
-		        // global mmio size  (uint32_t)
-		        // per process mmio size (uint32_t)
-		        size = sizeof(uint32_t) + // AFU_CTL_ACTAG_LEN_EN_S
-			       sizeof(uint16_t) + // max_irqs
-			  sizeof(uint32_t) + // OCAPI_TL_MAXAFU
-			  sizeof(uint32_t) + // AFU_INFO_REVID
-			  sizeof(uint32_t) + // AFU_CTL_PASID_BASE
-			  sizeof(uint32_t) + // AFU_CTL_ACTAG_BASE
-			  sizeof(uint16_t) + // cr_device
-			  sizeof(uint16_t) + // cr_vendor
-			  sizeof(uint32_t) + // AFU_CTL_EN_RST_INDEX
-			  sizeof(uint32_t) + // pp_MMIO_offset_high
-			  sizeof(uint32_t) + // pp_MMIO_offset_low
-			  sizeof(uint32_t) + // pp_MMIO_BAR
-			  sizeof(uint32_t) ; // pp_MMIO_stride
+		        size = 
+			  sizeof(uint16_t) + // device_id
+			  sizeof(uint16_t) + // vendor_id
+			  sizeof(uint8_t)  + // afu_version_major
+			  sizeof(uint8_t)  + // afu_version_minor
+			  sizeof(uint64_t) + // global_mmio_offset
+			  sizeof(uint32_t) + // global_mmio_size
+			  sizeof(uint64_t) + // pp_mmio_offset
+			  sizeof(uint32_t) + // pp_mmio_stride
+			  sizeof(uint64_t) + // mem_base_address
+			  sizeof(uint8_t)  ; // mem_size
+
 			if (get_bytes_silent(afu->fd, size, buffer, 1000, 0) <
 			    0) {
 				warn_msg("Socket failure getting OCSE query");
 				_all_idle(afu);
 				break;
 			}
-			memcpy((char *)&value, (char *)&(buffer[0]), 4); // AFU_CTL_ACTAG_LEN_EN_S
-			//afu->irqs_min = (long)(value);
-			memcpy((char *)&value, (char *)&(buffer[4]), 2); // max_irqs
-			//afu->irqs_max = (long)(value);
-                	memcpy((char *)&value, (char *)&(buffer[6]), 4); // OCAPI_TL_MAXAFU
-			//afu->modes_supported = (long)(value);
-                	memcpy((char *)&llvalue, (char *)&(buffer[10]), 4); // AFU_INFO_REVID
-			//afu->mmio_len = (long)(llvalue & 0x00ffffffffffffff);
-                	memcpy((char *)&llvalue, (char *)&(buffer[14]), 4); // AFU_CTL_PASID_BASE
-			//afu->mmio_off = (long)(llvalue);
-                	memcpy((char *)&llvalue, (char *)&(buffer[18]), 4); // AFU_CTL_ACTAG_BASE
-			//afu->eb_len = (long)(llvalue);
-                	memcpy((char *)&value, (char *)&(buffer[22]), 2); // cr_device
-			afu->cr_device = value;
-                        memcpy((char *)&value, (char *)&(buffer[24]), 2); // cr_vendor
-			afu->cr_vendor = value;
-                        memcpy((char *)&lvalue, (char *)&(buffer[26]), 4); // AFU_CTL_EN_RST_INDEX
-			//afu->cr_class = ntohl(lvalue);
-                        memcpy((char *)&lvalue, (char *)&(buffer[30]), 4); // pp_MMIO_offset_high
-			//afu->pp_MMIO_offset_high = ntohl(lvalue);
-                        memcpy((char *)&lvalue, (char *)&(buffer[30]), 4); // pp_MMIO_offset_low
-			//afu->pp_MMIO_offset_low = ntohl(lvalue);
-                        memcpy((char *)&lvalue, (char *)&(buffer[34]), 4); // pp_MMIO_BAR
-			//afu->pp_MMIO_BAR = ntohl(lvalue);
-                        memcpy((char *)&lvalue, (char *)&(buffer[38]), 4); // pp_MMIO_stride
-			//afu->pp_MMIO_stride = ntohl(lvalue);
-			//no better place to put this right now
-			// afu->prefault_mode = OCXL_PREFAULT_MODE_NONE;
+
+			offset = 0;
+
+                	memcpy((char *)&value, (char *)&(buffer[offset]), 2); // device_id
+			afu->device_id = value;
+			offset += sizeof(uint16_t);
+
+                        memcpy((char *)&value, (char *)&(buffer[offset]), 2); // vendor_id
+			afu->vendor_id = value;
+			offset += sizeof(uint16_t);
+
+                        memcpy((char *)&bvalue, (char *)&(buffer[offset]), 1); // afu_version_major
+			afu->afu_version_major = bvalue;
+			offset += sizeof(uint8_t);
+
+                        memcpy((char *)&bvalue, (char *)&(buffer[offset]), 1); // afu_version_minor
+			afu->afu_version_minor = bvalue;
+			offset += sizeof(uint8_t);
+
+                        memcpy((char *)&llvalue, (char *)&(buffer[offset]), 8); // global_mmio_offset
+			afu->global_mmio_offset = llvalue;
+			offset += sizeof(uint64_t);
+
+                        memcpy((char *)&lvalue, (char *)&(buffer[offset]), 4); // global_mmio_size
+			afu->global_mmio_size = lvalue;
+			offset += sizeof(uint32_t);
+
+                        memcpy((char *)&llvalue, (char *)&(buffer[offset]), 8); // pp_mmio_offset
+			afu->pp_mmio_offset = llvalue;
+			offset += sizeof(uint64_t);
+
+                        memcpy((char *)&lvalue, (char *)&(buffer[offset]), 4); // pp_mmio_stride
+			afu->pp_mmio_stride = lvalue;
+			offset += sizeof(uint32_t);
+
+                        memcpy((char *)&llvalue, (char *)&(buffer[offset]), 8); // mem_base_address
+			afu->mem_base_address = llvalue;
+			offset += sizeof(uint64_t);
+
+                        memcpy((char *)&bvalue, (char *)&(buffer[offset]), 1); // mem_size
+			afu->mem_size = bvalue;
+			offset += sizeof(uint8_t);
+
 			break;
 		}
 		case OCSE_MEMORY_READ:
@@ -2020,7 +2032,7 @@ ocxl_err _open_afu( struct ocxl_afu *afu_h )
 	free(buffer);
 
 	afu_h->irq = NULL;
-	afu_h->_head = afu_h;
+	// afu_h->_head = afu_h;
 	afu_h->open.state = LIBOCXL_REQ_PENDING;
 
 	// Start thread
@@ -2210,7 +2222,7 @@ static struct ocxl_afu *_ocse_open_bdfa( int *fd, uint16_t afu_map, uint8_t bus,
 	free(buffer);
 
 	afu_h->irq = NULL;
-	afu_h->_head = afu_h;
+	// afu_h->_head = afu_h;
 	afu_h->open.state = LIBOCXL_REQ_PENDING;
 
 	// Start thread
@@ -3108,7 +3120,7 @@ size_t ocxl_afu_get_mmio_size( ocxl_afu_h afu )
                    return OCXL_NO_DEV;
 
         // this is the mmio stride for this afu
-        return my_afu->mmio_length;
+        return my_afu->pp_mmio_stride;
 }
 
 size_t ocxl_afu_get_global_mmio_size( ocxl_afu_h afu )
@@ -3122,7 +3134,7 @@ size_t ocxl_afu_get_global_mmio_size( ocxl_afu_h afu )
 
         // this is the per pasid mmio offset for this afu
 	// there might be a more accurate method - look for it
-        return my_afu->mmio_offset;
+        return my_afu->global_mmio_size;
 
 }
 
@@ -3136,8 +3148,8 @@ ocxl_err ocxl_afu_get_version( ocxl_afu_h afu, uint8_t *major, uint8_t *minor )
                    return OCXL_NO_DEV;
 
         // these are from the afu descriptor that we retrieved when we opened the afu
-	*major = my_afu->version_major;
-	*minor = my_afu->version_minor;
+	*major = my_afu->afu_version_major;
+	*minor = my_afu->afu_version_minor;
 
         return OCXL_OK;
 

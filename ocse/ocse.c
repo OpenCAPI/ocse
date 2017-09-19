@@ -137,109 +137,128 @@ static void _query(struct client *client)
 
 	// use bus for id into _find_ocl for now - the pointers to all of the following values will change later.
 	ocl = _find_ocl(bus, &major);
+	client->bus = bus;
+	client->dev = dev;
+	client->fcn = fcn;
+	client->afuid = afuid;
+	client->bdf = ( (uint16_t)bus << 8 ) | ( (uint16_t)dev << 3 ) | ( (uint16_t)fcn );
 
-	size = 1 + sizeof(ocl->mmio->cfg.AFU_CTL_ACTAG_LEN_EN_S) + sizeof(client->max_irqs) +
-	    sizeof(ocl->mmio->cfg.FUNC_CFG_MAXAFU) +
-	    sizeof(ocl->mmio->cfg.AFU_INFO_REVID) + sizeof(ocl->mmio->cfg.AFU_CTL_PASID_BASE_14) +
-	    sizeof(ocl->mmio->cfg.AFU_CTL_ACTAG_BASE) + sizeof(ocl->mmio->cfg.cr_device) +
-	    sizeof(ocl->mmio->cfg.cr_vendor) + sizeof(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX_8) +
-	    sizeof(ocl->mmio->cfg.pp_MMIO_offset_high) + sizeof(ocl->mmio->cfg.pp_MMIO_offset_low) +
-	    sizeof(ocl->mmio->cfg.pp_MMIO_BAR) + sizeof(ocl->mmio->cfg.pp_MMIO_stride);
+	size = 
+	  1 + 
+	  // sizeof(client->max_irqs) +  // 2
+	  // sizeof(ocl->mmio->cfg.AFU_INFO_REVID) + 
+	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->device_id) + // 2
+	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->vendor_id) + // 2
+	  // sizeof(ocl->mmio->fcn_cfg_array[fcn]->max_afu_index) +  // 1
+	  // sizeof(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX_8) +
+	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->afu_version_major) + // 1
+	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->afu_version_minor) + // 1
+	  // sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pasid_base) + // 1
+	  // sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->actag_base) + // 2
+	  // sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->actag_length_enabled) + // 1
+	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_offset) + // 8
+	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_size) + // 4
+	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_offset) + // 8
+	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_stride) + // 4
+	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->mem_base_address) + // 8
+	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->mem_size) ; // 4
+
 	buffer = (uint8_t *) malloc(size);
 	buffer[0] = OCSE_QUERY;
 	offset = 1;
+
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.AFU_CTL_ACTAG_LEN_EN_S),
-	       sizeof(ocl->mmio->cfg.AFU_CTL_ACTAG_LEN_EN_S));
-	offset += sizeof(ocl->mmio->cfg.AFU_CTL_ACTAG_LEN_EN_S);
-	if (client->max_irqs == 0)
-		client->max_irqs = 2037; // TODO FIX THIS eventually
+	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->device_id),
+	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->device_id));
+        offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->device_id);
+
 	memcpy(&(buffer[offset]),
-	       (char *)&(client->max_irqs), sizeof(client->max_irqs));
-        offset += sizeof(client->max_irqs);
+	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->vendor_id),
+	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->vendor_id));
+        offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->vendor_id);
+
+	/* memcpy(&(buffer[offset]), */
+	/*        (char *)&(ocl->mmio->fcn_cfg_array[fcn]->max_afu_index), */
+	/*        sizeof(ocl->mmio->fcn_cfg_array[fcn]->max_afu_index)); */
+        /* offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->max_afu_index); */
+
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.FUNC_CFG_MAXAFU),
-	       sizeof(ocl->mmio->cfg.FUNC_CFG_MAXAFU));
-        offset += sizeof(ocl->mmio->cfg.FUNC_CFG_MAXAFU);
+	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->afu_version_major),
+	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->afu_version_major));
+	offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->afu_version_major);
+
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.AFU_INFO_REVID),
-	       sizeof(ocl->mmio->cfg.AFU_INFO_REVID));
-        offset += sizeof(ocl->mmio->cfg.AFU_INFO_REVID);
+	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->afu_version_minor),
+	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->afu_version_minor));
+	offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->afu_version_minor);
+
+	/* memcpy(&(buffer[offset]), */
+	/*        (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pasid_base), */
+	/*        sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pasid_base)); */
+        /* offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pasid_base); */
+
+	/* memcpy(&(buffer[offset]), */
+	/*        (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->actag_base), */
+	/*        sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->actag_base)); */
+        /* offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->actag_base); */
+
+	/* memcpy(&(buffer[offset]), */
+	/*        (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->actag_length_enabled), */
+	/*        sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->actag_length_enabled)); */
+	/* offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->actag_length_enabled); */
+
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.AFU_CTL_PASID_BASE_14),
-	       sizeof(ocl->mmio->cfg.AFU_CTL_PASID_BASE_14));
-        offset += sizeof(ocl->mmio->cfg.AFU_CTL_PASID_BASE_14);
+	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_offset),
+	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_offset));
+	offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_offset);
+
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.AFU_CTL_ACTAG_BASE),
-	       sizeof(ocl->mmio->cfg.AFU_CTL_ACTAG_BASE));
-        offset += sizeof(ocl->mmio->cfg.AFU_CTL_ACTAG_BASE);
+	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_size),
+	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_size));
+	offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_size);
+
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.cr_device),
-	       sizeof(ocl->mmio->cfg.cr_device));
-        offset += sizeof(ocl->mmio->cfg.cr_device);
+	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_offset),
+	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_offset));
+	offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_offset);
+
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.cr_vendor),
-	       sizeof(ocl->mmio->cfg.cr_vendor));
-        offset += sizeof(ocl->mmio->cfg.cr_vendor);
+	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_stride),
+	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_stride));
+	offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_stride);
+
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX_8),
-	       sizeof(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX_8));
-        offset += sizeof(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX_8);
+	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->mem_base_address),
+	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->mem_base_address));
+	offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->mem_base_address);
+
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.pp_MMIO_offset_high),
-	       sizeof(ocl->mmio->cfg.pp_MMIO_offset_high));
-        offset += sizeof(ocl->mmio->cfg.pp_MMIO_offset_high);
-	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.pp_MMIO_offset_low),
-	       sizeof(ocl->mmio->cfg.pp_MMIO_offset_low));
-        offset += sizeof(ocl->mmio->cfg.pp_MMIO_offset_low);
-	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.pp_MMIO_BAR),
-	       sizeof(ocl->mmio->cfg.pp_MMIO_BAR));
-        offset += sizeof(ocl->mmio->cfg.pp_MMIO_BAR);
-	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.pp_MMIO_stride),
-	       sizeof(ocl->mmio->cfg.pp_MMIO_stride));
+	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->mem_size),
+	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->mem_size));
+	offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->mem_size);
+
+	/* if (client->max_irqs == 0) */
+	/* 	client->max_irqs = 2037; // TODO FIX THIS eventually */
+	/* memcpy(&(buffer[offset]), */
+	/*        (char *)&(client->max_irqs), sizeof(client->max_irqs)); */
+        /* offset += sizeof(client->max_irqs); */
+
+	/* memcpy(&(buffer[offset]), */
+	/*        (char *)&(ocl->mmio->cfg.AFU_INFO_REVID), */
+	/*        sizeof(ocl->mmio->cfg.AFU_INFO_REVID)); */
+        /* offset += sizeof(ocl->mmio->cfg.AFU_INFO_REVID); */
+
+	/* memcpy(&(buffer[offset]), */
+	/*        (char *)&(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX_8), */
+	/*        sizeof(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX_8)); */
+        /* offset += sizeof(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX_8); */
+
 	if (put_bytes(client->fd, size, buffer, ocl->dbg_fp, ocl->dbg_id,
 		      client->context) < 0) {
 		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 	}
+
 	free(buffer);
-}
-
-// Increase the maximum number of interrupts
-static void _max_irqs(struct client *client, uint8_t id)
-{
-	struct ocl *ocl;
-	uint8_t buffer[MAX_LINE_CHARS];
-	uint8_t major;
-	uint16_t value;
-
-	// Retrieve requested new maximum interrupts
-	ocl = _find_ocl(id, &major);
-	if (get_bytes(client->fd, 2, buffer, ocl->timeout, &(client->abort),
-		      ocl->dbg_fp, ocl->dbg_id, client->context) < 0) {
-		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
-		return;
-	}
-	memcpy((char *)&client->max_irqs, (char *)buffer, sizeof(uint16_t));
-	client->max_irqs = ntohs(client->max_irqs);
-
-	// Limit to legal value TODO REMOVE OR FIX
-	//if (client->max_irqs < ocl->mmio->cfg.num_ints_per_process)
-	//	client->max_irqs = ocl->mmio->cfg.num_ints_per_process;
-	//if (client->max_irqs > 2037 / ocl->mmio->cfg.num_of_processes)
-	//	client->max_irqs = 2037 / ocl->mmio->cfg.num_of_processes;
-		client->max_irqs = 2037;
-
-	// Return set value
-	buffer[0] = OCSE_MAX_INT;
-	value = htons(client->max_irqs);
-	memcpy(&(buffer[1]), (char *)&value, 2);
-	if (put_bytes(client->fd, 3, buffer, ocl->dbg_fp, ocl->dbg_id,
-		      client->context) < 0) {
-		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
-	}
 }
 
 static void _free_client(struct client *client)
@@ -425,17 +444,6 @@ static void *_client_loop(void *ptr)
 		}
 		if (data[0] == OCSE_QUERY) {
 			_query(client);
-			lock_delay(&lock);
-			continue;
-		}
-		if (data[0] == OCSE_MAX_INT) {
-			if (get_bytes(client->fd, 2, data, timeout,
-				      &(client->abort), fp, -1, -1) < 0) {
-				client_drop(client, TLX_IDLE_CYCLES,
-					    CLIENT_NONE);
-				break;
-			}
-			_max_irqs(client, data[0]);
 			lock_delay(&lock);
 			continue;
 		}

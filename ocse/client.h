@@ -45,6 +45,10 @@ struct client {
 	uint64_t AMR;
 	uint32_t pasid;
 	uint16_t bdf;
+  uint8_t bus;
+  uint8_t dev;
+  uint8_t fcn;
+  uint8_t afuid;
 	uint16_t actag;
 	uint32_t mmio_offset;
 	uint32_t mmio_size;
