@@ -1224,10 +1224,11 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		        debug_msg("      extract resp data byte count");
 			resp_data_byte_cnt = event->rbuf[3];
 			resp_data_byte_cnt = ((resp_data_byte_cnt << 8) | event->rbuf[4]);
-			resp_data_byte_cnt += 1;   //add bdi byte
+			//resp_data_byte_cnt += 1;   //add bdi byte
 			//printf("rbuf[3] = 0x%x  rbuf[4]= 0x %x resp_data_byte_cnt = 0x%2x \n", 
 			//event->rbuf[3], event->rbuf[4], resp_data_byte_cnt);
 			rbc += resp_data_byte_cnt;
+			rbc += 1;
 			//printf("TLX_GET_AFU_EVENT-0x20 - rbuf[0] is 0x%02x and rbc = %2d  \n", event->rbuf[0], rbc);
 			//rbc += 65; //TODO for now, resp data always 65B total
 			}
@@ -1240,8 +1241,9 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		        debug_msg("      extract cmd data byte count");
 			cmd_data_byte_cnt = event->rbuf[1];
 			cmd_data_byte_cnt = ((cmd_data_byte_cnt << 8) | event->rbuf[2]);
-			cmd_data_byte_cnt +=1;   //add bdi byte
+			//cmd_data_byte_cnt +=1;   //add bdi byte
 			rbc += cmd_data_byte_cnt; 
+			rbc += 1;
 			//rbc += 65; //TODO for now, cmd data always 65 total
 			}
 		if ((event->rbuf[0] & 0x02) != 0) {
@@ -1369,11 +1371,11 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 	}
 	if ((event->rbuf[0] & 0x20) != 0) {
 	        debug_msg("      parsing afu tlx resp data");
-		if (resp_data_byte_cnt <= 5)  { //this is cfg_resp_data  
+		if (resp_data_byte_cnt <= 4)  { //this is cfg_resp_data  
 	                debug_msg("            cfg resp data");
 			event->afu_cfg_rdata_valid = 1;
 			event->afu_cfg_rdata_bad = event->rbuf[rbc++];
-			for (i = 0; i < (resp_data_byte_cnt-1); i++) {
+			for (i = 0; i < resp_data_byte_cnt; i++) {
 				event->afu_cfg_rdata_bus[i]= event->rbuf[rbc++];
 			//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
 			printf("event->afu_cfg_rdata_bus[%x] is 0x%2x \n", i, event->afu_cfg_rdata_bus[i]);
@@ -1609,10 +1611,10 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 		event->afu_tlx_cmd_credit = 0; // TODO do we want to always xmit this as 0?
 	}
 	if (event->rbuf[0] & 0x08) {
-		if (cmd_data_byte_cnt <= 4)  { //this is cfg_cmd_data  
+		if (cmd_data_byte_cnt <= 5)  { //this is cfg_cmd_data  
 			event->tlx_cfg_cmd_data_valid = 1;
 			event->tlx_cfg_cmd_data_bdi = event->rbuf[rbc++];
-			for (i = 0; i < cmd_data_byte_cnt; i++) {
+			for (i = 0; i < (cmd_data_byte_cnt - 1); i++) {
 				event->tlx_cfg_cmd_data_bus[i]= event->rbuf[rbc++];
 			printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
 			//printf("event->afu_cfg_rdata_bus[%x] is 0x%2x \n", i, event->afu_cfg_rdata_bus[i]);
@@ -1623,7 +1625,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 			// printf("tlx_get_tlx_events: just set tlx_afu_cmd_data_valid = %d \n", event->tlx_afu_cmd_data_valid);
 			event->tlx_afu_cmd_data_bdi = event->rbuf[rbc++];
 			//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
-			for (i = 0; i < cmd_data_byte_cnt; i++) {
+			for (i = 0; i < (cmd_data_byte_cnt -1); i++) {
 				event->tlx_afu_cmd_data_bus[i] = event->rbuf[rbc++] ;
 			}
 		}
@@ -1662,7 +1664,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 		// printf("tlx_get_tlx_events: just set tlx_afu_resp__data_valid = %d \n", event->tlx_afu_resp_data_valid);
 		event->tlx_afu_resp_data_bdi = event->rbuf[rbc++] ;
 		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
-		for (i = 0; i < resp_data_byte_cnt; i++) {
+		for (i = 0; i < (resp_data_byte_cnt - 1); i++) {
 			event->tlx_afu_resp_data[i] = event->rbuf[rbc++] ;
 		}
 	} else {
@@ -2209,10 +2211,10 @@ int tlx_cfg_read_cmd_and_data(struct AFU_EVENT *event,
 			break;
 		}
 
-	if (event->tlx_afu_cmd_data_valid) {
-		event->tlx_afu_cmd_data_valid = 0;
-		* cmd_data_bdi = event->tlx_afu_cmd_data_bdi;
-		memcpy(cmd_data_bus, event->tlx_afu_cmd_data_bus, cmd_data_byte_cnt);
+	if (event->tlx_cfg_cmd_data_valid) {
+		event->tlx_cfg_cmd_data_valid = 0;
+		* cmd_data_bdi = event->tlx_cfg_cmd_data_bdi;
+		memcpy(cmd_data_bus, event->tlx_cfg_cmd_data_bus, cmd_data_byte_cnt);
 	}
 	return TLX_SUCCESS;
 }
