@@ -101,13 +101,22 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 
 	  if (global == 1) {
 	    // global mmio offset + offset
+	    debug_msg( "global mmio to fcn/afu %d/%d : offset (0x%016x) + addr (0x%016x) = cmd_pa (0x%016x)", fcn, afuid, mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_offset, addr );
 	    event->cmd_PA = mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_offset + addr;
 	  } else {
 	    // per pasid mmio offset + (client context * stride) + offset
 	    // TODO offset is NOW 64b, comprised of offset_high & offset_low
+	    debug_msg( "per pasid mmio to fcn/afu %d/%d : offset (0x%016x) + ( stride (0x%016x) * context (%d) ) + addr (0x%016x) = cmd_pa (0x%016x)", 
+		       fcn, 
+		       afuid, 
+		       mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_offset, 
+		       mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_stride, 
+		       client->context, 
+		       addr,
+		       mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_offset + ( mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_stride * client->context ) + addr );
 	    event->cmd_PA = 
 	      mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_offset + 
-	      ( mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_stride * client->context) + 
+	      ( mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_stride * client->context ) + 
 	      addr;
 	  }
 	}
@@ -285,7 +294,7 @@ static struct mmio_event *_read_afu_descriptor(struct mmio *mmio, uint64_t addr,
 // Read the AFU config_record, extended capabilities (if any), PASID extended capabilities,
 // OpenCAPI TL extended capabilities, AFU info extended capabilites (AFU descriptor)
 // and AFU control information extended capabilities and keep a copy
-int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
+int read_afu_config(struct mmio *mmio, uint8_t bus, pthread_mutex_t * lock)
 {
 	printf("In read_descriptor and WON'T BE ABLE TO SEND CMD UNTIL AFU GIVES US INITIAL CREDIT!!\n");
 	uint8_t   afu_tlx_cmd_credits_available;
@@ -307,7 +316,7 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 		afu_tlx_cmd_credits_available, cfg_tlx_credits_available,
 		afu_tlx_resp_credits_available);
 
-        uint64_t cmd_pa_bus = 0x0000000050000000; // the base physical address of bus 5's config space
+        uint64_t cmd_pa_bus ; // the base physical address of the bus we are working on
         uint64_t cmd_pa_fcn ; // bus + function offset
         uint64_t cmd_pa_ec ;  // bus + function offset + next_capability offset
 	uint64_t next_capability_offset;
@@ -320,11 +329,13 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 	int afu_index;
 	struct mmio_event *eventa, *eventb, *eventc;
 
+	cmd_pa_bus = (uint64_t)bus << 24; // shift the bus number to the proper location in the pa
+
 	// allocate space for function configuration information
 	mmio->fcn_cfg_array = (struct fcn_cfg **)malloc( 8 * sizeof( struct fun_cfg * ) );
 
 	// loop through all the potential functions by incrementing the fcn portion of the physical address.
-	// eventually, we might want to set up "bus" in a parm file.  For now, we assume bus = 5
+	// eventually, we might want to set up "bus" in a parm file.  For now, we assume bus = 0
 	// init high water marks so we can build up base values for BARs and acTag
 	bar = 0;
 	actag = 0;
@@ -414,6 +425,10 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 					       info_msg( "    Found FUNCTION DVSEC" );
 					       mmio->fcn_cfg_array[f]->afu_present = ( eventb->cmd_data >> 24 ) & 0x80;
 					       mmio->fcn_cfg_array[f]->max_afu_index = ( eventb->cmd_data >> 24 ) & 0x3F;
+					       // save the current pa so we can use it later to
+					       //    write function_actag_base now as we are tracking a high water mark
+					       //    write function_actag_length_enabled has to be set after we know all the afu_actag_length_enabled's we have set.
+					       mmio->fcn_cfg_array[f]->function_dvsec_pa = cmd_pa_ec;
 					       // do this only if there afu_present is not 0
 					       if ( mmio->fcn_cfg_array[f]->afu_present != 0 ) {
 						     mmio->fcn_cfg_array[f]->afu_cfg_array = 
@@ -457,10 +472,6 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 		      
 						     // repeat for bar1 and bar2 eventually 
 					       
-						     // save the current pa so we can use it later to
-						     //    write function_actag_base now as we are tracking a high water mark
-						     //    write function_actag_length_enabled has to be set after we know all the afu_actag_length_enabled's we have set.
-						     mmio->fcn_cfg_array[f]->function_dvsec_pa = cmd_pa_ec;
 						     mmio->fcn_cfg_array[f]->function_actag_base = actag;
 								
 						     // one or more afu's are present, so set the memory space bit in the configuration space header
@@ -534,7 +545,7 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 					      free( eventc );
 					      eventc = _read_afu_descriptor( mmio, mmio->fcn_cfg_array[f]->afu_information_dvsec_pa + 0x0c, 0x24, lock );
 					      mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->global_mmio_offset = 
-						mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->global_mmio_offset || ( eventc->cmd_data << 32 );
+						mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->global_mmio_offset | ( eventc->cmd_data << 32 );
 					      free( eventc );
 					      eventc = _read_afu_descriptor( mmio, mmio->fcn_cfg_array[f]->afu_information_dvsec_pa + 0x0c, 0x28, lock );
 					      mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->global_mmio_size = eventc->cmd_data ;
@@ -547,10 +558,10 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 					      free( eventc );
 					      eventc = _read_afu_descriptor( mmio, mmio->fcn_cfg_array[f]->afu_information_dvsec_pa + 0x0c, 0x34, lock );
 					      mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->pp_mmio_offset = 
-						mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->pp_mmio_offset || ( eventc->cmd_data << 32 );
+						mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->pp_mmio_offset | ( eventc->cmd_data << 32 );
 					      free( eventc );
 					      eventc = _read_afu_descriptor( mmio, mmio->fcn_cfg_array[f]->afu_information_dvsec_pa + 0x0c, 0x38, lock );
-					      mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->pp_mmio_stride = eventc->cmd_data >> 16 ;
+					      mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->pp_mmio_stride = eventc->cmd_data & 0xFFFF0000 ;
 					      free( eventc );
 
 					      //     read mem base address/size
@@ -562,7 +573,7 @@ int read_afu_config(struct mmio *mmio, pthread_mutex_t * lock)
 					      free( eventc );
 					      eventc = _read_afu_descriptor( mmio, mmio->fcn_cfg_array[f]->afu_information_dvsec_pa + 0x0c, 0x44, lock );
 					      mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->mem_base_address = 
-						mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->mem_base_address || ( eventc->cmd_data << 32 );
+						mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->mem_base_address | ( eventc->cmd_data << 32 );
 					      free( eventc );
 
 					      //     write pasid_length_enabled (same as _supported)
@@ -689,7 +700,7 @@ void send_mmio(struct mmio *mmio)
 	// debug_msg( "ocse:send_mmio:valid command exists" );
 	event->ack = OCSE_MMIO_ACK;
 	if (event->cfg) {
-	        debug_msg( "ocse:send_mmio:mmio to config space" );
+	        //debug_msg( "ocse:send_mmio:mmio to config space" );
 		sprintf(type, "CFG");
 		// Attempt to send config_rd or config_wr to AFU
 		if (event->rnw) { //for config reads, no data to send
@@ -725,7 +736,7 @@ void send_mmio(struct mmio *mmio)
        	}  else   {  // if not a CONFIG, then must be memory access MMIO rd/wr
 	        if ( event->size == 0 ) {
                   // we have the old mmio style
-		  debug_msg( "ocse:send_mmio:mmio to mmio space" );
+		  // debug_msg( "ocse:send_mmio:mmio to mmio space" );
 		  sprintf(type, "MMIO");
 
 		  // calculate event->pL from event->dw
@@ -745,7 +756,7 @@ void send_mmio(struct mmio *mmio)
 
 		} else {
 		  // we have the new general memory style
-		  debug_msg( "ocse:send_mmio:mmio to LPC space" );
+		  // debug_msg( "ocse:send_mmio:mmio to LPC space" );
 		  sprintf(type, "MEM");
 		  event->ack = OCSE_LPC_ACK;
 

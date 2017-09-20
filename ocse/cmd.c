@@ -815,12 +815,10 @@ void handle_buffer_write(struct cmd *cmd)
 	uint16_t *size;
 	//int quadrant, byte;
 
-	// debug_msg( "ocse:handle_buffer_write:" );
 	// Make sure cmd structure is valid
 	if (cmd == NULL)
 		return;
 
-	//printf( "handle_buffer_write \n" );
 	// Randomly select a pending read or read_pe (or none)
 	// for now, make sure allow_reorder_parms is not allowed.
 	// lgt: if we want to free the cmd event later, we should find the event with the same method as handle_response...
@@ -840,7 +838,7 @@ void handle_buffer_write(struct cmd *cmd)
 	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
 		return;
 
-	printf( "handle_buffer_write: we've picked a non-NULL event and the client is still there \n" );
+	debug_msg( "handle_buffer_write: we've picked a non-NULL event and the client is still there" );
 
 	// Check to see if this cmd gets selected for a RETRY or FAILED or PENDING or DERROR read_failed response
 	if ( allow_retry(cmd->parms)) {
@@ -888,6 +886,7 @@ void handle_buffer_write(struct cmd *cmd)
 	//    interleaving
 	//    and so on.
 	if ((event->state == MEM_RECEIVED) && (event->type == CMD_READ)) {
+	  debug_msg( "memory read data received, formulate capp response" );
 	  if ( (event->command == AFU_CMD_PR_RD_WNITC) || (event->command == AFU_CMD_PR_RD_WNITC_N) ) {
 	    // we can just complete the event and let handle_response send the response and 64 bytes of data back
 	    event->resp = TLX_RESPONSE_DONE;
@@ -908,10 +907,12 @@ void handle_buffer_write(struct cmd *cmd)
 	    // anything other than an overrun (i.e. resp_rd_req of an empty fifo, or resp_rd_cnt exceeds the amount of data in the fifo)
 	      	event->resp = TLX_RESPONSE_DONE;
 	      	event->state = MEM_DONE;
-          	} //else {
-	    	// unsupport read command message
-	  	//	}
+	  } //else {
+	  // unsupport read command message
+	  //	}
 	}
+
+	debug_msg( "event->state is not MEM_RECEIVED and event->type is not CMD_READ" );
 
         if (event->state == MEM_CAS_RD) {
 	  	buffer[0] = (uint8_t) OCSE_MEMORY_READ;
@@ -933,8 +934,14 @@ void handle_buffer_write(struct cmd *cmd)
 	        return; //exit immediately
 	}
 
-	if (event->state != MEM_IDLE)
+	debug_msg( "event->state is not MEM_CAS_RD" );
+
+	if (event->state != MEM_IDLE) { //?
+	        debug_msg( "event->state is not equal MEM_IDLE" );
 		return;
+	}
+
+	debug_msg( "event->state is MEM_IDLE" );
 
 	// lgt removed code that would send bogus data to the afu.  doesn't happen in opencapi
 
@@ -944,31 +951,33 @@ void handle_buffer_write(struct cmd *cmd)
 		// to point to this event blocking any other memory
 		// accesses to client until data is returned by call
 		// to the _handle_mem_read() function.
-	        // if read_pe:
-		// build data and parity to represent pe
-	        // set event->state to mem_received
                 if (event->type == CMD_READ) {
 		    buffer[0] = (uint8_t) OCSE_MEMORY_READ;
-		    // buffer[1] = (uint8_t) event->size;  // size now consumes 2 bytes
-		    // addr = (uint64_t *) & (buffer[2]);
+
 		    size = (uint16_t *)&(buffer[1]);
 		    *size = htons(event->size);
+
 		    addr = (uint64_t *) & (buffer[3]);
 		    *addr = htonll(event->addr);
+
 		    event->abort = &(client->abort);
+
 		    debug_msg("%s:MEMORY READ afutag=0x%04x size=%d addr=0x%016"PRIx64,
 			    cmd->afu_name, event->afutag, event->size, event->addr);
+
 		    if (put_bytes(client->fd, 11, buffer, cmd->dbg_fp,
 				cmd->dbg_id, event->context) < 0) {
 		          client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		    }
 		    event->state = MEM_REQUEST;
-		    debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag,
-				   event->context);
+		    debug_cmd_client( cmd->dbg_fp, cmd->dbg_id, event->afutag,
+				      event->context );
 		    client->mem_access = (void *)event;
 	            debug_msg("Setting client->mem_access in handle_buffer_write 2");
 		}
 	}
+
+	debug_msg( "client->mem_access was not NULL meaning we have a memory action in progress" );
 }
 
 // Handle pending write data from AFU
@@ -1740,24 +1749,24 @@ static void _update_age(struct cmd *cmd, uint64_t addr)
 }
 
 // Determine if page translation is already cached
-static int _page_cached(struct cmd *cmd, uint64_t addr)
-{
-	uint64_t index;
-	int i, hit;
+/* static int _page_cached(struct cmd *cmd, uint64_t addr) */
+/* { */
+/* 	uint64_t index; */
+/* 	int i, hit; */
 
-	_calc_index(cmd, &addr, &index);
-	i = hit = 0;
-	while ((i < PAGE_WAYS) && cmd->page_entries.valid[index][i] &&
-	       (cmd->page_entries.entry[index][i] != addr)) {
-		i++;
-	}
+/* 	_calc_index(cmd, &addr, &index); */
+/* 	i = hit = 0; */
+/* 	while ((i < PAGE_WAYS) && cmd->page_entries.valid[index][i] && */
+/* 	       (cmd->page_entries.entry[index][i] != addr)) { */
+/* 		i++; */
+/* 	} */
 
-	// Hit entry
-	if ((i < PAGE_WAYS) && cmd->page_entries.valid[index][i])
-		hit = 1;
+/* 	// Hit entry */
+/* 	if ((i < PAGE_WAYS) && cmd->page_entries.valid[index][i]) */
+/* 		hit = 1; */
 
-	return hit;
-}
+/* 	return hit; */
+/* } */
 
 // Decide what to do with a client memory acknowledgement
 void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd)

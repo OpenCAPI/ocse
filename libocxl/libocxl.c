@@ -2389,6 +2389,8 @@ ocxl_err ocxl_afu_open_from_dev( char *path, ocxl_afu_h *afu )
 	fcn = (uint8_t)strtol( dev_function, NULL, 16 );
 	afuid = (uint8_t)strtol( afu_index, NULL, 16 );
 
+	// makes sure we test to see that bus, dev, and fcn are within syntactic limits
+
 	strcpy( (char *)&(my_afu->ocxl_id.afu_name[0]), afu_name );
 
 	debug_msg("major number = 0x%01x", bus);

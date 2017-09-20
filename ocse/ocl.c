@@ -460,34 +460,32 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 		goto init_fail;
 	}
 	ocl->timeout = parms->timeout;
-	//if ((strlen(id) != 4) || strncmp(id, "tlx", 3) || (id[4] != '.')) {
 	if ( (strlen(id) != 4) || strncmp(id, "tlx", 3) ) {
 		warn_msg("Invalid afu name: %s", id);
 		goto init_fail;
 	}
+
 	// check and map id[3] to an integer - be mindful of the hex upper/lower case character
 	if ( (id[3] >= '0') && (id[3] <= '9') ) {
-	  ocl->major = id[3] - '0';
+	  ocl->bus = id[3] - '0';
 	} else if ( (id[3] >= 'A') && (id[3] <= 'F') ) {
-	  ocl->major = id[3] - 'A' + 10;
+	  ocl->bus = id[3] - 'A' + 10;
 	} else if ( (id[3] >= 'a') && (id[3] <= 'f') ) {
-	  ocl->major = id[3] - 'a' + 10;
+	  ocl->bus = id[3] - 'a' + 10;
 	} else {
-		warn_msg("Invalid afu major: %c", id[3]);
+		warn_msg("Invalid afu bus: %c", id[3]);
 		goto init_fail;
 	}
-        //if ((id[5] < '0') || (id[5] > '3')) {
-        //		warn_msg("Invalid afu minor: %c", id[5]);
-        //		goto init_fail;
-        //}
-	ocl->minor = 0; // id[5] - '0';
+
+	// ocl->major = ocl->bus;
+	// ocl->minor = 0; 
 	ocl->dbg_fp = dbg_fp;
-	ocl->dbg_id = ocl->major; // << 4;
-	ocl->dbg_id |= ocl->minor;
+	ocl->dbg_id = ocl->bus; // << 4;
+	// ocl->dbg_id |= ocl->minor;
 	// location is now a straight mapping of the character to a number
 	// location >>= (4 * ocl->major);
 	// location >>= ocl->minor;
-	location >>= ocl->major;
+	location >>= ocl->bus;
 	if ((ocl->name = (char *)malloc(strlen(id) + 1)) == NULL) {
 		perror("malloc");
 		error_msg("Unable to allocation memory for ocl->name");
@@ -557,13 +555,13 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 		goto init_fail;
 	}
 	// Add ocl to list
-	while ((*head != NULL) && ((*head)->major < ocl->major)) {
+	while ((*head != NULL) && ((*head)->bus < ocl->bus)) {
 		head = &((*head)->_next);
 	}
-	while ((*head != NULL) && ((*head)->major == ocl->major) &&
-	       ((*head)->minor < ocl->minor)) {
-		head = &((*head)->_next);
-	}
+	/* while ((*head != NULL) && ((*head)->bus == ocl->bus) && */
+	/*        ((*head)->minor < ocl->minor)) { */
+	/* 	head = &((*head)->_next); */
+	/* } */
 	ocl->_next = *head;
 	if (ocl->_next != NULL)
 		ocl->_next->_prev = ocl;
@@ -597,7 +595,7 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 	debug_msg("%s @ %s:%d: Reading AFU config record and VSEC.", ocl->name, ocl->host,
 	          ocl->port);
 	ocl->state = OCSE_DESC;
-	read_afu_config(ocl->mmio, ocl->lock);
+	read_afu_config(ocl->mmio, ocl->bus, ocl->lock);
 
 	// Finish TLX configuration
 	ocl->state = OCSE_IDLE;
