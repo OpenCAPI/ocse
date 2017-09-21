@@ -602,7 +602,7 @@ void tlx_bfm(
 //          printf(" The AFU-TLX Response Data Valid, at byte[%d]: 0x%x \n",  i, c_afu_tlx_rdata_bus[i]);
 //        }
       }
-#ifdef DEBUG1
+#ifdef DEBUG
       if(invalidVal != 0)
       {
         printf("%08lld: ", (long long) c_sim_time);

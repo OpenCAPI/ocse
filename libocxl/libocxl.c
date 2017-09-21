@@ -2254,6 +2254,7 @@ void ocxl_want_verbose_errors( int verbose )
 {
   // we should think about using this to enable debug messages in at least libocxl code...  maybe even enable debug messages in ocse...
   // for now, just return
+  warn_msg( "ocxl_want_verbose_errors is not supported in ocse" );
   return;
 }
 
@@ -2261,6 +2262,7 @@ void ocxl_set_errmsg_filehandle( FILE *handle )
 {
   // we should think about using this to redirect message to some other file
   // for now, just return
+  warn_msg( "ocxl_set_errmsg_filehandle is not supported in ocse" );
   return;
 }
 
@@ -2405,85 +2407,27 @@ ocxl_err ocxl_afu_open_from_dev( char *path, ocxl_afu_h *afu )
 	return OCXL_OK;
 }
 
-ocxl_err ocxl_afu_open_by_name( char *name, ocxl_afu_h *afu ){
-        warn_msg( "ocxl_afu_open_by_name is not yet supported" );
+ocxl_err ocxl_afu_open( const char *name, ocxl_afu_h *afu ) {
+        warn_msg( "ocxl_afu_open is not yet supported" );
 	// connect
-	// query name
-	// open_from_dev
+	// find name - returns bus, device, function, afu_index
+	// query
+	// open
 	return OCXL_NO_DEV;
 }
 
-/* ocxl_err ocxl_afu_open( ocxl_afu_h afu ) */
-/* { */
-/* 	uint8_t major, minor; */
-/* 	uint16_t mask; */
-/* 	// char afu_type; */
-/* 	// enum ocxl_views view = OCXL_VIEW_SLAVE; */
+ocxl_err ocxl_afu_open_specific( const char *name, const char *physical_function, int16_t afu_index, ocxl_afu_h *afu ) {
+  // real code builds the device path name and calls ocxl_afu_open_by_dev
+  // we probably need to send a special message to oces because
+        warn_msg( "ocxl_afu_open_specific is not yet supported" );
+	return OCXL_NO_DEV;
+}
 
-/*         struct ocxl_afu *my_afu; */
-
-/* 	my_afu = (struct ocxl_afu *)afu; */
-
-/* 	if (my_afu == NULL) { */
-/* 		errno = EINVAL; */
-/* 		return OCXL_NO_DEV; */
-/* 	} */
-/* 	// Query OCSE */
-/* 	if (my_afu->fd == 0) { */
-/* 		if (_ocse_connect(&(my_afu->map), &my_afu->fd) < 0) */
-/* 			return OCXL_NO_DEV; */
-/* 	} */
-
-/* 	mask = 0xf000; */
-/* 	major = minor = 0; */
-/* 	while (((mask & my_afu->position) != my_afu->position) && (mask != 0)) { */
-/* 		mask >>= 4; */
-/* 		major++; */
-/* 	} */
-/* 	mask &= 0x8888; */
-/* 	while (((mask & my_afu->position) != my_afu->position) && (mask != 0)) { */
-/* 		mask >>= 1; */
-/* 		minor++; */
-/* 	} */
-/* 	return OCXL_OK; */
-/* } */
-
-ocxl_err ocxl_afu_close( ocxl_afu_h afu )
-{
-	uint8_t buffer;
-	int rc;
-
-        struct ocxl_afu *my_afu;
-
-	my_afu = (struct ocxl_afu *)afu;
-
-	if (!my_afu) {
-		warn_msg("ocxl_afu_close: No AFU given");
-		return OCXL_NO_DEV;
-	}
-	if (!my_afu->opened)
-		return OCXL_ALREADY_DONE;
-
-	debug_msg( "ocxl_afu_close: AFU CLOSE");
-	buffer = OCSE_DETACH;
-	rc = put_bytes_silent(my_afu->fd, 1, &buffer);
-	if (rc == 1) {
-	        debug_msg("ocxl_afu_close: detach request sent from from host on socket %d", my_afu->fd);
-		while (my_afu->attached)	/*infinite loop */
-			_delay_1ms();
-	}
-	debug_msg("ocxl_afu_close: closing host side socket %d", my_afu->fd);
-	// free some other stuff in the afu like the irq list
-	close_socket(&(my_afu->fd));
-	my_afu->opened = 0;
-	pthread_join(my_afu->thread, NULL);
-
-	if (my_afu->id != NULL)
-		free(my_afu->id);
-
-	pthread_mutex_destroy(&(my_afu->event_lock));
-	// free(my_afu);
-	return OCXL_OK;
+ocxl_err ocxl_afu_open_by_id( const char *name, uint8_t card_index, int16_t afu_index, ocxl_afu_h *afu ) {
+  // real code builds the device path name and calls ocxl_afu_open_by_dev
+  // we probably need to send a special message to oces because
+        warn_msg( "ocxl_afu_open_by_id is not yet supported" );
+	return OCXL_NO_DEV;
 }
 
 void ocxl_afu_free( ocxl_afu_h afu )
@@ -2523,6 +2467,19 @@ void ocxl_afu_free( ocxl_afu_h afu )
  free_done_no_afu:
 	pthread_mutex_destroy( &(my_afu->event_lock) );
 	free( afu );
+}
+
+ocxl_err ocxl_afu_close( ocxl_afu_h afu )
+{
+  
+	ocxl_afu_free( afu );
+	return OCXL_OK;
+
+	// mmio unmap
+	// global mmio unmap
+	// free irqs
+	// close socket
+	// free afu
 }
 
 ocxl_err ocxl_afu_attach( ocxl_afu_h afu )
