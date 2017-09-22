@@ -435,7 +435,7 @@ int read_afu_config(struct mmio *mmio, uint8_t bus, pthread_mutex_t * lock)
 						       (struct afu_cfg **)malloc( sizeof( struct afu_cfg * ) * ( mmio->fcn_cfg_array[f]->max_afu_index + 1 ) );
 
 						     // one or more afu's are present, discover and set the BAR's
-						     // write all 1's to the bar hi/lo
+						     // write all 1's to the bar lo/hi
 						     eventc  = _add_cfg(mmio, 0, 0, cmd_pa_fcn + 0x10, 0xFFFFFFFF );
 						     _wait_for_done( &(eventc->state), lock );
 						     free( eventc );
@@ -443,7 +443,7 @@ int read_afu_config(struct mmio *mmio, uint8_t bus, pthread_mutex_t * lock)
 						     _wait_for_done( &(eventc->state), lock );
 						     free( eventc );
 						     
-						     // read bar hi/lo
+						     // read bar lo/hi
 						     eventc  = _add_cfg(mmio, 1, 0, cmd_pa_fcn + 0x10, 0x00 );
 						     _wait_for_done( &(eventc->state), lock );
 						     // the low order 4 bits of cmd_data have some reserved data not related to the window, mask them off
@@ -523,13 +523,14 @@ int read_afu_config(struct mmio *mmio, uint8_t bus, pthread_mutex_t * lock)
 					      for (i = 0; i < 6; i++ ) {
 						eventc = _read_afu_descriptor( mmio, mmio->fcn_cfg_array[f]->afu_information_dvsec_pa + 0x0c, name_offset, lock );
 						for ( j = 0; j < name_stride; j++ ) {
-						  mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->namespace[( i*name_stride ) + j] = 
-						    ( (uint8_t *)&eventc->cmd_data )[j];
+						  // suppress '.' in namespace - replace with '\0'
+						  if ( ( (uint8_t *)&eventc->cmd_data )[j] =='.' ) mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->namespace[( i*name_stride ) + j] = '\0';
+						  else mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->namespace[( i*name_stride ) + j] = ( (uint8_t *)&eventc->cmd_data )[j];
 						}
 						name_offset = name_offset + name_stride;
 						free( eventc );
 					      }
-					      mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->namespace[24] = 0; // make sure name space is null terminated
+					      mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->namespace[24] = '\0'; // make sure name space is null terminated
 					      info_msg("name space is %s ", mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->namespace);
 
 					      //     read major/minor version

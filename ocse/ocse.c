@@ -107,6 +107,108 @@ static struct ocl *_find_ocl(uint8_t id, uint8_t * major)
 }
 
 // Query AFU descriptor data
+static void _find(struct client *client)
+{
+	struct ocl *ocl;
+	uint8_t *buffer;
+	uint8_t fcn, afuid;
+	int size, offset;
+	uint8_t name_length;
+	char name[25];
+
+	// get the string length from the socket
+	// get the string from the socket
+	if (get_bytes_silent(client->fd, 1, &name_length, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_find: could not communicate with socket");
+	  return;
+	}
+	if (get_bytes_silent(client->fd, name_length, (uint8_t *)name, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_find: could not communicate with socket");
+	  return;
+	}
+	name[name_length] = '\0'; // null terminate name
+	
+	debug_msg( "_find: looking up name: %s", name );
+
+	// scan the ocl->function->afu structs for a matching name
+	// loop through the ocl's
+	ocl = ocl_list;
+	while (ocl != NULL) {
+	      debug_msg("_find: ocl lop");
+	      for (fcn = 0; fcn < 8; fcn++ ) {
+		    debug_msg("_find: fcn %d lop", fcn);
+		    if (ocl->mmio->fcn_cfg_array[fcn] == NULL) continue;
+
+		    if (ocl->mmio->fcn_cfg_array[fcn]->afu_present == 0) continue;
+ 		    
+		    for (afuid = 0; afuid <= ocl->mmio->fcn_cfg_array[fcn]->max_afu_index; afuid++ ) {
+		          debug_msg("_find: afuid %d lop", afuid);
+		          if (ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid] == NULL) continue;
+		
+			  // if the name here doesn't match, continue
+		          debug_msg("_find: compare %s to %s", name, ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace);
+			  if ( strcmp( name, ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace ) != 0 ) continue;
+
+			  // the names match, so return bus, function, device, and afu_index
+			  size = 
+			    1 + 
+			    sizeof(uint8_t) +  
+			    sizeof(uint8_t) + 
+			    sizeof(uint8_t) +
+			    sizeof(uint8_t) ;
+			  
+			  buffer = (uint8_t *) malloc(size);
+			  offset = 0;
+			  
+			  buffer[offset] = OCSE_FIND_ACK;
+			  offset++;
+			  
+			  buffer[offset] = ocl->bus;
+			  offset = offset + sizeof(uint8_t);
+			  
+			  buffer[offset] = 0;
+			  offset = offset + sizeof(uint8_t);
+			  
+			  buffer[offset] = fcn;
+			  offset = offset + sizeof(uint8_t);
+			  
+			  buffer[offset] = afuid;
+			  offset = offset + sizeof(uint8_t);
+			  
+			  if ( offset != size ) {
+			    warn_msg( "anomoly in construction of OCSE_FIND_ACK message" );
+			  }
+			  
+		          debug_msg("_find: found name %s with bus %d, dev %d, fcn %d, afuid &d", 
+				    ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace, ocl->bus, 0, fcn, afuid);
+			  if ( put_bytes( client->fd, size, buffer, ocl->dbg_fp, ocl->dbg_id,
+					  client->context ) < 0) {
+			    client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+			  }
+			  
+			  free(buffer);
+			  return;
+		    }
+	      }
+	      ocl = ocl->_next;
+	}
+
+	// if we are here, we did not find anything
+	debug_msg( "_find: did not find name %s", name );
+	size = 1;
+	buffer = (uint8_t *) malloc(size);
+	buffer[0] = OCSE_FAILED;
+	if ( put_bytes_silent( client->fd, size, buffer ) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	}
+	free(buffer);
+
+	return;
+}
+
+// Query AFU descriptor data
 static void _query(struct client *client)
 {
 	struct ocl *ocl;
@@ -444,6 +546,11 @@ static void *_client_loop(void *ptr)
 		}
 		if (data[0] == OCSE_QUERY) {
 			_query(client);
+			lock_delay(&lock);
+			continue;
+		}
+		if (data[0] == OCSE_FIND) {
+			_find(client);
 			lock_delay(&lock);
 			continue;
 		}
