@@ -2509,32 +2509,31 @@ ocxl_err ocxl_afu_open_by_id( const char *name, uint8_t card_index, int16_t afu_
 	return OCXL_NO_DEV;
 }
 
-void ocxl_afu_free( ocxl_afu_h afu )
+void _afu_free( ocxl_afu_h afu )
 {
 	uint8_t buffer;
 	int rc;
         struct ocxl_afu *my_afu;
 
-	debug_msg( "ocxl_afu_free:AFU FREE" );
-
 	my_afu = (struct ocxl_afu *)afu;
 
 	if (!my_afu) {
-		warn_msg("ocxl_afu_free: No AFU given");
+		warn_msg("_afu_free: No AFU given");
 		goto free_done_no_afu;
 	}
 
 	if (!my_afu->opened)
 		goto free_done;
 
+	// detach
 	buffer = OCSE_DETACH;
 	rc = put_bytes_silent(my_afu->fd, 1, &buffer);
 	if (rc == 1) {
-	        debug_msg("ocxl_afu_free:detach request sent from from host on socket %d", my_afu->fd);
+	        debug_msg("_afu_free:detach request sent from from host on socket %d", my_afu->fd);
 		while (my_afu->attached)	/*infinite loop */
 			_delay_1ms();
 	}
-	debug_msg( "ocxl_afu_free: closing host side socket %d", my_afu->fd );
+	debug_msg( "_afu_free: closing host side socket %d", my_afu->fd );
 	// free some other stuff in the afu like the irq list
 	close_socket(&(my_afu->fd));
 	my_afu->opened = 0;
@@ -2550,15 +2549,26 @@ void ocxl_afu_free( ocxl_afu_h afu )
 
 ocxl_err ocxl_afu_close( ocxl_afu_h afu )
 {
-  
-	ocxl_afu_free( afu );
-	return OCXL_OK;
+        struct ocxl_afu *my_afu;
+	struct ocxl_irq *irq;
 
 	// mmio unmap
-	// global mmio unmap
-	// free irqs
-	// close socket
-	// free afu
+        ocxl_mmio_unmap( afu );
+	ocxl_global_mmio_unmap( afu );
+  
+	my_afu = (struct ocxl_afu *)afu;
+
+	// if there are any irq's, free them
+	irq = my_afu->irq;
+	while ( irq != NULL ) {
+	  my_afu->irq = irq->_next;
+	  free( irq );
+	  irq = my_afu->irq;
+	}
+
+	_afu_free( afu );
+
+	return OCXL_OK;
 }
 
 ocxl_err ocxl_afu_attach( ocxl_afu_h afu )
