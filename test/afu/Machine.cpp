@@ -26,6 +26,12 @@ MachineController::Machine::reset ()
 void
 MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
 {
+    printf("Machine: config\n");
+    printf("config[0] = 0x%016lx\n", config[0]);
+    printf("config[1] = 0x%016lx\n", config[1]);
+    printf("config[2] = 0x%016lx\n", config[2]);
+    printf("config[3] = 0x%016lx\n", config[3]);
+
     context = (config[0] >> 32) & 0xFFFF;
 
     min_delay = (config[0] >> 16) & 0xFFFF;
@@ -169,6 +175,7 @@ void
 MachineController::Machine::change_machine_config (uint16_t index, uint64_t data)
 {
     config[index] = data;
+    printf("Machine: config[%d] = 0x%016lx\n", index, data);
 }
 
 uint32_t MachineController::Machine::get_machine_config (uint32_t offset)
