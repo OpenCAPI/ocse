@@ -1780,19 +1780,20 @@ int afu_tlx_send_resp(struct AFU_EVENT *event,
  		 uint8_t resp_dl, uint16_t resp_capptag,
  		 uint8_t resp_dp, uint8_t resp_code)
 {
-	if (event->tlx_afu_resp_credits_available == 0)
+        debug_msg ( "afu_tlx_send_resp: available credits = %d", event->tlx_afu_resp_credits_available );
+        if (event->tlx_afu_resp_credits_available == 0)
 		return TLX_AFU_NO_CREDITS;
 	if (event->afu_tlx_resp_valid) {
 		return AFU_TLX_DOUBLE_RESP;
 	} else {
 		event->afu_tlx_resp_valid = 1;
 		event->tlx_afu_resp_credits_available -= 1;
-		// printf("tlx_afu_resp_credits available is %d  \n", event->tlx_afu_resp_credits_available);
 		event->afu_tlx_resp_opcode = afu_resp_opcode;
 		event->afu_tlx_resp_capptag = resp_capptag;
 		event->afu_tlx_resp_code = resp_code;
 		event->afu_tlx_resp_dl = resp_dl;
 		event->afu_tlx_resp_dp = resp_dp;
+		debug_msg( "afu_tlx_send_resp: afu consumed resp credit, now %d", event->tlx_afu_resp_credits_available);
 		return TLX_SUCCESS;
 	}
 }
@@ -1826,6 +1827,7 @@ int afu_tlx_send_resp_and_data(struct AFU_EVENT *event,
 
 {
   // rdata_bus must be at least a 64 Byte array.
+        debug_msg ( "afu_tlx_send_resp_and_data: available resp credits = %d, available resp data credits = %d", event->tlx_afu_resp_credits_available, event->tlx_afu_resp_data_credits_available );
         if ((event->tlx_afu_resp_credits_available == 0) ||
 		(event->tlx_afu_resp_data_credits_available == 0))
 		return TLX_AFU_NO_CREDITS;
@@ -1854,6 +1856,7 @@ int afu_tlx_send_resp_and_data(struct AFU_EVENT *event,
 	//		printf("Send data is %02x"  , rdata_bus[i]);
 	//	}
 	//	printf("\n");
+		debug_msg ( "afu_tlx_send_resp_and_data: afu consumed resp and data credits, now resp credits = %d, resp data credits = %d", event->tlx_afu_resp_credits_available, event->tlx_afu_resp_data_credits_available );
 		return TLX_SUCCESS;
 	}
 }

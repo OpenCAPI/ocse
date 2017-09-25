@@ -1103,6 +1103,7 @@ static void _mmio_write64(struct ocxl_afu *afu)
 	offset += sizeof(addr);
 	data = htonll(afu->mmio.data);
 	memcpy((char *)&(buffer[offset]), (char *)&data, sizeof(data));
+	debug_msg( "_mmio_write64: type = %02x, offset = %08x", afu->mmio.type, afu->mmio.addr );
 	if (put_bytes_silent(afu->fd, size, buffer) != size) {
 		free(buffer);
 		close_socket(&(afu->fd));
@@ -1133,6 +1134,7 @@ static void _mmio_write32(struct ocxl_afu *afu)
 	offset += sizeof(addr);
 	data = htonl(afu->mmio.data);
 	memcpy((char *)&(buffer[offset]), (char *)&data, sizeof(data));
+	debug_msg( "_mmio_write32: type = %02x, offset = %08x", afu->mmio.type, afu->mmio.addr );
 	if (put_bytes_silent(afu->fd, size, buffer) != size) {
 		free(buffer);
 		close_socket(&(afu->fd));
@@ -1159,6 +1161,7 @@ static void _mmio_read(struct ocxl_afu *afu)
 	offset = 1;
 	addr = htonl(afu->mmio.addr);
 	memcpy((char *)&(buffer[offset]), (char *)&addr, sizeof(addr));
+	debug_msg( "_mmio_read: type = %02x, offset = %08x", afu->mmio.type, afu->mmio.addr );
 	if (put_bytes_silent(afu->fd, size, buffer) != size) {
 	        warn_msg("_mmio_read: put_bytes_silent failed");
 		free(buffer);
