@@ -233,10 +233,10 @@ int main(int argc, char *argv[])
     }
     printf("set status data = 0xff\n");
     status[0] = 0xff;
-    while(status[0] != 0) {
-    	nanosleep(&t, &t);
-	printf("Polling interrupt completion status = 0x%x\n", status[0]);
-    }
+//    while(status[0] != 0) {
+//    	nanosleep(&t, &t);
+//	printf("Polling interrupt completion status = 0x%x\n", status[0]);
+//    }
     // clear machine config
     rc = clear_machine_config(safu_h, &machine_config, config_param, DIRECTED);
     if(rc != 0) {
@@ -251,10 +251,10 @@ int main(int argc, char *argv[])
 	return -1;
     }
     ocxl_mmio_write64(safu_h, ProcessControl_REGISTER, PROCESS_CONTROL_RESTART);
-//    while(status[0] != 0x0) {
-//	nanosleep(&t, &t);
-//	printf("Polling interrupt completion status = 0x%x\n", status[0]);
-//    }
+    while(status[0] != 0x0) {
+	nanosleep(&t, &t);
+	printf("Polling interrupt completion status = 0x%x\n", status[0]);
+    }
 
 done:
     // free device
