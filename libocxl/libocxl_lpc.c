@@ -162,6 +162,10 @@ ocxl_err ocxl_lpc_write(ocxl_afu_h afu, uint64_t offset, uint8_t *val, uint64_t 
 	case 32:
 	case 64:
 	      break;
+	case 128:
+	case 256:
+	      warn_msg("size support under construction");
+	      break;
 	default:
 	        warn_msg("unsupported size");
 		errno = EINVAL;

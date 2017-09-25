@@ -1254,7 +1254,7 @@ static void _mem_write(struct ocxl_afu *afu)
 
 	buffer_offset = 1;
 	debug_msg( "_mem_write: buffer[%d]", buffer_offset );
-	offset = htonl(afu->mem.addr);
+	offset = htonl(afu->mem.addr); 
 	memcpy( (char *)&(buffer[buffer_offset]), (char *)&offset, sizeof(offset));
 	buffer_offset += sizeof(offset);
 
