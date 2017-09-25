@@ -903,7 +903,13 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 
 	rdata = rdata_bus;
 
-	// needs to be modified to return 64 bytes and extract the 4/8 we want?
+	// NEEDS MODIFICATION for > 64 Byte responses
+	// a response can have multiple beats of data (depending on dl/dp/pl values) - similar to an ap command flow
+	// The first beat of data is at the same time as the response.
+	// the remaining beats of data will immediately follow the response
+	// another response may overlap the remaining beats of data if this new response contains no data
+	// for now, let's assume we get 1 response for a given command, so all the data for that request will arrive in
+	// one response.  response may be split, but lets not worry about that now.
 	
 	if (mmio->list->cfg) {
 		if (mmio->list->rnw) {
@@ -918,6 +924,7 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 		}
 
 	} else {
+	        // we probably need to split this into afu_tlx_read_resp and afu_tlx_read_resp_data so we can collect data beats.
 	        rc = afu_tlx_read_resp_and_data(mmio->afu_event,
 						&afu_resp_opcode, &resp_dl,
 						&resp_capptag, &resp_dp,
@@ -1372,7 +1379,7 @@ struct mmio_event *handle_mem(struct mmio *mmio, struct client *client,
 {
 	uint8_t ack;
 
-	debug_msg( "_handle_mem: rnw=%d", rnw );
+	debug_msg( "handle_mem: rnw=%d", rnw );
 
 	// Only allow mem access when client is valid
 	if (client->state != CLIENT_VALID) {
