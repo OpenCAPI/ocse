@@ -210,7 +210,7 @@ ocxl_err ocxl_lpc_write_be(ocxl_afu_h afu, uint64_t offset, uint8_t *val, uint64
         struct ocxl_afu *my_afu;
 	my_afu = (struct ocxl_afu *)afu;
 
-  debug_msg("ocxl_lpc_write_be: to lpc offset 0x%016lx, with enable 0x%016lx", offset, byte_enable);
+	debug_msg("ocxl_lpc_write_be: to lpc offset 0x%016lx, with enable 0x%016lx", offset, byte_enable);
 
         if (!my_afu) {
 	      warn_msg("NULL afu passed to ocxl_lpc_write_be");
@@ -258,9 +258,9 @@ ocxl_err ocxl_lpc_read(ocxl_afu_h afu, uint64_t offset, uint8_t *out, uint64_t s
         // TODO we're going to allow byte alignment and parse the size into naturally aligned accesses
         //      or we could force natural alignment on the caller...
         // phase 1 - size is a power of 2, <= 64, data is size long, offset is naturally aligned
-        //           that is, it will fit in a single 64 Byte write event
-        // phase 2 - size is a power of 2, <= 256, aribitrary and offset is byte aligned
-        //           that is, we have to break it up *somewhere* along the flow into up to 4 legal write event packets
+        //           that is, it will fit in a single 64 Byte read event
+        // phase 2 - size is a power of 2, <= 256, aribitrary and offset is naturally aligned
+        //           that is, we have to break it up *somewhere* along the flow into up to 4 legal read event packets
         // phase 3 - size is aribitrary and offset is byte aligned
         //           that is, we have to break it up somewhere along the flow into legal write event packets
 
@@ -289,6 +289,10 @@ ocxl_err ocxl_lpc_read(ocxl_afu_h afu, uint64_t offset, uint8_t *out, uint64_t s
 	case 32:
 	case 64:
 	      break;
+	case 128:
+	case 256:
+	      warn_msg("size support under construction");
+	      break;
 	default:
 	        warn_msg("unsupported size");
 		errno = EINVAL;
@@ -307,7 +311,10 @@ ocxl_err ocxl_lpc_read(ocxl_afu_h afu, uint64_t offset, uint8_t *out, uint64_t s
 
         debug_msg("ocxl_lpc_read: legal alignment");
 
-	// Send memory write to OCSE - phase 2 - should we break it up here?  or in ocse?
+	// Send memory write to OCSE - phase 3 - should we break it up here?  or in ocse?  here
+	// we will ask ocse for legal partial or full sizes.  that is, naturally aligned powers of 2 <= 256
+	// phase 3 - loop through size, reading by greatest available naturally aligned address/size, incrementing offset and repeating...???
+	// we'll get back a buffer of a matching size to append to "out"
 	my_afu->mem.type = OCSE_LPC_READ;
 	my_afu->mem.addr = offset;
 	my_afu->mem.size = size;
@@ -321,6 +328,8 @@ ocxl_err ocxl_lpc_read(ocxl_afu_h afu, uint64_t offset, uint8_t *out, uint64_t s
 	      goto read_fail;
 	}
 
+	// we expect mem.data to be a full length buffer of the data we are reading
+	// that is, the length of mem.data should match mem.size
 	memcpy( out, my_afu->mem.data, my_afu->mem.size );
 	free( my_afu->mem.data );
 

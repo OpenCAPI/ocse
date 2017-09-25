@@ -2497,14 +2497,12 @@ ocxl_err ocxl_afu_open( const char *name, ocxl_afu_h *afu ) {
 
 ocxl_err ocxl_afu_open_specific( const char *name, const char *physical_function, int16_t afu_index, ocxl_afu_h *afu ) {
   // real code builds the device path name and calls ocxl_afu_open_by_dev
-  // we probably need to send a special message to oces because
         warn_msg( "ocxl_afu_open_specific is not yet supported" );
 	return OCXL_NO_DEV;
 }
 
 ocxl_err ocxl_afu_open_by_id( const char *name, uint8_t card_index, int16_t afu_index, ocxl_afu_h *afu ) {
   // real code builds the device path name and calls ocxl_afu_open_by_dev
-  // we probably need to send a special message to oces because
         warn_msg( "ocxl_afu_open_by_id is not yet supported" );
 	return OCXL_NO_DEV;
 }
