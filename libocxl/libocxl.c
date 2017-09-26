@@ -2382,7 +2382,7 @@ const char *ocxl_afu_get_sysfs_pathname( ocxl_afu_h afu )
 	return NULL;
 }
 
-ocxl_err ocxl_afu_open_from_dev( char *path, ocxl_afu_h *afu )
+ocxl_err ocxl_afu_open_from_dev( const char *path, ocxl_afu_h *afu )
 {
 	uint16_t afu_map;
 	uint8_t bus, dev, fcn, afuid;
@@ -3252,3 +3252,68 @@ int ocxl_sleep( ocxl_afu_h afu )
 	return -1;
 }
 
+ocxl_err ocxl_afu_use( const char *name, ocxl_afu_h *afu, uint64_t amr, ocxl_endian global_endianess, ocxl_endian per_pasid_endianess ) 
+{
+  ocxl_err rc;
+ // open
+  rc = ocxl_afu_open( name, afu );
+  if (rc != OCXL_OK) {
+    return rc;
+  }
+
+  // attach
+  rc = ocxl_afu_attach( *afu );
+  if (rc != OCXL_OK) {
+    ocxl_afu_close( *afu );
+    return rc;
+  }
+
+  // global mmio map
+  rc = ocxl_global_mmio_map( *afu, global_endianess );
+  if (rc != OCXL_OK) {
+    ocxl_afu_close( *afu );
+    return rc;
+  }
+
+  // mmio map
+  rc = ocxl_mmio_map( *afu, per_pasid_endianess );
+  if (rc != OCXL_OK) {
+    ocxl_afu_close( *afu );
+    return rc;
+  }
+
+  return OCXL_OK;
+}
+
+ocxl_err ocxl_afu_use_from_dev( const char *path, ocxl_afu_h *afu, uint64_t amr, ocxl_endian global_endianess, ocxl_endian per_pasid_endianess )
+{
+  ocxl_err rc;
+  // open
+  rc = ocxl_afu_open_from_dev( path, afu );
+  if (rc != OCXL_OK) {
+    return rc;
+  }
+
+  // attach
+  rc = ocxl_afu_attach( *afu );
+  if (rc != OCXL_OK) {
+    ocxl_afu_close( *afu );
+    return rc;
+  }
+
+  // global mmio map
+  rc = ocxl_global_mmio_map( *afu, global_endianess );
+  if (rc != OCXL_OK) {
+    ocxl_afu_close( *afu );
+    return rc;
+  }
+
+  // mmio map
+  rc = ocxl_mmio_map( *afu, per_pasid_endianess );
+  if (rc != OCXL_OK) {
+    ocxl_afu_close( *afu );
+    return rc;
+  }
+
+  return OCXL_OK;
+}

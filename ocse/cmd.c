@@ -1019,34 +1019,34 @@ void handle_afu_tlx_cmd_data_read(struct cmd *cmd)
 
 	int i;
 	if (event->state == MEM_BUFFER) {
-	rc = afu_tlx_read_cmd_data(cmd->afu_event, &cmd_data_is_valid, dptr,  &cdata_bad);
-	if (rc == TLX_SUCCESS) {
-		if (cmd_data_is_valid) {
-			debug_msg("Copy another chunk of write data to buffer & addr=0x%016"PRIx64"& total read so far=0x%x .\n", event->addr, event->dpartial);
-			if ((event->size - event->dpartial) > 64) {
-				memcpy((void *)&(event->data[event->dpartial]), (void *)&(cmd->afu_event->afu_tlx_cdata_bus), 64);
-			debug_msg("SHOULD BE INTERMEDIATE COPY");
-			for ( i = 0; i < 64; i++ ) printf("%02x",cmd->afu_event->afu_tlx_cdata_bus[i]); printf( "\n" ); 
-
-				event->dpartial +=64;
-				event->state = MEM_BUFFER;
-			 }
-			else  {
-				memcpy((void *)&(event->data[event->dpartial]), (void *)&(cmd->afu_event->afu_tlx_cdata_bus), (event->size - event->dpartial));
-			debug_msg("SHOULD BE FINAL COPY and event->dpartial=0x%x", event->dpartial);
-			for ( i = 0; i < 64; i++ ) printf("%02x",cmd->afu_event->afu_tlx_cdata_bus[i]); printf( "\n" ); 
-				event->state = MEM_RECEIVED;
+	        rc = afu_tlx_read_cmd_data(cmd->afu_event, &cmd_data_is_valid, dptr,  &cdata_bad);
+		if (rc == TLX_SUCCESS) {
+		        if (cmd_data_is_valid) {
+			        debug_msg("Copy another chunk of write data to buffer & addr=0x%016"PRIx64"& total read so far=0x%x .\n", event->addr, event->dpartial);
+				if ((event->size - event->dpartial) > 64) {
+				        memcpy((void *)&(event->data[event->dpartial]), (void *)&(cmd->afu_event->afu_tlx_cdata_bus), 64);
+					debug_msg("SHOULD BE INTERMEDIATE COPY");
+					for ( i = 0; i < 64; i++ ) printf("%02x",cmd->afu_event->afu_tlx_cdata_bus[i]); printf( "\n" ); 
+				
+					event->dpartial +=64;
+					event->state = MEM_BUFFER;
+				} else {
+				        memcpy((void *)&(event->data[event->dpartial]), (void *)&(cmd->afu_event->afu_tlx_cdata_bus), (event->size - event->dpartial));
+					debug_msg("SHOULD BE FINAL COPY and event->dpartial=0x%x", event->dpartial);
+					for ( i = 0; i < 64; i++ ) printf("%02x",cmd->afu_event->afu_tlx_cdata_bus[i]); printf( "\n" ); 
+					event->state = MEM_RECEIVED;
 				}
 	
+			}
+		} else {
+		        return;
 		}
-	} else
+
 		return;
-
-	return;
-
+		
         } else { // event->state=MEM_RECEIVED 
-		if ((client = _get_client(cmd, event)) == NULL)
-			return;
+	        if ((client = _get_client(cmd, event)) == NULL)
+		        return;
 	      	//cmd->buffer_read = event;
 		if (client->mem_access != NULL) {
 			debug_msg("client->mem_access NOT NULL so can't send MEMORY write for afutag=0x%x yet!!!!!", event->afutag);
@@ -1067,13 +1067,13 @@ void handle_afu_tlx_cmd_data_read(struct cmd *cmd)
 			debug_msg("handle_afu_tlx_cmd_data_read: we've decided to FAIL this cmd =0x%x \n", event->command);
 			return;
 		}
-	if ( allow_derror(cmd->parms)) {
-		event->state = MEM_DONE;
-		event->type = CMD_FAILED;
-		event->resp = 0x08;
-		debug_msg("handle_afu_tlx_cmd_data_read: we've decided to DERROR this cmd =0x%x \n", event->command);
-		return;
-	}
+		if ( allow_derror(cmd->parms)) {
+		        event->state = MEM_DONE;
+			event->type = CMD_FAILED;
+			event->resp = 0x08;
+			debug_msg("handle_afu_tlx_cmd_data_read: we've decided to DERROR this cmd =0x%x \n", event->command);
+			return;
+		}
 
 		// for xlate_pending response, ocse has to THEN follow up with an xlate_done response
 		// (at some unknown time later) and that will "complete" the original cmd (no rd/write )
@@ -1088,8 +1088,8 @@ void handle_afu_tlx_cmd_data_read(struct cmd *cmd)
 		// Send buffer read request to AFU.  Setting cmd->buffer_read
 		// will block any more buffer read requests until buffer read
 		// data is returned and handled in handle_buffer_data().
-		debug_msg("%s:BUFFER READY TO GO TO CLIENT afutag=0x%04x addr=0x%016"PRIx64, cmd->afu_name,
-		  event->afutag, event->addr);
+		debug_msg( "%s:BUFFER READY TO GO TO CLIENT afutag=0x%04x addr=0x%016"PRIx64, cmd->afu_name,
+			   event->afutag, event->addr );
 		if (event->type == CMD_WRITE) {
 			buffer = (uint8_t *) malloc(event->size + 11);
 			buffer[0] = (uint8_t) OCSE_MEMORY_WRITE;

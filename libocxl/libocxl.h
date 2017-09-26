@@ -148,7 +148,7 @@ extern "C" {
   ocxl_err ocxl_afu_open_specific( const char *name, const char *physical_function, int16_t afu_index, ocxl_afu_h *afu ); // new
   ocxl_err ocxl_afu_open_by_id( const char *name, uint8_t card_index, int16_t afu_index, ocxl_afu_h *afu ); // new
   // open an afu by passing in the device path name
-  ocxl_err ocxl_afu_open_from_dev( char *path, ocxl_afu_h *afu );
+  ocxl_err ocxl_afu_open_from_dev( const char *path, ocxl_afu_h *afu );
   // close an afu but keep the structures and info that we obtained during the open
   ocxl_err ocxl_afu_close( ocxl_afu_h afu );
   // close an afu and free the structures and info that we obtained during the open
@@ -164,9 +164,8 @@ extern "C" {
    * if we want to model this in ocse, perhaps we should expose it all the time rather than hide it behind __ARCH_PPC64
    */
 #ifdef __ARCH_PPC64
-  ocxl_err ocxl_afu_use( ocxl_afu_h afu, uint64_t amr, ocxl_endian global_endianess, enum ocxl_endian per_pasid_endianess );
-  ocxl_err ocxl_afu_use_from_dev( const char *path, ocxl_afu_h *afu, uint64_t amr, enum ocxl_endian global_endianess, enum ocxl_endian per_pasid_endianess );
-  ocxl_err ocxl_afu_use_by_name( const char *name, ocxl_afu_h *afu, uint64_t amr, enum ocxl_endian global_endianess, enum ocxl_endian per_pasid_endianess );
+  ocxl_err ocxl_afu_use( const char *name, ocxl_afu_h *afu, uint64_t amr, ocxl_endian global_endianess, ocxl_endian per_pasid_endianess );
+  ocxl_err ocxl_afu_use_from_dev( const char *path, ocxl_afu_h *afu, uint64_t amr, ocxl_endian global_endianess, ocxl_endian per_pasid_endianess );
 #endif
 
   /* 
