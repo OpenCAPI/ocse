@@ -163,6 +163,7 @@ static void _handle_afu(struct ocl *ocl)
 	  handle_xlate_intrp_pending_sent(ocl->cmd);  // just finishes up an xlate_pending resp 
 	  handle_cmd(ocl->cmd, ocl->latency);
 	  handle_afu_tlx_cmd_data_read(ocl->cmd);  // just fills up the write command structures
+	  handle_afu_tlx_write_cmd(ocl->cmd);  // completes the write command 
 	  handle_touch(ocl->cmd);
 	  handle_interrupt(ocl->cmd);
 	  handle_write_be_or_amo(ocl->cmd); 

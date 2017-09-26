@@ -379,8 +379,7 @@ int tlx_afu_send_resp(struct AFU_EVENT *event,
 {
 	debug_msg( "tlx_afu_send_resp: afu_tlx_resp_credits_available = %d", event->afu_tlx_resp_credits_available );
 	if (event->afu_tlx_resp_credits_available == 0)
-	  debug_msg("tlx_afu_send_resp: no credits available BUT WE WILL SEND THIS ANYWAY");
-		//return AFU_TLX_NO_CREDITS;
+		return AFU_TLX_NO_CREDITS;
 	if (event->tlx_afu_resp_valid) {
 		return TLX_AFU_DOUBLE_RESP;
 	} else {
@@ -451,8 +450,7 @@ int tlx_afu_send_resp_and_data(struct AFU_EVENT *event,
 	debug_msg( "tlx_afu_send_resp_and_data: afu_tlx_resp_credits_available = %d", event->afu_tlx_resp_credits_available );
 
 	if (event->afu_tlx_resp_credits_available == 0) {
-	  debug_msg("tlx_afu_send_resp_and_data: no credits available BUT WE WILL SEND THIS ANYWAY");
-	//  return AFU_TLX_NO_CREDITS;
+	  return AFU_TLX_NO_CREDITS;
 	}
 	if ((event->tlx_afu_resp_valid ==1) || (event->tlx_afu_resp_data_valid == 1)) {
 	  debug_msg("tlx_afu_send_resp_and_data: double resp and data");
@@ -1346,6 +1344,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 	if ((event->rbuf[0] & 0x04) != 0) {
 	        debug_msg("      parsing afu tlx cmd data");
 		event->afu_tlx_cdata_valid = 1;
+	        debug_msg("TLX_GET_AFU_EVENTS SETTING afu tlx cdata valid");
 		event->tlx_afu_cmd_data_credit = 1;
 		event->tlx_afu_credit_valid = 1;
 		event->afu_tlx_cdata_bad = event->rbuf[rbc++] ;
