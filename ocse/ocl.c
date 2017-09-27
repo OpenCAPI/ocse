@@ -165,6 +165,7 @@ static void _handle_afu(struct ocl *ocl)
 	  handle_xlate_intrp_pending_sent(ocl->cmd);  // just finishes up an xlate_pending resp 
 	  handle_cmd(ocl->cmd, ocl->latency);
 	  handle_afu_tlx_cmd_data_read(ocl->cmd);  // just fills up the write command structures
+	  handle_afu_tlx_write_cmd(ocl->cmd);  // completes the write command 
 	  handle_touch(ocl->cmd);
 	  handle_interrupt(ocl->cmd);
 	  handle_write_be_or_amo(ocl->cmd); 
@@ -202,7 +203,7 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 			return;
 		}
-		info_msg("buffer[0] is 0x%02x from client %d", buffer[0], client->fd);
+		//info_msg("buffer[0] is 0x%02x from client %d", buffer[0], client->fd);
 		switch (buffer[0]) {
 		case OCSE_DETACH:
 		        debug_msg("DETACH request from client context %d on socket %d", client->context, client->fd);
