@@ -384,7 +384,7 @@ int tlx_afu_send_resp(struct AFU_EVENT *event,
 		return TLX_AFU_DOUBLE_RESP;
 	} else {
 		event->tlx_afu_resp_valid = 1;
-	        printf("lgt: tlx_afu_send_resp: decrementing afu_tlx_resp_credits_available fields\n");
+	        //printf("lgt: tlx_afu_send_resp: decrementing afu_tlx_resp_credits_available fields\n");
 		event->afu_tlx_resp_credits_available -= 1;
 		event->tlx_afu_resp_opcode = tlx_resp_opcode;
 		event->tlx_afu_resp_afutag = resp_afutag;
@@ -420,7 +420,7 @@ int tlx_afu_send_resp_data(struct AFU_EVENT *event,
 	memcpy(event->tlx_afu_resp_data, resp_data, resp_byte_cnt);
 	event->tlx_afu_resp_data_valid = 1;
 	event->tlx_afu_resp_data_byte_cnt = resp_byte_cnt;
-	printf("tlx_afu_send_resp_data: resp_rd_cnt is 0x%2x \n", event->afu_tlx_resp_rd_cnt);
+	//printf("tlx_afu_send_resp_data: resp_rd_cnt is 0x%2x \n", event->afu_tlx_resp_rd_cnt);
 	//may not be best place to do this but it has to be done
 	event->afu_tlx_resp_rd_cnt = 0;
 	event->afu_tlx_resp_rd_req = 0;
@@ -456,7 +456,7 @@ int tlx_afu_send_resp_and_data(struct AFU_EVENT *event,
 	  debug_msg("tlx_afu_send_resp_and_data: double resp and data");
 	  return TLX_AFU_DOUBLE_RESP_AND_DATA;
 	} else {
-	        printf("lgt: tlx_afu_send_resp_and_data: decrementing afu_tlx_resp_credits_available fields\n");
+	        //printf("lgt: tlx_afu_send_resp_and_data: decrementing afu_tlx_resp_credits_available fields\n");
 		event->tlx_afu_resp_valid = 1;
 		event->tlx_afu_resp_data_valid = 1;
 		event->afu_tlx_resp_credits_available -= 1;
@@ -532,7 +532,7 @@ int tlx_afu_send_cmd(struct AFU_EVENT *event,
 		return AFU_TLX_NO_CREDITS;
 	}
   	if ((tlx_cmd_opcode == TLX_CMD_CONFIG_READ) && (tlx_cmd_opcode == TLX_CMD_CONFIG_WRITE)) {
-		printf(" TRYING TO SEND CONFIG CMD w/send cmd- opcode = 0x%x \n", tlx_cmd_opcode);
+		//printf(" TRYING TO SEND CONFIG CMD w/send cmd- opcode = 0x%x \n", tlx_cmd_opcode);
 		return (CFG_TLX_NOT_CFG_CMD);
 	}
 	if (event->tlx_afu_cmd_valid ==1)  {
@@ -575,7 +575,7 @@ int tlx_afu_send_cmd_data(struct AFU_EVENT *event,
 	event->tlx_afu_cmd_data_bdi = cmd_data_bdi;
 	memcpy(event->tlx_afu_cmd_data_bus, cmd_data, cmd_byte_cnt);
 	event->tlx_afu_cmd_data_byte_cnt = cmd_byte_cnt;
-	printf("cmd_rd_cnt is 0x%2x \n", event->afu_tlx_cmd_rd_cnt);
+	//printf("cmd_rd_cnt is 0x%2x \n", event->afu_tlx_cmd_rd_cnt);
 	event->tlx_afu_cmd_data_valid = 1;
 	//may not be best place to do this but it has to be done
 	//event->afu_tlx_cmd_rd_cnt = 0; 
@@ -614,7 +614,7 @@ int tlx_afu_send_cfg_cmd_and_data(struct AFU_EVENT *event,
 	if ((event->tlx_afu_cmd_valid ==1) || (event->tlx_afu_cmd_data_valid == 1)) 
 		return TLX_AFU_DOUBLE_CMD_AND_DATA;
   	if ((tlx_cmd_opcode != TLX_CMD_CONFIG_READ) && (tlx_cmd_opcode != TLX_CMD_CONFIG_WRITE)) {
-		printf(" TRYING TO SEND NON CONFIG CMD w/cfg send - opcode = 0x%x \n", tlx_cmd_opcode);
+		//printf(" TRYING TO SEND NON CONFIG CMD w/cfg send - opcode = 0x%x \n", tlx_cmd_opcode);
 		return (CFG_TLX_NOT_CFG_CMD);
 	}
 
@@ -681,20 +681,20 @@ int afu_tlx_read_cfg_resp_and_data(struct AFU_EVENT *event,
 		
 		return AFU_TLX_RESP_NOT_VALID;
 	} else  if (event->afu_tlx_resp_capptag != requested_capptag) {
-		printf(" CURRENT resp_capptag= 0x%x NOT A MATCH FOR REQUESTED CFG RESP CAPPTAG=0x%x \n",
+		debug_msg(" CURRENT resp_capptag= 0x%x NOT A MATCH FOR REQUESTED CFG RESP CAPPTAG=0x%x \n",
 			event->afu_tlx_resp_capptag, requested_capptag);
 		return (CFG_TLX_NOT_CFG_CMD);
 		} else {
-		printf(" CURRENT resp_capptag= 0x%x  A MATCH FOR REQUESTED CFG RESP CAPPTAG=0x%x \n",
+		debug_msg(" CURRENT resp_capptag= 0x%x  A MATCH FOR REQUESTED CFG RESP CAPPTAG=0x%x \n",
 			event->afu_tlx_resp_capptag, requested_capptag);
 			event->afu_tlx_resp_valid = 0;
 			*afu_resp_opcode = event->afu_tlx_resp_opcode;
-			printf("afu_resp_opcode = 0x%x \n", event->afu_tlx_resp_opcode);
+			debug_msg("afu_resp_opcode = 0x%x \n", event->afu_tlx_resp_opcode);
 			*resp_dl = event->afu_tlx_resp_dl;
 			*resp_capptag = event->afu_tlx_resp_capptag;
 			*resp_dp = event->afu_tlx_resp_dp;
 			*resp_code = event->afu_tlx_resp_code;
-			printf("afu_resp_code = 0x%x \n", event->afu_tlx_resp_code);
+			debug_msg("afu_resp_code = 0x%x \n", event->afu_tlx_resp_code);
 			*resp_data_is_valid = 0;
 			if (event->afu_cfg_rdata_valid) {
 	// should we return some sort of RC other than 0 if there is no data? Should calling function be
@@ -904,13 +904,13 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 	} //NOTE ONLY ONE CMD DATA XFER AT A TIME- EITHER CFG CMD&DATA or ALL OTHER CMD&DATA
 	if (event->tlx_cfg_cmd_data_valid != 0) { //There are 1 + event->tlx_afu_cmd_data_byte_cnt bytes to xfer
 		event->tbuf[0] = event->tbuf[0] | 0x08;
-	   printf("lgt: tlx_signal_afu_model: tlx_cfg_cmd_data_valid  sent to afu\n");
+	   //printf("lgt: tlx_signal_afu_model: tlx_cfg_cmd_data_valid  sent to afu\n");
 		//printf("event->tbuf[0] is 0x%2x \n", event->tbuf[0]);
 		event->tbuf[1] = ((event->tlx_afu_cmd_data_byte_cnt) >> 8) & 0x0F;
 		event->tbuf[2] = (event->tlx_afu_cmd_data_byte_cnt & 0xFF);
 		event->tbuf[bp++] = (event->tlx_cfg_cmd_data_bdi  & 0x01 );
-		printf("event->tbuf[bp] is 0x%2x and bp is 0x%2x \n", event->tbuf[bp], bp);
-		printf("event->tlx_afu_cmd_data_byte_cnt = 0x%x \n", event->tlx_afu_cmd_data_byte_cnt);
+		//printf("event->tbuf[bp] is 0x%2x and bp is 0x%2x \n", event->tbuf[bp], bp);
+		//printf("event->tlx_afu_cmd_data_byte_cnt = 0x%x \n", event->tlx_afu_cmd_data_byte_cnt);
 		for (i = 0; i < event->tlx_afu_cmd_data_byte_cnt; i++) {
 			event->tbuf[bp++] = event->tlx_cfg_cmd_data_bus[i];
 		}
@@ -942,8 +942,8 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 	}
 	//Not sure what qualifies the read requests, rd counts so let's always send these, along with credit signals
 	if (event->tlx_afu_credit_valid != 0) { // There are 7 bytes to xfer
-	   printf("lgt: tlx_signal_afu_model: credit valid to sent to afu\n");
-	   printf("lgt: tlx_signal_afu_model: cmd_resp_initial_credit: %d, data_initial_credit:%d, resp_credit:%d. cmd_credit:%d, resp_data_credit:%d, cmd_data_credit:%d\n", 
+	   //printf("lgt: tlx_signal_afu_model: credit valid to sent to afu\n");
+	   debug_msg("lgt: tlx_signal_afu_model: cmd_resp_initial_credit: %d, data_initial_credit:%d, resp_credit:%d. cmd_credit:%d, resp_data_credit:%d, cmd_data_credit:%d\n", 
 	          event->tlx_afu_cmd_resp_initial_credit, 
 	          event->tlx_afu_data_initial_credit,
 	          event->tlx_afu_resp_credit,
@@ -1011,9 +1011,9 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 	event->tbuf[3] = 0; // reserved for afu_tlx_resp_data_byte_cnt
 	event->tbuf[4] = 0; // reserved for afu_tlx_resp_data_byte_cnt
 
-	printf("lgt:txl_signal_tlx_model\n");
+	//printf("lgt:txl_signal_tlx_model\n");
 	if (event->afu_tlx_cmd_valid != 0) { //There are 34 bytes to xfer in this group (35 for TLX4 )
-		printf("      adding afu_tlx_cmd\n");
+		//printf("      adding afu_tlx_cmd\n");
 		event->tbuf[0] = event->tbuf[0] | 0x02;
 		// printf("event->tbuf[0] is 0x%2x \n", event->tbuf[0]);
 		event->tbuf[bp++] = event->afu_tlx_cmd_opcode;
@@ -1049,7 +1049,7 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		event->afu_tlx_cmd_valid = 0;
 	}
 	if (event->afu_tlx_cdata_valid != 0) { //There are 65  bytes to xfer
-		printf("      adding afu_tlx_cmd_data\n");
+		//printf("      adding afu_tlx_cmd_data\n");
 		event->tbuf[0] = event->tbuf[0] | 0x04;
 		event->tbuf[1] = 0;
 		event->tbuf[2] = 64;// IF AFU CMD data byte count ever changes, we can use this for real
@@ -1063,7 +1063,7 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		event->afu_tlx_cdata_valid = 0;
 	}
 	if (event->afu_tlx_resp_valid != 0) { //There are 6 bytes to xfer in this group
-		printf("      adding afu_tlx_resp\n");
+		//printf("      adding afu_tlx_resp\n");
 		event->tbuf[0] = event->tbuf[0] | 0x08;
 		event->tbuf[bp++] = event->afu_tlx_resp_opcode;
 		event->tbuf[bp++] = (event->afu_tlx_resp_dl & 0x03);
@@ -1075,7 +1075,7 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		event->afu_tlx_resp_valid = 0;
 	}
 	if (event->afu_tlx_rdata_valid != 0) { // There are 65 bytes to xfer 
-		printf("      adding afu_tlx_resp_data\n");
+		//printf("      adding afu_tlx_resp_data\n");
 		event->tbuf[0] = event->tbuf[0] | 0x20;
 		event->tbuf[3] = 0;
 		event->tbuf[4] = 64;// IF AFU RESP data byte count ever changes, we can use this for real
@@ -1089,7 +1089,7 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		event->afu_tlx_rdata_valid = 0;
 	}// NOTE ONLY ONE RESP&DATA AT A TIME - EITHER CFG RESP&DATA or OTHER RESP&DATA
 	if (event->afu_cfg_rdata_valid != 0) { // There are 5 bytes to xfer 
-		printf("      adding afu_cfg_resp_data\n");
+		//printf("      adding afu_cfg_resp_data\n");
 		event->tbuf[0] = event->tbuf[0] | 0x20;
 		//printf("event->tbuf[0] is 0x%2x \n", event->tbuf[0]);
 		event->tbuf[3] = 0;
@@ -1119,7 +1119,7 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 			debug_msg("TLX_SIGNAL_TLX_MODEL SETTING afu_tlx_cmd_credit = 1");
 		if (event->afu_tlx_resp_credit == 1)
 			debug_msg("TLX_SIGNAL_TLX_MODEL SETTING afu_tlx_resp_credit = 1");
-		printf("setting afu_tlx_credit_req_valid=0 in tlx_signal_tlx_model \n");
+		//printf("setting afu_tlx_credit_req_valid=0 in tlx_signal_tlx_model \n");
 		event->afu_tlx_credit_req_valid = 0;
 		event->afu_tlx_cmd_credit = 0;
 		event->cfg_tlx_credit_return= 0;
@@ -1239,7 +1239,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		if ((event->rbuf[0] & 0x08) != 0) {
 		        debug_msg("      extract resp count");
 			rbc += 6; // resp always 6B
-			printf("TLX_GET_AFU_EVENT-0x08 - rbuf[0] is 0x%02x and rbc = %2d  \n", event->rbuf[0], rbc);
+			//printf("TLX_GET_AFU_EVENT-0x08 - rbuf[0] is 0x%02x and rbc = %2d  \n", event->rbuf[0], rbc);
 		}
 	 	if ((event->rbuf[0] & 0x04) != 0) {
 		        debug_msg("      extract cmd data byte count");
@@ -1275,8 +1275,8 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 	} //should be here but count is off
 	
 	if (event->rbp < rbc) {
-		printf("exiting bc event->rbp = 0x%x and rbc= 0x%x \n",
-			event->rbp, rbc);
+		//printf("exiting bc event->rbp = 0x%x and rbc= 0x%x \n",
+		//	event->rbp, rbc);
 		return 0;
 	}
 
@@ -1383,7 +1383,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 			for (i = 0; i < 4; i++) {
 				event->afu_cfg_rdata_bus[i]= event->rbuf[rbc++];
 			//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
-			printf("event->afu_cfg_rdata_bus[%x] is 0x%2x \n", i, event->afu_cfg_rdata_bus[i]);
+			//printf("event->afu_cfg_rdata_bus[%x] is 0x%2x \n", i, event->afu_cfg_rdata_bus[i]);
 			  }
 		} else { // this is other resp data
 	                debug_msg("            cmd resp data");
@@ -1441,7 +1441,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		}
 	} else {
 		event->afu_tlx_credit_req_valid = 0;
-		printf("setting afu_tlx_credit_req_valid=0 in tlx_get_afu_model \n");
+		//printf("setting afu_tlx_credit_req_valid=0 in tlx_get_afu_model \n");
 		}
 
 	event->rbp = 0;
@@ -1484,9 +1484,9 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 		if ((event->rbuf[0] & 0x40) != 0) {
 		        // printf("tlx_get_tlx_events: clock\n" );
 			event->clock = 1;
-		         printf("tlx_get_tlx_events: sending events to tlx\n" );
+		         //printf("tlx_get_tlx_events: sending events to tlx\n" );
 			tlx_signal_tlx_model(event);
-		         printf("tlx_get_tlx_events: sent\n" );
+		        //printf("tlx_get_tlx_events: sent\n" );
 			if (event->rbuf[0] == 0x40) {
 				//printf("tlx_get_tlx_events: only a clock, nothing else to decode\n" );
 				event->rbp = 0;
@@ -1503,16 +1503,16 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 				return -1;
 			}
 		}
-		 printf("tlx_get_tlx_events: read bc = 0x%04x: more bytes from rbuf\n", bc );
+		 //printf("tlx_get_tlx_events: read bc = 0x%04x: more bytes from rbuf\n", bc );
 		if ( bc == 0 ) {
 		         printf("tlx_get_tlx_events: bc = 0 after trying to reading data sizes from rbuf\n" );
 			return -1;
 		}
-		 printf("tlx_get_tlx_events: bc = 0x%04x: more bytes in rbuf\n", bc );
+		 //printf("tlx_get_tlx_events: bc = 0x%04x: more bytes in rbuf\n", bc );
 
 		event->rbp += bc;
 		rbc += 4;  // account for those extra bytes
-		 printf("tlx_get_tlx_events: updated rbp = 0x%04x, rbc = 0x%04x\n", event->rbp, rbc );
+		 //printf("tlx_get_tlx_events: updated rbp = 0x%04x, rbc = 0x%04x\n", event->rbp, rbc );
 
 		if ((event->rbuf[0] & 0x10) != 0) {
 		        // printf("tlx_get_tlx_events: tlx_afu_cmd\n" );
@@ -1526,7 +1526,6 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 			cmd_data_byte_cnt = ((cmd_data_byte_cnt << 8) | event->rbuf[2]);
 			rbc += cmd_data_byte_cnt; 
 			rbc += 1;  // add bdi byte
-	        	// printf("HEYtlx_get_tlx_events: tlx_afu_cmd_data: size = 0x%x\n", cmd_data_byte_cnt );
 			// printf("tlx_get_tlx_events: tlx_afu_cmd_data: rbc is 0x%x \n", rbc);
 			//rbc += 5; //TODO for now, cmd data always 5B total
 		}
@@ -1551,7 +1550,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 			rbc += 7; //TODO for now, send all credits
 			// printf("tlx_get_tlx_events: tlx_afu_credit: rbc is 0x%x \n", rbc);
 		}
-		printf("rbc is 0x%x \n", rbc);
+		//printf("rbc is 0x%x \n", rbc);
 		if ( ( bc = recv( event->sockfd, event->rbuf + event->rbp, rbc - event->rbp, 0 ) ) == -1 ) {
 			if (errno == EWOULDBLOCK) {
 			        printf("tlx_get_tlx_events: not %0x04x data remaining in socket\n", rbc - event->rbp );
@@ -1561,7 +1560,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 			        return -1;
 			}
 		}
-		 printf("tlx_get_tlx_events: read bc = 0x%04x: more bytes from rbuf\n", bc );
+		 //printf("tlx_get_tlx_events: read bc = 0x%04x: more bytes from rbuf\n", bc );
 		if (bc == 0) {
 		        printf( "tlx_get_tlx_events: bc = 0 after read the remainder of rbuf from socket???\n" );
 			return -1;
@@ -1584,7 +1583,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 	//printf("TLX_GET_TLX_EVENTS event->rbuf[0] is 0x%2x and event->rbuf[1] is 0x%2x \n", event->rbuf[0], event->rbuf[1]);
 	if (event->rbuf[0] & 0x10) {
 		event->tlx_afu_cmd_valid = 1;
-		 printf("tlx_get_tlx_events: just set tlx_afu_cmd_valid = %d \n", event->tlx_afu_cmd_valid);
+		//printf("tlx_get_tlx_events: just set tlx_afu_cmd_valid = %d \n", event->tlx_afu_cmd_valid);
 		event->tlx_afu_cmd_opcode = event->rbuf[rbc++];
 		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
 		event->tlx_afu_cmd_capptag = event->rbuf[rbc++];
@@ -1622,13 +1621,13 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 		//TEMPORARY  HACK BC AFU_DRIVER EXPECTS TO SEE CFG CMD DATA ON CMD DATA BUS? IT WORKS
 			event->tlx_cfg_cmd_data_valid = 1;
 			event->tlx_afu_cmd_data_valid = 1;
-		 printf("tlx_get_tlx_events: just set tlx_cfg_cmd_data_valid = %d \n", event->tlx_cfg_cmd_data_valid);
+		 //printf("tlx_get_tlx_events: just set tlx_cfg_cmd_data_valid = %d \n", event->tlx_cfg_cmd_data_valid);
 			event->tlx_cfg_cmd_data_bdi = event->rbuf[rbc++];
 			for (i = 0; i < cmd_data_byte_cnt; i++) {
 				event->tlx_cfg_cmd_data_bus[i]= event->rbuf[rbc++];
 				event->tlx_afu_cmd_data_bus[i] = event->rbuf[rbc-1] ;
-			printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
-			printf("event->tlx_cfg_cmd_data_bus[%x] is 0x%2x \n", i, event->tlx_cfg_cmd_data_bus[i]);
+		//	printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
+		//	printf("event->tlx_cfg_cmd_data_bus[%x] is 0x%2x \n", i, event->tlx_cfg_cmd_data_bus[i]);
 			  }
 		} else { // this is other cmd data
 
@@ -1686,7 +1685,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 	//	printf("rbc is 0x%x \n", rbc);
 	if (event->rbuf[0] & 0x01) {
 		event->tlx_afu_credit_valid = 1;
-		printf("tlx_get_tlx_events: just set tlx_afu_credit_valid = %d \n", event->tlx_afu_credit_valid);
+		//printf("tlx_get_tlx_events: just set tlx_afu_credit_valid = %d \n", event->tlx_afu_credit_valid);
 		event->tlx_afu_cmd_resp_initial_credit = event->rbuf[rbc++];
 		event->tlx_afu_data_initial_credit = event->rbuf[rbc++];
 		event->tlx_afu_resp_credit = event->rbuf[rbc++];
@@ -1698,7 +1697,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 		// printf("lgt: tlx_afu_resp_data_credit is 0x%x \n", event->tlx_afu_resp_data_credit);
 		if (event->tlx_afu_cmd_credit == 1) {
 			event->tlx_afu_cmd_credits_available += 1;
-		 printf("lgt: tlx_get_tlx_events: incremented tlx_afu_cmd_credits_available is 0x%x \n", event->tlx_afu_cmd_credits_available); 
+		// printf("lgt: tlx_get_tlx_events: incremented tlx_afu_cmd_credits_available is 0x%x \n", event->tlx_afu_cmd_credits_available); 
 		  }
 		if (event->tlx_afu_resp_credit == 1)
 			event->tlx_afu_resp_credits_available += 1;
@@ -1729,7 +1728,7 @@ int afu_tlx_send_initial_credits(struct AFU_EVENT *event,
 		uint8_t afu_tlx_resp_initial_credit)
 
 {
-        printf( "lgt:afu_tlx_send_initial_credits\n" );
+        debug_msg( "lgt:afu_tlx_send_initial_credits\n" );
 	event->afu_tlx_cmd_initial_credit = afu_tlx_cmd_initial_credit;
 	event->cfg_tlx_initial_credit = cfg_tlx_initial_credit;
 	event->afu_tlx_resp_initial_credit = afu_tlx_resp_initial_credit;
@@ -1889,22 +1888,20 @@ int afu_cfg_send_resp_and_data(struct AFU_EVENT *event,
 
 		//if ((afu_resp_opcode == 0x04) || (afu_resp_opcode == 0x05)) {
 		if (afu_resp_opcode == 0x04)  {
-			//printf("WHAT??? afu_resp_opcode = 0x%x and byte_cnt is 0x%x \n", afu_resp_opcode,
-			//	afu_cfg_resp_data_byte_cnt);
 			afu_cfg_resp_data_byte_cnt = 0; }
 		if (afu_cfg_resp_data_byte_cnt != 0) {
-			printf("AFTER afu_cfg_send_resp_and_data and afu_cfg_resp_data_byte_cnt = 0x%x \n", 
+			debug_msg("AFTER afu_cfg_send_resp_and_data and afu_cfg_resp_data_byte_cnt = 0x%x \n", 
 				afu_cfg_resp_data_byte_cnt);
 			event->afu_cfg_rdata_valid = 1;
 			event->afu_cfg_rdata_bad = rdata_bad;
 			event->afu_cfg_resp_data_byte_cnt = afu_cfg_resp_data_byte_cnt;
-			printf("afu_cfg_send_resp_and_data and rdata_bus[0] = 0x%x \n", 
+			debug_msg("afu_cfg_send_resp_and_data and rdata_bus[0] = 0x%x \n", 
 				rdata_bus[0]);
-			printf("afu_cfg_send_resp_and_data and rdata_bus[1] = 0x%x \n", 
+			debug_msg("afu_cfg_send_resp_and_data and rdata_bus[1] = 0x%x \n", 
 				rdata_bus[1]);
-			printf("afu_cfg_send_resp_and_data and rdata_bus[2] = 0x%x \n", 
+			debug_msg("afu_cfg_send_resp_and_data and rdata_bus[2] = 0x%x \n", 
 				rdata_bus[2]);
-			printf("afu_cfg_send_resp_and_data and rdata_bus[3] = 0x%x \n", 
+			debug_msg("afu_cfg_send_resp_and_data and rdata_bus[3] = 0x%x \n", 
 				rdata_bus[3]);
 			memcpy(event->afu_cfg_rdata_bus, rdata_bus, afu_cfg_resp_data_byte_cnt);
 		}
@@ -2212,7 +2209,7 @@ int tlx_cfg_read_cmd_and_data(struct AFU_EVENT *event,
 		 (event->tlx_afu_cmd_opcode != TLX_CMD_CONFIG_WRITE)) {
 		return (CFG_TLX_NOT_CFG_CMD);
 	}
-	printf("tlx_cfg_read_cmd_and_data entered \n");
+	//printf("tlx_cfg_read_cmd_and_data entered \n");
 	event->tlx_afu_cmd_valid = 0;
 	* tlx_cmd_opcode = event->tlx_afu_cmd_opcode;
 	* cmd_capptag = event->tlx_afu_cmd_capptag;
@@ -2237,15 +2234,15 @@ int tlx_cfg_read_cmd_and_data(struct AFU_EVENT *event,
 		event->tlx_cfg_cmd_data_valid = 0;
 		* cmd_data_bdi = event->tlx_cfg_cmd_data_bdi;
 		memcpy(cmd_data_bus, event->tlx_cfg_cmd_data_bus, cmd_data_byte_cnt);
-			printf("tlx_cfg_read_cmd_and_data and cmd_data_byte_cnt = 0x%x \n", 
+			debug_msg("tlx_cfg_read_cmd_and_data and cmd_data_byte_cnt = 0x%x \n", 
 				cmd_data_byte_cnt);
-			printf("tlx_cfg_read_cmd_and_data and tlx_cfg_cmd_data_bus[0] = 0x%x \n", 
+			debug_msg("tlx_cfg_read_cmd_and_data and tlx_cfg_cmd_data_bus[0] = 0x%x \n", 
 				cmd_data_bus[0]);
-			printf("tlx_cfg_read_cmd_and_data and tlx_cfg_cmd_data_bus[1] = 0x%x \n", 
+			debug_msg("tlx_cfg_read_cmd_and_data and tlx_cfg_cmd_data_bus[1] = 0x%x \n", 
 				cmd_data_bus[1]);
-			printf("tlx_cfg_read_cmd_and_data and tlx_cfg_cmd_data_bus[2] = 0x%x \n", 
+			debug_msg("tlx_cfg_read_cmd_and_data and tlx_cfg_cmd_data_bus[2] = 0x%x \n", 
 				cmd_data_bus[2]);
-			printf("tlx_cfg_read_cmd_and_data and tlx_cfg_cmd_data_bus[3] = 0x%x \n", 
+			debug_msg("tlx_cfg_read_cmd_and_data and tlx_cfg_cmd_data_bus[3] = 0x%x \n", 
 				cmd_data_bus[3]);
 
 	}
