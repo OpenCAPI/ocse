@@ -49,9 +49,10 @@ struct mmio_event {
 	uint16_t cmd_CAPPtag;
 	uint8_t cmd_opcode;
 	uint8_t cmd_pL;
-	uint8_t cmd_TorR;  //may not need this
-	uint8_t cmd_rd_cnt;
+  // uint8_t cmd_TorR;  //may not need this
+  // uint8_t cmd_rd_cnt;
   // parallel records for general capp commands
+        uint16_t partial_index;
         uint8_t ack;    // use this to hold the ack value for the message back to libocxl
         uint8_t resp_code;    // use this to hold the resp value for the message back to libocxl
         uint8_t resp_opcode;    // use this to hold the resp opcode for the message back to libocxl

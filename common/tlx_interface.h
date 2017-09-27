@@ -150,6 +150,20 @@ int afu_tlx_read_resp_and_data(struct AFU_EVENT *event,
 		    uint8_t * resp_data_is_valid, uint8_t * resp_code, uint8_t * rdata_bus, uint8_t * rdata_bad);
 
 
+/* Call this from ocse to read AFU response. This reads only the resp portion */
+
+int afu_tlx_read_resp(struct AFU_EVENT *event,
+		    uint8_t * afu_resp_opcode, uint8_t * resp_dl,
+		    uint16_t  * resp_capptag, uint8_t * resp_dp,
+		    uint8_t * resp_code);
+
+
+/* Call this from ocse to read AFU response. This reads only the rdata portion */
+
+int afu_tlx_read_resp_data(struct AFU_EVENT *event,
+		    uint8_t * resp_data_is_valid, uint8_t * rdata_bus, uint8_t * rdata_bad);
+
+
 /* CALL THIS FOR CONFIG_RD/CONFIG_WR ONLY */
 /* Call this from ocse to read AFU cfg response. This reads both afu_tlx resp 
  * AND afu_cfg_rdata interfaces. It expects the caller to provide the expected 

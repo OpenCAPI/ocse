@@ -878,6 +878,242 @@ void send_mmio(struct mmio *mmio)
 	}
 }
 
+// Handle ap response data beats coming from the afu
+// this will include responses to mmio requests, and lpc memory requests
+void handle_ap_resp_data(struct mmio *mmio, uint32_t parity_enabled)
+{
+	int rc;
+//	char data[17];
+	// char type[7];
+	// uint8_t afu_resp_opcode, resp_dl,resp_dp, resp_data_is_valid, resp_code;
+	uint8_t resp_data_is_valid;
+	uint8_t rdata_bad;
+	// uint16_t resp_capptag;
+	// uint32_t cfg_read_data = 0;
+        // uint64_t read_data; // data can now be up to 64 bytes, not just upto 8
+	// uint8_t *  rdata;
+	unsigned char   rdata_bus[64];
+	// unsigned char   cfg_rdata_bus[4];
+	// unsigned char   mem_data[64];
+	int offset, length;
+
+	int i;
+
+	// handle mmio, and lpc response data 
+	// we are expecting 1 to 4 beats of data depending on the value of dL or dw
+	// we can use size to define how many bytes we expect
+	// each read is 64 bytes of data, so we can track the length we have so far
+	// notes:
+	//   if size < 64, the interesting data is at an offset in rdata_bus
+
+	if (mmio->list->cfg) {
+	  // we have the data (if any) already so just return
+	  mmio->list = mmio->list->_next;
+	  return;
+	}
+
+	if (mmio->list->rnw) {
+	  rc = afu_tlx_read_resp_data( mmio->afu_event,
+				       &resp_data_is_valid, rdata_bus, &rdata_bad);
+	} else {
+	  // no resp data to read
+	  mmio->list = mmio->list->_next;
+	}
+	
+	if (rc == TLX_SUCCESS) {
+	      // we have some data for a read command
+	      // check to make sure there is a BUFFERing mmio - if not, it is an error...
+      	      // if there is a BUFFERing mmio and we didn't get data, it is an error...
+
+	      // this section needs to handle lpc memory data
+	      // send_mmio set mmio.ack field with the type of ack we need to send back to libocxl (mmio or lpc)
+	      // we can leverage that to decide how do interpret the data and respective size information
+	      // the data will always come in the 64 byte buffer.
+	      // we only want to send the exact size of the data back to libocxl
+	      // we get the data from the offset implied by the PA.
+
+	      // should we scan the mmio list looking for a matching CAPPtag here? Not yet, assume in order responses
+              // but we can check it...
+
+	      debug_mmio_ack(mmio->dbg_fp, mmio->dbg_id);
+
+	      // is mmio->list there or is it in the expected state
+	      if (!mmio->list || (mmio->list->state != OCSE_BUFFER)) {
+	      		warn_msg("Unexpected MMIO data ack from AFU");
+			return;
+	      }
+
+	      if (resp_data_is_valid) {
+#ifdef DEBUG
+    	            printf( "rdata_bus = 0x" );
+		    for (i = 0; i < 64; i++) {
+		      printf( "%02x", rdata_bus[i] );
+		    }
+		    printf( "\n" );
+#endif	  
+
+		    // calculate length.  
+		    //    for lpc, we can just use mmio->list->size
+		    //    for mmio, we use pL - maybe we could set up mmio->list->size even for the old mmio path - then this is always use the size...
+		    if ( mmio->list->size == 0 ) {
+		          // we have a mmio of either 32 or 64 bits
+		          if (mmio->list->cmd_pL == 0x02) {
+			        length = 4;
+			  } else {
+  			        length = 8;
+			  }
+		          // for a partial read, the data comes back at an offset in rdata_bus
+		          offset = mmio->list->cmd_PA & 0x000000000000003F ;
+			  memcpy( &mmio->list->cmd_data, &rdata_bus[offset], length );
+			  mmio->list->state = OCSE_DONE;
+			  debug_msg("%s: CMD RESP offset=%d length=%d data=0x%016x", mmio->afu_name, offset, length, mmio->list->cmd_data );
+			  mmio->list = mmio->list->_next;  // the mmio we just processed is pointed to by ...
+		    } else {
+		          if ( mmio->list->size < 64 ) {
+			        // for a partial read, the data comes back at an offset in rdata_bus
+			        offset = mmio->list->cmd_PA & 0x000000000000003F ;
+			        memcpy( mmio->list->data, &rdata_bus[offset], mmio->list->size );
+				mmio->list->state = OCSE_DONE;
+			  } else {
+			        // size will be 64, 128 or 256
+			        length = 64;
+				memcpy( &mmio->list->data[mmio->list->partial_index], rdata_bus, length );
+				mmio->list->partial_index = mmio->list->partial_index + length;
+				if ( mmio->list->partial_index == mmio->list->size ) {
+				      // we have all the data we expect
+				      mmio->list->state = OCSE_DONE;
+				}
+			  }
+
+			  if ( mmio->list->state == OCSE_DONE ) {
+#ifdef DEBUG
+			    debug_msg("%s: CMD RESP length=%d", mmio->afu_name, length );
+			    printf( "mmio->list->data = 0x" );
+			    for (i = 0; i < mmio->list->size; i++) {
+			      printf( "%02x", mmio->list->data[i] );
+			    }
+			    printf( "\n" );
+#endif	  
+			    mmio->list = mmio->list->_next;
+			  }
+		    }
+
+	      } // resp_data_is_valid
+
+	} // LX_SUCCESS
+}
+
+// Handle ap responses coming from the afu
+// this will include responses to config commmands, mmio requests, and lpc memory requests
+void handle_ap_resp(struct mmio *mmio, uint32_t parity_enabled)
+{
+	int rc;
+	char type[7];
+	uint8_t afu_resp_opcode, resp_dl,resp_dp, resp_data_is_valid, resp_code, rdata_bad;
+	uint16_t resp_capptag;
+	uint32_t cfg_read_data = 0;
+        // uint64_t read_data; // data can now be up to 64 bytes, not just upto 8
+	// uint8_t *  rdata;
+	unsigned char   rdata_bus[64];
+	// unsigned char   cfg_rdata_bus[4];
+	// unsigned char   mem_data[64];
+	int length;
+
+	int i;
+
+	// handle config, mmio, and lpc responses
+
+	// a response can have multiple beats of data (depending on dl/dp/pl values) - similar to an ap command flow
+	// The first beat of data is at the same time as the response.
+	// the remaining beats of data will immediately follow the response
+	// another response may overlap the remaining beats of data if this new response contains no data
+	// TODO - response may be split, but lets not worry about that now.
+
+	// if we are expecting a config response, they come as response and data together
+	// capture the response and data and we're done
+	// otherwise, just capture the repsone and prepare to recieve the data
+	if (mmio->list->cfg) {
+		if (mmio->list->rnw) {
+			rc = afu_tlx_read_cfg_resp_and_data (mmio->afu_event,
+							     &afu_resp_opcode, &resp_dl, &resp_capptag, 0xdead, &resp_dp,
+							     &resp_data_is_valid, &resp_code, rdata_bus, &rdata_bad);
+		} else {
+			rc = afu_tlx_read_cfg_resp_and_data (mmio->afu_event,
+							     &afu_resp_opcode, &resp_dl,&resp_capptag, 0xbeef, &resp_dp,
+							     &resp_data_is_valid, &resp_code, 0, 0);
+		}
+	} else {
+	        // we rread the response, and prepare to read the data in a subsequent routine.
+	        rc = afu_tlx_read_resp(mmio->afu_event,
+				       &afu_resp_opcode, &resp_dl, &resp_capptag, &resp_dp, &resp_code);
+	}
+
+	if (rc == TLX_SUCCESS) {
+	      //
+              // at this point, either have 64 bytes of data in rdata_bus (for config), or we have set the mmio resp state to OCSE_BUFFER (a new state)
+	      //
+	      // should we scan the mmio list looking for a matching CAPPtag here? Not yet, assume in order responses
+              // but we can check it...
+	      debug_mmio_ack(mmio->dbg_fp, mmio->dbg_id);
+
+	      // make sure we have an mmio expecting a response
+	      if (!mmio->list || (mmio->list->state != OCSE_PENDING)) {
+	      		warn_msg("Unexpected MMIO ack from AFU");
+			return;
+	      }
+
+	      // check the CAPPtag - later
+
+	      if (mmio->list->cfg) {
+		    sprintf(type, "CONFIG");
+	      } else if ( mmio->list->size == 0 ) {
+		    sprintf(type, "MMIO");
+	      } else {
+	            sprintf(type, "MEM");
+	      }
+	      debug_msg("IN handle_mmio_ack and resp_capptag = %x and resp_code = %x! ", resp_capptag, resp_code);
+
+	      mmio->list->resp_code = resp_code;  //save this to send back to libocxl/client
+	      mmio->list->resp_opcode = afu_resp_opcode;  //save this to send back to libocxl/client
+
+	      if (mmio->list->cfg) {
+		if (resp_data_is_valid) {
+		  // that is, we are processing a config...
+#ifdef DEBUG
+		  printf( "rdata_bus = 0x" );
+		  for (i = 0; i < 64; i++) {
+		    printf( "%02x", rdata_bus[i] );
+		  }
+		  printf( "\n" );
+#endif	  
+		  //cfg responses with data are only 4B, for now don't put into uint64_t, put in uint32_t 
+		  //we will fix this later and use cfg_resp_data_byte cnt!
+		  length = 4;
+		  memcpy( &cfg_read_data, &rdata_bus[0], length );
+		  debug_msg("%s:%s CFG CMD RESP  length=%d data=0x%08x code=0x%02x", mmio->afu_name, type, length, cfg_read_data, resp_code ); // ???
+		} 
+	      }
+
+	      // Keep data for MMIO reads
+	      if (mmio->list->rnw) {
+		// debug_msg( "READ - stashing data" );
+		if (mmio->list->cfg) {
+		      // debug_msg( "CONFIG" );
+		      mmio->list->cmd_data = (uint64_t) (cfg_read_data);
+		      mmio->list->state = OCSE_DONE;
+		      // mmio->list = mmio->list->_next;
+		} else {
+		      // debug_msg( "MMIO size > 0" );
+		      mmio->list->partial_index = 0;
+		      mmio->list->state = OCSE_BUFFER;
+		}
+	      } else {
+		mmio->list->state = OCSE_DONE;
+	      }
+	}
+
+}
+
 // Handle MMIO ack if returned by AFU
 void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 {

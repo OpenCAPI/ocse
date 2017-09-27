@@ -755,6 +755,58 @@ int afu_tlx_read_resp_and_data(struct AFU_EVENT *event,
 }
 
 
+/* Call this from ocse to read AFU response. This reads only the afu_tlx resp interface */
+/* DO NOT USE THIS FOR CONFIG_RD or CONFIG_WR RESPONSES */
+
+int afu_tlx_read_resp(struct AFU_EVENT *event,
+		    uint8_t * afu_resp_opcode, uint8_t * resp_dl,
+		    uint16_t * resp_capptag, uint8_t * resp_dp,
+		    uint8_t * resp_code)
+
+{
+	if (!event->afu_tlx_resp_valid) {
+		return AFU_TLX_RESP_NOT_VALID;
+	} else {
+		event->afu_tlx_resp_valid = 0;
+		*afu_resp_opcode = event->afu_tlx_resp_opcode;
+		*resp_dl = event->afu_tlx_resp_dl;
+		*resp_capptag = event->afu_tlx_resp_capptag;
+		*resp_dp = event->afu_tlx_resp_dp;
+		*resp_code = event->afu_tlx_resp_code;
+
+		event->tlx_afu_resp_credit = 1;
+		event->tlx_afu_credit_valid = 1;
+		return TLX_SUCCESS;
+		}
+}
+
+
+/* Call this from ocse to read AFU response. This reads only the afu_tlx resp data interface */
+/* DO NOT USE THIS FOR CONFIG_RD or CONFIG_WR RESPONSES */
+
+int afu_tlx_read_resp_data( struct AFU_EVENT *event,
+			    uint8_t * resp_data_is_valid, uint8_t * rdata_bus, uint8_t * rdata_bad)
+
+{
+       if (event->afu_tlx_rdata_valid) {
+	       // should we return some sort of RC other than 0 if there is no data? Should calling function be
+	       // smart enough to know if data is expected? Or should we set a bit to indicate that there is data
+	       // on the data bus? Call it data valid, BUT caller still has to check bdi? Or does bdi kill interface
+	       // at the TLX level??
+	       event->afu_tlx_rdata_valid = 0;
+	       *resp_data_is_valid = 1;
+	       *rdata_bad = event->afu_tlx_rdata_bad;
+	       memcpy(rdata_bus, event->afu_tlx_rdata_bus, 64);
+	       //return TLX_SUCCESS;
+       }
+	//	return AFU_TLX_RESP_NO_DATA;
+       event->tlx_afu_resp_data_credit = 1;
+       event->tlx_afu_credit_valid = 1;
+       return TLX_SUCCESS;
+       
+}
+
+
 /* Call this from ocse to read AFU command. This reads both afu_tlx cmd AND cmd data interfaces */
 
 int afu_tlx_read_cmd_and_data(struct AFU_EVENT *event,
