@@ -11,7 +11,7 @@ using std::string;
 using std::ifstream;
 using std::stringstream;
 
-Descriptor::Descriptor (string filename):vsec(0x600), port(0x1000), afu_desc(0x300), regs (DESCRIPTOR_NUM_REGS), mmio(0x4000)
+Descriptor::Descriptor (string filename):vsec(0x650), vsec1(0x650), vsec2(0x650), port(0x1000), afu_desc(0x300), regs (DESCRIPTOR_NUM_REGS), mmio(0x4000)
 {
     info_msg ("Descriptor: Reading descriptor %s file", filename.c_str ());
     parse_descriptor_file (filename);
@@ -42,20 +42,22 @@ Descriptor::parse_descriptor_file (string filename)
 	uint32_t vsec_offset, vsec_data;
 	
 	 // re-output s_value as unsigned int
-        if (s_value.substr (0, 2) == "0x") {
+	if(field.substr(0,2) == "0x") {
+//        if (s_value.substr (0, 2) == "0x") {
             stringstream temp (s_value.substr (2));
             temp >> std::hex >> value;
-            info_msg ("Descriptor: setting %s with value 0x%x", field.c_str (),
+            info_msg ("Descriptor: configuration offset %s value 0x%x", field.c_str (),
                       value);
         }
-        else {
-            stringstream temp (s_value);
-            temp >> value;
-            info_msg ("Descriptor: setting %s with value %d", field.c_str (),
-                      value);
-        }
+//        else {
+//            stringstream temp (s_value);
+//            temp >> value;
+//            info_msg ("Descriptor: %s: with value %d", field.c_str (),
+//                      value);
+//        }
 
 	// Test for data and afu_desc fields
+	// s_value = offset
         if (field == "data" || field == "afu_desc") {
             if (s_value.substr (0, 2) == "0x")
                 s_value.erase(0, 2);
@@ -64,13 +66,9 @@ Descriptor::parse_descriptor_file (string filename)
                 s_data.erase(0, 2);
             value = strtoull(s_value.c_str(), NULL, 16);
             data = strtoull(s_data.c_str(), NULL, 16);
-            info_msg ("Descriptor: setting offset 0x%x with value 0x%016llx",
-                      value, data);
+            info_msg ("Descriptor: %s: offset 0x%x value 0x%016llx",
+                      field.c_str(), value, data);
 	    if(field == "data") {
-            	//uint64_t offset = to_vector_index(value);
-            	//while (offset >= regs.size())
-                //    regs.push_back(0);
-            	//regs[offset] = data;
 		port[value & 0x00000FFF] = data;
             	continue;
 	    }
@@ -80,18 +78,28 @@ Descriptor::parse_descriptor_file (string filename)
 	    }
         }
 	else {	// default vsec reg values
-	    //vsec_offset = strtoul(field.c_str(), NULL, 16);
-	    //vsec_data   = strtoul(s_value.c_str(), NULL, 16);
-	    if(vsec_offset < 0x600) {
-		vsec_offset = strtoul(field.c_str(), NULL, 16);
+	    vsec_offset = strtoul(field.c_str(), NULL, 16);
+	    if(vsec_offset < 0x650) {
+		//vsec_offset = strtoul(field.c_str(), NULL, 16);
 		vsec_data = strtoul(s_value.c_str(), NULL, 16);
 	    	vsec[vsec_offset] = vsec_data;
 		//printf("vsec offset = 0x%x vsec data = 0x%08x\n", vsec_offset, vsec[vsec_offset]);
 	    } 
-	    else if(vsec_offset >0xFFF) {
-		port[vsec_offset & 0x00000FFF] = vsec_data;
+	    // configuration header 1
+	    else if((vsec_offset >= 0x1000) && (vsec_offset < 0x2000)) {
+		vsec_data = strtoul(s_value.c_str(), NULL, 16);
+		vsec1[vsec_offset] = vsec_data;
+	    }
+	    // configuration header 2
+	    else if((vsec_offset >= 0x2000) && (vsec_offset < 0x3000)) {
+		vsec_data = strtoul(s_value.c_str(), NULL, 16);
+		vsec2[vsec_offset] = vsec_data;
+	    }
+	    debug_msg("Store vsec[0x%x] = 0x%08x", vsec_offset, vsec_data);
+	    //else if(vsec_offset >0xFFF) {
+	//	port[vsec_offset & 0x00000FFF] = vsec_data;
 		//printf("port offset = 0x%x port data = 0x%08x\n", vsec_offset, vsec_data);
-	    }  
+	  //  }  
 	}
     }	// end while loop
 }
