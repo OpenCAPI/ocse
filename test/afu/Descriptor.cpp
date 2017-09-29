@@ -79,20 +79,22 @@ Descriptor::parse_descriptor_file (string filename)
         }
 	else {	// default vsec reg values
 	    vsec_offset = strtoul(field.c_str(), NULL, 16);
-	    if(vsec_offset < 0x650) {
+	    if(vsec_offset < 0x700) {
 		//vsec_offset = strtoul(field.c_str(), NULL, 16);
 		vsec_data = strtoul(s_value.c_str(), NULL, 16);
 	    	vsec[vsec_offset] = vsec_data;
 		//printf("vsec offset = 0x%x vsec data = 0x%08x\n", vsec_offset, vsec[vsec_offset]);
 	    } 
 	    // configuration header 1
-	    else if((vsec_offset >= 0x1000) && (vsec_offset < 0x2000)) {
+	    else if((vsec_offset >= 0x10000) && (vsec_offset < 0x10700)) {
 		vsec_data = strtoul(s_value.c_str(), NULL, 16);
+		vsec_offset = ~0x00010000 & vsec_offset;
 		vsec1[vsec_offset] = vsec_data;
 	    }
 	    // configuration header 2
-	    else if((vsec_offset >= 0x2000) && (vsec_offset < 0x3000)) {
+	    else if((vsec_offset >= 0x20000) && (vsec_offset < 0x20700)) {
 		vsec_data = strtoul(s_value.c_str(), NULL, 16);
+		vsec_offset = ~0x00020000 & vsec_offset;
 		vsec2[vsec_offset] = vsec_data;
 	    }
 	    debug_msg("Store vsec[0x%x] = 0x%08x", vsec_offset, vsec_data);
@@ -223,6 +225,14 @@ Descriptor::get_vsec_reg(uint32_t vsec_offset)
     else if(offset < 0x1000) {	// read vsec reg
     	vsec_data = vsec[offset];
     }
+    else if((offset >= 0x10000) && (offset < 0x10700)) {
+	offset = ~0x00010000 & offset;
+	vsec_data = vsec1[offset];
+    }
+    else if((offset >= 0x20000) && (offset < 0x20700)) {
+	offset = ~0x00020000 & offset;
+	vsec_data = vsec2[offset];
+    }
     debug_msg("Descriptor:get_vsec_reg");
     debug_msg("offset = 0x%x data = 0x%x", offset, vsec_data);
     //else if (offset >= 0x1000) {
@@ -233,16 +243,24 @@ Descriptor::get_vsec_reg(uint32_t vsec_offset)
 }
 
 void
-Descriptor::set_vsec_reg(uint32_t vsec_offset, uint32_t vsec_data)
+Descriptor::set_vsec_reg(uint32_t offset, uint32_t vsec_data)
 {
-    if(vsec_offset < 0x1000) {	// write to vsec reg
-        vsec[vsec_offset] = vsec_data;
+    if(offset < 0x1000) {	// write to vsec reg
+        vsec[offset] = vsec_data;
     } 
-    else if(vsec_offset > 0x1000) {
-	set_port_reg(vsec_offset, vsec_data);
+//    else if(vsec_offset > 0x1000) {
+//	set_port_reg(vsec_offset, vsec_data);
+//    }
+    else if((offset <= 0x10000) && (offset < 0x10700)) {
+	offset = ~0x00010000 & offset;
+	vsec1[offset] = vsec_data;
+    }
+    else if((offset <= 0x20000) && (offset < 0x20700)) {
+	offset = ~0x00020000 & offset;
+	vsec2[offset] = vsec_data;
     }
     debug_msg("Descriptor:set_vsec_reg");
-    debug_msg("offset = 0x%x data = 0x%x", vsec_offset, vsec_data); 
+    debug_msg("offset = 0x%x data = 0x%x", offset, vsec_data); 
 }
 
 uint64_t

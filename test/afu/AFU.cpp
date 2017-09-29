@@ -699,16 +699,23 @@ AFU::tlx_afu_config_read()
     byte_cnt = 4;		
     resp_capptag = afu_event.tlx_afu_cmd_capptag;
     resp_pl = afu_event.tlx_afu_cmd_pl;
-    vsec_offset = 0x0000FFFC & afu_event.tlx_afu_cmd_pa;
+    vsec_offset = 0x000FFFFC & afu_event.tlx_afu_cmd_pa;
     byte_offset = 0x0000003F & afu_event.tlx_afu_cmd_pa;
-    if(vsec_offset >= 0x10 && vsec_offset <= 0x24) {
-	vsec_data = descriptor.get_vsec_reg(vsec_offset);
+//    if(vsec_offset >= 0x10 && vsec_offset <= 0x24) {
+//	vsec_data = descriptor.get_vsec_reg(vsec_offset);
+//    }
+//    else {
+//    	vsec_data  = descriptor.get_vsec_reg(vsec_offset);	// get vsec data
+//    }
+    if(vsec_offset > 0x20700) {
+	resp_opcode = 0x03;	// read failed resp
+	debug_msg("AFU: configuration read failed response offset = 0x%08x", vsec_offset);
     }
     else {
-    	vsec_data  = descriptor.get_vsec_reg(vsec_offset);	// get vsec data
+    	vsec_data = descriptor.get_vsec_reg(vsec_offset);
+    	debug_msg("AFU: vsec data = 0x%x vsec offset = 0x%x byte offset = 0x%x",
+	    	vsec_data, vsec_offset, byte_offset);
     }
-    debug_msg("AFU: vsec data = 0x%x vsec offset = 0x%x byte offset = 0x%x",
-	vsec_data, vsec_offset, byte_offset);
     if(resp_pl == 0x00) {
 	data_size = 1;
 	switch(vsec_offset) {
@@ -788,7 +795,7 @@ AFU::tlx_afu_config_write()
   
     debug_msg("AFU::tlx_afu_config_write");
     resp_capptag = afu_event.tlx_afu_cmd_capptag;
-    cmd_pa = afu_event.tlx_afu_cmd_pa & 0x0000FFFC;   
+    cmd_pa = afu_event.tlx_afu_cmd_pa & 0x00000FFC;   
     resp_dl = 1;
 
     debug_msg("AFU: cmd_pa = 0x%x", cmd_pa);
@@ -863,7 +870,7 @@ AFU::tlx_afu_config_write()
 	    }   
 	}
 	else {	// vsec config write 
-	    vsec_offset = cmd_pa & 0x00000FFC;
+	    vsec_offset = cmd_pa & 0x000FFFFC;
 	    descriptor.set_vsec_reg(vsec_offset, wr_config_data);	    
 	}
 	rc = afu_cfg_send_resp_and_data(&afu_event, resp_opcode, resp_dl, resp_capptag,
