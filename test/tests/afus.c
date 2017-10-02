@@ -259,9 +259,9 @@ int main(int argc, char *argv[])
 done:
     // free device
     printf("Freeing safu device ... \n");
-    ocxl_afu_free(safu_h);
+    ocxl_afu_close(safu_h);
     printf("Freeing mafu device ...\n");
-    ocxl_afu_free(mafu_h);
+    ocxl_afu_close(mafu_h);
 
     return 0;
 }

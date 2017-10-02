@@ -43,6 +43,8 @@ class Descriptor
 private:
     // VSEC registers
     std::vector < uint32_t > vsec;
+    std::vector < uint32_t > vsec1;
+    std::vector < uint32_t > vsec2;
     std::vector < uint64_t > port;
     std::vector < uint32_t > afu_desc;
     std::vector < uint64_t > regs;
