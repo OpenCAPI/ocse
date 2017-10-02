@@ -119,6 +119,20 @@ int tlx_afu_send_cmd_data(struct AFU_EVENT *event,
 		 uint8_t cmd_data_bdi,uint8_t * cmd_data);
 
 
+/* Call this from ocse to send a command with data (a write) to tlx/afu */
+/* DO NOT USE for config_wr or config_rd commands */
+
+int tlx_afu_send_cmd_and_data( struct AFU_EVENT *event,
+			       uint8_t tlx_cmd_opcode,
+			       uint16_t cmd_capptag, uint8_t cmd_dl,
+			       uint8_t cmd_pl, uint64_t cmd_be,
+			       uint8_t cmd_end, uint8_t cmd_t,
+#ifdef TLX4
+			       uint8_t cmd_os, uint8_t cmd_flag,
+#endif
+			       uint64_t cmd_pa,
+			       uint8_t cmd_data_bdi, uint8_t * cmd_data); 
+
 /* CALL THIS FOR CONFIG_RD/CONFIG_WR ONLY */
 /* This will send config_rds and config_wr only. It will check and
  * decrement cfg_tlx_credits_available and, for config_wr cmds with data,

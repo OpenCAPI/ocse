@@ -585,6 +585,62 @@ int tlx_afu_send_cmd_data(struct AFU_EVENT *event,
 }
 
 
+/* Call this from ocse to send a command to tlx/afu */
+/* DO NOT USE for config_wr or config_rd commands */
+
+int tlx_afu_send_cmd_and_data( struct AFU_EVENT *event,
+			       uint8_t tlx_cmd_opcode,
+			       uint16_t cmd_capptag, uint8_t cmd_dl,
+			       uint8_t cmd_pl, uint64_t cmd_be,
+			       uint8_t cmd_end, uint8_t cmd_t,
+#ifdef TLX4
+			       uint8_t cmd_os, uint8_t cmd_flag,
+#endif
+			       uint64_t cmd_pa,
+			       uint8_t cmd_data_bdi, uint8_t * cmd_data)
+
+{
+
+        int size;
+  
+	debug_msg( "tlx_afu_send_cmd_and_data: afu_tlx_cmd_credits_available = %d", event->afu_tlx_cmd_credits_available );
+
+	/* if (event->afu_tlx_cmd_credits_available == 0) { */
+	/*         warn_msg("      no command credits available"); */
+	/* 	return AFU_TLX_NO_CREDITS; */
+	/* } */
+  	if ((tlx_cmd_opcode == TLX_CMD_CONFIG_READ) && (tlx_cmd_opcode == TLX_CMD_CONFIG_WRITE)) {
+		warn_msg("tlx_afu_send_cmd_and_data: TRYING TO SEND CONFIG CMD w/send cmd- opcode = 0x%x \n", tlx_cmd_opcode);
+		return CFG_TLX_NOT_CFG_CMD ;
+	}
+	if (event->tlx_afu_cmd_valid ==1)  {
+		return TLX_AFU_DOUBLE_COMMAND;
+	} else {
+		event->afu_tlx_cmd_credits_available -= 1;
+		debug_msg("      afu_tlx_cmd_credits_available is now %d", event->afu_tlx_cmd_credits_available);
+		event->tlx_afu_cmd_valid = 1;
+		event->tlx_afu_cmd_data_valid = 1;
+		event->tlx_afu_cmd_opcode = tlx_cmd_opcode;
+		event->tlx_afu_cmd_capptag = cmd_capptag;
+		event->tlx_afu_cmd_dl = cmd_dl;
+		event->tlx_afu_cmd_pl = cmd_pl;
+		event->tlx_afu_cmd_be = cmd_be;
+		event->tlx_afu_cmd_end = cmd_end;
+		event->tlx_afu_cmd_t = cmd_t;
+		event->tlx_afu_cmd_pa = cmd_pa;
+		event->tlx_afu_cmd_data_bdi = cmd_data_bdi;
+		size = dl_to_size( cmd_dl );
+		memcpy(event->tlx_afu_cmd_data_bus, cmd_data, size);
+		event->tlx_afu_cmd_data_byte_cnt = size;
+#ifdef TLX4
+		event->tlx_afu_cmd_flag = cmd_flag;
+		event->tlx_afu_cmd_os = cmd_os;
+#endif
+		return TLX_SUCCESS;
+	}
+	
+}
+
 /* CALL THIS FOR CONFIG RD/CONFIG WR ONLY */
 /* This will send config rds and config writes only. It will check and
  * decrement cfg_tlx_credits_available and, for config_wr cmds with data,
@@ -795,12 +851,12 @@ int afu_tlx_read_resp_data( struct AFU_EVENT *event,
 	       *resp_data_is_valid = 1;
 	       *rdata_bad = event->afu_tlx_rdata_bad;
 	       memcpy(rdata_bus, event->afu_tlx_rdata_bus, 64);
-	       //return TLX_SUCCESS;
+	       event->tlx_afu_resp_data_credit = 1;
+	       event->tlx_afu_credit_valid = 1;
+	       return TLX_SUCCESS;
        }
 	//	return AFU_TLX_RESP_NO_DATA;
-       event->tlx_afu_resp_data_credit = 1;
-       event->tlx_afu_credit_valid = 1;
-       return TLX_SUCCESS;
+       return AFU_TLX_RESP_DATA_NOT_VALID;
        
 }
 
@@ -914,7 +970,7 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 	event->tbuf[2] = 0; // reserved for tlx_afu_cmd_data_byte_cnt
 	event->tbuf[3] = 0; // reserved for tlx_afu_resp_data_byte_cnt
 	event->tbuf[4] = 0; // reserved for tlx_afu_resp_data_byte_cnt
-	// printf("lgt: tlx_signal_afu_model\n");
+	// debug_msg("lgt: tlx_signal_afu_model");
 	if (event->tlx_afu_cmd_valid != 0) { //There are 23 bytes to xfer in this group (25 for TLX4)
 		event->tbuf[0] = event->tbuf[0] | 0x10;
 		//printf("event->tbuf[0] is 0x%2x \n", event->tbuf[0]);
@@ -1228,7 +1284,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 	FD_ZERO(&watchset);
 	FD_SET(event->sockfd, &watchset);
 	select(event->sockfd + 1, &watchset, NULL, NULL, NULL);
-        //debug_msg("tlx_get_afu_events:");
+        // debug_msg("tlx_get_afu_events:");
 	if (event->rbp == 0) {
 		if ((bc = recv(event->sockfd, event->rbuf, 1, 0)) == -1) {
 			if (errno == EWOULDBLOCK) {

@@ -154,7 +154,9 @@ static void _handle_afu(struct ocl *ocl)
 	//int i;
 	//size_t size;
 	if (ocl->mmio->list !=NULL) {
-	  handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
+	  // handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
+	  handle_ap_resp(ocl->mmio, ocl->parity_enabled);
+	  handle_ap_resp_data(ocl->mmio, ocl->parity_enabled);
 	} 
 
 	if (ocl->cmd != NULL) {

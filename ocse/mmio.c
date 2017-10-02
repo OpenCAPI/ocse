@@ -72,6 +72,7 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 	uint8_t afuid;
 	uint16_t context;
 
+  debug_msg( "_add_event:" );
 	// Add new event in IDLE state
 	event = (struct mmio_event *)malloc(sizeof(struct mmio_event));
 	if (!event)
@@ -137,6 +138,12 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 	while (*list != NULL)
 		list = &((*list)->_next);
 	*list = event;
+	
+	if (mmio->list != NULL) {
+	  debug_msg( "_add_event put an event in mmio list " );
+	} else {
+	  debug_msg( "_add_event DID NOT an event in mmio list " );
+	}
 	if (cfg)
 		context = -1;
 	else
@@ -223,6 +230,7 @@ static struct mmio_event *_add_mem_event(struct mmio *mmio, struct client *clien
 static struct mmio_event *_add_cfg(struct mmio *mmio, uint32_t rnw,
 				    uint32_t dw, uint64_t addr, uint64_t data)
 {
+  debug_msg( "_add_cfg:" );
         return _add_event(mmio, NULL, rnw, dw, 0, addr, 1, data);
 }
 
@@ -312,7 +320,7 @@ int read_afu_config(struct mmio *mmio, uint8_t bus, pthread_mutex_t * lock)
 	  //infinite loop
 	  sleep(1);
 	} 
-	printf("afu_tlx_cmd_credits_available= %d, cfg_tlx_credits_available= %d, afu_tlx_resp_credits_availabler= %d \n",
+	printf("afu_tlx_cmd_credits_available= %d, cfg_tlx_credits_available= %d, afu_tlx_resp_credits_available= %d \n",
 		afu_tlx_cmd_credits_available, cfg_tlx_credits_available,
 		afu_tlx_resp_credits_available);
 
@@ -690,15 +698,19 @@ void send_mmio(struct mmio *mmio)
 	uint8_t  cmd_byte_cnt;
 	uint64_t offset;
 
-	// debug_msg( "ocse:send_mmio:" );
+	// debug_msg( "send_mmio: " );
 
 	event = mmio->list;
 
 	// Check for valid event
-	if ((event == NULL) || (event->state == OCSE_PENDING))
+	if ( event == NULL ) 
 		return;
+	// debug_msg( "send_mmio: there is a valid command" );
 
-	// debug_msg( "ocse:send_mmio:valid command exists" );
+	if ( event->state != OCSE_IDLE ) // the mmio has already been sent
+		return;
+	debug_msg( "send_mmio: valid command is ready to send" );
+
 	event->ack = OCSE_MMIO_ACK;
 	if (event->cfg) {
 	        //debug_msg( "ocse:send_mmio:mmio to config space" );
@@ -739,6 +751,9 @@ void send_mmio(struct mmio *mmio)
                   // we have the old mmio style
 		  // debug_msg( "ocse:send_mmio:mmio to mmio space" );
 		  sprintf(type, "MMIO");
+
+		  event->cmd_dL = 0;
+		  event->cmd_dP = 0;
 
 		  // calculate event->pL from event->dw
 		  // calculate cmd_byte_cnt from event->dw
@@ -816,61 +831,90 @@ void send_mmio(struct mmio *mmio)
 		      event->state = OCSE_PENDING;
 		    }
 		  }
+		  debug_msg("send_mmio: sent read command, now wait for resp from AFU \n"); 
 		} else { // write - 2 part operation
-		  if (event->state == OCSE_RD_RQ_PENDING) { // part 2 - send the data
-		    // we can send 1, 2, 4, 8, 16, 32, 64, 128, or 256 bytes of data
-		    // sizes less that 64 are embedded in a 64 byte value at the offset implied by cmd_PA
-		    // sizes greater than 64 are not yet supported, but the idea is they would either be sent in a number of 64 byte
-		    // packets or as a total packet to be dispursed by tlx_interface somehow...
-		    // init a 64 byte space
-		    memcpy(tdata_bus, null_buff, 64); //not sure if we always have to do this, but better safe than...
-		    uint8_t * dptr = tdata_bus;
-		    uint8_t BDI = 0;
+		  // this part (part 2) was moved to be handled by the afu_driver code linked into the event simulator
+		  /* if (event->state == OCSE_RD_RQ_PENDING) { // part 2 - send the data */
+		  /*   // we can send 1, 2, 4, 8, 16, 32, 64, 128, or 256 bytes of data */
+		  /*   // sizes less that 64 are embedded in a 64 byte value at the offset implied by cmd_PA */
+		  /*   // sizes greater than 64 are not yet supported, but the idea is they would either be sent in a number of 64 byte */
+		  /*   // packets or as a total packet to be dispursed by tlx_interface somehow... */
+		  /*   // init a 64 byte space */
+		  /*   memcpy(tdata_bus, null_buff, 64); //not sure if we always have to do this, but better safe than... */
+		  /*   uint8_t * dptr = tdata_bus; */
+		  /*   uint8_t BDI = 0; */
 
-		    offset = event->cmd_PA & 0x000000000000003F ;  // this works for addresses >= 64 too
-		    memcpy( dptr+offset, event->data, cmd_byte_cnt);  // copy the data to the tdata buffer
-	  	    // TODO finish this bid_resp_err code in sprinti
-		    //if ( allow_bdi_resp_err(event->cmd->parms)) {
-		    //		debug_msg("send_mmio: we've decided to BDI the cmd data  \n");
-		    //		BDI = 1;
-		    //} else
-			BDI = 0;
+		  /*   offset = event->cmd_PA & 0x000000000000003F ;  // this works for addresses >= 64 too */
+		  /*   memcpy( dptr+offset, event->data, cmd_byte_cnt);  // copy the data to the tdata buffer */
+	  	  /*   // TODO finish this bid_resp_err code in sprinti */
+		  /*   //if ( allow_bdi_resp_err(event->cmd->parms)) { */
+		  /*   //		debug_msg("send_mmio: we've decided to BDI the cmd data  \n"); */
+		  /*   //		BDI = 1; */
+		  /*   //} else */
+		  /* 	BDI = 0; */
 
 
-		    if (tlx_afu_send_cmd_data(mmio->afu_event, 64, BDI, dptr) == TLX_SUCCESS) {
-		      /* if (event->dw) */
-		      /* 	sprintf(data, "%016" PRIx64, event->cmd_data); */
-		      /* else */
-		      /* 	sprintf(data, "%08" PRIx32, (uint32_t) event->cmd_data); */
-		      /* debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s offset=0x%x", */
-		      /* 		mmio->afu_name, type, event->dw ? 64 : 32, */
-		      /* 		event->cmd_PA, data, offset); */
-		      debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
-				      event->rnw, event->dw, event->cmd_PA);
-		      event->state = OCSE_PENDING;
-		      debug_msg("send_mmio: got rd_req and sent data, now wait for cmd resp from AFU"); 
-		    }
-		  } else { // part 1 - send the command
+		  /*   if (tlx_afu_send_cmd_data(mmio->afu_event, 64, BDI, dptr) == TLX_SUCCESS) { */
+		  /*     /\* if (event->dw) *\/ */
+		  /*     /\* 	sprintf(data, "%016" PRIx64, event->cmd_data); *\/ */
+		  /*     /\* else *\/ */
+		  /*     /\* 	sprintf(data, "%08" PRIx32, (uint32_t) event->cmd_data); *\/ */
+		  /*     /\* debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s offset=0x%x", *\/ */
+		  /*     /\* 		mmio->afu_name, type, event->dw ? 64 : 32, *\/ */
+		  /*     /\* 		event->cmd_PA, data, offset); *\/ */
+		  /*     debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, */
+		  /* 		      event->rnw, event->dw, event->cmd_PA); */
+		  /*     event->state = OCSE_PENDING; */
+		  /*     debug_msg("send_mmio: got rd_req and sent data, now wait for cmd resp from AFU");  */
+		  /*   } */
+		  /* } else { // part 1 - send the command */
 		    if (cmd_byte_cnt < 64) { // partial
-		      if (tlx_afu_send_cmd(mmio->afu_event,
-					   TLX_CMD_PR_WR_MEM, 0xbead, event->cmd_dL, event->cmd_pL, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
-			event->state = OCSE_RD_RQ_PENDING;
+		      if (tlx_afu_send_cmd_and_data( mmio->afu_event,
+						     TLX_CMD_PR_WR_MEM, 
+						     0xbead, 
+						     event->cmd_dL, 
+						     event->cmd_pL, 
+						     0, 
+						     0, 
+						     0, 
+						     event->cmd_PA,
+						     0, // always good data for now
+						     event->data ) == TLX_SUCCESS) {
+			event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
 		      }
 		    } else { // full
 		      if (event->be_valid == 0) {
-			if (tlx_afu_send_cmd(mmio->afu_event,
-					     TLX_CMD_WRITE_MEM, 0xdaeb, event->cmd_dL, event->cmd_pL, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
-			  event->state = OCSE_RD_RQ_PENDING;
+			if (tlx_afu_send_cmd_and_data( mmio->afu_event,
+						       TLX_CMD_WRITE_MEM, 
+						       0xdaeb, 
+						       event->cmd_dL, 
+						       event->cmd_pL, 
+						       0, 
+						       0, 
+						       0, 
+						       event->cmd_PA,
+						       0, // always good data for now
+						       event->data ) == TLX_SUCCESS) {
+			  event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
 			}
 		      } else {
-			if (tlx_afu_send_cmd(mmio->afu_event,
-					     TLX_CMD_WRITE_MEM_BE, 0xbebe, event->cmd_dL, event->cmd_pL, event->be, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
-			  event->state = OCSE_RD_RQ_PENDING;
+			if (tlx_afu_send_cmd_and_data( mmio->afu_event,
+						       TLX_CMD_WRITE_MEM_BE, 
+						       0xbebe, 
+						       event->cmd_dL, 
+						       event->cmd_pL, 
+						       event->be, 
+						       0, 
+						       0, 
+						       event->cmd_PA,
+						       0, // always good data for now
+						       event->data ) == TLX_SUCCESS) {
+			  event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
 			}
 		      }
 		    }
-		    debug_msg("send_mmio: sent write command, now wait for rd_req from AFU \n"); 
-		  }
+		    debug_msg("send_mmio: sent write command, now wait for resp from AFU \n"); 
+		  /* } */
 		}
 		// Attempt to send mmio to AFU
 		if (!event->rnw) { // MMIO write - two part operation
@@ -899,6 +943,8 @@ void handle_ap_resp_data(struct mmio *mmio, uint32_t parity_enabled)
 
 	int i;
 
+	// debug_msg( "handle_ap_resp_data:" );
+
 	// handle mmio, and lpc response data 
 	// we are expecting 1 to 4 beats of data depending on the value of dL or dw
 	// we can use size to define how many bytes we expect
@@ -906,21 +952,28 @@ void handle_ap_resp_data(struct mmio *mmio, uint32_t parity_enabled)
 	// notes:
 	//   if size < 64, the interesting data is at an offset in rdata_bus
 
-	if (mmio->list->cfg) {
-	  // we have the data (if any) already so just return
-	  mmio->list = mmio->list->_next;
-	  return;
-	}
-
-	if (mmio->list->rnw) {
-	  rc = afu_tlx_read_resp_data( mmio->afu_event,
-				       &resp_data_is_valid, rdata_bus, &rdata_bad);
+	// debug_msg( "handle_ap_resp_data: event cfg = %d, rnw = %d, current event state = %d", mmio->list->cfg, mmio->list->rnw, mmio->list->state );
+	if ( mmio->list->cfg ) {
+	  if ( mmio->list->state == OCSE_DONE ) {
+	    // we have read the response and the data (if any) already so just return
+	    mmio->list = mmio->list->_next;
+	    // debug_msg( "handle_ap_resp_data: removed cfg from list" );
+	    return;
+	  }
 	} else {
-	  // no resp data to read
-	  mmio->list = mmio->list->_next;
-	}
+	  if (mmio->list->rnw) {
+	    rc = afu_tlx_read_resp_data( mmio->afu_event,
+					 &resp_data_is_valid, rdata_bus, &rdata_bad);
+	  } else {
+	    // no resp data to read
+	    if ( mmio->list->state == OCSE_DONE ) {
+	      mmio->list = mmio->list->_next;
+	      // debug_msg( "handle_ap_resp_data: removed mmio/lpc write from list" );
+	      return;
+	    }
+	  }
 	
-	if (rc == TLX_SUCCESS) {
+	  if (rc == TLX_SUCCESS) {
 	      // we have some data for a read command
 	      // check to make sure there is a BUFFERing mmio - if not, it is an error...
       	      // if there is a BUFFERing mmio and we didn't get data, it is an error...
@@ -939,7 +992,7 @@ void handle_ap_resp_data(struct mmio *mmio, uint32_t parity_enabled)
 
 	      // is mmio->list there or is it in the expected state
 	      if (!mmio->list || (mmio->list->state != OCSE_BUFFER)) {
-	      		warn_msg("Unexpected MMIO data ack from AFU");
+	      		warn_msg("handle_ap_resp_data: Unexpected resp data from AFU");
 			return;
 	      }
 
@@ -968,6 +1021,7 @@ void handle_ap_resp_data(struct mmio *mmio, uint32_t parity_enabled)
 			  mmio->list->state = OCSE_DONE;
 			  debug_msg("%s: CMD RESP offset=%d length=%d data=0x%016x", mmio->afu_name, offset, length, mmio->list->cmd_data );
 			  mmio->list = mmio->list->_next;  // the mmio we just processed is pointed to by ...
+			  // debug_msg( "handle_ap_resp_data: removed mmio read from list" );
 		    } else {
 		          if ( mmio->list->size < 64 ) {
 			        // for a partial read, the data comes back at an offset in rdata_bus
@@ -995,12 +1049,15 @@ void handle_ap_resp_data(struct mmio *mmio, uint32_t parity_enabled)
 			    printf( "\n" );
 #endif	  
 			    mmio->list = mmio->list->_next;
+			    // debug_msg( "handle_ap_resp_data: removed lpc read from list" );
 			  }
 		    }
 
 	      } // resp_data_is_valid
 
-	} // LX_SUCCESS
+	  } // TLX_SUCCESS
+
+	}
 }
 
 // Handle ap responses coming from the afu
@@ -1021,6 +1078,7 @@ void handle_ap_resp(struct mmio *mmio, uint32_t parity_enabled)
 
 	int i;
 
+	// debug_msg( "handle_ap_rep:" );
 	// handle config, mmio, and lpc responses
 
 	// a response can have multiple beats of data (depending on dl/dp/pl values) - similar to an ap command flow
@@ -1037,15 +1095,18 @@ void handle_ap_resp(struct mmio *mmio, uint32_t parity_enabled)
 			rc = afu_tlx_read_cfg_resp_and_data (mmio->afu_event,
 							     &afu_resp_opcode, &resp_dl, &resp_capptag, 0xdead, &resp_dp,
 							     &resp_data_is_valid, &resp_code, rdata_bus, &rdata_bad);
+			// debug_msg( "handle_ap_resp: rc from afu_tlx_read_cfg_resp_and_data = %d", rc );
 		} else {
 			rc = afu_tlx_read_cfg_resp_and_data (mmio->afu_event,
 							     &afu_resp_opcode, &resp_dl,&resp_capptag, 0xbeef, &resp_dp,
 							     &resp_data_is_valid, &resp_code, 0, 0);
+			// debug_msg( "handle_ap_resp: rc from afu_tlx_read_cfg_resp_and_data (no data expected) = %d", rc );
 		}
 	} else {
-	        // we rread the response, and prepare to read the data in a subsequent routine.
+	        // we read the response, and prepare to read the data in a subsequent routine.
 	        rc = afu_tlx_read_resp(mmio->afu_event,
 				       &afu_resp_opcode, &resp_dl, &resp_capptag, &resp_dp, &resp_code);
+		// debug_msg( "handle_ap_resp: rc from afu_tlx_read_resp = %d", rc );
 	}
 
 	if (rc == TLX_SUCCESS) {
@@ -1056,9 +1117,11 @@ void handle_ap_resp(struct mmio *mmio, uint32_t parity_enabled)
               // but we can check it...
 	      debug_mmio_ack(mmio->dbg_fp, mmio->dbg_id);
 
+	      // debug_msg( "handle_ap_resp: current event state = %d", mmio->list->state );
+
 	      // make sure we have an mmio expecting a response
 	      if (!mmio->list || (mmio->list->state != OCSE_PENDING)) {
-	      		warn_msg("Unexpected MMIO ack from AFU");
+	      		warn_msg("handle_ap_resp: Unexpected resp from AFU");
 			return;
 	      }
 
@@ -1071,7 +1134,7 @@ void handle_ap_resp(struct mmio *mmio, uint32_t parity_enabled)
 	      } else {
 	            sprintf(type, "MEM");
 	      }
-	      debug_msg("IN handle_mmio_ack and resp_capptag = %x and resp_code = %x! ", resp_capptag, resp_code);
+	      debug_msg("handle_ap_resp: resp_capptag = %x and resp_code = %x! ", resp_capptag, resp_code);
 
 	      mmio->list->resp_code = resp_code;  //save this to send back to libocxl/client
 	      mmio->list->resp_opcode = afu_resp_opcode;  //save this to send back to libocxl/client

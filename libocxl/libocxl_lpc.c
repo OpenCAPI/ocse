@@ -177,9 +177,9 @@ ocxl_err ocxl_lpc_write(ocxl_afu_h afu, uint64_t offset, uint8_t *val, uint64_t 
 
         // check address alignment against size
 	if ( offset & (size - 1) ) {
-	      warn_msg("afu lpc address alignment not valid");
-	      errno = EINVAL;
-	      return -1;
+	      warn_msg("ocxl_lpc_write: afu lpc address offset is not size aligned");
+	      /* errno = EINVAL; */
+	      /* return -1; */
 	  }
 
         debug_msg("ocxl_lpc_write: legal alignment");
@@ -228,7 +228,7 @@ ocxl_err ocxl_lpc_write_be(ocxl_afu_h afu, uint64_t offset, uint8_t *val, uint64
 
         // check address alignment against size
 	if ( offset & 0x3F ) {
-	      warn_msg("afu lpc address alignment not valid");
+	      warn_msg("ocxl_lpc_write_be: afu lpc address offset is not 64 byte aligned");
 	      errno = EINVAL;
 	      return -1;
 	  }
@@ -308,9 +308,9 @@ ocxl_err ocxl_lpc_read(ocxl_afu_h afu, uint64_t offset, uint8_t *out, uint64_t s
 
         // check address alignment against size
 	if ( offset & (size - 1) ) {
-	      warn_msg("afu lpc address alignment not valid");
-	      errno = EINVAL;
-	      return -1;
+	      warn_msg("ocxl_lpc_read: afu lpc address offset is not size aligned");
+	      /* errno = EINVAL; */
+	      /* return -1; */
 	  }
 
         debug_msg("ocxl_lpc_read: legal alignment");

@@ -279,9 +279,9 @@
 /* Create one of these structures to interface to an AFU model and use the functions below to manipulate it */
 
 /* *INDENT-OFF* */
-struct RDATA_PKT {
-  uint8_t rdata[64];
-  struct RDATA_PKT *_next;
+struct DATA_PKT {
+  uint8_t data[64];
+  struct DATA_PKT *_next;
 };
 
 struct AFU_EVENT {
@@ -354,26 +354,32 @@ struct AFU_EVENT {
   // CAPP to AP (host to afu) data responses (generally to ap/capp read commands)
   uint8_t tlx_afu_resp_data_valid;         /* 1 bit response data valid */
   unsigned char tlx_afu_resp_data[256];    /* upto 256 B of data may come back with a response - we should maybe make sure this is little endian order */
-                                           /* we don't send this directly on...   */
+                                           /* we don't send this directly on tlx interface.  it is buffered for later distribution.   */
   uint8_t tlx_afu_resp_data_bdi;           /* 1 bit bad data indicator */
   uint8_t afu_tlx_resp_rd_req;             /* 1 bit response to a read request */
   uint8_t afu_tlx_resp_rd_cnt;             /* 3 bit encoded read count */
 
   // response data fifo to buffer responses for later resp_rd_req
-  struct RDATA_PKT *rdata_head;
-  struct RDATA_PKT *rdata_tail;
+  struct DATA_PKT *rdata_head;
+  struct DATA_PKT *rdata_tail;
   uint32_t rdata_rd_cnt;
 
   // TLX to AFU command DATA Interface (table 6)
   // CAPP to AP (host to afu) data (generally to capp/ap write commands)
   uint8_t tlx_afu_cmd_data_valid;          /* 1 bit command from host valid */
-  unsigned char tlx_afu_cmd_data_bus[64];  /* 512 bit (64 byte) command data - we should maybe make sure this is little endian order */
+  unsigned char tlx_afu_cmd_data_bus[256];  /* upto 256 B of data may come with a command - we should maybe make sure this is little endian order */
+                                           /* we don't send this directly on tlx interface.  it is buffered for later distribution.   */
   uint8_t tlx_afu_cmd_data_bdi;            /* 1 bit bad data indicator */
   uint8_t afu_tlx_cmd_rd_req;              /* 1 bit read request */
   uint8_t afu_tlx_cmd_rd_cnt;              /* 3 bit encoded read count */
   uint8_t tlx_cfg_cmd_data_valid;          /* 1 bit config command data from host valid */
   uint8_t tlx_cfg_cmd_data_bdi;            /* 1 bit bad config data indicator */
   unsigned char tlx_cfg_cmd_data_bus[4];  /* 32 bit (4 byte) config cmd data  */
+
+  // command data fifo to buffer responses for later cmd_rd_req
+  struct DATA_PKT *cdata_head;
+  struct DATA_PKT *cdata_tail;
+  uint32_t cdata_rd_cnt;
 
   // TLX Framer Command Interface (table 7)
   uint8_t tlx_afu_resp_credit;             /* 1 bit tlx returning a response credit to the afu */
