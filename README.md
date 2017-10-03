@@ -12,12 +12,15 @@ mention apache 2.0 license
 sprint i
 
 version 1.0 Known limitations:
-	we've simulated with Cadence NCSim, Xilinx Xsim, Synopsys VCS, and Mentor Graphics Questa
-	we allow up to 16 tlx event simulations (numbered tlx0 to to tlxf in shim_host.dat)
-	ocse performs a subset of the discovery and configuratio process.  
-	     we think it does enough to give you a good idea the configuration is working
-	     feedback is certainly welcome
-	ocxl_afu_open_specific is not supported
-	ocxl_afu_open_by_id is not supported
-	ocxl_afu_use* are not supported
+	- we've simulated with Cadence NCSim, Xilinx Xsim, Synopsys VCS, and Mentor Graphics Questa
+	- we allow up to 16 tlx event simulations (numbered tlx0 to tlxf in shim_host.dat)
+	- ocse performs a subset of the discovery and configuration process.  
+	      - we think it does enough to give you a good idea the configuration is working
+	      - feedback is certainly welcome
+	- ocxl_afu_open_specific is not supported
+	- ocxl_afu_open_by_id is not supported
+	- ocxl_afu_use* are not supported
+	- ocxl_lpc_read and _write require offsets and sizes that are naturally aligned.
+	- the afu is required to send a complete response to a command from the host; that is, no partial responses
+	- ocse always generates a complete response.
 	
