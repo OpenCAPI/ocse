@@ -34,6 +34,7 @@ uint8_t enable_bar = 0;
 uint8_t read_status_resp = 0;
 uint8_t write_status_resp = 0;
 uint32_t write_status_tag;
+uint32_t afu_function = 0;
 
 AFU::AFU (int port, string filename, bool parity, bool jerror):
     descriptor (filename),
@@ -67,7 +68,7 @@ bool
 AFU::afu_is_enabled()
 {
     uint32_t  enable;
-    enable = descriptor.get_vsec_reg(0x50c);
+    enable = descriptor.get_vsec_reg(afu_function+0x50c);
     if(enable & 0x01000000)
 	return true;
     else
@@ -789,13 +790,13 @@ AFU::tlx_afu_config_write()
     uint8_t  resp_code = 0;
     uint8_t  rdata_bad;
     uint8_t  byte_offset, data_size;
-    uint32_t config_data, config_offset, port_data, port_offset, vsec_offset;
+    uint32_t config_offset, port_data, port_offset, vsec_offset;
     uint32_t cmd_pa;
     int rc;
   
     debug_msg("AFU::tlx_afu_config_write");
     resp_capptag = afu_event.tlx_afu_cmd_capptag;
-    cmd_pa = afu_event.tlx_afu_cmd_pa & 0x00000FFC;   
+    cmd_pa = afu_event.tlx_afu_cmd_pa & 0x000FFFFC;   
     resp_dl = 1;
 
     debug_msg("AFU: cmd_pa = 0x%x", cmd_pa);
@@ -812,31 +813,34 @@ AFU::tlx_afu_config_write()
 	
 	// get config write data
 	// set afu_enable_reset to check for enable or reset bit
-	if(cmd_pa == 0x50c) {
+	if((cmd_pa & 0x0FFC) == 0x50c) {
 	    afu_enable_reset = 1;
+	    afu_function = cmd_pa & 0x000F0000;	//afu function number
 	}
 	// 0x40c afu descriptor offset port, 0x410 afu descriptor data port
-   	if(cmd_pa == 0x40c) {	
+   	if((cmd_pa & 0x0FFC) == 0x40c) {	
 	    port_offset = wr_config_data;	// get afu descriptor offset
 	    printf("AFU: port_offset = 0x%x\n", port_offset);
 	    if(port_offset < 0x0FFF) {
 		port_data = descriptor.get_afu_desc_reg(port_offset);	// get afu desc data
 		printf("AFU: afu descriptor data port = 0x%x\n", port_data);
-		descriptor.set_afu_desc_reg(0x410, port_data);		// write afu desc data to read port
+		//descriptor.set_afu_desc_reg(0x410, port_data);		// write afu desc data to read port
+		descriptor.set_vsec_reg((cmd_pa & 0xF0000)+0x410, port_data);
 	    }
 	    else {
 	    	port_data = descriptor.get_port_reg(port_offset);	// get vsec data
-	    	descriptor.set_vsec_reg(0x410, port_data);		// write data to read port
+	    	descriptor.set_vsec_reg((cmd_pa & 0xF0000)+0x410, port_data);		// write data to read port
 	    }
 	    port_offset = port_offset | 0x80000000;		// set bit 31 to write port 0x40c
-	    descriptor.set_vsec_reg(0x40c, port_offset);
-	    debug_msg("AFU: afu descriptor data port 0x410 = 0x%x", descriptor.get_vsec_reg(0x410));
-	    debug_msg("AFU: afu descriptor offset port 0x40c = 0x%x", descriptor.get_vsec_reg(0x40c));
+	    descriptor.set_vsec_reg((cmd_pa & 0xF0000)+0x40c, port_offset);
+	    debug_msg("AFU: afu descriptor data port 0x410 = 0x%x", descriptor.get_vsec_reg((cmd_pa & 0xF0000)+0x410));
+	    debug_msg("AFU: afu descriptor offset port 0x40c = 0x%x", descriptor.get_vsec_reg((cmd_pa & 0xF0000)+0x40c));
 	}
-	else if(cmd_pa >= 0x10 && cmd_pa <= 0x24) {
+	// write to BAR registers
+	else if(((cmd_pa & 0x0FFC) >= 0x10) && ((cmd_pa & 0x0FFC) <= 0x24)) {
 	    printf("AFU: config BAR\n");
-	    if(config_data != 0xFFFFFFFF) {
-	    	switch(cmd_pa) {
+	    if(wr_config_data != 0xFFFFFFFF) {
+	    	switch(cmd_pa & 0x0FFC) {
 		    case 0x10:
 			enable_bar = 0;
 			bar_l0 = wr_config_data;
@@ -869,6 +873,7 @@ AFU::tlx_afu_config_write()
 		}	 
 	    }   
 	}
+	// write to vsec registers
 	else {	// vsec config write 
 	    vsec_offset = cmd_pa & 0x000FFFFC;
 	    descriptor.set_vsec_reg(vsec_offset, wr_config_data);	    
