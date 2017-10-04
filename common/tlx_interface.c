@@ -527,10 +527,10 @@ int tlx_afu_send_cmd(struct AFU_EVENT *event,
 
 	debug_msg( "tlx_afu_send_cmd: afu_tlx_cmd_credits_available = %d", event->afu_tlx_cmd_credits_available );
 
-	if (event->afu_tlx_cmd_credits_available == 0) {
-	        warn_msg("      no command credits available");
-		return AFU_TLX_NO_CREDITS;
-	}
+	/* if (event->afu_tlx_cmd_credits_available == 0) { */
+	/*         warn_msg("      no command credits available"); */
+	/* 	return AFU_TLX_NO_CREDITS; */
+	/* } */
   	if ((tlx_cmd_opcode == TLX_CMD_CONFIG_READ) && (tlx_cmd_opcode == TLX_CMD_CONFIG_WRITE)) {
 		//printf(" TRYING TO SEND CONFIG CMD w/send cmd- opcode = 0x%x \n", tlx_cmd_opcode);
 		return (CFG_TLX_NOT_CFG_CMD);
@@ -636,6 +636,14 @@ int tlx_afu_send_cmd_and_data( struct AFU_EVENT *event,
 		}
 		memcpy(event->tlx_afu_cmd_data_bus, cmd_data, size);
 		event->tlx_afu_cmd_data_byte_cnt = size;
+#ifdef DEBUG
+		printf("tlx_afu_send_cmd_and_data: data = 0x" );
+		int i;
+		for ( i=0; i<size; i++ ) {
+		  printf( "%02x", event->tlx_afu_cmd_data_bus[i] );
+		}
+		printf( "\n" );
+#endif
 #ifdef TLX4
 		event->tlx_afu_cmd_flag = cmd_flag;
 		event->tlx_afu_cmd_os = cmd_os;

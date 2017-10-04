@@ -230,8 +230,7 @@ static void tlx_control(void)
 	}
 	// Error case
 	if (rc < 0) {
-	  printf("%08lld: ", (long long) c_sim_time);
-	  printf("Socket closed: Ending Simulation.");
+	  printf("%08lld: Socket closed: Ending Simulation.\n", (long long) c_sim_time);
 	  c_sim_error = 1;
 	}
 }
@@ -734,12 +733,12 @@ void tlx_bfm(
 	  } else {
 	      new_byte_cnt = decode_dl(event.tlx_afu_resp_dl);
 	  }
-	  for ( i = 0; i < new_byte_cnt; i++ ) {  
+	  for ( i = 0; i < new_byte_cnt; i = i + 64 ) {  
 	      new_rdata_pkt = (struct DATA_PKT *)malloc( sizeof( struct DATA_PKT ) );
 	      // copy data from response event data to rdata_pkt
 	      new_rdata_pkt->_next = NULL;
 	      for ( j=0; j<64; j++ ) {
-		new_rdata_pkt->data[j] = event.tlx_afu_resp_data[(i*64)+j];
+		new_rdata_pkt->data[j] = event.tlx_afu_resp_data[i+j];
 	      }
 	      // put the packet at the tail of the fifo
 	      if ( event.rdata_head == NULL ) {
@@ -804,7 +803,7 @@ void tlx_bfm(
         }
         else
         {
-          setDpiSignal32(tlx_afu_cmd_opcode_top, event.tlx_afu_cmd_opcode, 8);
+	  setDpiSignal32(tlx_afu_cmd_opcode_top, event.tlx_afu_cmd_opcode, 8);
           setDpiSignal32(tlx_afu_cmd_capptag_top, event.tlx_afu_cmd_capptag, 16);
           setDpiSignal32(tlx_afu_cmd_dl_top, event.tlx_afu_cmd_dl, 2);
           setDpiSignal32(tlx_afu_cmd_pl_top, event.tlx_afu_cmd_pl, 3);
@@ -818,8 +817,7 @@ void tlx_bfm(
 #endif
           *tlx_afu_cmd_valid_top = 1;
           clk_afu_cmd_val = CLOCK_EDGE_DELAY;
-          printf("%08lld: ", (long long) c_sim_time);
-          printf(" The TLX-AFU Cmd with OPCODE=0x%x \n",  event.tlx_afu_cmd_opcode);
+          debug_msg("%08lld: The TLX-AFU Cmd OPCODE=0x%x", (long long) c_sim_time, event.tlx_afu_cmd_opcode);
           event.tlx_afu_cmd_valid = 0;
 	  // if data is valid, pull and buffer it to send out later on a cmd_rd_req
 	  if(event.tlx_afu_cmd_data_valid) {
@@ -835,12 +833,12 @@ void tlx_bfm(
 	    } else {
 	      new_byte_cnt = decode_dl(event.tlx_afu_cmd_dl);
 	    }
-	    for ( i = 0; i < new_byte_cnt; i++ ) {  
+	    for ( i = 0; i < new_byte_cnt; i = i + 64 ) {  
 	      new_cdata_pkt = (struct DATA_PKT *)malloc( sizeof( struct DATA_PKT ) );
 	      // copy data from response event data to rdata_pkt
 	      new_cdata_pkt->_next = NULL;
 	      for ( j=0; j<64; j++ ) {
-		new_cdata_pkt->data[j] = event.tlx_afu_cmd_data_bus[(i*64)+j];
+		new_cdata_pkt->data[j] = event.tlx_afu_cmd_data_bus[i+j];
 	      }
 	      // put the packet at the tail of the fifo
 	      if ( event.cdata_head == NULL ) {
@@ -911,8 +909,8 @@ void tlx_bfm(
       /* } */
       if(event.cdata_rd_cnt > 0)
       {
-	// if event.cdata_rd_cnt > 0, there is response data to drive to the afu 
-	//    put the rdata at rdata_head on the tlx_afu_resp_data_bus and set tlx_afu_resp_data_valid
+	// if event.cdata_rd_cnt > 0, there is command data to drive to the afu 
+	//    put the data at cdata_head on the tlx_afu_cmd_data_bus and set tlx_afu_cmd_data_valid
 	//    decrement rdata_rd_cnt and free the head of the fifo
         setMyCacheLine( tlx_afu_cmd_data_bus_top, event.cdata_head->data );
         *tlx_afu_cmd_data_valid_top = 1;
