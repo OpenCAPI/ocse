@@ -363,6 +363,7 @@ void tlx_bfm(
   int i = 0;
   int j = 0;
   int rc= 0;
+  int new_byte_cnt;
 
   c_reset			= reset & 0x1;
 
@@ -728,7 +729,12 @@ void tlx_bfm(
 	  // event->tlx_afu_resp_data has all the data
 	  // use dl to create dl 64 B enties in a fifo linked list rdata_head, rdata_tail, rdata_rd_cnt
 	  // rdata_pkt contain _next, and 64 B of rdata
-	  for ( i = 0; i < decode_dl(event.tlx_afu_resp_dl); i++ ) {  
+	  if (event.tlx_afu_resp_dl == 0) {
+	      new_byte_cnt = 64;
+	  } else {
+	      new_byte_cnt = decode_dl(event.tlx_afu_resp_dl);
+	  }
+	  for ( i = 0; i < new_byte_cnt; i++ ) {  
 	      new_rdata_pkt = (struct DATA_PKT *)malloc( sizeof( struct DATA_PKT ) );
 	      // copy data from response event data to rdata_pkt
 	      new_rdata_pkt->_next = NULL;
@@ -824,7 +830,12 @@ void tlx_bfm(
 	    // event->tlx_afu_resp_data has all the data
 	    // use dl to create dl 64 B enties in a fifo linked list rdata_head, rdata_tail, rdata_rd_cnt
 	    // rdata_pkt contain _next, and 64 B of rdata
-	    for ( i = 0; i < decode_dl(event.tlx_afu_cmd_dl); i++ ) {  
+	    if (event.tlx_afu_cmd_dl == 0) {
+	      new_byte_cnt = 64;
+	    } else {
+	      new_byte_cnt = decode_dl(event.tlx_afu_cmd_dl);
+	    }
+	    for ( i = 0; i < new_byte_cnt; i++ ) {  
 	      new_cdata_pkt = (struct DATA_PKT *)malloc( sizeof( struct DATA_PKT ) );
 	      // copy data from response event data to rdata_pkt
 	      new_cdata_pkt->_next = NULL;

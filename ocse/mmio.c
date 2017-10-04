@@ -726,7 +726,7 @@ void send_mmio(struct mmio *mmio)
 					event->rnw, event->dw, event->cmd_PA);
 				event->state = OCSE_PENDING;
 			}
-		} else { //for config writes and we ALWAYS send 32BYTES of data
+		} else { //for config writes and we ALWAYS send 32 bits of data
 			// restricted by spec to pL of 1, 2, or 4 bytes HOWEVER
 			// We now have to offset the data into a 32B buffer and send it
 			memcpy(tdata_bus, null_buff, 32); //not sure if we always have to do this, but better safe than...
@@ -869,6 +869,10 @@ void send_mmio(struct mmio *mmio)
 		  /*   } */
 		  /* } else { // part 1 - send the command */
 		    if (cmd_byte_cnt < 64) { // partial
+		      uint8_t * dptr = tdata_bus;
+		      offset = event->cmd_PA & 0x000000000000003F ;  // this works for addresses >= 64 too */
+		      memcpy(tdata_bus, null_buff, 64); // clear tdata_bus
+		      memcpy( dptr+offset, event->data, cmd_byte_cnt);  // copy the data to the proper offset in tdata buffer */
 		      if (tlx_afu_send_cmd_and_data( mmio->afu_event,
 						     TLX_CMD_PR_WR_MEM, 
 						     0xbead, 
@@ -879,19 +883,19 @@ void send_mmio(struct mmio *mmio)
 						     0, 
 						     event->cmd_PA,
 						     0, // always good data for now
-						     event->data ) == TLX_SUCCESS) {
+						     dptr ) == TLX_SUCCESS) {
 			event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
 		      }
 		    } else { // full
 		      if (event->be_valid == 0) {
 			if (tlx_afu_send_cmd_and_data( mmio->afu_event,
-						       TLX_CMD_WRITE_MEM, 
-						       0xdaeb, 
-						       event->cmd_dL, 
-						       event->cmd_pL, 
-						       0, 
-						       0, 
-						       0, 
+						       TLX_CMD_WRITE_MEM, // opcode
+						       0xdaeb,            // capp tag
+						       event->cmd_dL,     // dL
+						       event->cmd_pL,     // pL
+						       0,                 // be
+						       0,                 // end
+						       0,                 // t
 						       event->cmd_PA,
 						       0, // always good data for now
 						       event->data ) == TLX_SUCCESS) {

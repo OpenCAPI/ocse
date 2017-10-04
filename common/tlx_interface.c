@@ -629,7 +629,11 @@ int tlx_afu_send_cmd_and_data( struct AFU_EVENT *event,
 		event->tlx_afu_cmd_t = cmd_t;
 		event->tlx_afu_cmd_pa = cmd_pa;
 		event->tlx_afu_cmd_data_bdi = cmd_data_bdi;
-		size = dl_to_size( cmd_dl );
+		if (cmd_dl != 0) {
+		  size = dl_to_size( cmd_dl ); // NO - fix this
+		} else {
+		  size = 64;
+		}
 		memcpy(event->tlx_afu_cmd_data_bus, cmd_data, size);
 		event->tlx_afu_cmd_data_byte_cnt = size;
 #ifdef TLX4

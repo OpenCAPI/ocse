@@ -2500,12 +2500,43 @@ ocxl_err ocxl_afu_open( const char *name, ocxl_afu_h *afu ) {
 
 ocxl_err ocxl_afu_open_specific( const char *name, const char *physical_function, int16_t afu_index, ocxl_afu_h *afu ) {
   // real code builds the device path name and calls ocxl_afu_open_by_dev
-        warn_msg( "ocxl_afu_open_specific is not yet supported" );
-	return OCXL_NO_DEV;
+  // we can call open_dev because physical function + afu_index contains the information we really use there.
+	int rc;
+	uint16_t afu_map;
+	int fd;
+	struct ocxl_afu *my_afu;
+
+	// _alloc_afu
+	rc = _alloc_afu( (ocxl_afu_h *)&my_afu );
+	if (  rc != 0 ) return rc;
+
+	// _connect
+	if ( _ocse_connect(&afu_map, &fd) < 0 ) return OCXL_NO_DEV;
+
+	// parse physical function into domain, bus, dev, and fcn
+        uint16_t domain;
+	uint8_t bus, device, function;
+        int found = sscanf( physical_function, "%hu:%hhu:%hhu.%hhu", &domain, &bus, &device, &function );
+        if (found != 4) {
+	  warn_msg( "physical function could not be parsed into domain, bus, device, and function" );
+	  return OCXL_NO_DEV;
+        }
+	
+	// _query_afu
+	rc = _query_afu( my_afu, fd, bus, device, function, afu_index );
+	if (  rc != 0 ) return rc;
+
+	// open the "afu"
+	rc = _open_afu( my_afu );
+	if (  rc != 0 ) return rc;
+
+	*afu = ( ocxl_afu_h )my_afu;
+	return OCXL_OK;
 }
 
 ocxl_err ocxl_afu_open_by_id( const char *name, uint8_t card_index, int16_t afu_index, ocxl_afu_h *afu ) {
   // real code builds the device path name and calls ocxl_afu_open_by_dev
+  // need a find_nth routine to find the card index for that name/afu_id
         warn_msg( "ocxl_afu_open_by_id is not yet supported" );
 	return OCXL_NO_DEV;
 }
