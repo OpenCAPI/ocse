@@ -218,11 +218,12 @@ Descriptor::get_vsec_reg(uint32_t vsec_offset)
 {
     uint32_t vsec_data, offset;
 
-    offset = vsec_offset & 0x0000FFFC;
-    if(offset == 0x410) {	// read afu desc reg
-	vsec_data = afu_desc[offset];
-    }
-    else if(offset < 0x1000) {	// read vsec reg
+    offset = vsec_offset;
+//    if((offset & 0x0000FFFC) == 0x410) {	// read afu desc reg
+//	debug_msg("Descriptor: get afu_desc");
+//	vsec_data = afu_desc[offset];
+//    }
+    if(offset < 0x1000) {	// read vsec reg
     	vsec_data = vsec[offset];
     }
     else if((offset >= 0x10000) && (offset < 0x10700)) {
@@ -234,7 +235,7 @@ Descriptor::get_vsec_reg(uint32_t vsec_offset)
 	vsec_data = vsec2[offset];
     }
     debug_msg("Descriptor:get_vsec_reg");
-    debug_msg("offset = 0x%x data = 0x%x", offset, vsec_data);
+    debug_msg("offset = 0x%08x data = 0x%x", offset, vsec_data);
     //else if (offset >= 0x1000) {
 //	vsec_data = port[offset];
 //    }
@@ -245,22 +246,23 @@ Descriptor::get_vsec_reg(uint32_t vsec_offset)
 void
 Descriptor::set_vsec_reg(uint32_t offset, uint32_t vsec_data)
 {
+    debug_msg("Descriptor: set_vsec_reg");
+    debug_msg("Descriptor: offset = 0x%x data = 0x%x", offset, vsec_data);
     if(offset < 0x1000) {	// write to vsec reg
         vsec[offset] = vsec_data;
     } 
 //    else if(vsec_offset > 0x1000) {
 //	set_port_reg(vsec_offset, vsec_data);
 //    }
-    else if((offset <= 0x10000) && (offset < 0x10700)) {
+    else if((offset >= 0x10000) && (offset < 0x10700)) {
 	offset = ~0x00010000 & offset;
+	printf("Descriptor: offset = 0x%x\n", offset);
 	vsec1[offset] = vsec_data;
     }
     else if((offset <= 0x20000) && (offset < 0x20700)) {
 	offset = ~0x00020000 & offset;
 	vsec2[offset] = vsec_data;
-    }
-    debug_msg("Descriptor:set_vsec_reg");
-    debug_msg("offset = 0x%x data = 0x%x", offset, vsec_data); 
+    } 
 }
 
 uint64_t
