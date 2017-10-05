@@ -728,7 +728,7 @@ void send_mmio(struct mmio *mmio)
 		// Attempt to send config_rd or config_wr to AFU
 		if (event->rnw) { //for config reads, no data to send
 			if ( tlx_afu_send_cfg_cmd_and_data(mmio->afu_event,
-			TLX_CMD_CONFIG_READ, 0xdead, 0, 2, 0, 0, 0, event->cmd_PA,
+			TLX_CMD_CONFIG_READ, 0xdead, 2, 0, event->cmd_PA,
 			0,0) == TLX_SUCCESS) {
 				debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type,
 			  	 	event->dw ? 64 : 32, event->cmd_PA);
@@ -744,7 +744,7 @@ void send_mmio(struct mmio *mmio)
 			 offset = event->cmd_PA & 0x0000000000000003 ;
 			memcpy(dptr +offset, &(event->cmd_data), 4);
 			if ( tlx_afu_send_cfg_cmd_and_data(mmio->afu_event,
-				TLX_CMD_CONFIG_WRITE, 0xbeef, 0, 2, 0, 0, 0, event->cmd_PA,
+				TLX_CMD_CONFIG_WRITE, 0xbeef, 2, 0, event->cmd_PA,
 				0,dptr) == TLX_SUCCESS) {
 						sprintf(data, "%08" PRIx32, (uint32_t) event->cmd_data);
 					debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s offset=0x%x",
@@ -829,14 +829,14 @@ void send_mmio(struct mmio *mmio)
 		if (event->rnw) { // read
 		  if (cmd_byte_cnt < 64) { // partial
 		    if (tlx_afu_send_cmd(mmio->afu_event,
-					 TLX_CMD_PR_RD_MEM, 0xcafe, event->cmd_dL, event->cmd_pL, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
+					 TLX_CMD_PR_RD_MEM, 0xcafe, event->cmd_dL, event->cmd_pL, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
 		      debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type, event->dw ? 64 : 32, event->cmd_PA);
 		      debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw, event->cmd_PA);
 		      event->state = OCSE_PENDING;
 		    }
 		  } else { // full
 		    if (tlx_afu_send_cmd(mmio->afu_event,
-					 TLX_CMD_RD_MEM, 0xefac, event->cmd_dL, event->cmd_pL, 0, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
+					 TLX_CMD_RD_MEM, 0xefac, event->cmd_dL, event->cmd_pL, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
 		      debug_msg("%s:%s READ size=%d offset=0x%05x", mmio->afu_name, type, cmd_byte_cnt, event->cmd_PA);
 		      debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw, event->cmd_PA);
 		      event->state = OCSE_PENDING;
@@ -898,7 +898,6 @@ void send_mmio(struct mmio *mmio)
 						     event->cmd_pL, 
 						     0, 
 						     0, 
-						     0, 
 						     event->cmd_PA,
 						     0, // always good data for now
 						     tdata_bus ) == TLX_SUCCESS) {
@@ -921,7 +920,6 @@ void send_mmio(struct mmio *mmio)
 						       event->cmd_pL,     // pL
 						       0,                 // be
 						       0,                 // end
-						       0,                 // t
 						       event->cmd_PA,
 						       0, // always good data for now
 						       tdata_bus ) == TLX_SUCCESS) {
@@ -934,7 +932,6 @@ void send_mmio(struct mmio *mmio)
 						       event->cmd_dL, 
 						       event->cmd_pL, 
 						       event->be, 
-						       0, 
 						       0, 
 						       event->cmd_PA,
 						       0, // always good data for now
@@ -1123,12 +1120,12 @@ void handle_ap_resp(struct mmio *mmio, uint32_t parity_enabled)
 	if (mmio->list->cfg) {
 		if (mmio->list->rnw) {
 			rc = afu_tlx_read_cfg_resp_and_data (mmio->afu_event,
-							     &afu_resp_opcode, &resp_dl, &resp_capptag, 0xdead, &resp_dp,
+							     &afu_resp_opcode, &resp_capptag, 0xdead,
 							     &resp_data_is_valid, &resp_code, rdata_bus, &rdata_bad);
 			// debug_msg( "handle_ap_resp: rc from afu_tlx_read_cfg_resp_and_data = %d", rc );
 		} else {
 			rc = afu_tlx_read_cfg_resp_and_data (mmio->afu_event,
-							     &afu_resp_opcode, &resp_dl,&resp_capptag, 0xbeef, &resp_dp,
+							     &afu_resp_opcode, &resp_capptag, 0xbeef,
 							     &resp_data_is_valid, &resp_code, 0, 0);
 			// debug_msg( "handle_ap_resp: rc from afu_tlx_read_cfg_resp_and_data (no data expected) = %d", rc );
 		}
@@ -1244,11 +1241,11 @@ void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
 		if (mmio->list->rnw) {
 			rdata = cfg_rdata_bus;
 			rc = afu_tlx_read_cfg_resp_and_data (mmio->afu_event,
-							     &afu_resp_opcode, &resp_dl,&resp_capptag, 0xdead, &resp_dp,
+							     &afu_resp_opcode, &resp_capptag, 0xdead, 
 							     &resp_data_is_valid, &resp_code, rdata_bus, &rdata_bad);
 		} else {
 			rc = afu_tlx_read_cfg_resp_and_data (mmio->afu_event,
-							     &afu_resp_opcode, &resp_dl,&resp_capptag, 0xbeef, &resp_dp,
+							     &afu_resp_opcode, &resp_capptag, 0xbeef,
 							     &resp_data_is_valid, &resp_code, 0, 0);
 		}
 
