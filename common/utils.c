@@ -453,7 +453,7 @@ uint8_t size_to_dl (int16_t size)
 }
 
 // dl into a number...
-// map the dl encode into a number of chunks
+// map the dl encode into a number of 64 byte chunks (or lines) that dl represents
 int32_t decode_dl (uint8_t dl)
 {
   uint32_t chunks = 0;

@@ -362,7 +362,7 @@ void tlx_bfm(
   int i = 0;
   int j = 0;
   int rc= 0;
-  int new_byte_cnt;
+  int new_line_cnt;
 
   c_reset			= reset & 0x1;
 
@@ -729,17 +729,24 @@ void tlx_bfm(
 	  // use dl to create dl 64 B enties in a fifo linked list rdata_head, rdata_tail, rdata_rd_cnt
 	  // rdata_pkt contain _next, and 64 B of rdata
 	  if (event.tlx_afu_resp_dl == 0) {
-	      new_byte_cnt = 64;
+	      new_line_cnt = 1;
 	  } else {
-	      new_byte_cnt = decode_dl(event.tlx_afu_resp_dl);
+	      new_line_cnt = decode_dl(event.tlx_afu_resp_dl);
 	  }
-	  for ( i = 0; i < new_byte_cnt; i = i + 64 ) {  
+	  debug_msg( "resp new_line_cnt = %d", new_line_cnt );
+	  for ( i = 0; i < new_line_cnt; i++ ) {  
 	      new_rdata_pkt = (struct DATA_PKT *)malloc( sizeof( struct DATA_PKT ) );
 	      // copy data from response event data to rdata_pkt
 	      new_rdata_pkt->_next = NULL;
 	      for ( j=0; j<64; j++ ) {
-		new_rdata_pkt->data[j] = event.tlx_afu_resp_data[i+j];
+		new_rdata_pkt->data[j] = event.tlx_afu_resp_data[(64*i)+j];
+#ifdef DEBUG
+		printf( "%02x", event.tlx_afu_resp_data[(64*i)+j] );
+#endif	      
 	      }
+#ifdef DEBUG
+	      printf( "\n" );
+#endif	      
 	      // put the packet at the tail of the fifo
 	      if ( event.rdata_head == NULL ) {
 		event.rdata_head = new_rdata_pkt;
@@ -826,20 +833,27 @@ void tlx_bfm(
 	    // the afu will issue afu_tlx_resp_rd_req later to tell us to start to pump the data out
 	    // imbed the check for tlx_afu_cmd_data_valid in here to grab the data, if any.
 	    // event->tlx_afu_resp_data has all the data
-	    // use dl to create dl 64 B enties in a fifo linked list rdata_head, rdata_tail, rdata_rd_cnt
-	    // rdata_pkt contain _next, and 64 B of rdata
+	    // use dl to create dl 64 B enties in a fifo linked list cdata_head, cdata_tail, cdata_rd_cnt
+	    // cdata_pkt contain _next, and 64 B of cdata
 	    if (event.tlx_afu_cmd_dl == 0) {
-	      new_byte_cnt = 64;
+	      new_line_cnt = 1;
 	    } else {
-	      new_byte_cnt = decode_dl(event.tlx_afu_cmd_dl);
+	      new_line_cnt = decode_dl(event.tlx_afu_cmd_dl);
 	    }
-	    for ( i = 0; i < new_byte_cnt; i = i + 64 ) {  
+	    debug_msg( "cmd new_line_cnt = %d", new_line_cnt );
+	    for ( i = 0; i < new_line_cnt; i++ ) {  
 	      new_cdata_pkt = (struct DATA_PKT *)malloc( sizeof( struct DATA_PKT ) );
 	      // copy data from response event data to rdata_pkt
 	      new_cdata_pkt->_next = NULL;
 	      for ( j=0; j<64; j++ ) {
-		new_cdata_pkt->data[j] = event.tlx_afu_cmd_data_bus[i+j];
+		new_cdata_pkt->data[j] = event.tlx_afu_cmd_data_bus[(64*i)+j];
+#ifdef DEBUG
+		printf( "%02x", event.tlx_afu_cmd_data_bus[(64*i)+j] );
+#endif	      
 	      }
+#ifdef DEBUG
+	      printf( "\n" );
+#endif	      
 	      // put the packet at the tail of the fifo
 	      if ( event.cdata_head == NULL ) {
 		event.cdata_head = new_cdata_pkt;
@@ -911,7 +925,7 @@ void tlx_bfm(
       {
 	// if event.cdata_rd_cnt > 0, there is command data to drive to the afu 
 	//    put the data at cdata_head on the tlx_afu_cmd_data_bus and set tlx_afu_cmd_data_valid
-	//    decrement rdata_rd_cnt and free the head of the fifo
+	//    decrement cdata_rd_cnt and free the head of the fifo
         setMyCacheLine( tlx_afu_cmd_data_bus_top, event.cdata_head->data );
         *tlx_afu_cmd_data_valid_top = 1;
         *tlx_afu_cmd_data_bdi_top = (event.tlx_afu_cmd_data_bdi) & 0x1;
