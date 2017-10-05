@@ -94,6 +94,11 @@ uint8_t		c_afu_tlx_rdata_bdi;
 
 uint8_t		c_cfg0_tlx_resp_valid;
 uint8_t		c_cfg0_tlx_rdata_offset;
+uint8_t		c_cfg0_tlx_resp_opcode;
+uint16_t	c_cfg0_tlx_resp_capptag;
+uint8_t		c_cfg0_tlx_resp_code;
+uint8_t		c_cfg0_tlx_rdata_bus[CACHELINE_BYTES];
+uint8_t		c_cfg0_tlx_rdata_bdi;
 
 uint8_t		c_afu_tlx_cmd_rd_req_top;
 uint8_t		c_afu_tlx_cmd_rd_cnt_top;
@@ -102,6 +107,8 @@ uint8_t		c_afu_tlx_resp_rd_req_top;
 uint8_t		c_afu_tlx_resp_rd_cnt_top;
 uint32_t	c_tlx_afu_cmd_data_del;
 uint8_t		c_tlx_afu_cmd_bdi_del;
+uint32_t	c_tlx_cfg0_data_del;
+uint8_t		c_tlx_cfg0_data_bdi_del;
 uint8_t		c_cfg_resp_ack_pending = 0;
 //
 //
@@ -568,17 +575,17 @@ void tlx_bfm(
       }
       if(c_cfg0_tlx_resp_valid && (c_cfg_resp_ack_pending == 0))
       {
-        c_afu_tlx_resp_opcode	= (cfg0_tlx_resp_opcode_top->aval) & 0xFF;
+        c_cfg0_tlx_resp_opcode	= (cfg0_tlx_resp_opcode_top->aval) & 0xFF;
         invalidVal		+= (cfg0_tlx_resp_opcode_top->bval) & 0xFF;
-        c_afu_tlx_resp_dl	= 0;
-        c_afu_tlx_resp_capptag	= (cfg0_tlx_resp_capptag_top->aval) & 0xFFFF;
+        //c_afu_tlx_resp_dl	= 0;
+        c_cfg0_tlx_resp_capptag	= (cfg0_tlx_resp_capptag_top->aval) & 0xFFFF;
         invalidVal		+= (cfg0_tlx_resp_capptag_top->bval) & 0xFFFF;
-        c_afu_tlx_resp_dp	= 0;
-        c_afu_tlx_resp_code	= (cfg0_tlx_resp_code_top->aval) & 0xF;
+        //c_afu_tlx_resp_dp	= 0;
+        c_cfg0_tlx_resp_code	= (cfg0_tlx_resp_code_top->aval) & 0xF;
         invalidVal		+= (cfg0_tlx_resp_code_top->bval) & 0xF;
         c_cfg0_tlx_rdata_offset	= (cfg0_tlx_rdata_offset_top->aval) & 0xF;
         invalidVal		+= (cfg0_tlx_rdata_offset_top->bval) & 0xF;
-        invalidVal		+= getMyByteArray(cfg0_tlx_rdata_bus_top, 4, &c_afu_tlx_rdata_bus[0]);
+        invalidVal		+= getMyByteArray(cfg0_tlx_rdata_bus_top, 4, &c_cfg0_tlx_rdata_bus[0]);
 
 	//printf( "lgt:cfg0_tlx_resp_valid: received data from cfg.  raw data=0x" );
 	//for ( i=0; i<4; i++ ) {
@@ -586,7 +593,7 @@ void tlx_bfm(
 	//}
 	//printf( "\n" );
 
-        c_afu_tlx_rdata_bdi  	= (cfg0_tlx_rdata_bdi_top & 0x2) ? 0 : (cfg0_tlx_rdata_bdi_top & 0x1);
+        c_cfg0_tlx_rdata_bdi  	= (cfg0_tlx_rdata_bdi_top & 0x2) ? 0 : (cfg0_tlx_rdata_bdi_top & 0x1);
         invalidVal		+= cfg0_tlx_rdata_bdi_top & 0x2;
       }
       else if(!c_cfg0_tlx_resp_valid )
@@ -632,9 +639,9 @@ void tlx_bfm(
       {
 	c_cfg_resp_ack_pending = 1;
         int resp_code = afu_cfg_send_resp_and_data(&event,
-        		c_afu_tlx_resp_opcode, c_afu_tlx_resp_dl, c_afu_tlx_resp_capptag,
-        		c_afu_tlx_resp_dp, c_afu_tlx_resp_code, 4, c_cfg0_tlx_resp_valid,
-        		c_afu_tlx_rdata_bus, c_afu_tlx_rdata_bdi
+        		c_cfg0_tlx_resp_opcode, c_cfg0_tlx_resp_capptag,
+        		c_cfg0_tlx_resp_code, 4, c_cfg0_tlx_resp_valid,
+        		c_cfg0_tlx_rdata_bus, c_cfg0_tlx_rdata_bdi
         );
         printf("%08lld: ", (long long) c_sim_time);
         printf(" The AFU-TLX Command Response Data transferred thru method - OPCODE = 0x%02x the method's resp code is 0x%02x \n",  c_afu_tlx_resp_opcode, resp_code);
@@ -766,51 +773,37 @@ void tlx_bfm(
       }
 
       // try moving the config data drive to just after the command drive (from here)
-      if(c_config_cmd_data_valid)
+      if(event.tlx_cfg_valid)
       {
-        setDpiSignal32(tlx_cfg0_data_bus_top, c_tlx_afu_cmd_data_del, 32); // lgt might need to delay these in top.v
-	*tlx_cfg0_data_bdi_top = c_tlx_afu_cmd_bdi_del;
-        c_config_cmd_data_valid = 0;
-      }
-      else
-      {
-        setDpiSignal32(tlx_cfg0_data_bus_top, 0x0, 32); 
-        *tlx_cfg0_data_bdi_top = 0;
-      }
-      if(event.tlx_afu_cmd_valid)
-      {
-        if ( ( event.tlx_afu_cmd_opcode == 0xE0 ) || ( event.tlx_afu_cmd_opcode == 0xE1 ) )		// if the command is a config_read (0xE0) or a config_write, the tlx uses a dfferent interface to send the command to the AFU
-        {
-	  printf( "lgt:tlx_afu_cmd_valid:config read or config write.  opcode=0x%02x\n", event.tlx_afu_cmd_opcode );
-          setDpiSignal32(tlx_cfg0_opcode_top, event.tlx_afu_cmd_opcode, 8);
-          setDpiSignal64(tlx_cfg0_pa_top, event.tlx_afu_cmd_pa);
-          *tlx_cfg0_t_top = (event.tlx_afu_cmd_t) & 0x1;
-          setDpiSignal32(tlx_cfg0_pl_top, event.tlx_afu_cmd_pl, 3);
-          setDpiSignal32(tlx_cfg0_capptag_top, event.tlx_afu_cmd_capptag, 16);
+	  printf( "lgt:tlx_cfg_valid:config read or config write.  opcode=0x%02x\n", event.tlx_cfg_opcode );
+          setDpiSignal32(tlx_cfg0_opcode_top, event.tlx_cfg_opcode, 8);
+          setDpiSignal64(tlx_cfg0_pa_top, event.tlx_cfg_pa);
+          *tlx_cfg0_t_top = (event.tlx_cfg_t) & 0x1;
+          setDpiSignal32(tlx_cfg0_pl_top, event.tlx_cfg_pl, 3);
+          setDpiSignal32(tlx_cfg0_capptag_top, event.tlx_cfg_capptag, 16);
           *tlx_cfg0_valid_top = 1;
           clk_afu_cmd_val = CLOCK_EDGE_DELAY;
           printf("%08lld: ", (long long) c_sim_time);
-          printf(" The TLX-AFU Config Cmd with OPCODE=0x%x \n",  event.tlx_afu_cmd_opcode);
-          event.tlx_afu_cmd_valid = 0;
-	  printf( "lgt:tlx_afu_cmd__valid: data valid signals: tlx_cfg_cmd_data_valid = %d, tlx_afu_cmd_data_valid = %d\n", event.tlx_cfg_cmd_data_valid, event.tlx_afu_cmd_data_valid );
-          if(event.tlx_afu_cmd_data_valid) {
+          printf(" The TLX-AFU Config Cmd with OPCODE=0x%x \n",  event.tlx_cfg_opcode);
+          event.tlx_cfg_valid = 0;
+	  //printf( "lgt:tlx_cfg_valid: data valid signals: tlx_cfg_cmd_data_valid = %d, tlx_afu_cmd_data_valid = %d\n", event.tlx_cfg_cmd_data_valid, event.tlx_afu_cmd_data_valid );
+          //if(event.tlx_afu_cmd_data_valid) {
 	    // c_tlx_afu_cmd_data_del = *event.tlx_afu_cmd_data_bus;   	// lgt use data from tlx_cfg part of event. or not
-	    memcpy( &c_tlx_afu_cmd_data_del, event.tlx_afu_cmd_data_bus, 4 );
-	    c_tlx_afu_cmd_bdi_del = (event.tlx_afu_cmd_data_bdi) & 0x1;   
-	    printf( "lgt:tlx_afu_cmd_data_valid: received data from tlx.  raw data=0x" );
-	    for ( i=0; i<4; i++ ) {
-	      printf( "%02x", event.tlx_afu_cmd_data_bus[i] );
-	    }
-	    printf( "\n" );
-	    printf( "lgt:tlx_afu_cmd_data_valid: received data from tlx.  copied data=0x%08x\n", c_tlx_afu_cmd_data_del );
-	    c_config_cmd_data_valid = 1;
-	    printf( "lgt:tlx_afu_cmd_data_valid: set config_cmd_data_valid=%d\n", c_config_cmd_data_valid );
-	    // just try to drive it and not reset it.
-	  }
-        }
-        else
-        {
-	  setDpiSignal32(tlx_afu_cmd_opcode_top, event.tlx_afu_cmd_opcode, 8);
+	  memcpy( &c_tlx_cfg0_data_del, event.tlx_cfg_data_bus, 4 );
+	  c_tlx_cfg0_data_bdi_del = (event.tlx_cfg_data_bdi) & 0x1;   
+	  printf( "lgt:tlx_afu_cfg_data_valid: received data from tlx.  raw data=0x" );
+	  for ( i=0; i<4; i++ ) {
+	      printf( "%02x", event.tlx_cfg_data_bus[i] );
+	   }
+	  printf( "\n" );
+	  printf( "lgt:tlx_afu_cfg_data_valid: received data from tlx.  copied data=0x%08x\n", c_tlx_cfg0_data_del );
+
+          setDpiSignal32(tlx_cfg0_data_bus_top, c_tlx_cfg0_data_del, 32); // lgt might need to delay these in top.v
+ 	  *tlx_cfg0_data_bdi_top = c_tlx_cfg0_data_bdi_del;
+      }
+      if(event.tlx_afu_cmd_valid)
+      {
+          setDpiSignal32(tlx_afu_cmd_opcode_top, event.tlx_afu_cmd_opcode, 8);
           setDpiSignal32(tlx_afu_cmd_capptag_top, event.tlx_afu_cmd_capptag, 16);
           setDpiSignal32(tlx_afu_cmd_dl_top, event.tlx_afu_cmd_dl, 2);
           setDpiSignal32(tlx_afu_cmd_pl_top, event.tlx_afu_cmd_pl, 3);
@@ -864,20 +857,6 @@ void tlx_bfm(
 	    }
 	    event.tlx_afu_cmd_data_valid = 0;
 	  }
-        }
-
-	// try moving the config data drive to just after the command drive (to here)
-	// printf( "lgt:tlx_bfm:config_cmd_data_valid=%d\n", c_config_cmd_data_valid );
-	//	if(c_config_cmd_data_valid) {
-	//	  printf( "lgt:config_cmd_data_valid=%d,driving tlx_cfg0_data_bus_top\n", c_config_cmd_data_valid );
-	//	  setDpiSignal32(tlx_cfg0_data_bus_top, c_tlx_afu_cmd_data_del, 32); // lgt might need to delay these in top.v
-	//	  *tlx_cfg0_data_bdi_top = c_tlx_afu_cmd_bdi_del;
-	//	} else {
-	//	  printf( "lgt:config_cmd_data_valid=%d,clearing tlx_cfg0_data_bus_top\n", c_config_cmd_data_valid );
-	//	  setDpiSignal32(tlx_cfg0_data_bus_top, 0, 32);
-	//	  *tlx_cfg0_data_bdi_top = 0;
-	//	}
-
       }
       if (clk_afu_cmd_val) {
     	--clk_afu_cmd_val;
