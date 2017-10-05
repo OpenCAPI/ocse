@@ -107,6 +107,141 @@ static struct ocl *_find_ocl(uint8_t id, uint8_t * major)
 }
 
 // Query AFU descriptor data
+static void _find_nth(struct client *client)
+{
+	struct ocl *ocl;
+	uint8_t *buffer;
+	uint8_t fcn, afuid;
+	int size, offset;
+	uint8_t name_length;
+	char name[25];
+	uint8_t card_index;
+	uint8_t afu_index_valid;
+	uint8_t afu_index;
+	int this_iteration;
+	  
+
+	// get the string length from the socket
+	// get the string from the socket
+	if (get_bytes_silent(client->fd, 1, &name_length, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_find_nth: could not communicate with socket");
+	  return;
+	}
+	if (get_bytes_silent(client->fd, name_length, (uint8_t *)name, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_find_nth: could not communicate with socket");
+	  return;
+	}
+	name[name_length] = '\0'; // null terminate name
+	if (get_bytes_silent(client->fd, 1, &card_index, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_find_nth: could not communicate with socket");
+	  return;
+	}
+	if (get_bytes_silent(client->fd, 1, &afu_index_valid, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_find_nth: could not communicate with socket");
+	  return;
+	}
+	if (get_bytes_silent(client->fd, 1, &afu_index, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_find_nth: could not communicate with socket");
+	  return;
+	}
+	
+	debug_msg( "_find_nth: looking for the %d occurance of name: %s", card_index, name );
+
+	// scan the ocl->function->afu structs for a matching name
+	// loop through the ocl's
+	ocl = ocl_list;
+	this_iteration = 0;
+	while (ocl != NULL) {
+	      debug_msg("_find: ocl lop");
+	      for (fcn = 0; fcn < 8; fcn++ ) {
+		    debug_msg("_find: fcn %d lop", fcn);
+		    if (ocl->mmio->fcn_cfg_array[fcn] == NULL) continue;
+
+		    if (ocl->mmio->fcn_cfg_array[fcn]->afu_present == 0) continue;
+ 		    
+		    for (afuid = 0; afuid <= ocl->mmio->fcn_cfg_array[fcn]->max_afu_index; afuid++ ) {
+		          debug_msg("_find: afuid %d lop", afuid);
+		          if (ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid] == NULL) continue;
+		
+			  // if the name here doesn't match, continue
+		          debug_msg("_find: compare %s to %s", name, ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace);
+			  if ( strcmp( name, ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace ) != 0 ) continue;
+
+			  // the names match, so we've found an instance of this afu
+			  // if this_iteration is not the card_index, increment and break the afuid loop.
+			  if ( this_iteration != card_index ) {
+			    this_iteration++; 
+			    // we only want to look once within a funciton, so break instead of continue
+			    break;
+			  }
+
+			  // the names match and this_iteration is the card-indexth iteration, then return
+			  // I'm not really sure this is accurate as we have ignored the afu_index that was 
+			  // sent in.  but the real ltc code seems to assume an afu index of 0, so this will 
+			  // do for now.
+			  size = 
+			    1 + 
+			    sizeof(uint8_t) +  
+			    sizeof(uint8_t) + 
+			    sizeof(uint8_t) +
+			    sizeof(uint8_t) ;
+			  
+			  buffer = (uint8_t *) malloc(size);
+			  offset = 0;
+			  
+			  buffer[offset] = OCSE_FIND_ACK;
+			  offset++;
+			  
+			  buffer[offset] = ocl->bus;
+			  offset = offset + sizeof(uint8_t);
+			  
+			  buffer[offset] = 0;
+			  offset = offset + sizeof(uint8_t);
+			  
+			  buffer[offset] = fcn;
+			  offset = offset + sizeof(uint8_t);
+			  
+			  buffer[offset] = afuid;
+			  offset = offset + sizeof(uint8_t);
+			  
+			  if ( offset != size ) {
+			    warn_msg( "anomoly in construction of OCSE_FIND_ACK message" );
+			  }
+			  
+		          debug_msg("_find_nth: found name the %d occurance of %s with bus %d, dev %d, fcn %d, afuid &d", 
+				    card_index, ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace, ocl->bus, 0, fcn, afuid);
+			  if ( put_bytes( client->fd, size, buffer, ocl->dbg_fp, ocl->dbg_id,
+					  client->context ) < 0) {
+			    client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+			  }
+			  
+			  free(buffer);
+			  return;
+		    }
+		    this_iteration++;
+	      }
+	      ocl = ocl->_next;
+	}
+
+	// if we are here, we did not find anything
+	debug_msg( "_find_nth: did not the %d occurance of find name %s", card_index, name );
+	size = 1;
+	buffer = (uint8_t *) malloc(size);
+	buffer[0] = OCSE_FAILED;
+	if ( put_bytes_silent( client->fd, size, buffer ) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	}
+	free(buffer);
+
+	return;
+}
+
+// Query AFU descriptor data
 static void _find(struct client *client)
 {
 	struct ocl *ocl;
@@ -551,6 +686,11 @@ static void *_client_loop(void *ptr)
 		}
 		if (data[0] == OCSE_FIND) {
 			_find(client);
+			lock_delay(&lock);
+			continue;
+		}
+		if (data[0] == OCSE_FIND_NTH) {
+			_find_nth(client);
 			lock_delay(&lock);
 			continue;
 		}

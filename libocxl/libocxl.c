@@ -1976,6 +1976,82 @@ ocxl_err _alloc_afu( ocxl_afu_h *afu_out )
 	return OCXL_OK;
 }
 
+ocxl_err _find_afu_nth( int fd, const char *name, uint8_t card_index, int16_t afu_index, uint8_t *bus, uint8_t *dev, uint8_t *fcn, uint8_t *afuid )
+{
+	uint8_t *buffer;
+	int size;
+	int offset;
+
+	// Send OCSE query
+
+	// size is message type (1), name length (1), name (name_length), card_index (1), afu_index_valid (1), afu_index (1)
+	size = 1 + 1 + strlen( name ) + 1 + 1 + 1;
+	buffer = (uint8_t *) malloc(size);
+	
+	offset = 0;
+	buffer[offset] = OCSE_FIND_NTH;
+	offset = offset + 1;
+
+	buffer[offset] = strlen( name );
+	offset = offset + 1;
+
+	memcpy( &buffer[offset], name, strlen(name) ); // don't copy the '\0'
+	offset = offset + strlen(name);
+	
+	buffer[offset] = card_index;
+	offset = offset + 1;
+
+	if (afu_index < 0 ) {
+	  buffer[offset] = 0;  // afu index is not valid
+	} else {
+	  buffer[offset] = 1;  // afu index is not valid
+	}
+	offset = offset + 1;
+
+	buffer[offset] = afu_index;
+	offset = offset + 1;
+
+	if (put_bytes_silent( fd, size, buffer ) != size) {
+		free(buffer);
+		close_socket(&fd);
+		return OCXL_NO_DEV;
+	}
+	
+	buffer[0] = 0; 
+	
+	if (get_bytes_silent( fd, 1, buffer, -1, 0) < 0) {
+		warn_msg("ocxl_afu_open:Socket failed");
+		close_socket(&fd);
+		return OCXL_NO_DEV;
+	}
+
+	if ( buffer[0] == (uint8_t)OCSE_FAILED ) {
+		warn_msg("ocxl_afu_open_by_id:Socket failed FIND by name");
+		close_socket(&fd);
+		return OCXL_NO_DEV;
+	}
+	if (buffer[0] != (uint8_t) OCSE_FIND_ACK) {
+		warn_msg("ocxl_afu_open_by_id:OCSE bad acknowledge");
+		close_socket(&fd);
+		return OCXL_NO_DEV;
+	}
+
+	// read out bus, device, function, and afuid 
+	if (get_bytes_silent( fd, 4, buffer, -1, 0) < 0) {
+		warn_msg("ocxl_afu_open:Socket failed FIND by name and id");
+		close_socket(&fd);
+		return OCXL_NO_DEV;
+	}
+
+	*bus = buffer[0];
+	*dev = buffer[1];
+	*fcn = buffer[2];
+	*afuid = buffer[3];
+
+	free( buffer );
+	return OCXL_OK;
+}
+
 ocxl_err _find_afu( int fd, const char *name, uint8_t *bus, uint8_t *dev, uint8_t *fcn, uint8_t *afuid )
 {
 	uint8_t *buffer;
@@ -2536,9 +2612,43 @@ ocxl_err ocxl_afu_open_specific( const char *name, const char *physical_function
 
 ocxl_err ocxl_afu_open_by_id( const char *name, uint8_t card_index, int16_t afu_index, ocxl_afu_h *afu ) {
   // real code builds the device path name and calls ocxl_afu_open_by_dev
+  // card index is an index into a sorted list of physical_functions that have matching "name"
+  // afu_index may be -1 indicating that any name matching afu within the physical function may be used.
+  // in fact, if the afu it tries is full, we should go to the next one...  We will not do that for now.
   // need a find_nth routine to find the card index for that name/afu_id
-        warn_msg( "ocxl_afu_open_by_id is not yet supported" );
-	return OCXL_NO_DEV;
+        warn_msg( "ocxl_afu_open_by_id is not fully tested yet" );
+
+        uint8_t bus, dev, fcn, afuid;
+	int rc;
+	uint16_t afu_map;
+	int fd;
+	struct ocxl_afu *my_afu;
+	// connect
+	// is there a way to see if this is already done?
+
+	// allocate afu structure
+	rc = _alloc_afu( (ocxl_afu_h *)&my_afu );
+	if (  rc != 0 ) return rc;
+
+	if ( _ocse_connect(&afu_map, &fd) < 0 ) return OCXL_NO_DEV;
+
+	// find name - returns bus, device, function, afu_index
+	strcpy( (char *)&(my_afu->ocxl_id.afu_name[0]), name );
+
+	// new routine here
+	rc = _find_afu_nth( fd, name, card_index, afu_index, &bus, &dev, &fcn, &afuid );
+	if (  rc != 0 ) return rc;
+
+	// query
+	rc = _query_afu( my_afu, fd, bus, dev, fcn, afuid );
+	if (  rc != 0 ) return rc;
+
+	// open the "afu"
+	rc = _open_afu( my_afu );
+	if (  rc != 0 ) return rc;
+
+	*afu = ( ocxl_afu_h )my_afu;
+	return OCXL_OK;
 }
 
 void _afu_free( ocxl_afu_h afu )
