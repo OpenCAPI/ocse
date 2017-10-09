@@ -130,8 +130,8 @@ static void _detach(struct ocl *ocl, struct client *client)
 static void _handle_afu(struct ocl *ocl)
 {
 	if (ocl->mmio->list !=NULL) {
-	  handle_ap_resp(ocl->mmio, ocl->parity_enabled);
-	  handle_ap_resp_data(ocl->mmio, ocl->parity_enabled);
+	  handle_ap_resp(ocl->mmio);
+	  handle_ap_resp_data(ocl->mmio);
 	}
 
 	if (ocl->cmd != NULL) {
@@ -353,14 +353,14 @@ static void *_ocl_loop(void *ptr)
 					    ("Client dropped context before AFU completed");
 					reset = 0;
 				}
-				info_msg("Dumping command tag=0x%02x",
-					 event->tag);
+				info_msg("Dumping command afutag=0x%02x",
+					 event->afutag);
 				if (event->data) {
 					free(event->data);
 				}
-				if (event->parity) {
-					free(event->parity);
-				}
+				//if (event->parity) {
+				//	free(event->parity);
+				//}
 				temp = event;
 				event = event->_next;
 				free(temp);

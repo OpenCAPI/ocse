@@ -951,7 +951,7 @@ void send_mmio(struct mmio *mmio)
 
 // Handle ap response data beats coming from the afu
 // this will include responses to mmio requests, and lpc memory requests
-void handle_ap_resp_data(struct mmio *mmio, uint32_t parity_enabled)
+void handle_ap_resp_data(struct mmio *mmio)
 {
 	int rc;
 //	char data[17];
@@ -1089,7 +1089,7 @@ void handle_ap_resp_data(struct mmio *mmio, uint32_t parity_enabled)
 
 // Handle ap responses coming from the afu
 // this will include responses to config commmands, mmio requests, and lpc memory requests
-void handle_ap_resp(struct mmio *mmio, uint32_t parity_enabled)
+void handle_ap_resp(struct mmio *mmio)
 {
 	int rc;
 	char type[7];
@@ -1205,7 +1205,7 @@ void handle_ap_resp(struct mmio *mmio, uint32_t parity_enabled)
 }
 
 // Handle MMIO ack if returned by AFU
-void handle_mmio_ack(struct mmio *mmio, uint32_t parity_enabled)
+void handle_mmio_ack(struct mmio *mmio)
 {
 	int rc;
 //	char data[17];

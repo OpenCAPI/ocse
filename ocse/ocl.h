@@ -40,7 +40,6 @@ struct ocl {
 	struct ocl *_prev;
 	struct ocl *_next;
 	volatile enum ocse_state state;
-	uint32_t parity_enabled;
 	uint32_t latency;
 	char *name;
 	char *host;

@@ -84,7 +84,7 @@ struct cmd_event {
 	int32_t context;
 	uint32_t command;
 	uint32_t afutag;
-        uint32_t tag;  // this will go away when everything has migrated to using afutag.
+        //uint32_t tag;  // this will go away when everything has migrated to using afutag.
 	uint32_t abt;
 	uint32_t size;
 	uint32_t resp;
@@ -104,7 +104,7 @@ struct cmd_event {
 	uint8_t unlock;
 	uint8_t buffer_activity;
 	uint8_t *data;
-	uint8_t *parity;
+	//uint8_t *parity;
 	int *abort;
 	enum cmd_type type;
 	enum mem_state state;
@@ -126,7 +126,6 @@ struct cmd {
 	uint8_t dbg_id;
 	uint64_t lock_addr;
 	uint64_t res_addr;
-	//uint32_t credits;
 	int max_clients;
 	uint32_t pagesize;
 	uint16_t irq;
@@ -141,7 +140,7 @@ void handle_cmd(struct cmd *cmd,  uint32_t latency);
 
 void handle_afu_tlx_cnd_data_read(struct cmd *cmd);
 
-void handle_buffer_data(struct cmd *cmd, uint32_t parity_enable);
+//void handle_buffer_data(struct cmd *cmd);
 
 void handle_mem_write(struct cmd *cmd);
 
