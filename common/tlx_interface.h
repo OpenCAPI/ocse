@@ -126,12 +126,12 @@ int tlx_afu_send_cmd_and_data( struct AFU_EVENT *event,
 			       uint8_t tlx_cmd_opcode,
 			       uint16_t cmd_capptag, uint8_t cmd_dl,
 			       uint8_t cmd_pl, uint64_t cmd_be,
-			       uint8_t cmd_end, 
+			       uint8_t cmd_end,
 #ifdef TLX4
 			       uint8_t cmd_os, uint8_t cmd_flag,
 #endif
 			       uint64_t cmd_pa,
-			       uint8_t cmd_data_bdi, uint8_t * cmd_data); 
+			       uint8_t cmd_data_bdi, uint8_t * cmd_data);
 
 /* CALL THIS FOR CONFIG_RD/CONFIG_WR ONLY */
 /* This will send config_rds and config_wr only. It will check and
@@ -175,17 +175,17 @@ int afu_tlx_read_resp_data(struct AFU_EVENT *event,
 
 /* CALL THIS FOR CONFIG_RD/CONFIG_WR ONLY */
 /* Call this from ocse to read AFU cfg response. This reads cfg_tlx_response interface
- * (AFU to TLX AP config). It expects the caller to provide the expected 
+ * (AFU to TLX AP config). It expects the caller to provide the expected
  * resp_capptag to be matched with incoming responses.This will read resps
- * for config_rds and config_wr only. It will send back tlx_cfg_resp_ack and, 
+ * for config_rds and config_wr only. It will send back tlx_cfg_resp_ack and,
  * for config_rd cmds,expects a pointer to a 4B buffer so up to 4 bytes of data
  * can be copied to the appropriate address offset in that buffer.
 */
 
 int afu_tlx_read_cfg_resp_and_data(struct AFU_EVENT *event,
-		    uint8_t * cfg_resp_opcode, uint16_t  * cfg_resp_capptag, 
-		    uint16_t requested_capptag, 
-		    uint8_t * cfg_resp_data_is_valid, 
+		    uint8_t * cfg_resp_opcode, uint16_t  * cfg_resp_capptag,
+		    uint16_t requested_capptag,
+		    uint8_t * cfg_resp_data_is_valid,
 		    uint8_t * cfg_resp_code, uint8_t * cfg_rdata_bus, uint8_t * cfg_rdata_bdi);
 
 
@@ -282,7 +282,7 @@ int afu_tlx_send_resp_and_data(struct AFU_EVENT *event,
 
 /* CALL THIS FOR CONFIG_RD/CONFIG_WR ONLY */
 /* Call this from AFU to send config_wr response and config_rd response and data.
- * This updates both afu_tlx resp and afu_cfg_rdata bus. It expects caller to provide 
+ * This updates both afu_tlx resp and afu_cfg_rdata bus. It expects caller to provide
  * resp_opcode, resp_capptag, resp_dl, resp_dp, afu_cfg_rdata_bdi & up to 4B data.
  * Right now, there isn't a good alternative, so caller has to provide afu_cfg_resp_data_byte_cnt.
  * Expectation is that default is 4, but could be 1 or 2 in future. <- if not true, then can drop this req.
@@ -384,11 +384,11 @@ int tlx_afu_read_cmd_data(struct AFU_EVENT *event,
 
 /* CALL THIS FOR CONFIG_RD/CONFIG_WR ONLY */
 /* Call this from AFU to read config_rd commands and config_wr commands and data.
- * This updates both afu_tlx cmd and afu_cfg_data_bus. It expects caller to provide 
+ * This updates both afu_tlx cmd and afu_cfg_data_bus. It expects caller to provide
  * pointers for everything expected, including pointer to data buffer for up to 4B data.
  * This function checks to see if cmd in afu_event is a config cmd and returns a nonzero
  * value if no config_cmd is present. If this is a config_wr cmd, data will be present
- * and will be provided back to caller, along with config cmd paramters. cmd_pl will 
+ * and will be provided back to caller, along with config cmd paramters. cmd_pl will
  * contain the number of data bytes, encoded per spec (0= 1 byte, 1= 2, 2= 4).
  * We rely on afu_driver to add the one cycle delay for config data when sent to AFU.
 */
