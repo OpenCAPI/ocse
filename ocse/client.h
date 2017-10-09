@@ -40,7 +40,6 @@ struct client {
 	int timeout;
 	enum flush_state flushing;
 	enum client_state state;
-	uint16_t max_irqs;
 	char type;
 	uint64_t AMR;
 	uint32_t pasid;

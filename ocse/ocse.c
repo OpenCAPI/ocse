@@ -55,7 +55,6 @@
 #include "../common/debug.h"
 #include "../common/utils.h"
 
-#define OCL_MAX_IRQS 2037
 
 struct ocl *ocl_list;
 struct client *client_list;
@@ -119,7 +118,6 @@ static void _find_nth(struct client *client)
 	uint8_t afu_index_valid;
 	uint8_t afu_index;
 	int this_iteration;
-	  
 
 	// get the string length from the socket
 	// get the string from the socket
@@ -149,7 +147,7 @@ static void _find_nth(struct client *client)
 	  debug_msg("_find_nth: could not communicate with socket");
 	  return;
 	}
-	
+
 	debug_msg( "_find_nth: looking for the %d occurance of name: %s", card_index, name );
 
 	// scan the ocl->function->afu structs for a matching name
@@ -163,11 +161,11 @@ static void _find_nth(struct client *client)
 		    if (ocl->mmio->fcn_cfg_array[fcn] == NULL) continue;
 
 		    if (ocl->mmio->fcn_cfg_array[fcn]->afu_present == 0) continue;
- 		    
+
 		    for (afuid = 0; afuid <= ocl->mmio->fcn_cfg_array[fcn]->max_afu_index; afuid++ ) {
 		          debug_msg("_find: afuid %d lop", afuid);
 		          if (ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid] == NULL) continue;
-		
+
 			  // if the name here doesn't match, continue
 		          debug_msg("_find: compare %s to %s", name, ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace);
 			  if ( strcmp( name, ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace ) != 0 ) continue;
@@ -175,51 +173,51 @@ static void _find_nth(struct client *client)
 			  // the names match, so we've found an instance of this afu
 			  // if this_iteration is not the card_index, increment and break the afuid loop.
 			  if ( this_iteration != card_index ) {
-			    this_iteration++; 
+			    this_iteration++;
 			    // we only want to look once within a funciton, so break instead of continue
 			    break;
 			  }
 
 			  // the names match and this_iteration is the card-indexth iteration, then return
-			  // I'm not really sure this is accurate as we have ignored the afu_index that was 
-			  // sent in.  but the real ltc code seems to assume an afu index of 0, so this will 
+			  // I'm not really sure this is accurate as we have ignored the afu_index that was
+			  // sent in.  but the real ltc code seems to assume an afu index of 0, so this will
 			  // do for now.
-			  size = 
-			    1 + 
-			    sizeof(uint8_t) +  
-			    sizeof(uint8_t) + 
+			  size =
+			    1 +
+			    sizeof(uint8_t) +
+			    sizeof(uint8_t) +
 			    sizeof(uint8_t) +
 			    sizeof(uint8_t) ;
-			  
+
 			  buffer = (uint8_t *) malloc(size);
 			  offset = 0;
-			  
+
 			  buffer[offset] = OCSE_FIND_ACK;
 			  offset++;
-			  
+
 			  buffer[offset] = ocl->bus;
 			  offset = offset + sizeof(uint8_t);
-			  
+
 			  buffer[offset] = 0;
 			  offset = offset + sizeof(uint8_t);
-			  
+
 			  buffer[offset] = fcn;
 			  offset = offset + sizeof(uint8_t);
-			  
+
 			  buffer[offset] = afuid;
 			  offset = offset + sizeof(uint8_t);
-			  
+
 			  if ( offset != size ) {
 			    warn_msg( "anomoly in construction of OCSE_FIND_ACK message" );
 			  }
-			  
-		          debug_msg("_find_nth: found name the %d occurance of %s with bus %d, dev %d, fcn %d, afuid &d", 
+
+		          debug_msg("_find_nth: found name the %d occurance of %s with bus %d, dev %d, fcn %d, afuid &d",
 				    card_index, ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace, ocl->bus, 0, fcn, afuid);
 			  if ( put_bytes( client->fd, size, buffer, ocl->dbg_fp, ocl->dbg_id,
 					  client->context ) < 0) {
 			    client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 			  }
-			  
+
 			  free(buffer);
 			  return;
 		    }
@@ -264,7 +262,7 @@ static void _find(struct client *client)
 	  return;
 	}
 	name[name_length] = '\0'; // null terminate name
-	
+
 	debug_msg( "_find: looking up name: %s", name );
 
 	// scan the ocl->function->afu structs for a matching name
@@ -277,52 +275,52 @@ static void _find(struct client *client)
 		    if (ocl->mmio->fcn_cfg_array[fcn] == NULL) continue;
 
 		    if (ocl->mmio->fcn_cfg_array[fcn]->afu_present == 0) continue;
- 		    
+
 		    for (afuid = 0; afuid <= ocl->mmio->fcn_cfg_array[fcn]->max_afu_index; afuid++ ) {
 		          debug_msg("_find: afuid %d lop", afuid);
 		          if (ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid] == NULL) continue;
-		
+
 			  // if the name here doesn't match, continue
 		          debug_msg("_find: compare %s to %s", name, ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace);
 			  if ( strcmp( name, ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace ) != 0 ) continue;
 
 			  // the names match, so return bus, function, device, and afu_index
-			  size = 
-			    1 + 
-			    sizeof(uint8_t) +  
-			    sizeof(uint8_t) + 
+			  size =
+			    1 +
+			    sizeof(uint8_t) +
+			    sizeof(uint8_t) +
 			    sizeof(uint8_t) +
 			    sizeof(uint8_t) ;
-			  
+
 			  buffer = (uint8_t *) malloc(size);
 			  offset = 0;
-			  
+
 			  buffer[offset] = OCSE_FIND_ACK;
 			  offset++;
-			  
+
 			  buffer[offset] = ocl->bus;
 			  offset = offset + sizeof(uint8_t);
-			  
+
 			  buffer[offset] = 0;
 			  offset = offset + sizeof(uint8_t);
-			  
+
 			  buffer[offset] = fcn;
 			  offset = offset + sizeof(uint8_t);
-			  
+
 			  buffer[offset] = afuid;
 			  offset = offset + sizeof(uint8_t);
-			  
+
 			  if ( offset != size ) {
 			    warn_msg( "anomoly in construction of OCSE_FIND_ACK message" );
 			  }
-			  
-		          debug_msg("_find: found name %s with bus %d, dev %d, fcn %d, afuid &d", 
+
+		          debug_msg("_find: found name %s with bus %d, dev %d, fcn %d, afuid &d",
 				    ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace, ocl->bus, 0, fcn, afuid);
 			  if ( put_bytes( client->fd, size, buffer, ocl->dbg_fp, ocl->dbg_id,
 					  client->context ) < 0) {
 			    client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 			  }
-			  
+
 			  free(buffer);
 			  return;
 		    }
@@ -380,19 +378,12 @@ static void _query(struct client *client)
 	client->afuid = afuid;
 	client->bdf = ( (uint16_t)bus << 8 ) | ( (uint16_t)dev << 3 ) | ( (uint16_t)fcn );
 
-	size = 
-	  1 + 
-	  // sizeof(client->max_irqs) +  // 2
-	  // sizeof(ocl->mmio->cfg.AFU_INFO_REVID) + 
+	size =
+	  1 +
 	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->device_id) + // 2
 	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->vendor_id) + // 2
-	  // sizeof(ocl->mmio->fcn_cfg_array[fcn]->max_afu_index) +  // 1
-	  // sizeof(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX_8) +
 	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->afu_version_major) + // 1
 	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->afu_version_minor) + // 1
-	  // sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pasid_base) + // 1
-	  // sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->actag_base) + // 2
-	  // sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->actag_length_enabled) + // 1
 	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_offset) + // 8
 	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_size) + // 4
 	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_offset) + // 8
@@ -414,11 +405,6 @@ static void _query(struct client *client)
 	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->vendor_id));
         offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->vendor_id);
 
-	/* memcpy(&(buffer[offset]), */
-	/*        (char *)&(ocl->mmio->fcn_cfg_array[fcn]->max_afu_index), */
-	/*        sizeof(ocl->mmio->fcn_cfg_array[fcn]->max_afu_index)); */
-        /* offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->max_afu_index); */
-
 	memcpy(&(buffer[offset]),
 	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->afu_version_major),
 	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->afu_version_major));
@@ -428,21 +414,6 @@ static void _query(struct client *client)
 	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->afu_version_minor),
 	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->afu_version_minor));
 	offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->afu_version_minor);
-
-	/* memcpy(&(buffer[offset]), */
-	/*        (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pasid_base), */
-	/*        sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pasid_base)); */
-        /* offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pasid_base); */
-
-	/* memcpy(&(buffer[offset]), */
-	/*        (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->actag_base), */
-	/*        sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->actag_base)); */
-        /* offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->actag_base); */
-
-	/* memcpy(&(buffer[offset]), */
-	/*        (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->actag_length_enabled), */
-	/*        sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->actag_length_enabled)); */
-	/* offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->actag_length_enabled); */
 
 	memcpy(&(buffer[offset]),
 	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_offset),
@@ -473,22 +444,6 @@ static void _query(struct client *client)
 	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->mem_size),
 	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->mem_size));
 	offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->mem_size);
-
-	/* if (client->max_irqs == 0) */
-	/* 	client->max_irqs = 2037; // TODO FIX THIS eventually */
-	/* memcpy(&(buffer[offset]), */
-	/*        (char *)&(client->max_irqs), sizeof(client->max_irqs)); */
-        /* offset += sizeof(client->max_irqs); */
-
-	/* memcpy(&(buffer[offset]), */
-	/*        (char *)&(ocl->mmio->cfg.AFU_INFO_REVID), */
-	/*        sizeof(ocl->mmio->cfg.AFU_INFO_REVID)); */
-        /* offset += sizeof(ocl->mmio->cfg.AFU_INFO_REVID); */
-
-	/* memcpy(&(buffer[offset]), */
-	/*        (char *)&(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX_8), */
-	/*        sizeof(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX_8)); */
-        /* offset += sizeof(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX_8); */
 
 	if (put_bytes(client->fd, size, buffer, ocl->dbg_fp, ocl->dbg_id,
 		      client->context) < 0) {
@@ -545,7 +500,7 @@ static struct client *_client_connect(int *fd, char *ip)
 	client->timeout = timeout;
 	client->flushing = FLUSH_NONE;
 	client->state = CLIENT_INIT;
-	
+
 	// lgt quick fix for bdf
 	client->bdf = 0x5001;
 
@@ -634,19 +589,9 @@ static int _client_associate(struct client *client)
 	rc[0] = OCSE_OPEN;
 	rc[1] = context;
 	mmio_offset = 0;
-	//if (ocl->mmio->cfg.PerProcessPSA & PROCESS_PSA_REQUIRED) {
-	//	mmio_size = ocl->mmio->cfg.PerProcessPSA & PSA_MASK;
-	//	mmio_size *= FOUR_K;
-	//	mmio_offset = ocl->mmio->cfg.PerProcessPSA_offset;
-	//	mmio_offset += mmio_size * i;
-	//} else { // TODO FIX OR REMOVE
-		mmio_size = MMIO_FULL_RANGE;
-	//}
+	mmio_size = MMIO_FULL_RANGE;
 	client->mmio_size = mmio_size;
 	client->mmio_offset = mmio_offset;
-	//client->max_irqs = OCL_MAX_IRQS / ocl->mmio->cfg.num_of_processes;
-	client->max_irqs = OCL_MAX_IRQS; // TODO FIX OR REMOVE
-	// client->type = afu_type;
 
 	// We NO LONGER Send reset to AFU, even if no other clients are connected
 	// don't even send a reset if we've dropped to 0 clients and are now opening a new one
