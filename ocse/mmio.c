@@ -957,18 +957,9 @@ void send_mmio(struct mmio *mmio)
 void handle_ap_resp_data(struct mmio *mmio)
 {
 	int rc;
-//	char data[17];
-	// char type[7];
-	// uint8_t afu_resp_opcode, resp_dl,resp_dp, resp_data_is_valid, resp_code;
 	uint8_t resp_data_is_valid;
 	uint8_t rdata_bad;
-	// uint16_t resp_capptag;
-	// uint32_t cfg_read_data = 0;
-        // uint64_t read_data; // data can now be up to 64 bytes, not just upto 8
-	// uint8_t *  rdata;
 	unsigned char   rdata_bus[64];
-	// unsigned char   cfg_rdata_bus[4];
-	// unsigned char   mem_data[64];
 	int offset, length;
 
 	int i;
@@ -1099,11 +1090,7 @@ void handle_ap_resp(struct mmio *mmio)
 	uint8_t afu_resp_opcode, resp_dl,resp_dp, resp_data_is_valid, resp_code, rdata_bad;
 	uint16_t resp_capptag;
 	uint32_t cfg_read_data = 0;
-        // uint64_t read_data; // data can now be up to 64 bytes, not just upto 8
-	// uint8_t *  rdata;
 	unsigned char   rdata_bus[64];
-	// unsigned char   cfg_rdata_bus[4];
-	// unsigned char   mem_data[64];
 	int length;
 
 	int i;
@@ -1211,7 +1198,6 @@ void handle_ap_resp(struct mmio *mmio)
 void handle_mmio_ack(struct mmio *mmio)
 {
 	int rc;
-//	char data[17];
 	char type[7];
 	uint8_t afu_resp_opcode, resp_dl,resp_dp, resp_data_is_valid, resp_code, rdata_bad;
 	uint16_t resp_capptag;
@@ -1386,11 +1372,6 @@ void handle_mmio_map(struct mmio *mmio, struct client *client)
 	int fd = client->fd;
 
 	// Check for errors
-/*	if (!(mmio->cfg.PerProcessPSA & PSA_REQUIRED)) {
-		warn_msg("Problem State Area Required bit not set");
-		ack = OCSE_MMIO_FAIL;
-		goto map_done;
-	} */
 	if (get_bytes_silent(fd, 4, (uint8_t *) & flags, mmio->timeout,
 			     &(client->abort)) < 0) {
 	        debug_msg("%s:handle_mmio_map failed context=%d",
@@ -1416,18 +1397,14 @@ void handle_mmio_map(struct mmio *mmio, struct client *client)
 
  map_done:
 	// Send acknowledge to client	   
-	   buffer = (uint8_t *) malloc(2);
-	   buffer[0] = ack;
-	   buffer[1] = 0;
-	      if (put_bytes(fd, 2, buffer, mmio->dbg_fp, mmio->dbg_id,
-			      client->context) < 0) {
-			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
-		}
+	buffer = (uint8_t *) malloc(2);
+	buffer[0] = ack;
+	buffer[1] = 0;
+	if (put_bytes(fd, 2, buffer, mmio->dbg_fp, mmio->dbg_id,
+		      client->context) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	}
 
-	//if (put_bytes(fd, 1, &ack, mmio->dbg_fp, mmio->dbg_id, client->context)
-	//    < 0) {
-	//	client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
-	//}
 }
 
 // Add mmio write event of register at offset to list
@@ -1464,7 +1441,7 @@ static struct mmio_event *_handle_mmio_write(struct mmio *mmio,
 		data <<= 32;
 		data |= (uint64_t) data32;
 	}
-	// in OpenCAPI, don't shift the offset...  in pcie days, we used to shift right 2 bits with offset / 4
+
 	event = _add_mmio(mmio, client, 0, dw, global, offset, data);
 	return event;
 
@@ -1489,7 +1466,7 @@ static struct mmio_event *_handle_mmio_read(struct mmio *mmio,
 		goto read_fail;
 	}
 	offset = ntohl(offset);
-	// in OpenCAPI, don't shift the offset...  in pcie days, we used to shift right 2 bits with offset / 4
+
 	event = _add_mmio(mmio, client, 1, dw, global, offset, 0);
 	return event;
 
