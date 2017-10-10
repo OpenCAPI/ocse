@@ -325,7 +325,7 @@ struct AFU_EVENT {
 #endif
   uint8_t afu_tlx_cmd_credit;              /* 1 bit return a credit to tlx */
   uint8_t afu_tlx_cmd_initial_credit;      /* 7 bit initial number of credits that the afu is providing to tlx for consumption valid? */
-  
+
 // TLX Parser - TLX to AFU CAPP Configuration Command Interface (table 3)
   uint8_t cfg_tlx_credit_return;              /* 1 bit return a credit to tlx for config cmds */
   uint8_t cfg_tlx_initial_credit;             /* 4 bit initial number of credits that the afu is providing to tlx for consumption */
@@ -386,7 +386,7 @@ struct AFU_EVENT {
   struct DATA_PKT *cdata_tail;
   uint32_t cdata_rd_cnt;
 
- 
+
   // TLX Framer Misc Interface (table 8)
   uint8_t tlx_afu_cmd_resp_initial_credit; /* 3 bit initial number of response credits available to the afu - when is this valid? */
   uint8_t tlx_afu_data_initial_credit;     /* 5 bit initial number of data credits available to the afu - when is this valid? */

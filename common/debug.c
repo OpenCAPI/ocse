@@ -401,43 +401,43 @@ void debug_mmio_return(FILE * fp, uint8_t id, uint16_t context)
 	_debug_send_id_16(fp, DBG_HEADER_MMIO_RETURN, id, context);
 }
 
-void debug_cmd_add(FILE * fp, uint8_t id, uint8_t tag, uint16_t context,
+void debug_cmd_add(FILE * fp, uint8_t id, uint8_t afutag, uint16_t context,
 		   uint16_t command)
 {
-	_debug_send_id_8_16_16(fp, DBG_HEADER_CMD_ADD, id, tag, context,
+	_debug_send_id_8_16_16(fp, DBG_HEADER_CMD_ADD, id, afutag, context,
 			       command);
 }
 
-void debug_cmd_update(FILE * fp, uint8_t id, uint8_t tag, uint16_t context,
+void debug_cmd_update(FILE * fp, uint8_t id, uint8_t afutag, uint16_t context,
 		      uint16_t resp)
 {
-	_debug_send_id_8_16_16(fp, DBG_HEADER_CMD_UPDATE, id, tag, context,
+	_debug_send_id_8_16_16(fp, DBG_HEADER_CMD_UPDATE, id, afutag, context,
 			       resp);
 }
 
-void debug_cmd_client(FILE * fp, uint8_t id, uint8_t tag, uint16_t context)
+void debug_cmd_client(FILE * fp, uint8_t id, uint8_t afutag, uint16_t context)
 {
-	_debug_send_id_8_16(fp, DBG_HEADER_CMD_CLIENT_REQ, id, tag, context);
+	_debug_send_id_8_16(fp, DBG_HEADER_CMD_CLIENT_REQ, id, afutag, context);
 }
 
-void debug_cmd_return(FILE * fp, uint8_t id, uint8_t tag, uint16_t context)
+void debug_cmd_return(FILE * fp, uint8_t id, uint8_t afutag, uint16_t context)
 {
-	_debug_send_id_8_16(fp, DBG_HEADER_CMD_CLIENT_ACK, id, tag, context);
+	_debug_send_id_8_16(fp, DBG_HEADER_CMD_CLIENT_ACK, id, afutag, context);
 }
 
-void debug_cmd_buffer_write(FILE * fp, uint8_t id, uint8_t tag)
+void debug_cmd_buffer_write(FILE * fp, uint8_t id, uint8_t afutag)
 {
-	_debug_send_id_8(fp, DBG_HEADER_CMD_BUFFER_WRITE, id, tag);
+	_debug_send_id_8(fp, DBG_HEADER_CMD_BUFFER_WRITE, id, afutag);
 }
 
-void debug_cmd_buffer_read(FILE * fp, uint8_t id, uint8_t tag)
+void debug_cmd_buffer_read(FILE * fp, uint8_t id, uint8_t afutag)
 {
-	_debug_send_id_8(fp, DBG_HEADER_CMD_BUFFER_READ, id, tag);
+	_debug_send_id_8(fp, DBG_HEADER_CMD_BUFFER_READ, id, afutag);
 }
 
-void debug_cmd_response(FILE * fp, uint8_t id, uint8_t tag)
+void debug_cmd_response(FILE * fp, uint8_t id, uint8_t afutag)
 {
-	_debug_send_id_8(fp, DBG_HEADER_CMD_RESPONSE, id, tag);
+	_debug_send_id_8(fp, DBG_HEADER_CMD_RESPONSE, id, afutag);
 }
 
 void debug_socket_put(FILE * fp, uint8_t id, uint16_t context, uint8_t type)
