@@ -121,8 +121,8 @@ public:
     void set_port_reg(uint32_t offset, uint64_t data);
     uint32_t get_afu_desc_reg(uint32_t offset);
     void set_afu_desc_reg(uint32_t offset, uint32_t data);
-    void get_mmio_mem(uint32_t offset, char *data, uint8_t size);
-    void set_mmio_mem(uint32_t offset, char *data, uint8_t size);
+    void get_mmio_mem(uint32_t offset, char *data, uint16_t size);
+    void set_mmio_mem(uint32_t offset, char *data, uint16_t size);
 };
 
 #endif
