@@ -259,7 +259,7 @@ Descriptor::set_vsec_reg(uint32_t offset, uint32_t vsec_data)
 	printf("Descriptor: offset = 0x%x\n", offset);
 	vsec1[offset] = vsec_data;
     }
-    else if((offset <= 0x20000) && (offset < 0x20700)) {
+    else if((offset >= 0x20000) && (offset < 0x20700)) {
 	offset = ~0x00020000 & offset;
 	vsec2[offset] = vsec_data;
     } 
@@ -296,7 +296,7 @@ Descriptor::set_afu_desc_reg(uint32_t offset, uint32_t data)
 // mmio memory space 
 // 0x0000 - 0x4000
 void
-Descriptor::set_mmio_mem(uint32_t offset, char *data, uint8_t size)
+Descriptor::set_mmio_mem(uint32_t offset, char *data, uint16_t size)
 {
     uint8_t i;
     debug_msg("Descriptor:set_mmio_mem");
@@ -314,7 +314,7 @@ Descriptor::set_mmio_mem(uint32_t offset, char *data, uint8_t size)
 }
 
 void
-Descriptor::get_mmio_mem(uint32_t offset, char *data, uint8_t size)
+Descriptor::get_mmio_mem(uint32_t offset, char *data, uint16_t size)
 {
     uint8_t i;
     debug_msg("Descriptor:get_mmio_mem");
