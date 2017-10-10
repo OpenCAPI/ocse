@@ -508,6 +508,9 @@ int read_afu_config(struct mmio *mmio, uint8_t bus, pthread_mutex_t * lock)
 					      break;
 				         case 0xF004: 
 					      info_msg("    Found AFU CTL DVSEC ");
+					      // if we encounter this structure and afu_present - 0, skip all this as we aren't expecting to use any of it
+					      if (mmio->fcn_cfg_array[f]->afu_present == 0) break;
+
 					      // we should have an array of pointers to afu cfg structures
 					      // allocat a structure and save the pointer in mmio->fcn_cfg_array[f]->afu_cfg_p_array[afu_control_index]
 					      // this index is somewhat temporary as we only need it here to access the afu descriptor
