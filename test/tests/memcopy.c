@@ -8,7 +8,10 @@
 #include <time.h>
 
 #define CACHELINE 128
-#define MDEVICE "/dev/cxl/tlx0.0000:00:00.1.0"
+#define MDEVICE "/dev/cxl/tlx0.0000:00:0.1.0"
+
+#define PHYSICAL_FUNCTION "1234:00:00.1"
+#define NAME "tlx"
 
 static int verbose;
 static unsigned int buffer_cl = 64;
@@ -94,9 +97,10 @@ int main(int argc, char *argv[])
     
     //status[0]=0xff;
     // open master device
-    printf("Calling ocxl_afu_open_dev\n");
+    printf("Calling ocxl_afu_open_specific\n");
     
-    rc = ocxl_afu_open_from_dev(MDEVICE, &mafu_h);
+    rc = ocxl_afu_open_specific(NAME, PHYSICAL_FUNCTION, 0, &mafu_h);
+    //rc = ocxl_afu_open_from_dev(MDEVICE, &mafu_h);
     if(rc != 0) {
 	perror("cxl_afu_open_dev: "MDEVICE);
 	return -1;

@@ -2135,10 +2135,9 @@ ocxl_err _query_afu( struct ocxl_afu *afu_h, int fd, uint8_t bus, uint8_t dev, u
 		return OCXL_NO_DEV;
 	}
 	free(buffer);
-
 	_all_idle( afu_h );
 
-	afu_h->id = calloc(11, sizeof(char));
+	afu_h->id = calloc(15, sizeof(char));
 	sprintf(afu_h->id, "afu%02x.%02x.%02x.%02x", bus, dev, fcn, afuid);
 
 	return OCXL_OK;
