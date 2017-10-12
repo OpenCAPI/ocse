@@ -570,6 +570,11 @@ int read_afu_config(struct mmio *mmio, uint8_t bus, pthread_mutex_t * lock)
 					      eventc = _read_afu_descriptor( mmio, mmio->fcn_cfg_array[f]->afu_information_dvsec_pa + 0x0c, 0x28, lock );
 					      mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->global_mmio_size = eventc->cmd_data ;
 					      free( eventc );
+					      info_msg( "    afu %d global mmio bar = %d, global mmio offset = 0x%016x, global mmio size = 0x%016x", 
+							afu_index,
+							mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->global_mmio_bar, 
+							mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->global_mmio_offset, 
+							mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->global_mmio_size );
 
 					      //     read per pasid mmio bar/offset hi/offset lo
 					      eventc = _read_afu_descriptor( mmio, mmio->fcn_cfg_array[f]->afu_information_dvsec_pa + 0x0c, 0x30, lock );
@@ -583,6 +588,11 @@ int read_afu_config(struct mmio *mmio, uint8_t bus, pthread_mutex_t * lock)
 					      eventc = _read_afu_descriptor( mmio, mmio->fcn_cfg_array[f]->afu_information_dvsec_pa + 0x0c, 0x38, lock );
 					      mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->pp_mmio_stride = eventc->cmd_data & 0xFFFF0000 ;
 					      free( eventc );
+					      info_msg( "    afu %d per pasid mmio bar = %d, per pasid mmio offset = 0x%016x, per pasid mmio stride = 0x%016x", 
+							afu_index,
+							mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->pp_mmio_bar, 
+							mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->pp_mmio_offset, 
+							mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->pp_mmio_stride );
 
 					      //     read mem base address/size
 					      eventc = _read_afu_descriptor( mmio, mmio->fcn_cfg_array[f]->afu_information_dvsec_pa + 0x0c, 0x3c, lock );
