@@ -380,15 +380,15 @@ AFU::get_machine_context()
 
     debug_msg("AFU: get machine context");
     machine_number = 0;
-    for(context=1; context<4; context++) {
+    for(context=0; context<4; context++) {
 	descriptor.get_mmio_mem(0x1000*context+machine_number, (char*)&data, size);
 	if(data) {
 	    mmio_base = 0x1000*context + machine_number;
-	    printf("context = %d  machine = %d\n", context-1, machine_number);
+	    printf("context = %d  machine = %d\n", context, machine_number);
 	    //context = (uint16_t)((data & 0x0000FFFF00000000LL) >> 32);
 	    debug_msg("AFU: get cmd pasid = %d", context);
 	    afu_event.afu_tlx_cmd_pasid = context;
-	    context = (uint16_t)((data &0x00000000FFFF0000LL) >> 32);
+	    context = (uint16_t)((data &0x0000FFFF00000000LL) >> 32);
 	    context_to_mc[context] = new MachineController(context);
 	    highest_priority_mc = context_to_mc.end();
 	    mc = context_to_mc[context];
@@ -415,6 +415,7 @@ AFU::request_assign_actag()
 
     TagManager::request_tag(&afutag);
 
+    afu_event.afu_tlx_cmd_bdf = 0x0001;
     afu_event.afu_tlx_cmd_actag = 0x01;
     afu_event.afu_tlx_cmd_afutag = afutag;
     printf("AFU: afu_tag = 0x%x\n", afutag);
@@ -452,17 +453,17 @@ AFU::resolve_tlx_afu_cmd()
 #endif
     uint64_t  cmd_pa;
     
-    rc = tlx_cfg_read_cmd_and_data(&afu_event, &cmd_data_bdi, cmd_data_bus, &cmd_opcode,
-	&cmd_capptag, &cmd_pl, &cmd_t, &cmd_pa);
-    if(rc != TLX_SUCCESS) {
-	printf("rc = 0x%x\n", rc);
-    }
+//    rc = tlx_cfg_read_cmd_and_data(&afu_event, &cmd_data_bdi, cmd_data_bus, &cmd_opcode,
+//	&cmd_capptag, &cmd_pl, &cmd_t, &cmd_pa);
+//    if(rc != TLX_SUCCESS) {
+//	printf("rc = 0x%x\n", rc);
+//    }
     
-    if(cmd_opcode == 0xe1) {
-	memcpy(&wr_config_data, &cmd_data_bus, 4);
-	printf("AFU: wr_config_data = 0x%x\n", wr_config_data);
-    }
-    if(rc == CFG_TLX_NOT_CFG_CMD) {
+//    if(cmd_opcode == 0xe1) {
+//	memcpy(&wr_config_data, &cmd_data_bus, 4);
+//	printf("AFU: wr_config_data = 0x%x\n", wr_config_data);
+//    }
+//    if(rc == CFG_TLX_NOT_CFG_CMD) {
     	if (tlx_afu_read_cmd(&afu_event, &cmd_opcode, &cmd_capptag, 
 		&cmd_dl, &cmd_pl, &cmd_be, &cmd_end, //&cmd_t, 
 #ifdef	TLX4
@@ -471,7 +472,7 @@ AFU::resolve_tlx_afu_cmd()
 		&cmd_pa) != TLX_SUCCESS) {
 	error_msg("Failed: tlx_afu_read_cmd");
 	}
-    }
+//    }
 
     afu_event.tlx_afu_cmd_opcode = cmd_opcode;
     afu_event.afu_tlx_resp_capptag = cmd_capptag;
@@ -798,7 +799,7 @@ AFU::tlx_afu_config_read()
 	data_size = 4;
     }
 
-    bdf = (0xFFFF0000 & afu_event.tlx_afu_cmd_pa) >> 16;
+    bdf = (0xFFFF0000 & afu_event.tlx_cfg_pa) >> 16;
     afu_event.afu_tlx_cmd_bdf = bdf;
     info_msg("AFU: BDF = 0x%x", bdf);
     info_msg("AFU: cfg_capptag = 0x%x", resp_capptag);
