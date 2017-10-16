@@ -122,20 +122,12 @@ ocxl_err ocxl_lpc_unmap(ocxl_afu_h afu)
 	return 0;
 }
 
-// read size bytes from *data to offset in afu
-//    size = 64, 128, or 256
-//    offset is size aligned
-//    *data is size aligned
+// write size bytes from *data to offset in afu
+//    size = arbitrary
+//    offset is byte aligned
+//    *data is byte aligned - but is likely 16 Byte aligned due to host OS behavior
 ocxl_err ocxl_lpc_write(ocxl_afu_h afu, uint64_t offset, uint8_t *val, uint64_t size )
 {
-        // TODO we're going to allow byte alignment and parse the size into naturally aligned accesses
-        //      or we could force natural alignment on the caller...
-        // phase 1 - size is a power of 2, <= 64, data is size long, offset is naturally aligned
-        //           that is, it will fit in a single 64 Byte write event
-        // phase 2 - size is a power of 2, <= 256, aribitrary and offset is byte aligned
-        //           that is, we have to break it up *somewhere* along the flow into up to 4 legal write event packets
-        // phase 3 - size is aribitrary and offset is byte aligned
-        //           that is, we have to break it up somewhere along the flow into legal write event packets
 
         struct ocxl_afu *my_afu;
 	my_afu = (struct ocxl_afu *)afu;
@@ -152,50 +144,67 @@ ocxl_err ocxl_lpc_write(ocxl_afu_h afu, uint64_t offset, uint8_t *val, uint64_t 
 	      goto write_fail;
 	}
 
-        // check size legality
-	switch (size) {
-	case 1:
-	case 2:
-	case 4:
-	case 8:
-	case 16:
-	case 32:
-	case 64:
-	      break;
-	case 128:
-	case 256:
-	      warn_msg("size support under construction");
-	      break;
-	default:
-	        warn_msg("unsupported size");
-		errno = EINVAL;
-		return -1;
-		break;
-	}
+        // check size legality - not required - any size is legal
 
-        debug_msg("ocxl_lpc_write: legal size = %d bytes", size);
+        // check address alignment against size - not required - any alignment is legal
 
-        // check address alignment against size
-	if ( offset & (size - 1) ) {
-	      warn_msg("ocxl_lpc_write: afu lpc address offset is not size aligned");
-	      /* errno = EINVAL; */
-	      /* return -1; */
+	my_afu->mem.type = OCSE_LPC_WRITE;
+	my_afu->mem.be = 0;
+
+	int i;
+	uint64_t to_i;
+	int stride;
+	int remainder;
+
+	for (i=0; i<size; i=i+stride) {
+	  to_i = offset + i;
+	  remainder = size - i;
+	  if ( ( to_i & 0x1 ) !=0 ) {
+	    // byte aligned address, send 1 byte, add 1 to i
+	    stride = 1;
+	  } else if ( ( to_i & 0x2 ) !=0 ) {
+	    // 2-byte aligned address, send 2 byte, add 2 to i
+	    stride = 2;
+	  } else if ( ( to_i & 0x4 ) !=0 ) {
+	    // 4-byte aligned address, send 4 byte, add 4 to i
+	    stride = 4;
+	  } else if ( ( to_i & 0x8 ) !=0 ) {
+	    // 8-byte aligned address, send 8 byte, add 8 to i
+	    stride = 8;
+	  } else if ( ( to_i & 0x10 ) !=0 ) {
+	    // 16-byte aligned address, send 16 byte, add 16 to i
+	    stride = 16;
+	  } else if ( ( to_i & 0x20 ) !=0 ) {
+	    // 32-byte aligned address, send 32 byte, add 32 to i
+	    stride = 32;
+	  } else if ( ( to_i & 0x40 ) !=0 ) {
+	    // 64-byte aligned address, send 64 byte, add 64 to i
+	    stride = 64;
+	  } else if ( ( to_i & 0x80 ) !=0 ) {
+	    // 128-byte aligned address, send 128 byte, add 128 to i
+	    stride = 128;
+	  } else {
+	    // 256-byte aligned address, send 256 byte, add 256 to i
+	    stride = 256;
+	  }
+	  
+	  while ( stride > remainder ) {
+	    stride = stride / 2;
 	  }
 
-        debug_msg("ocxl_lpc_write: legal alignment");
-
-	// Send memory write to OCSE - phase 2 - should we break it up here?  or in ocse?
-	my_afu->mem.type = OCSE_LPC_WRITE;
-	my_afu->mem.addr = offset;
-	my_afu->mem.size = size;
-	my_afu->mem.data = val;
-	my_afu->mem.be = 0;
-	my_afu->mem.state = LIBOCXL_REQ_REQUEST;
-	while (my_afu->mem.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
-		_delay_1ms();
-
-	if (!my_afu->opened)
-		goto write_fail;
+	  // Send a legally aligned and sized memory write to OCSE
+	  // and wait for the ack.
+	  my_afu->mem.addr = offset + i;
+	  my_afu->mem.size = stride;
+	  my_afu->mem.data = val + i;
+	  my_afu->mem.state = LIBOCXL_REQ_REQUEST;
+	  debug_msg("ocxl_lpc_write stride : %d bytes to lpc offset 0x%016lx", stride, offset + i);
+	  while (my_afu->mem.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+	    _delay_1ms();
+	  
+	  if (!my_afu->opened)
+	    goto write_fail;
+	}
 
 	return 0;
 
@@ -253,20 +262,12 @@ ocxl_err ocxl_lpc_write_be(ocxl_afu_h afu, uint64_t offset, uint8_t *val, uint64
 	return -1;
 }
 
-// read size bytes from offset (in afu) to *data
-//    size = 64, 128, or 256
-//    offset is size aligned
-//    *data is size aligned
+// read size bytes from offset in afu to *data
+//    size = arbitrary
+//    offset is byte aligned
+//    *data is byte aligned - but is likely 16 Byte aligned due to host OS behavior
 ocxl_err ocxl_lpc_read(ocxl_afu_h afu, uint64_t offset, uint8_t *out, uint64_t size )
 {
-        // TODO we're going to allow byte alignment and parse the size into naturally aligned accesses
-        //      or we could force natural alignment on the caller...
-        // phase 1 - size is a power of 2, <= 64, data is size long, offset is naturally aligned
-        //           that is, it will fit in a single 64 Byte read event
-        // phase 2 - size is a power of 2, <= 256, aribitrary and offset is naturally aligned
-        //           that is, we have to break it up *somewhere* along the flow into up to 4 legal read event packets
-        // phase 3 - size is aribitrary and offset is byte aligned
-        //           that is, we have to break it up somewhere along the flow into legal write event packets
 
         struct ocxl_afu *my_afu;
 	my_afu = (struct ocxl_afu *)afu;
@@ -283,62 +284,77 @@ ocxl_err ocxl_lpc_read(ocxl_afu_h afu, uint64_t offset, uint8_t *out, uint64_t s
 	      goto read_fail;
 	}
 
-        // check size legality
-	switch (size) {
-	case 1:
-	case 2:
-	case 4:
-	case 8:
-	case 16:
-	case 32:
-	case 64:
-	      break;
-	case 128:
-	case 256:
-	      warn_msg("size support under construction");
-	      break;
-	default:
-	        warn_msg("unsupported size");
-		errno = EINVAL;
-		return -1;
-		break;
-	}
+        // check size legality - not required - any size is legal
 
-        debug_msg("ocxl_lpc_read: legal size = %d bytes", size);
+        // check address alignment against size - not required - any alignment is legal
 
-        // check address alignment against size
-	if ( offset & (size - 1) ) {
-	      warn_msg("ocxl_lpc_read: afu lpc address offset is not size aligned");
-	      /* errno = EINVAL; */
-	      /* return -1; */
+	my_afu->mem.type = OCSE_LPC_READ;
+	my_afu->mem.be = 0;
+
+	int i;
+	uint64_t to_i;
+	int stride;
+	int remainder;
+
+	for (i=0; i<size; i=i+stride) {
+	  to_i = offset + i;
+	  remainder = size - i;
+	  if ( ( to_i & 0x1 ) !=0 ) {
+	    // byte aligned address, send 1 byte, add 1 to i
+	    stride = 1;
+	  } else if ( ( to_i & 0x2 ) !=0 ) {
+	    // 2-byte aligned address, send 2 byte, add 2 to i
+	    stride = 2;
+	  } else if ( ( to_i & 0x4 ) !=0 ) {
+	    // 4-byte aligned address, send 4 byte, add 4 to i
+	    stride = 4;
+	  } else if ( ( to_i & 0x8 ) !=0 ) {
+	    // 8-byte aligned address, send 8 byte, add 8 to i
+	    stride = 8;
+	  } else if ( ( to_i & 0x10 ) !=0 ) {
+	    // 16-byte aligned address, send 16 byte, add 16 to i
+	    stride = 16;
+	  } else if ( ( to_i & 0x20 ) !=0 ) {
+	    // 32-byte aligned address, send 32 byte, add 32 to i
+	    stride = 32;
+	  } else if ( ( to_i & 0x40 ) !=0 ) {
+	    // 64-byte aligned address, send 64 byte, add 64 to i
+	    stride = 64;
+	  } else if ( ( to_i & 0x80 ) !=0 ) {
+	    // 128-byte aligned address, send 128 byte, add 128 to i
+	    stride = 128;
+	  } else {
+	    // 256-byte aligned address, send 256 byte, add 256 to i
+	    stride = 256;
+	  }
+	  
+	  while ( stride > remainder ) {
+	    stride = stride / 2;
 	  }
 
-        debug_msg("ocxl_lpc_read: legal alignment");
+	  // Send a legally aligned and sized memory read to OCSE
+	  // and wait for the ack.
+	  my_afu->mem.addr = offset + i;
+	  my_afu->mem.size = stride;
+	  my_afu->mem.state = LIBOCXL_REQ_REQUEST;
+	  debug_msg("ocxl_lpc_read stride : %d bytes from lpc offset 0x%016lx", stride, offset + i);
+	  while (my_afu->mem.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+	    _delay_1ms();
+	  
+	  // copy the data by copying the pointer
+	  if (my_afu->mem.data == NULL) {
+	    warn_msg("afu lpc memory not returned");
+	    goto read_fail;
+	  }
 
-	// Send memory write to OCSE - phase 3 - should we break it up here?  or in ocse?  here
-	// we will ask ocse for legal partial or full sizes.  that is, naturally aligned powers of 2 <= 256
-	// phase 3 - loop through size, reading by greatest available naturally aligned address/size, incrementing offset and repeating...???
-	// we'll get back a buffer of a matching size to append to "out"
-	my_afu->mem.type = OCSE_LPC_READ;
-	my_afu->mem.addr = offset;
-	my_afu->mem.size = size;
-	my_afu->mem.state = LIBOCXL_REQ_REQUEST;
-	while (my_afu->mem.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
-		_delay_1ms();
+	  // we expect mem.data to be a full length buffer of the data we are reading
+	  // that is, the length of mem.data should match mem.size
+	  memcpy( out + i, my_afu->mem.data, my_afu->mem.size );
+	  free( my_afu->mem.data );
 
-	// copy the data by copying the pointer
-	if (my_afu->mem.data == NULL) {
-	      warn_msg("afu lpc memory not returned");
-	      goto read_fail;
+	  if (!my_afu->opened)
+	    goto read_fail;
 	}
-
-	// we expect mem.data to be a full length buffer of the data we are reading
-	// that is, the length of mem.data should match mem.size
-	memcpy( out, my_afu->mem.data, my_afu->mem.size );
-	free( my_afu->mem.data );
-
-	if (!my_afu->opened)
-		goto read_fail;
 
 	return 0;
 
