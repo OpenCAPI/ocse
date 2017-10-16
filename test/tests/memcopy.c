@@ -123,7 +123,8 @@ int main(int argc, char *argv[])
     //status[0] = 0xff;
     config_param.context = 0;
     config_param.enable_always = 1;
-    config_param.mem_size = CACHELINE;
+    //config_param.mem_size = CACHELINE;
+    config_param.mem_size = 64;
     config_param.command = AFU_CMD_RD_WNITC;
     config_param.mem_base_address = (uint64_t)rcacheline;
     config_param.machine_number = 0;
