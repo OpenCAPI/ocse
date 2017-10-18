@@ -78,7 +78,7 @@
 #define CFG_TLX_NOT_CFG_CMD 43
 #define CFG_TLX_RESP_NOT_VALID 44
 #define TLX_RESPONSE_FAILED 15
-#define TLX_RESPONSE_CONTEXT 17
+//#define TLX_RESPONSE_CONTEXT 17
 #define TLX_BAD_SOCKET 16	/* The socket connection could not be established */
 #define TLX_VERSION_ERROR 48	/* The TLX versions in use on local & remote do not match */
 #define TLX_TRANSMISSION_ERROR 64	/* There was an error sending data across the socket

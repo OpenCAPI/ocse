@@ -60,12 +60,12 @@ enum mem_state {
 	MEM_TOUCHED,
 	MEM_BUFFER,
 	MEM_REQUEST,
-	MEM_CAS_OP,
+	//MEM_CAS_OP,
 	MEM_CAS_RD,
-	MEM_CAS_WR,
+	//MEM_CAS_WR,
 	MEM_RECEIVED,
 	AMO_MEM_RESP,
-	DMA_PARTIAL,
+	//DMA_PARTIAL,
 	DMA_MEM_RESP,
 	MEM_DONE
 };
@@ -85,16 +85,19 @@ struct cmd_event {
 	uint32_t command;
 	uint32_t afutag;
         //uint32_t tag;  // this will go away when everything has migrated to using afutag.
-	uint32_t abt;
+	//uint32_t abt;
 	uint32_t size;
-	uint32_t resp;
-	uint64_t cas_op1;
-	uint64_t cas_op2;
-	uint32_t cpagesize;
-	uint32_t resp_r_pgsize;
-	uint32_t resp_extra;
+	uint32_t resp;  // this is used as resp_code TODO change this to  resp_code
+	//uint64_t cas_op1;
+	//uint64_t cas_op2;
+	//uint32_t cpagesize;
+	//uint32_t resp_r_pgsize;
+	//uint32_t resp_extra;
 	uint32_t port;
-	uint32_t dtype;
+	uint32_t resp_dl;
+	uint32_t resp_dp;
+	uint32_t resp_opcode;
+	//uint32_t dtype;
 	uint32_t dpartial;
 	uint64_t wr_be;
 	uint8_t cmd_flag;
@@ -125,11 +128,11 @@ struct cmd {
 	FILE *dbg_fp;
 	uint8_t dbg_id;
 	uint64_t lock_addr;
-	uint64_t res_addr;
+	//uint64_t res_addr;
 	int max_clients;
 	uint32_t pagesize;
 	uint16_t irq;
-	int locked;
+	//int locked;
 };
 
 struct cmd *cmd_init(struct AFU_EVENT *afu_event, struct parms *parms,
@@ -137,8 +140,6 @@ struct cmd *cmd_init(struct AFU_EVENT *afu_event, struct parms *parms,
 		     char *afu_name, FILE * dbg_fp, uint8_t dbg_id);
 
 void handle_cmd(struct cmd *cmd,  uint32_t latency);
-
-void handle_afu_tlx_cnd_data_read(struct cmd *cmd);
 
 //void handle_buffer_data(struct cmd *cmd);
 

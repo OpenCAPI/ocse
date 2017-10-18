@@ -182,7 +182,7 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 		     uint32_t command, enum cmd_type type,
 		     uint64_t addr, uint16_t size, enum mem_state state,
 		     uint32_t resp, uint8_t unlock , uint8_t cmd_data_is_valid,
-		     uint64_t wr_be, uint8_t cmd_flag, uint8_t cmd_endian)
+		     uint64_t wr_be, uint8_t cmd_flag, uint8_t cmd_endian, uint32_t resp_opcode)
 
 {
 	struct cmd_event **head;
@@ -202,12 +202,19 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	event->wr_be = wr_be;
 	event->cmd_flag = cmd_flag;
 	event->cmd_endian = cmd_endian;
-
-	// Temporary hack for now, as we don't touch/look @ TLX_SPAP reg
-	if (event->resp == TLX_RESPONSE_CONTEXT)
-		event->resp_extra = 1;
+	event->resp_opcode = resp_opcode;
+	// if size = 0 it doesn't matter what we set, in this case, 1, otherwise find resp_dl from size but resp_dp always 0 
+	if (size <= 64)
+		event->resp_dl = 1;
 	else
-		event->resp_extra = 0;
+		event->resp_dl = size_to_dl(size);
+	event->resp_dp = 0;
+
+	// Temporary hack for now, as we don't touch/look @ TLX_SPAP reg <-- not part of OC, remove this!
+	//if (event->resp == TLX_RESPONSE_CONTEXT)
+	//	event->resp_extra = 1;
+	//else
+	//	event->resp_extra = 0;
 
 	event->unlock = unlock;
 
@@ -282,21 +289,21 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
         // setting MEM_IDLE will tell handle_interrupt to send req to libocxl
         if (cmd_opcode == AFU_CMD_WAKE_HOST_THRD)
 		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_WAKE_HOST_THRD, addr, size, MEM_IDLE,
-		 resp, 0, cmd_data_is_valid, 0, cmd_flag, 0);
+		 resp, 0, cmd_data_is_valid, 0, cmd_flag, 0, TLX_RSP_WAKE_HOST_RESP);
 	else  //must be some type of INTR request
 		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_INTERRUPT, addr, size, MEM_IDLE,
-		 resp, 0, cmd_data_is_valid, 0, cmd_flag, 0);
+		 resp, 0, cmd_data_is_valid, 0, cmd_flag, 0, TLX_RSP_INTRP_RESP);
  }
 
 // Format and add failed command to list
 static void _add_fail(struct cmd *cmd, uint16_t actag, uint32_t afutag,
-		       uint32_t cmd_opcode, uint32_t resp)
+		       uint32_t cmd_opcode, uint32_t resp, uint32_t resp_opcode)
 {
         int32_t context;
 
         context = _find_client_by_actag(cmd, actag);
 	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_FAILED, 0, 0, MEM_DONE,
-		 resp, 0, 0, 0, 0, 0);
+		 resp, 0, 0, 0, 0, 0, resp_opcode);
 }
 
 // Check address alignment
@@ -330,11 +337,11 @@ static int _aligned(uint64_t addr, uint32_t size)
         memcpy( (void *)&addr, (void *)&(cmd_ea_or_obj[0]), sizeof(int64_t));
  	// Check command size and address */
  	if (_aligned(addr, size) == BAD_OPERAND_SIZE) {
- 		_add_fail(cmd, actag, afutag, cmd_opcode, 0x09);
+ 		_add_fail(cmd, actag, afutag, cmd_opcode, 0x09, TLX_RSP_TOUCH_RESP);
  		return;
  	}
 	else if (_aligned(addr, size) == BAD_ADDR_OFFSET) { //invalid address alignment
- 		_add_fail(cmd, actag, afutag, cmd_opcode,  0x0b);
+ 		_add_fail(cmd, actag, afutag, cmd_opcode,  0x0b, TLX_RSP_TOUCH_RESP);
  		return;
  	}
 	// In future, check to see if cmd_pg_size is a supported value? Send it
@@ -345,7 +352,7 @@ static int _aligned(uint64_t addr, uint32_t size)
 	// We could send request to libocxl for processing, especially for OpenCAPI 4
 	// when a translation address is expected as return
 	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_TOUCH, addr, 0, MEM_DONE,
-		 0x00, 0, 0, 0, 0, 0);
+		 0x00, 0, 0, 0, 0, 0, TLX_RSP_TOUCH_RESP);
  }
 
 
@@ -378,11 +385,11 @@ static void _add_read(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 
 	// Check command size and address
  	if (_aligned(addr, size) == BAD_OPERAND_SIZE) {
- 		_add_fail(cmd, actag, afutag, cmd_opcode, 0x09);
+ 		_add_fail(cmd, actag, afutag, cmd_opcode, 0x09,TLX_RSP_READ_FAILED );
  		return;
  	}
 	else if (_aligned(addr, size) == BAD_ADDR_OFFSET) { //invalid address alignment
- 		_add_fail(cmd, actag, afutag, cmd_opcode,  0x0b);
+ 		_add_fail(cmd, actag, afutag, cmd_opcode,  0x0b, TLX_RSP_READ_FAILED);
  		return;
 	}
 
@@ -394,7 +401,7 @@ static void _add_read(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 	// Reads will be added to the list and will next be processed
 	// in the function handle_buffer_write()
 	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_READ, addr, size,
-		 MEM_IDLE, TLX_RESPONSE_DONE, 0, 0, 0, 0, 0);
+		 MEM_IDLE, TLX_RESPONSE_DONE, 0, 0, 0, 0, 0, TLX_RSP_READ_RESP);
 }
 
 // Format and add AMO read or write to command list
@@ -402,7 +409,7 @@ static void _add_amo(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 		      uint8_t cmd_opcode, enum cmd_type type, uint8_t *cmd_ea_or_obj,
 		      uint8_t cmd_pl, uint8_t cmd_data_is_valid, uint8_t cmd_flag, uint8_t cmd_endian)
 {
-        int32_t context, size, sizecheck;
+        int32_t context, size, sizecheck, resp_opcode;
         int64_t addr;
 
         // convert 68 bit ea/obj to 64 bit addr
@@ -420,6 +427,7 @@ static void _add_amo(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 			if ((cmd_opcode == AFU_CMD_AMO_RW) || (cmd_opcode == AFU_CMD_AMO_RW_N))  {
 				if (cmd_flag >= 0x8)  {
 					warn_msg("AMO_RW has invalid cmd_pl:%d", cmd_pl);
+					resp_opcode = TLX_RSP_READ_FAILED;
 					size= -1;
 				}
 			}
@@ -432,6 +440,7 @@ static void _add_amo(struct cmd *cmd, uint16_t actag, uint16_t afutag,
   		case 7:
 			if ((cmd_opcode == AFU_CMD_AMO_W) || (cmd_opcode == AFU_CMD_AMO_W_N))  {
 				warn_msg("AMO_WR has invalid cmd_pl:%d", cmd_pl);
+				resp_opcode = TLX_RSP_WRITE_FAILED;
 				size= -1;
 			}
 			if (cmd_pl == 6)
@@ -440,17 +449,25 @@ static void _add_amo(struct cmd *cmd, uint16_t actag, uint16_t afutag,
     			break;
   		default:
     			warn_msg("AMO with Unsupported pl: %d", cmd_pl);
+			if ((cmd_opcode == AFU_CMD_AMO_RW) || (cmd_opcode == AFU_CMD_AMO_RW_N))  
+				resp_opcode = TLX_RSP_READ_FAILED;
+			else
+				resp_opcode = TLX_RSP_WRITE_FAILED;
     			size = -1;
     			break;
   		}
 	if ( size == -1) {
 	debug_msg("AMO CMD FAILED SIZE CHECKS cmd_pl= 0x%x, cmd_flag=0x%x !!! ", cmd_pl, cmd_flag);
-	  _add_fail(cmd, actag, afutag, cmd_opcode,  0x09);
+	  _add_fail(cmd, actag, afutag, cmd_opcode,  0x09,resp_opcode );
 		return;
 	}
 	// Check command size and address
 	if (_aligned(addr, size) == BAD_ADDR_OFFSET) { //invalid address alignment
- 		_add_fail(cmd, actag, afutag, cmd_opcode,  0x0b);
+		if ((cmd_opcode == AFU_CMD_AMO_RW) || (cmd_opcode == AFU_CMD_AMO_RW_N) || (cmd_opcode == AFU_CMD_AMO_RD))  
+			resp_opcode = TLX_RSP_READ_FAILED;
+		else
+			resp_opcode = TLX_RSP_WRITE_FAILED;
+ 		_add_fail(cmd, actag, afutag, cmd_opcode,  0x0b, resp_opcode);
  		return;
 	}
 
@@ -464,9 +481,13 @@ static void _add_amo(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 
 	// Command data comes over with the command for amo_rw and amo_w, so now we need to read it from event
 	// Then, next step is to send over to client/libocxl for processing
+	if ((cmd_opcode == AFU_CMD_AMO_RW) || (cmd_opcode == AFU_CMD_AMO_RW_N) || (cmd_opcode == AFU_CMD_AMO_RD))  
+		resp_opcode = TLX_RSP_READ_RESP;
+	else
+		resp_opcode = TLX_RSP_WRITE_RESP;
 
 	_add_cmd(cmd, context, afutag, cmd_opcode, type, addr, (uint16_t)sizecheck,
-		 MEM_IDLE, TLX_RESPONSE_DONE, 0, cmd_data_is_valid, 0, cmd_flag, cmd_endian);
+		 MEM_IDLE, TLX_RESPONSE_DONE, 0, cmd_data_is_valid, 0, cmd_flag, cmd_endian, resp_opcode);
 }
 
 
@@ -485,11 +506,11 @@ static void _add_write(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 
 	// Check command size and address
  	if (_aligned(addr, size) == BAD_OPERAND_SIZE) {  //invalid operand size
- 		_add_fail(cmd, actag, afutag, cmd_opcode, 0x09);
+ 		_add_fail(cmd, actag, afutag, cmd_opcode, 0x09, TLX_RSP_WRITE_FAILED);
  		return;
  	}
 	else if (_aligned(addr, size) == BAD_ADDR_OFFSET) { //invalid address alignment
- 		_add_fail(cmd, actag, afutag, cmd_opcode,  0x0b);
+ 		_add_fail(cmd, actag, afutag, cmd_opcode,  0x0b, TLX_RSP_WRITE_FAILED);
  		return;
 	}
 	// Also need to check with libocxl to be sure the address AFU sent us is in user's space
@@ -509,10 +530,10 @@ static void _add_write(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 		context, cmd_opcode, addr, size, afutag );
 	if ((cmd_opcode == AFU_CMD_DMA_W_BE) || (cmd_opcode == AFU_CMD_DMA_W_BE_N))
 		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_WR_BE, addr, size,
-			 MEM_IDLE, TLX_RESPONSE_DONE, 0, cmd_data_is_valid, cmd_be, 0, 0);
+			 MEM_IDLE, TLX_RESPONSE_DONE, 0, cmd_data_is_valid, cmd_be, 0, 0, TLX_RSP_WRITE_RESP);
 	else
 		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_WRITE, addr, size,
-			 MEM_IDLE, TLX_RESPONSE_DONE, 0, cmd_data_is_valid, 0, 0, 0);
+			 MEM_IDLE, TLX_RESPONSE_DONE, 0, cmd_data_is_valid, 0, 0, 0, TLX_RSP_WRITE_RESP);
 }
 
 // Determine what type of command to add to list
@@ -632,7 +653,8 @@ static void _parse_cmd(struct cmd *cmd,
 		break;
 	default:
 		warn_msg("Unsupported command 0x%04x", cmd_opcode);
-		_add_fail(cmd, cmd_actag, cmd_afutag, cmd_opcode, TLX_RESPONSE_FAILED);
+		// TODO this type of error is signaled as "malformed packet error type 0 event" but how??  
+		_add_fail(cmd, cmd_actag, cmd_afutag, cmd_opcode, TLX_RESPONSE_FAILED, TLX_RESPONSE_FAILED);
 		break;
 	}
 }
@@ -750,6 +772,7 @@ void handle_buffer_write(struct cmd *cmd)
 	if ( allow_retry(cmd->parms)) {
 		event->state = MEM_DONE;
 		event->type = CMD_FAILED;
+		event->resp_opcode = TLX_RSP_READ_FAILED;
 		event->resp = 0x02;
 		debug_msg("handle_buffer_write:RETRY this cmd =0x%x \n", event->command);
 		return;
@@ -757,6 +780,7 @@ void handle_buffer_write(struct cmd *cmd)
 	if ( allow_failed(cmd->parms)) {
 		event->state = MEM_DONE;
 		event->type = CMD_FAILED;
+		event->resp_opcode = TLX_RSP_READ_FAILED;
 		event->resp = 0x0e;
 		debug_msg("handle_buffer_write: FAIL this cmd =0x%x \n", event->command);
 		return;
@@ -764,6 +788,7 @@ void handle_buffer_write(struct cmd *cmd)
 	if ( allow_derror(cmd->parms)) {
 		event->state = MEM_DONE;
 		event->type = CMD_FAILED;
+		event->resp_opcode = TLX_RSP_READ_FAILED;
 		event->resp = 0x08;
 		debug_msg("handle_buffer_write: DERROR this cmd =0x%x \n", event->command);
 		return;
@@ -773,6 +798,7 @@ void handle_buffer_write(struct cmd *cmd)
 	if ( allow_pending(cmd->parms)) {
 		event->state = MEM_XLATE_PENDING;
 		event->type = CMD_FAILED;
+		event->resp_opcode = TLX_RSP_READ_FAILED;
 		event->resp = 0x04;
 		debug_msg("handle_buffer_write: send XLATE_PENDING for this cmd =0x%x \n", event->command);
 		return;
@@ -981,6 +1007,7 @@ void handle_afu_tlx_write_cmd(struct cmd *cmd)
 	if ( allow_retry(cmd->parms)) {
 		event->state = MEM_DONE;
 		event->type = CMD_FAILED;
+		event->resp_opcode = TLX_RSP_WRITE_FAILED;
 		event->resp = 0x02;
 		debug_msg("handle_afu_tlx_cmd_data_read: RETRY this cmd =0x%x \n", event->command);
 		return;
@@ -988,6 +1015,7 @@ void handle_afu_tlx_write_cmd(struct cmd *cmd)
 	if ( allow_failed(cmd->parms)) {
 		event->state = MEM_DONE;
 		event->type = CMD_FAILED;
+		event->resp_opcode = TLX_RSP_WRITE_FAILED;
 		event->resp = 0x0e;
 		debug_msg("handle_afu_tlx_cmd_data_read: FAIL this cmd =0x%x \n", event->command);
 		return;
@@ -995,6 +1023,7 @@ void handle_afu_tlx_write_cmd(struct cmd *cmd)
 	if ( allow_derror(cmd->parms)) {
 		event->state = MEM_DONE;
 		event->type = CMD_FAILED;
+		event->resp_opcode = TLX_RSP_WRITE_FAILED;
 		event->resp = 0x08;
 		debug_msg("handle_afu_tlx_cmd_data_read: DERROR this cmd =0x%x \n", event->command);
 		return;
@@ -1005,6 +1034,7 @@ void handle_afu_tlx_write_cmd(struct cmd *cmd)
 	if ( allow_pending(cmd->parms)) {
 		event->state = MEM_XLATE_PENDING;
 		event->type = CMD_FAILED;
+		event->resp_opcode = TLX_RSP_WRITE_FAILED;
 		event->resp = 0x04;
 		debug_msg("handle_afu_tlx_cmd_data_read: send XLATE_PENDING for this cmd =0x%x \n", event->command);
 		return;
@@ -1085,6 +1115,10 @@ void handle_write_be_or_amo(struct cmd *cmd)
 	// Check to see if this cmd gets selected for a RETRY or FAILED or PENDING read_failed response
 	if ( allow_retry(cmd->parms)) {
 		event->state = MEM_DONE;
+		if ((event->type == CMD_AMO_RD) || (event->type == CMD_AMO_RW))
+			event->resp_opcode = TLX_RSP_READ_FAILED;
+		else	
+			event->resp_opcode = TLX_RSP_WRITE_FAILED;
 		event->type = CMD_FAILED;
 		event->resp = 0x02;
 		debug_msg("handle_write_be_or_amo: RETRY this cmd =0x%x \n", event->command);
@@ -1092,6 +1126,10 @@ void handle_write_be_or_amo(struct cmd *cmd)
 	}
 	if ( allow_failed(cmd->parms)) {
 		event->state = MEM_DONE;
+		if ((event->type == CMD_AMO_RD) || (event->type == CMD_AMO_RW))
+			event->resp_opcode = TLX_RSP_READ_FAILED;
+		else	
+			event->resp_opcode = TLX_RSP_WRITE_FAILED;
 		event->type = CMD_FAILED;
 		event->resp = 0x0e;
 		debug_msg("handle_write_be_or_amo: FAIL this cmd =0x%x \n", event->command);
@@ -1099,6 +1137,10 @@ void handle_write_be_or_amo(struct cmd *cmd)
 	}
 	if ( allow_derror(cmd->parms)) {
 		event->state = MEM_DONE;
+		if ((event->type == CMD_AMO_RD) || (event->type == CMD_AMO_RW))
+			event->resp_opcode = TLX_RSP_READ_FAILED;
+		else	
+			event->resp_opcode = TLX_RSP_WRITE_FAILED;
 		event->type = CMD_FAILED;
 		event->resp = 0x08;
 		debug_msg("handle_write_be_or_amo: DERROR this cmd =0x%x \n", event->command);
@@ -1109,6 +1151,10 @@ void handle_write_be_or_amo(struct cmd *cmd)
 	// (at some unknown time later) and that will "complete" the original cmd (no rd/write )
 	if ( allow_pending(cmd->parms)) {
 		event->state = MEM_XLATE_PENDING;
+		if ((event->type == CMD_AMO_RD) || (event->type == CMD_AMO_RW))
+			event->resp_opcode = TLX_RSP_READ_FAILED;
+		else	
+			event->resp_opcode = TLX_RSP_WRITE_FAILED;
 		event->type = CMD_FAILED;
 		event->resp = 0x04;
 		debug_msg("handle_write_be_or_amo: send XLATE_PENDING for this cmd =0x%x \n", event->command);
@@ -1293,6 +1339,7 @@ void handle_touch(struct cmd *cmd)
 	// Check to see if this cmd gets selected for a RETRY or FAILED or PENDING read_failed response
 	if ( allow_retry(cmd->parms)) {
 		event->state = MEM_DONE;
+		event->resp_opcode = TLX_RSP_TOUCH_RESP;
 		event->type = CMD_FAILED;
 		event->resp = 0x02;
 		debug_msg("handle_touch: RETRY this cmd =0x%x \n", event->command);
@@ -1300,6 +1347,7 @@ void handle_touch(struct cmd *cmd)
 	}
 	if ( allow_failed(cmd->parms)) {
 		event->state = MEM_DONE;
+		event->resp_opcode = TLX_RSP_TOUCH_RESP;
 		event->type = CMD_FAILED;
 		event->resp = 0x0e;
 		debug_msg("handle_touch: FAIL this cmd =0x%x \n", event->command);
@@ -1309,6 +1357,7 @@ void handle_touch(struct cmd *cmd)
 	// (at some unknown time later) and that will "complete" the original cmd (no rd/write )
 	if ( allow_pending(cmd->parms)) {
 		event->state = MEM_XLATE_PENDING;
+		event->resp_opcode = TLX_RSP_TOUCH_RESP;
 		event->type = CMD_FAILED;
 		event->resp = 0x04;
 		debug_msg("handle_touch: send XLATE_PENDING for this cmd =0x%x \n", event->command);
@@ -1367,6 +1416,7 @@ void handle_interrupt(struct cmd *cmd)
 		return;
 
 	// Check to see if this cmd gets selected for a RETRY or FAILED or PENDING response
+	// No need to set event->resp_opcode if FAILED bc resp_opcode is TLX_RSP_INTRP_RESP  or TLX_RSP_WAKE_HOST_RESP already
 	if ( allow_int_retry(cmd->parms)) {
 		event->state = MEM_DONE;
 		event->type = CMD_FAILED;
@@ -1489,7 +1539,8 @@ void handle_interrupt(struct cmd *cmd)
 
 } */
 
-void handle_mem_write(struct cmd *cmd)
+// TODO Do we even need this anymore? It isn't called from ocl.c
+/*void handle_mem_write(struct cmd *cmd)
 {
 	struct cmd_event **head;
 	struct cmd_event *event;
@@ -1546,7 +1597,7 @@ void handle_mem_write(struct cmd *cmd)
 	debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context);
 	client->mem_access = (void *)event;
 	debug_msg("Setting client->mem_access in handle_mem_write");
-}
+} */
 
 // Handle data returning from client for memory read
 static void _handle_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
@@ -1744,7 +1795,7 @@ void handle_response(struct cmd *cmd)
 	struct cmd_event **head;
 	struct cmd_event *event;
 	struct client *client;
-	uint8_t resp_dl, resp_dp;
+	//uint8_t resp_dl, resp_dp;
 	int rc = 0;
 
 	// debug_msg( "ocse:handle_response:" );
@@ -1794,125 +1845,38 @@ void handle_response(struct cmd *cmd)
 		   event->resp );
 
 
-	// lgt: this should probably be tlx_afu_send_resp_and_data
-	//      the trick is going to be how do we deal with the various sizes of data
-	//      do we transmit it all to afu_driver and let afu_driver partition it up? Yes
-	//      do we buffer it in tlx_interface somehow? could be a good altenate
-	// lgt: build the appropriate response for the event we selected
-	if ( (event->command == AFU_CMD_DMA_W) || (event->command == AFU_CMD_DMA_W_N) ||
-		(event->command == AFU_CMD_AMO_W) || (event->command == AFU_CMD_AMO_W_N) ||
-		(event->command == AFU_CMD_DMA_PR_W) || event->command == AFU_CMD_DMA_PR_W_N ) {
 
-		if ( (event->command == AFU_CMD_DMA_W) || (event->command == AFU_CMD_DMA_W_N) ) {
-			resp_dp = 0;
-	    		resp_dl = size_to_dl( event->size );
-		} else {
-	    		resp_dp = 0;
-	   		resp_dl = 64;
-		}
-		if (event->type == CMD_FAILED)   //have to send a write_failed response
-			rc = tlx_afu_send_resp( cmd->afu_event, TLX_RSP_WRITE_FAILED, event->afutag, event->resp,0,resp_dl,resp_dp,0);
-	    	else
-			rc = tlx_afu_send_resp( cmd->afu_event,
-					     TLX_RSP_WRITE_RESP,
-					     event->afutag,
-					     0, // resp_code - not really used for a good response
-					     0, // resp_pg_size - not used by response,
-					     resp_dl,
-	// one day have to add the conditional stuff for ocapi 4
-					     resp_dp,
-						0);
+	if (event->type == CMD_FAILED)   //send a failed response; add_cmd set resp_dl & dp; function that FAILED cmd set event->resp_opcode appropriately
+		rc = tlx_afu_send_resp( cmd->afu_event, event->resp_opcode, event->afutag, event->resp,0,event->resp_dl,event->resp_dp,0);
 
 
-	// rc = tlx_response(cmd->afu_event, event->afutag, event->resp, 1, 0, 0, cmd->pagesize, event->resp_extra);
-	} else if ( (event->command == AFU_CMD_PR_RD_WNITC) || (event->command == AFU_CMD_PR_RD_WNITC_N) ||
+	else if ( (event->command == AFU_CMD_PR_RD_WNITC) || (event->command == AFU_CMD_PR_RD_WNITC_N) ||
 		    (event->command == AFU_CMD_AMO_RD) || (event->command == AFU_CMD_AMO_RD_N) ||
-		    (event->command == AFU_CMD_AMO_RW) || (event->command == AFU_CMD_AMO_RW_N) ) {
-		if (event->type == CMD_FAILED)  //have to send a read_failed response
-			rc = tlx_afu_send_resp( cmd->afu_event, TLX_RSP_READ_FAILED, event->afutag, event->resp,0,1,0,0);
+		    (event->command == AFU_CMD_AMO_RW) || (event->command == AFU_CMD_AMO_RW_N) ||
+		    (event->command == AFU_CMD_RD_WNITC) || (event->command == AFU_CMD_RD_WNITC_N) ){
 
 	    // we can just send the 64 bytes of data back
 	    // and complete the event
-		else {
 			if ( allow_bdi_resp_err(cmd->parms)) {
 				debug_msg("handle_response: Set BDI=1 in the resp data for afutag=0x%x \n",
 				 event->afutag);
-		    		 rc = tlx_afu_send_resp_and_data( cmd->afu_event, TLX_RSP_READ_RESP,
-					     event->afutag, 0, 0, 1, 0, 0, 1, event->data ) ;
+		    		 rc = tlx_afu_send_resp_and_data( cmd->afu_event, event->resp_opcode,
+					     event->afutag, 0, 0, event->resp_dl, event->resp_dp, 0, 1, event->data ) ;
 			 } else {
 		    		rc = tlx_afu_send_resp_and_data( cmd->afu_event,
-					     TLX_RSP_READ_RESP,
+					     event->resp_opcode,
 					     event->afutag,
 					     0, // resp_code - not really used for a good response
 					     0, // resp_pg_size - not used by response,
-					     1, // for partials, dl is 1 (64 B)
-					     0, // for partials, dp is 0 (the 0th part)
+					     event->resp_dl, // for partials, dl is 1 (64 B)
+					     event->resp_dp, // for partials, dp is 0 (the 0th part)
 					     0, // resp_addr_tag, - not used by response
 					     0, // - now used by response
 					     event->data ) ; // data in this case is already at the proper offset in the 64 B data packet
 			}
-		}
-	} else if ( (event->command == AFU_CMD_RD_WNITC) || (event->command == AFU_CMD_RD_WNITC_N) ){
-	    // we can:
-	    //    send a complete response, with all the data
-	    //    send partial responses, in any order, with aligned partial data (vary dl and dp in the response
-	    //       power will likely send back chunks in <= 128 B responses...
-	    //    responses can come back in any order
-	    // I'm thinking ocse decides what response to send and whether or not to split it.
-	    // and sends all the data associated with the selected response.
-	    // then tlx_interface/afu_driver forward the response portion and hold the data in a fifo linked list of 64 B values.
-	    // then when the afu does a resp_rd_req of some resp_rd_cnt, tlx_interaface/afu_driver just starts pumping values out of the
-	    // fifo.  This method actually works for partial read as well as the minimum size of a split response is 64 B.
-	    // it is the afu's responsiblity to manage resp_rd_cnt correctly, and this is not information for us to check
-	    // anything other than an overrun (i.e. resp_rd_req of an empty fifo, or resp_rd_cnt exceeds the amount of data in the fifo)
-		{ resp_dl = size_to_dl( event->size );
-
-	    // i don't think we can get a bad dl since we calculated size from dl in the first place...
-	    // if ( resp_dl < 0 ) {
-	    //   printf( "handle_response: invalid size\n" );
-	    //   /* die somehow */
-	    // }
-
-		if (event->type == CMD_FAILED)  //have to send a read_failed response
-			rc = tlx_afu_send_resp( cmd->afu_event, TLX_RSP_READ_FAILED, event->afutag, event->resp,0,resp_dl,0,0);
-	    	else {
-			if ( allow_bdi_resp_err(cmd->parms)) {
-				debug_msg("handle_response: Set BDI= 1 in the resp data for afutag=0x%x \n",
-			 	event->afutag);
-		    		 rc = tlx_afu_send_resp_and_data( cmd->afu_event, TLX_RSP_READ_RESP,
-					     event->afutag, 0, 0, resp_dl, 0, 0, 1, event->data ) ;
-	    			}
-			else
-				rc = tlx_afu_send_resp_and_data( cmd->afu_event,
-					     TLX_RSP_READ_RESP,
-					     event->afutag,
-					     0, // resp_code - not really used for a good response
-					     0, // resp_pg_size - not used by response,
-					     resp_dl, // for partials, dl is 1 (64 B) - need to calculate dl from size or keep dl and dp around from initial command
-					     0, // for partials, dp is 0 (the 0th part)
-					     0, // resp_addr_tag, - not used by response
-					     0, // - now used by good response
-					     event->data ) ; // data in this case is already the complete length
-
-			}
-		}
-	} else if ((event->command == AFU_CMD_INTRP_REQ ) || (event->command == AFU_CMD_INTRP_REQ_D)) {
-  		rc = tlx_afu_send_resp( cmd->afu_event,TLX_RSP_INTRP_RESP,event->afutag,
-					     event->resp, // resp_code - bad resp for retry, failed, pending or derror
-					     0, 0, 0, 0);
-	} else if (event->command == AFU_CMD_WAKE_HOST_THRD ) {
-  		rc = tlx_afu_send_resp( cmd->afu_event,TLX_RSP_WAKE_HOST_RESP,event->afutag,
-					     event->resp, // resp_code - bad resp for retry, failed ( pending is OCAPI4)
-					     0, 0, 0, 0);
-	} else if ((event->command == AFU_CMD_XLATE_TOUCH ) || (event->command == AFU_CMD_XLATE_TOUCH_N )) {
-		if (event->type == CMD_FAILED) //have to send a read_failed response
-			rc = tlx_afu_send_resp( cmd->afu_event, TLX_RSP_READ_FAILED, event->afutag, event->resp,0,0,0,0);
-	    	else
-  		rc = tlx_afu_send_resp( cmd->afu_event,TLX_RSP_TOUCH_RESP,event->afutag,
-					     event->resp, // resp_code - right now always a (0x0) response
-					     0, 0, 0, 0);
-
-		}
+	    
+		} else   //have to send just a response
+			rc = tlx_afu_send_resp( cmd->afu_event, event->resp_opcode, event->afutag, event->resp,0,event->resp_dl,event->resp_dp,0);
 
 	if (rc == TLX_SUCCESS) {
 		//if we sent a failed resp=0x4 (xlate_pending or int_pending) we need to schedule to send a xlate_done cmd
