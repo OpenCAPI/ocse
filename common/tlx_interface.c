@@ -402,11 +402,14 @@ int tlx_afu_send_resp(struct AFU_EVENT *event,
 }
 
 
+// TODO If this is still needed/used, update to include support for split responses
+// needs to have resp_dp passed in to determine offset into data
 int tlx_afu_send_resp_data(struct AFU_EVENT *event,
 		 uint16_t resp_byte_cnt,
 		 uint8_t resp_data_bdi,uint8_t * resp_data)
 
 {
+
 	if (event->afu_tlx_resp_rd_req == 0)
 		return AFU_TLX_NO_CREDITS;
 	//afu_tlx_resp_rd_cnt only valid when afu_tlx_resp_rd_req is valid
@@ -443,6 +446,7 @@ int tlx_afu_send_resp_and_data(struct AFU_EVENT *event,
 
 {
 
+	uint64_t offset;
         uint32_t size;
 
 	debug_msg( "tlx_afu_send_resp_and_data: afu_tlx_resp_credits_available = %d", event->afu_tlx_resp_credits_available );
@@ -474,7 +478,10 @@ int tlx_afu_send_resp_and_data(struct AFU_EVENT *event,
 		// convert dl to size and send all the data
 		// printf("lgt: tlx_afu_send_resp_and_data: including data\n");
 		size = dl_to_size( resp_dl );
-		memcpy(event->tlx_afu_resp_data, resp_data, size);
+		//check resp_dp; if !=0 need to offset into data buffer
+		offset = 0 + ((resp_dp & 0x3) * 64);
+		debug_msg("tlx_afu_send_resp_and_data and offset = 0x%x", offset);
+		memcpy(event->tlx_afu_resp_data, (resp_data + offset), size);
 		event->tlx_afu_resp_data_byte_cnt = size;
 		return TLX_SUCCESS;
 	}

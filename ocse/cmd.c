@@ -45,6 +45,7 @@
 #include "../common/utils.h"
 
 #define CACHELINE_MASK 0xFFFFFFFFFFFFFFC0L
+//Move this to ocse.parms when it works
 
 // Initialize cmd structure for tracking AFU command activity
 struct cmd *cmd_init(struct AFU_EVENT *afu_event, struct parms *parms,
@@ -65,6 +66,7 @@ struct cmd *cmd_init(struct AFU_EVENT *afu_event, struct parms *parms,
 	cmd->parms = parms;
 	cmd->ocl_state = state;
 	cmd->pagesize = parms->pagesize;
+	cmd->HOST_CL_SIZE = parms->host_CL_size;
 	cmd->page_entries.page_filter = ~((uint64_t) PAGE_MASK);
 	cmd->page_entries.entry_filter = 0;
 	for (i = 0; i < LOG2_ENTRIES; i++) {
@@ -222,8 +224,8 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	event->data = (uint8_t *) malloc(CACHELINE_BYTES * 4);
 	memset(event->data, 0xFF, CACHELINE_BYTES * 4);
 
-	// lgt may not need cpl xfers to go and parity
-	//event->cpl_xfers_to_go = 0;  //init this to 0 (used for DMA read multi completion flow)
+	event->resp_bytes_sent = 0;  //init this to 0 (used for split responses)
+	// lgt may not need parity
 	//event->parity = (uint8_t *) malloc(DWORDS_PER_CACHELINE / 8);
 	//memset(event->parity, 0xFF, DWORDS_PER_CACHELINE / 8);
 
@@ -1854,7 +1856,26 @@ void handle_response(struct cmd *cmd)
 		    (event->command == AFU_CMD_AMO_RD) || (event->command == AFU_CMD_AMO_RD_N) ||
 		    (event->command == AFU_CMD_AMO_RW) || (event->command == AFU_CMD_AMO_RW_N) ||
 		    (event->command == AFU_CMD_RD_WNITC) || (event->command == AFU_CMD_RD_WNITC_N) ){
-
+		// if not AMO or PR_RD, check to see if split response is warranted
+		// For this initial implementation, there is a parm called HOST_CL_SIZE that is used to determine max resp length
+		// This could alternatively be thought of as an internal bus transfer restriction. Valid sizes are 64, 128 and 256.
+		// Default is 128. Right now this value is fixed. This could change in the future to be a randomized selection of 64, 128 or 256.
+		if  ((event->command == AFU_CMD_RD_WNITC) || (event->command == AFU_CMD_RD_WNITC_N) ){
+			if (event->size > cmd->HOST_CL_SIZE)  { // a split resp
+				if (event->resp_bytes_sent != 0) { //continue a split resp
+					printf("in handle_response and continue a split response \n");
+					// should event->resp_dp be & 0x3 ?
+					// if HOST_CL_SIZE = 128, resp_dp will be 0x2
+					// if HOST_CL_SIZE = 64, resp_dp will be 0x1, 0x2, 0x3 
+					if (cmd->HOST_CL_SIZE == 128)
+					    event->resp_dp = 0x2;
+					else
+					    event->resp_dp += 1;
+				}  
+				event->resp_dl =  size_to_dl (cmd->HOST_CL_SIZE);
+				event->resp_bytes_sent += cmd->HOST_CL_SIZE;
+			}
+		}
 	    // we can just send the 64 bytes of data back
 	    // and complete the event
 			if ( allow_bdi_resp_err(cmd->parms)) {
@@ -1882,9 +1903,14 @@ void handle_response(struct cmd *cmd)
 		//if we sent a failed resp=0x4 (xlate_pending or int_pending) we need to schedule to send a xlate_done cmd
 		// Can't free this event, will handle MEM_PENDING_SENT state in new routine
 		// it'll send xlate_done cmd and then free (no respnse expected back from AFU)
-		if (( event->state == MEM_XLATE_PENDING) || (event->state == MEM_INT_PENDING))
+		if (( event->state == MEM_XLATE_PENDING) || (event->state == MEM_INT_PENDING)) {
 			event->state = MEM_PENDING_SENT;
-		else {
+			return;
+		}
+		// ALSO, can't free if this is not last part of a split response
+		if ((event->resp_bytes_sent > 0 ) && (event->resp_bytes_sent != event->size))
+			return;
+		//else {
 			debug_msg("%s:RESPONSE event @ 0x%016" PRIx64 ", sent afutag=0x%02x code=0x%x", cmd->afu_name,
 			    event, event->afutag, event->resp);
 			debug_cmd_response(cmd->dbg_fp, cmd->dbg_id, event->afutag);
@@ -1894,13 +1920,15 @@ void handle_response(struct cmd *cmd)
 		 	free(event->data);
 		 	//free(event->parity);
 		 	free(event);
-		}
+	//	}
 	} else {
 		 if (rc == AFU_TLX_NO_CREDITS)
 				debug_msg ("NO AFU_TLX_RESP_CREDITS TO SEND RESP for AFUTAG 0x%x so will try LATER ", event->afutag);
 		 else
 			 debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", _response() failed for AFUTAG 0x%x so will try LATER",
 			     cmd->afu_name, event, event->afutag );
+		if (event->resp_bytes_sent != 0)
+			event->resp_bytes_sent -= cmd->HOST_CL_SIZE;  // back up byte count if we really didn't send the split response......
 		 return;
 	}
 }
