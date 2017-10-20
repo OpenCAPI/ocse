@@ -148,7 +148,12 @@ int main(int argc, char *argv[])
 	nanosleep(&t, &t);
 	printf("Polling read completion status = 0x%x\n", *status);
     }
-
+    // clear machine config
+    rc = clear_machine_config(mafu_h, &machine_config, config_param, DIRECTED);
+    if(rc != 0) {
+	printf("Failed to clear machine config for read command\n");
+	goto done;
+    }
     // Attemp write command
     printf("Attempt Write command\n");
     //status[0] = 0xff;
@@ -173,7 +178,16 @@ int main(int argc, char *argv[])
 	nanosleep(&t, &t);
 	printf("Polling write completion status = 0x%x\n", *status);
     }
-    
+    rc = clear_machine_config(mafu_h, &machine_config, config_param, DIRECTED);
+    if(rc != 0) {
+	printf("Failed clear machine config for write command\n");
+    	goto done;
+    }
+    status[0] = 0x55;	// send test complete status
+    while(status[0] != 0x00) {
+	nanosleep(&t, &t);
+	printf("Polling test completion status\n");
+    } 
     printf("wcacheline = 0x");
     for(i=0; i<CACHELINE; i++) {
 	printf("%02x", (uint8_t)wcacheline[i]);

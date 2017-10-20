@@ -35,6 +35,9 @@ uint8_t read_status_resp = 0;
 uint8_t write_status_resp = 0;
 uint32_t write_status_tag;
 uint32_t afu_function = 0;
+uint16_t gBDF = 0; 
+uint16_t gACTAG = 0;
+uint16_t gDUT = 0;
 
 AFU::AFU (int port, string filename, bool parity, bool jerror):
     descriptor (filename),
@@ -91,6 +94,7 @@ AFU::start ()
 {
     uint32_t cycle = 0;
     uint8_t  initial_credit_flag = 0;
+    uint16_t index=0;
 
     while (1) {
         fd_set watchset;
@@ -223,6 +227,18 @@ AFU::start ()
 	// get machine context and create new MachineController
 	else if(state == READY) {
 	    if(get_machine_context()) {
+		gBDF++;
+		gACTAG++;
+		//if(gDUT==1) {
+		//    afu_event.afu_tlx_cmd_bdf = gBDF[1];
+		//}
+		//else if(gDUT == 2) {
+		//    afu_event.afu_tlx_cmd_bdf = gBDF[index+1];
+		//    index++;
+	  	//}
+		printf("AFU: gBDF = %d gACTAG = %d\n", gBDF, gACTAG);
+		afu_event.afu_tlx_cmd_bdf = gBDF;
+		afu_event.afu_tlx_cmd_actag = gACTAG;
 		printf("AFU: request afu assign actag\n");
 		request_assign_actag();
 	    	printf("AFU: set state = RUNNING\n");
@@ -236,17 +252,21 @@ AFU::start ()
 	    if((read_resp_completed ||  write_resp_completed) &&
 		!(next_cmd) && !(cmd_ready)) {
 		printf("AFU: writing app status\n");
-	   	if(!insert_cycle) {
-	  	    write_app_status(status_address, 0x00);
-		    insert_cycle = 1;
-		}
-		else {
-		    printf("insert cycle\n");
-		    insert_cycle = 0;
-		    read_resp_completed = 0;
-		    write_resp_completed = 0;
-		    next_cmd = 1;
-		}
+		write_app_status(status_address, 0x0);
+		read_resp_completed = 0;
+		write_resp_completed = 0;
+		next_cmd = 1;
+//	   	if(!insert_cycle) {
+//	  	    write_app_status(status_address, 0x00);
+//		    insert_cycle = 1;
+//		}
+//		else {
+//		    printf("insert cycle\n");
+//		    insert_cycle = 0;
+//		    read_resp_completed = 0;
+//		    write_resp_completed = 0;
+//		    next_cmd = 1;
+//		}
 	    }
 	    else if(next_cmd) {
 	 	if(write_status_resp) {
@@ -269,6 +289,13 @@ AFU::start ()
 			read_app_status(status_address);
 			printf("AFU: waiting for read resp\n");
 		    }
+		    else if(status_data[0] == 0x55) {
+			printf("AFU: status data = 0x%x\n", status_data[0]);
+			printf("AFU: test is done\n");
+			printf("AFU: set AFU state to READY\n");
+			write_app_status(status_address, 0x00);
+			state = READY;
+		    }
 		}
 		else {
 		    debug_msg("AFU: waiting for new cmd from app");
@@ -277,17 +304,19 @@ AFU::start ()
             else if(cmd_ready) {
 		cmd_ready = 0;
 		if(context_to_mc.size () != 0) {
-                	std::map < uint16_t, MachineController * >::iterator prev =
-                    	highest_priority_mc;
+			printf("AFU: context to mc size = %d\n", context_to_mc.size());
+                	std::map < uint16_t, MachineController * >::iterator prev = highest_priority_mc;
                     do {
                     if(highest_priority_mc == context_to_mc.end ())
                         highest_priority_mc = context_to_mc.begin ();
 		// calling MachineController send command
+			printf("AFU: context = %d mc = 0x%x\n", highest_priority_mc->first, highest_priority_mc->second);
+	
                     	if(highest_priority_mc->second->send_command(&afu_event, cycle)) {
                         	++highest_priority_mc;
                         	break;
                     	    }
-                    //++highest_priority_mc;
+                        ++highest_priority_mc;
                 	} while (++highest_priority_mc != prev);
 		}
             }
@@ -384,20 +413,38 @@ AFU::get_machine_context()
 	descriptor.get_mmio_mem(0x1000*context+machine_number, (char*)&data, size);
 	if(data) {
 	    mmio_base = 0x1000*context + machine_number;
-	    printf("context = %d  machine = %d\n", context, machine_number);
-	    //context = (uint16_t)((data & 0x0000FFFF00000000LL) >> 32);
-	    debug_msg("AFU: get cmd pasid = %d", context);
+	    //printf("context = %d  machine = %d\n", context, machine_number);
 	    afu_event.afu_tlx_cmd_pasid = context;
-	    context = (uint16_t)((data &0x0000FFFF00000000LL) >> 32);
-	    context_to_mc[context] = new MachineController(context);
+	    context = (uint16_t)((data & 0x0000FFFF00000000LL) >> 32);
+	    //printf("AFU: context = 0x%x\n", context);
+	    //gDUT = context >> 8;
+	    //context = context & 0x00FF;
+	    //afu_event.afu_tlx_cmd_pasid = context;
+	    debug_msg("AFU: context = %d", context);
+	    if(context == 0) {
+		afu_event.afu_tlx_cmd_pasid = context;
+		//afu_event.afu_tlx_cmd_bdf = 0x0001;
+		context_to_mc[context] = new MachineController(context);
+	    }
+	    else if(context == 1) {
+		printf("AFU: clear context to mc\n");
+		context_to_mc.clear();
+		printf("AFU: context = %d\n", context);
+		afu_event.afu_tlx_cmd_pasid = context;
+		//if(state == RUNNING) {
+		//    printf("AFU: request assign actag\n");
+		//    request_assign_actag();
+		//}
+	    	context_to_mc[context] = new MachineController(context);
+	    }
 	    highest_priority_mc = context_to_mc.end();
 	    mc = context_to_mc[context];
-	    printf("AFU: context_to_mc = 0x%p\n", mc);
+	    printf("AFU: context_to_mc = %p size = %d\n", mc, context_to_mc.size());
 	    for(i=0; i< 4; i++) {
 		descriptor.get_mmio_mem(mmio_base+i*8, (char*)&data, size);
 		if(i==1) {
 		    status_address = (uint8_t *)(data >> 32);
-		    debug_msg("AFU: get status address = 0x%p", status_address);
+		    debug_msg("AFU: get status address = %p", status_address);
 		}
 		mc->change_machine_config(i, machine_number, data);
 	    }
@@ -414,9 +461,9 @@ AFU::request_assign_actag()
     uint32_t afutag;
 
     TagManager::request_tag(&afutag);
-
-    afu_event.afu_tlx_cmd_bdf = 0x0001;
-    afu_event.afu_tlx_cmd_actag = 0x01;
+    printf("afu_tlx_cmd_bdf = %d\n", afu_event.afu_tlx_cmd_bdf);
+//    afu_event.afu_tlx_cmd_bdf = 0x0001;
+//    afu_event.afu_tlx_cmd_actag = 0x01;
     afu_event.afu_tlx_cmd_afutag = afutag;
     printf("AFU: afu_tag = 0x%x\n", afutag);
     printf("AFU: assign actag BDF = 0x%x PASID = 0x%x\n", afu_event.afu_tlx_cmd_bdf,
@@ -825,23 +872,24 @@ void
 AFU::tlx_afu_config_write()
 {
     uint8_t  resp_opcode, rdata_valid;
-    //uint8_t  resp_dl = 0;
     uint16_t byte_cnt, resp_capptag;
-    //uint8_t  resp_dp = 0;
     uint8_t  resp_code = 0;
     uint8_t  rdata_bad;
-    //uint8_t  byte_offset, data_size;
     uint32_t port_data, port_offset, vsec_offset;  //config_offset
     uint32_t cmd_pa;
     int rc;
-  
+    uint16_t bdf;
+
     debug_msg("AFU::tlx_afu_config_write");
     resp_capptag = afu_event.cfg_tlx_resp_capptag;
     cmd_pa = afu_event.tlx_cfg_pa & 0x000FFFFC;   
     //resp_dl = 1;
 
     debug_msg("AFU: cmd_pa = 0x%x", cmd_pa);
-
+    // get BDF during configuration
+    bdf = (afu_event.tlx_cfg_pa & 0xFFFF0000) >> 16;
+    //gBDF[bdf] = bdf;    
+    printf("xxx bdf = 0x%x\n", (afu_event.tlx_cfg_pa & 0xFFFF0000) >> 16);
 //    if(config_state == IDLE) {
 	//afu_tlx_cmd_rd_req = 0x1;
 	//afu_tlx_cmd_rd_cnt = 0x1;

@@ -50,9 +50,9 @@ TagManager::release_tag (uint32_t tag, int returned_credits)
     tags_in_use.erase (tag);
     num_credits += returned_credits;
 
-    if (num_credits > max_credits)
-        error_msg
-        ("TagManager: more credits available than maximum allowed credits");
+//    if (num_credits > max_credits)
+//        error_msg
+//        ("TagManager: more credits available than maximum allowed credits");
 }
 
 bool TagManager::is_in_use (uint32_t tag)
