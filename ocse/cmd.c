@@ -1863,7 +1863,7 @@ void handle_response(struct cmd *cmd)
 		if  ((event->command == AFU_CMD_RD_WNITC) || (event->command == AFU_CMD_RD_WNITC_N) ){
 			if (event->size > cmd->HOST_CL_SIZE)  { // a split resp
 				if (event->resp_bytes_sent != 0) { //continue a split resp
-					printf("in handle_response and continue a split response \n");
+					debug_msg("handle_response: continue a split read response \n");
 					// should event->resp_dp be & 0x3 ?
 					// if HOST_CL_SIZE = 128, resp_dp will be 0x2
 					// if HOST_CL_SIZE = 64, resp_dp will be 0x1, 0x2, 0x3 
@@ -1896,8 +1896,26 @@ void handle_response(struct cmd *cmd)
 					     event->data ) ; // data in this case is already at the proper offset in the 64 B data packet
 			}
 	    
-		} else   //have to send just a response
+		} else  { //have to send just a response
+			// Check to see if, for  a dma_wr, a partial response is warranted
+			if  ((event->command == AFU_CMD_DMA_W) || (event->command == AFU_CMD_DMA_W_N) ){
+				if (event->size > cmd->HOST_CL_SIZE)  { // a split resp
+					if (event->resp_bytes_sent != 0) { //continue a split resp
+						debug_msg("handle_response: continue a split write response \n");
+						// should event->resp_dp be & 0x3 ?
+						// if HOST_CL_SIZE = 128, resp_dp will be 0x2
+						// if HOST_CL_SIZE = 64, resp_dp will be 0x1, 0x2, 0x3 
+						if (cmd->HOST_CL_SIZE == 128)
+					    		event->resp_dp = 0x2;
+						else
+					    		event->resp_dp += 1;
+					}  
+					event->resp_dl =  size_to_dl (cmd->HOST_CL_SIZE);
+					event->resp_bytes_sent += cmd->HOST_CL_SIZE;
+				}
+			}
 			rc = tlx_afu_send_resp( cmd->afu_event, event->resp_opcode, event->afutag, event->resp,0,event->resp_dl,event->resp_dp,0);
+		}
 
 	if (rc == TLX_SUCCESS) {
 		//if we sent a failed resp=0x4 (xlate_pending or int_pending) we need to schedule to send a xlate_done cmd
