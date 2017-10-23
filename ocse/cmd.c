@@ -400,6 +400,10 @@ static void _add_read(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 
 	debug_msg("_add_read:calling _add_cmd context=%d; command=0x%02x; addr=0x%016"PRIx64"; size=0x%04x; afutag=0x%04x",
 		context, cmd_opcode, addr, size, afutag );
+	if (context == -1) {
+		debug_msg("_add_read: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
+		return;
+	   }
 	// Reads will be added to the list and will next be processed
 	// in the function handle_buffer_write()
 	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_READ, addr, size,
