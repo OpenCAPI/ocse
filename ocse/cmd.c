@@ -93,7 +93,7 @@ static struct client *_find_client_by_pasid_and_bdf(struct cmd *cmd, uint16_t cm
   // cmd->client[i]->pasid and bdr, right?
   int32_t i;
 
-  debug_msg("_find_client_by_pasid_and_bdf: seeking client with bdf=0x%04x; pasid=0x%08x", cmd_bdf, cmd_pasid );
+  debug_msg("_find_client_by_pasid_and_bdf: seeking client in %d potential clients with bdf=0x%04x; pasid=0x%08x", cmd->max_clients, cmd_bdf, cmd_pasid );
   for (i = 0; i < cmd->max_clients; i++) {
     if (cmd->client[i] != NULL) {
       debug_msg("_find_client_by_pasid_and_bdf: client i=%d; bdf=0x%04x; pasid=0x%08x", i, cmd->client[i]->bdf, cmd->client[i]->pasid );
@@ -113,6 +113,7 @@ static int32_t _find_client_by_actag(struct cmd *cmd, uint16_t cmd_actag)
   // cmd->client[i]->pasid and bdr, right?
   int32_t i;
 
+  debug_msg("_find_client_by_actag: seeking client in %d potential clients with actag=0x%04x", cmd->max_clients, cmd_actag );
   for (i = 0; i < cmd->max_clients; i++) {
     if (cmd->client[i] != NULL) {
       if ( cmd->client[i]->actag == cmd_actag ) {

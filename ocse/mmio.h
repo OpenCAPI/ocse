@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "ocl.h"
 #include "client.h"
 #include "parms.h"
 #include "../common/tlx_interface.h"
@@ -223,7 +224,7 @@ struct mmio {
 struct mmio *mmio_init(struct AFU_EVENT *afu_event, int timeout, char *afu_name,
 		       FILE * dbg_fp, uint8_t dbg_id);
 
-int read_afu_config(struct mmio *mmio, uint8_t bus, pthread_mutex_t * lock);
+int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock);
 
 struct mmio_event *add_mmio(struct mmio *mmio, uint32_t rnw, uint32_t dw,
 			    uint64_t addr, uint64_t data);

@@ -47,7 +47,7 @@ struct ocl {
 	uint8_t dbg_id;
 	int port;
 	int idle_cycles;
-	int max_clients;
+        int max_clients;                 // this is the sum of the max_pasids in each functions pasid dvsec
 	int attached_clients;
 	int timeout;
 	int has_been_reset;

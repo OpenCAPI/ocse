@@ -44,6 +44,7 @@
 
 #include "../common/debug.h"
 #include "mmio.h"
+#include "ocl.h"
 
 // Initialize MMIO tracking structure
 struct mmio *mmio_init(struct AFU_EVENT *afu_event, int timeout, char *afu_name,
@@ -310,12 +311,15 @@ static struct mmio_event *_read_afu_descriptor(struct mmio *mmio, uint64_t addr,
 // Read the AFU config_record, extended capabilities (if any), PASID extended capabilities,
 // OpenCAPI TL extended capabilities, AFU info extended capabilites (AFU descriptor)
 // and AFU control information extended capabilities and keep a copy
-int read_afu_config(struct mmio *mmio, uint8_t bus, pthread_mutex_t * lock)
+int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 {
 	printf("In read_descriptor and WON'T BE ABLE TO SEND CMD UNTIL AFU GIVES US INITIAL CREDIT!!\n");
 	uint8_t   afu_tlx_cmd_credits_available;
 	uint8_t   cfg_tlx_credits_available;
 	uint8_t   afu_tlx_resp_credits_available;
+
+	struct mmio *mmio;
+	mmio = ocl->mmio;
 
 	#define AFU_DESC_DATA_VALID 0x80000000
 
@@ -344,6 +348,8 @@ int read_afu_config(struct mmio *mmio, uint8_t bus, pthread_mutex_t * lock)
 	int f;
 	int afu_index;
 	struct mmio_event *eventa, *eventb, *eventc;
+
+	ocl->max_clients = 0;
 
 	cmd_pa_bus = (uint64_t)bus << 24; // shift the bus number to the proper location in the pa
 
@@ -404,6 +410,8 @@ int read_afu_config(struct mmio *mmio, uint8_t bus, pthread_mutex_t * lock)
 				     eventb = _add_cfg( mmio, 1, 0, cmd_pa_ec + 0x04, 0L ); 
 				     _wait_for_done(&(eventb->state), lock);
 				     mmio->fcn_cfg_array[f]->max_pasid_width = eventb->cmd_data >> 8;
+				     ocl->max_clients = ocl->max_clients + ( 1 << mmio->fcn_cfg_array[f]->max_pasid_width );
+				     // this functions max clients is 1 << max_pasid_width
 				     info_msg("    Max PASID width is 0x%08x ", mmio->fcn_cfg_array[f]->max_pasid_width );
 				     free( eventb );
 				     break;

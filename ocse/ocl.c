@@ -551,14 +551,12 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 	debug_msg("%s @ %s:%d: Reading AFU config record and VSEC.", ocl->name, ocl->host,
 	          ocl->port);
 	ocl->state = OCSE_DESC;
-	read_afu_config(ocl->mmio, ocl->bus, ocl->lock);
+	read_afu_config(ocl, ocl->bus, ocl->lock);
 
 	// Finish TLX configuration
 	ocl->state = OCSE_IDLE;
 
-	// TODO FIX THIS TO USE NEW CFG VALUES!!
-	// we can get this from "max pasid width" in the process address space id extended capability
-	ocl->max_clients = 4;
+	// ocl->max_clients = 4; // this is set in read_afu_config now
 	if (ocl->max_clients == 0) {
 		error_msg("AFU programming model is invalid");
 		goto init_fail;
