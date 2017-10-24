@@ -286,6 +286,10 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 
         context = _find_client_by_actag(cmd, actag);
 	if (context < 0) warn_msg( "_add_interrupt: actag does not match a client" );
+	if (context == -1) {
+		debug_msg("_add_interrupt: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
+		return;
+	   }
 
 	memcpy( (void *)&addr, (void *)&(cmd_ea_or_obj[0]), sizeof(uint64_t));
 
@@ -305,6 +309,10 @@ static void _add_fail(struct cmd *cmd, uint16_t actag, uint32_t afutag,
         int32_t context;
 
         context = _find_client_by_actag(cmd, actag);
+	if (context == -1) {
+		debug_msg("_add_fail: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
+		return;
+	   }
 	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_FAILED, 0, 0, MEM_DONE,
 		 resp, 0, 0, 0, 0, 0, resp_opcode);
 }
@@ -351,6 +359,10 @@ static int _aligned(uint64_t addr, uint32_t size)
 	// over to libocxl?
         int32_t context;
         context = _find_client_by_actag(cmd, actag);
+	if (context == -1) {
+		debug_msg("_add_xlate_touch: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
+		return;
+	   }
 	// TODO actually do something. For now, we always send back success for touch_resp (0x00)
 	// We could send request to libocxl for processing, especially for OpenCAPI 4
 	// when a translation address is expected as return
@@ -399,6 +411,10 @@ static void _add_read(struct cmd *cmd, uint16_t actag, uint16_t afutag,
         // convert actag to a context - search the client array contained in cmd for a client with matching actag
 	context = _find_client_by_actag(cmd, actag);
 
+	if (context == -1) {
+		debug_msg("_add_read: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
+		return;
+	   }
 	debug_msg("_add_read:calling _add_cmd context=%d; command=0x%02x; addr=0x%016"PRIx64"; size=0x%04x; afutag=0x%04x",
 		context, cmd_opcode, addr, size, afutag );
 	// Reads will be added to the list and will next be processed
@@ -482,6 +498,10 @@ static void _add_amo(struct cmd *cmd, uint16_t actag, uint16_t afutag,
         // convert actag to a context - search the client array contained in cmd for a client with matching actag
 	context = _find_client_by_actag(cmd, actag);
 
+	if (context == -1) {
+		debug_msg("_add_amo: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
+		return;
+	   }
 	// Command data comes over with the command for amo_rw and amo_w, so now we need to read it from event
 	// Then, next step is to send over to client/libocxl for processing
 	if ((cmd_opcode == AFU_CMD_AMO_RW) || (cmd_opcode == AFU_CMD_AMO_RW_N) || (cmd_opcode == AFU_CMD_AMO_RD))  
@@ -523,6 +543,10 @@ static void _add_write(struct cmd *cmd, uint16_t actag, uint16_t afutag,
         // convert actag to a context - search the client array contained in cmd for a client with matching actag
 	context = _find_client_by_actag(cmd, actag);
 
+	if (context == -1) {
+		debug_msg("_add_write: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
+		return;
+	   }
 	// Command data comes over with the command, so read it from event and put it in buffer in add_cmd
 	// Then, next step is to make the memory write request?
 
