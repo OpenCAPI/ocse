@@ -227,15 +227,18 @@ AFU::start ()
 	// get machine context and create new MachineController
 	else if(state == READY) {
 	    if(get_machine_context()) {
-		gBDF++;
-		gACTAG++;
-		//if(gDUT==1) {
-		//    afu_event.afu_tlx_cmd_bdf = gBDF[1];
-		//}
-		//else if(gDUT == 2) {
-		//    afu_event.afu_tlx_cmd_bdf = gBDF[index+1];
-		//    index++;
-	  	//}
+		//gBDF++;
+		//gACTAG++;
+		if(gDUT==1) {
+		    printf("gDUT = %d\n", gDUT);
+		    gBDF = 1;
+		    gACTAG++;
+		}
+		else if(gDUT == 2) {
+		    printf("gDUT = %d\n", gDUT);
+		    gBDF++;
+		    gACTAG++;
+	  	}
 		printf("AFU: gBDF = %d gACTAG = %d\n", gBDF, gACTAG);
 		afu_event.afu_tlx_cmd_bdf = gBDF;
 		afu_event.afu_tlx_cmd_actag = gACTAG;
@@ -888,8 +891,8 @@ AFU::tlx_afu_config_write()
     debug_msg("AFU: cmd_pa = 0x%x", cmd_pa);
     // get BDF during configuration
     bdf = (afu_event.tlx_cfg_pa & 0xFFFF0000) >> 16;
-    //gBDF[bdf] = bdf;    
-    printf("xxx bdf = 0x%x\n", (afu_event.tlx_cfg_pa & 0xFFFF0000) >> 16);
+    gDUT = bdf;    
+    printf("AFU: bdf = 0x%x\n", (afu_event.tlx_cfg_pa & 0xFFFF0000) >> 16);
 //    if(config_state == IDLE) {
 	//afu_tlx_cmd_rd_req = 0x1;
 	//afu_tlx_cmd_rd_cnt = 0x1;
