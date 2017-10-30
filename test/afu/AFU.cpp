@@ -212,7 +212,6 @@ AFU::start ()
 	    }
 	}
 	// enable AFU
-	//if(afu_is_enabled() && state == IDLE) {
 	if(state == IDLE) {
 	    if(afu_enable_reset) {
 	    	printf("checking afu enable bit\n");
@@ -227,8 +226,6 @@ AFU::start ()
 	// get machine context and create new MachineController
 	else if(state == READY) {
 	    if(get_machine_context()) {
-		//gBDF++;
-		//gACTAG++;
 		if(gDUT==1) {
 		    printf("gDUT = %d\n", gDUT);
 		    gBDF = 1;
@@ -259,17 +256,6 @@ AFU::start ()
 		read_resp_completed = 0;
 		write_resp_completed = 0;
 		next_cmd = 1;
-//	   	if(!insert_cycle) {
-//	  	    write_app_status(status_address, 0x00);
-//		    insert_cycle = 1;
-//		}
-//		else {
-//		    printf("insert cycle\n");
-//		    insert_cycle = 0;
-//		    read_resp_completed = 0;
-//		    write_resp_completed = 0;
-//		    next_cmd = 1;
-//		}
 	    }
 	    else if(next_cmd) {
 	 	if(write_status_resp) {
@@ -416,13 +402,8 @@ AFU::get_machine_context()
 	descriptor.get_mmio_mem(0x1000*context+machine_number, (char*)&data, size);
 	if(data) {
 	    mmio_base = 0x1000*context + machine_number;
-	    //printf("context = %d  machine = %d\n", context, machine_number);
 	    afu_event.afu_tlx_cmd_pasid = context;
 	    context = (uint16_t)((data & 0x0000FFFF00000000LL) >> 32);
-	    //printf("AFU: context = 0x%x\n", context);
-	    //gDUT = context >> 8;
-	    //context = context & 0x00FF;
-	    //afu_event.afu_tlx_cmd_pasid = context;
 	    debug_msg("AFU: context = %d", context);
 	    if(context == 0) {
 		afu_event.afu_tlx_cmd_pasid = context;
@@ -434,10 +415,6 @@ AFU::get_machine_context()
 		context_to_mc.clear();
 		printf("AFU: context = %d\n", context);
 		afu_event.afu_tlx_cmd_pasid = context;
-		//if(state == RUNNING) {
-		//    printf("AFU: request assign actag\n");
-		//    request_assign_actag();
-		//}
 	    	context_to_mc[context] = new MachineController(context);
 	    }
 	    highest_priority_mc = context_to_mc.end();
@@ -465,8 +442,6 @@ AFU::request_assign_actag()
 
     TagManager::request_tag(&afutag);
     printf("afu_tlx_cmd_bdf = %d\n", afu_event.afu_tlx_cmd_bdf);
-//    afu_event.afu_tlx_cmd_bdf = 0x0001;
-//    afu_event.afu_tlx_cmd_actag = 0x01;
     afu_event.afu_tlx_cmd_afutag = afutag;
     printf("AFU: afu_tag = 0x%x\n", afutag);
     printf("AFU: assign actag BDF = 0x%x PASID = 0x%x\n", afu_event.afu_tlx_cmd_bdf,
@@ -503,26 +478,14 @@ AFU::resolve_tlx_afu_cmd()
 #endif
     uint64_t  cmd_pa;
     
-//    rc = tlx_cfg_read_cmd_and_data(&afu_event, &cmd_data_bdi, cmd_data_bus, &cmd_opcode,
-//	&cmd_capptag, &cmd_pl, &cmd_t, &cmd_pa);
-//    if(rc != TLX_SUCCESS) {
-//	printf("rc = 0x%x\n", rc);
-//    }
-    
-//    if(cmd_opcode == 0xe1) {
-//	memcpy(&wr_config_data, &cmd_data_bus, 4);
-//	printf("AFU: wr_config_data = 0x%x\n", wr_config_data);
-//    }
-//    if(rc == CFG_TLX_NOT_CFG_CMD) {
-    	if (tlx_afu_read_cmd(&afu_event, &cmd_opcode, &cmd_capptag, 
+    if (tlx_afu_read_cmd(&afu_event, &cmd_opcode, &cmd_capptag, 
 		&cmd_dl, &cmd_pl, &cmd_be, &cmd_end, //&cmd_t, 
 #ifdef	TLX4
 		&cmd_os, &cmd_flag,
 #endif
 		&cmd_pa) != TLX_SUCCESS) {
 	error_msg("Failed: tlx_afu_read_cmd");
-	}
-//    }
+    }
 
     afu_event.tlx_afu_cmd_opcode = cmd_opcode;
     afu_event.afu_tlx_resp_capptag = cmd_capptag;
@@ -569,24 +532,15 @@ AFU::resolve_tlx_afu_cmd()
 	    break;
 	case TLX_CMD_CONFIG_READ:
 	    info_msg("AFU: Configuration Read command");
-//	    if(afu_event.tlx_afu_cmd_t == 0) {
-		info_msg("AFU: calling tlx_afu_config_read");
-		afu_event.cfg_tlx_resp_capptag = cmd_capptag;
-		tlx_afu_config_read();
-//	    }
-//	    else if(afu_event.tlx_afu_cmd_t == 1) {		
-//	    }
+	    info_msg("AFU: calling tlx_afu_config_read");
+	    afu_event.cfg_tlx_resp_capptag = cmd_capptag;
+	    tlx_afu_config_read();
 	    break;
 	case TLX_CMD_CONFIG_WRITE:
 	    info_msg("AFU: Configuration Write command");
-//	    if(afu_event.tlx_afu_cmd_t == 0) {
-		info_msg("AFU: calling tlx_afu_config_write");
-		afu_event.cfg_tlx_resp_capptag = cmd_capptag;
-		tlx_afu_config_write();
-//	    }
-//	    else {
-		// do configuration write
-//	    }
+	    info_msg("AFU: calling tlx_afu_config_write");
+	    afu_event.cfg_tlx_resp_capptag = cmd_capptag;
+	    tlx_afu_config_write();
 	    break;
 	default:
 	    break;
