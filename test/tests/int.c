@@ -37,6 +37,7 @@ int main(int argc, char *argv[])
     ocxl_irq_h irq_h;
     ocxl_irq_h err_irq_h;
     ocxl_event event;
+    uint64_t irq_id;
 
     MachineConfig machine_config;
     MachineConfigParam config_param;
@@ -125,7 +126,8 @@ int main(int argc, char *argv[])
 //    ocxl_mmio_write64( mafu_h, ProcessInterruptData_REGISTER, 0x00000000);
 
     rc = ocxl_afu_irq_alloc(mafu_h, NULL, &irq_h);
-    printf("Set irq (source) ea field = 0x%016lx\n", (uint64_t)irq_h);
+    irq_id = ocxl_afu_irq_get_id(mafu_h, irq_h);
+    printf("Set irq (source) ea field = 0x%016lx\n", (uint64_t)irq_id);
 
     printf("Attempt Interrupt command\n");
     status[0] = 0xff;
@@ -133,7 +135,7 @@ int main(int argc, char *argv[])
     config_param.enable_always = 1;
     config_param.mem_size = CACHELINE;
     config_param.command = AFU_CMD_INTRP_REQ;
-    config_param.mem_base_address = (uint64_t)irq_h;
+    config_param.mem_base_address = (uint64_t)irq_id;
     config_param.machine_number = 0;
     config_param.status_address = (uint32_t)status;
     printf("status address = 0x%p\n", status);
@@ -173,7 +175,7 @@ int main(int argc, char *argv[])
 done:
     // free device
     printf("Freeing device ... \n");
-    ocxl_afu_free(&mafu_h);
+    ocxl_afu_close(mafu_h);
 
     return 0;
 }

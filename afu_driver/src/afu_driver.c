@@ -22,13 +22,16 @@
 #include <string.h>
 
 #include "../../common/utils.h"
+#include "../../common/debug.h"
 #include "tlx_interface.h"
 #include "vpi_user.h"
 #include "svdpi.h"
 
 // Global Variables
-static struct RDATA_PKT *new_rdata_pkt;
-static struct RDATA_PKT *old_rdata_pkt;
+static struct DATA_PKT *new_rdata_pkt;
+static struct DATA_PKT *old_rdata_pkt;
+static struct DATA_PKT *new_cdata_pkt;
+static struct DATA_PKT *old_cdata_pkt;
 static struct AFU_EVENT event;
 //
 //
@@ -91,6 +94,11 @@ uint8_t		c_afu_tlx_rdata_bdi;
 
 uint8_t		c_cfg0_tlx_resp_valid;
 uint8_t		c_cfg0_tlx_rdata_offset;
+uint8_t		c_cfg0_tlx_resp_opcode;
+uint16_t	c_cfg0_tlx_resp_capptag;
+uint8_t		c_cfg0_tlx_resp_code;
+uint8_t		c_cfg0_tlx_rdata_bus[CACHELINE_BYTES];
+uint8_t		c_cfg0_tlx_rdata_bdi;
 
 uint8_t		c_afu_tlx_cmd_rd_req_top;
 uint8_t		c_afu_tlx_cmd_rd_cnt_top;
@@ -99,6 +107,8 @@ uint8_t		c_afu_tlx_resp_rd_req_top;
 uint8_t		c_afu_tlx_resp_rd_cnt_top;
 uint32_t	c_tlx_afu_cmd_data_del;
 uint8_t		c_tlx_afu_cmd_bdi_del;
+uint32_t	c_tlx_cfg0_data_del;
+uint8_t		c_tlx_cfg0_data_bdi_del;
 uint8_t		c_cfg_resp_ack_pending = 0;
 //
 //
@@ -227,8 +237,7 @@ static void tlx_control(void)
 	}
 	// Error case
 	if (rc < 0) {
-	  printf("%08lld: ", (long long) c_sim_time);
-	  printf("Socket closed: Ending Simulation.");
+	  printf("%08lld: Socket closed: Ending Simulation.\n", (long long) c_sim_time);
 	  c_sim_error = 1;
 	}
 }
@@ -360,6 +369,7 @@ void tlx_bfm(
   int i = 0;
   int j = 0;
   int rc= 0;
+  int new_line_cnt;
 
   c_reset			= reset & 0x1;
 
@@ -368,12 +378,12 @@ void tlx_bfm(
     if ( tlx_clock == sv_0 ) {
       // printf("lgt: tlx_bfm: clock = 0\n" );
       // Accessing inputs from the AFX
-      c_afu_tlx_cmd_initial_credit  	= (afu_tlx_cmd_initial_credit_top->aval) & 0x1F;
-      invalidVal			+= (afu_tlx_cmd_initial_credit_top->bval) & 0x1F;
-      c_afu_tlx_resp_initial_credit  	= (afu_tlx_resp_initial_credit_top->aval) & 0x1F;
-      invalidVal			+= (afu_tlx_resp_initial_credit_top->bval) & 0x1F;
-      c_cfg0_tlx_initial_credit  	= (cfg0_tlx_initial_credit_top->aval) & 0x1F;
-      invalidVal			+= (cfg0_tlx_initial_credit_top->bval) & 0x1F;
+      c_afu_tlx_cmd_initial_credit  	= (afu_tlx_cmd_initial_credit_top->aval) & 0x7F;
+      invalidVal			+= (afu_tlx_cmd_initial_credit_top->bval) & 0x7F;
+      c_afu_tlx_resp_initial_credit  	= (afu_tlx_resp_initial_credit_top->aval) & 0x7F;
+      invalidVal			+= (afu_tlx_resp_initial_credit_top->bval) & 0x7F;
+      c_cfg0_tlx_initial_credit  	= (cfg0_tlx_initial_credit_top->aval) & 0x0F;
+      invalidVal			+= (cfg0_tlx_initial_credit_top->bval) & 0x0F;
       if(!c_reset)
       {
 	if (afu_tlx_credits_initialized == 0 ) {
@@ -565,17 +575,17 @@ void tlx_bfm(
       }
       if(c_cfg0_tlx_resp_valid && (c_cfg_resp_ack_pending == 0))
       {
-        c_afu_tlx_resp_opcode	= (cfg0_tlx_resp_opcode_top->aval) & 0xFF;
+        c_cfg0_tlx_resp_opcode	= (cfg0_tlx_resp_opcode_top->aval) & 0xFF;
         invalidVal		+= (cfg0_tlx_resp_opcode_top->bval) & 0xFF;
-        c_afu_tlx_resp_dl	= 0;
-        c_afu_tlx_resp_capptag	= (cfg0_tlx_resp_capptag_top->aval) & 0xFFFF;
+        //c_afu_tlx_resp_dl	= 0;
+        c_cfg0_tlx_resp_capptag	= (cfg0_tlx_resp_capptag_top->aval) & 0xFFFF;
         invalidVal		+= (cfg0_tlx_resp_capptag_top->bval) & 0xFFFF;
-        c_afu_tlx_resp_dp	= 0;
-        c_afu_tlx_resp_code	= (cfg0_tlx_resp_code_top->aval) & 0xF;
+        //c_afu_tlx_resp_dp	= 0;
+        c_cfg0_tlx_resp_code	= (cfg0_tlx_resp_code_top->aval) & 0xF;
         invalidVal		+= (cfg0_tlx_resp_code_top->bval) & 0xF;
         c_cfg0_tlx_rdata_offset	= (cfg0_tlx_rdata_offset_top->aval) & 0xF;
         invalidVal		+= (cfg0_tlx_rdata_offset_top->bval) & 0xF;
-        invalidVal		+= getMyByteArray(cfg0_tlx_rdata_bus_top, 4, &c_afu_tlx_rdata_bus[0]);
+        invalidVal		+= getMyByteArray(cfg0_tlx_rdata_bus_top, 4, &c_cfg0_tlx_rdata_bus[0]);
 
 	//printf( "lgt:cfg0_tlx_resp_valid: received data from cfg.  raw data=0x" );
 	//for ( i=0; i<4; i++ ) {
@@ -583,7 +593,7 @@ void tlx_bfm(
 	//}
 	//printf( "\n" );
 
-        c_afu_tlx_rdata_bdi  	= (cfg0_tlx_rdata_bdi_top & 0x2) ? 0 : (cfg0_tlx_rdata_bdi_top & 0x1);
+        c_cfg0_tlx_rdata_bdi  	= (cfg0_tlx_rdata_bdi_top & 0x2) ? 0 : (cfg0_tlx_rdata_bdi_top & 0x1);
         invalidVal		+= cfg0_tlx_rdata_bdi_top & 0x2;
       }
       else if(!c_cfg0_tlx_resp_valid )
@@ -601,7 +611,7 @@ void tlx_bfm(
 //          printf(" The AFU-TLX Response Data Valid, at byte[%d]: 0x%x \n",  i, c_afu_tlx_rdata_bus[i]);
 //        }
       }
-#ifdef DEBUG1
+#ifdef DEBUG
       if(invalidVal != 0)
       {
         printf("%08lld: ", (long long) c_sim_time);
@@ -629,9 +639,9 @@ void tlx_bfm(
       {
 	c_cfg_resp_ack_pending = 1;
         int resp_code = afu_cfg_send_resp_and_data(&event,
-        		c_afu_tlx_resp_opcode, c_afu_tlx_resp_dl, c_afu_tlx_resp_capptag,
-        		c_afu_tlx_resp_dp, c_afu_tlx_resp_code, 4, c_cfg0_tlx_resp_valid,
-        		c_afu_tlx_rdata_bus, c_afu_tlx_rdata_bdi
+        		c_cfg0_tlx_resp_opcode, c_cfg0_tlx_resp_capptag,
+        		c_cfg0_tlx_resp_code, 4, c_cfg0_tlx_resp_valid,
+        		c_cfg0_tlx_rdata_bus, c_cfg0_tlx_rdata_bdi
         );
         printf("%08lld: ", (long long) c_sim_time);
         printf(" The AFU-TLX Command Response Data transferred thru method - OPCODE = 0x%02x the method's resp code is 0x%02x \n",  c_afu_tlx_resp_opcode, resp_code);
@@ -646,24 +656,35 @@ void tlx_bfm(
       invalidVal = 0;
       c_afu_tlx_cmd_rd_req_top  	= (afu_tlx_cmd_rd_req_top & 0x2) ? 0 : (afu_tlx_cmd_rd_req_top & 0x1);
       invalidVal			= afu_tlx_cmd_rd_req_top & 0x2;
+      /* if(c_afu_tlx_cmd_rd_req_top) */
+      /* { */
+      /*   c_afu_tlx_cmd_rd_cnt_top 	 = (afu_tlx_cmd_rd_cnt_top->aval) & 0x7; */
+      /*   invalidVal		+= (afu_tlx_cmd_rd_cnt_top->bval) & 0x7; */
+      /*   afu_tlx_cmd_data_read_req(&event, */
+      /*   		c_afu_tlx_cmd_rd_req_top, c_afu_tlx_cmd_rd_cnt_top */
+      /*   ); */
+      /*   printf("%08lld: ", (long long) c_sim_time); */
+      /*   printf(" The AFU-TLX Cmd Read Request for Cnt: %d \n", c_afu_tlx_cmd_rd_cnt_top ); */
+      /* } else { */
+      /* 	// make sure we clear this part of the event structure */
+      /*   afu_tlx_cmd_data_read_req( &event, 0, 0 ); */
+      /* } */
       if(c_afu_tlx_cmd_rd_req_top)
       {
+	// here is where we catch cmd_rd_cnt, add it to a count we are maintaining...
+	// we may not need to call anything at this point as we are buffering the data that came from a
+	// tlx_afu_resp event from tlx_interface - I hope
         c_afu_tlx_cmd_rd_cnt_top 	 = (afu_tlx_cmd_rd_cnt_top->aval) & 0x7;
         invalidVal		+= (afu_tlx_cmd_rd_cnt_top->bval) & 0x7;
-        afu_tlx_cmd_data_read_req(&event,
-        		c_afu_tlx_cmd_rd_req_top, c_afu_tlx_cmd_rd_cnt_top
-        );
+	event.cdata_rd_cnt = event.cdata_rd_cnt + decode_rd_cnt( c_afu_tlx_cmd_rd_cnt_top );
         printf("%08lld: ", (long long) c_sim_time);
-        printf(" The AFU-TLX Cmd Read Request for Cnt: %d \n", c_afu_tlx_cmd_rd_cnt_top );
-      } else {
-	// make sure we clear this part of the event structure
-        afu_tlx_cmd_data_read_req( &event, 0, 0 );
+        printf(" The AFU-TLX Command Read Request for Cnt: %d \n", c_afu_tlx_cmd_rd_cnt_top );
       }
 #ifdef DEBUG1
       if(invalidVal != 0)
       {
         printf("%08lld: ", (long long) c_sim_time);
-        printf(" The AFU-TLX Response Cmd Data Request Interface has either X or Z value \n" );
+        printf(" The AFU-TLX Cmd Data Request Interface has either X or Z value \n" );
       }
 #endif
       invalidVal = 0;
@@ -714,13 +735,25 @@ void tlx_bfm(
 	  // event->tlx_afu_resp_data has all the data
 	  // use dl to create dl 64 B enties in a fifo linked list rdata_head, rdata_tail, rdata_rd_cnt
 	  // rdata_pkt contain _next, and 64 B of rdata
-	  for ( i = 0; i < decode_dl(event.tlx_afu_resp_dl); i++ ) {  
-	      new_rdata_pkt = (struct RDATA_PKT *)malloc( sizeof( struct RDATA_PKT ) );
+	  if (event.tlx_afu_resp_dl == 0) {
+	      new_line_cnt = 1;
+	  } else {
+	      new_line_cnt = decode_dl(event.tlx_afu_resp_dl);
+	  }
+	  debug_msg( "resp new_line_cnt = %d", new_line_cnt );
+	  for ( i = 0; i < new_line_cnt; i++ ) {  
+	      new_rdata_pkt = (struct DATA_PKT *)malloc( sizeof( struct DATA_PKT ) );
 	      // copy data from response event data to rdata_pkt
 	      new_rdata_pkt->_next = NULL;
 	      for ( j=0; j<64; j++ ) {
-		new_rdata_pkt->rdata[j] = event.tlx_afu_resp_data[(i*64)+j];
+		new_rdata_pkt->data[j] = event.tlx_afu_resp_data[(64*i)+j];
+#ifdef DEBUG
+		printf( "%02x", event.tlx_afu_resp_data[(64*i)+j] );
+#endif	      
 	      }
+#ifdef DEBUG
+	      printf( "\n" );
+#endif	      
 	      // put the packet at the tail of the fifo
 	      if ( event.rdata_head == NULL ) {
 		event.rdata_head = new_rdata_pkt;
@@ -729,6 +762,7 @@ void tlx_bfm(
 	      }
 	      event.rdata_tail = new_rdata_pkt;
 	  }
+	  event.tlx_afu_resp_data_valid = 0;
 	}
       }
       
@@ -739,50 +773,36 @@ void tlx_bfm(
       }
 
       // try moving the config data drive to just after the command drive (from here)
-      if(c_config_cmd_data_valid)
+      if(event.tlx_cfg_valid)
       {
-        setDpiSignal32(tlx_cfg0_data_bus_top, c_tlx_afu_cmd_data_del, 32); // lgt might need to delay these in top.v
-	*tlx_cfg0_data_bdi_top = c_tlx_afu_cmd_bdi_del;
-        c_config_cmd_data_valid = 0;
-      }
-      else
-      {
-        setDpiSignal32(tlx_cfg0_data_bus_top, 0x0, 32); 
-        *tlx_cfg0_data_bdi_top = 0;
-      }
-      if(event.tlx_afu_cmd_valid)
-      {
-        if ( ( event.tlx_afu_cmd_opcode == 0xE0 ) || ( event.tlx_afu_cmd_opcode == 0xE1 ) )		// if the command is a config_read (0xE0) or a config_write, the tlx uses a dfferent interface to send the command to the AFU
-        {
-	  printf( "lgt:tlx_afu_cmd_valid:config read or config write.  opcode=0x%02x\n", event.tlx_afu_cmd_opcode );
-          setDpiSignal32(tlx_cfg0_opcode_top, event.tlx_afu_cmd_opcode, 8);
-          setDpiSignal64(tlx_cfg0_pa_top, event.tlx_afu_cmd_pa);
-          *tlx_cfg0_t_top = (event.tlx_afu_cmd_t) & 0x1;
-          setDpiSignal32(tlx_cfg0_pl_top, event.tlx_afu_cmd_pl, 3);
-          setDpiSignal32(tlx_cfg0_capptag_top, event.tlx_afu_cmd_capptag, 16);
+	  printf( "lgt:tlx_cfg_valid:config read or config write.  opcode=0x%02x\n", event.tlx_cfg_opcode );
+          setDpiSignal32(tlx_cfg0_opcode_top, event.tlx_cfg_opcode, 8);
+          setDpiSignal64(tlx_cfg0_pa_top, event.tlx_cfg_pa);
+          *tlx_cfg0_t_top = (event.tlx_cfg_t) & 0x1;
+          setDpiSignal32(tlx_cfg0_pl_top, event.tlx_cfg_pl, 3);
+          setDpiSignal32(tlx_cfg0_capptag_top, event.tlx_cfg_capptag, 16);
           *tlx_cfg0_valid_top = 1;
           clk_afu_cmd_val = CLOCK_EDGE_DELAY;
           printf("%08lld: ", (long long) c_sim_time);
-          printf(" The TLX-AFU Config Cmd with OPCODE=0x%x \n",  event.tlx_afu_cmd_opcode);
-          event.tlx_afu_cmd_valid = 0;
-	  printf( "lgt:tlx_afu_cmd__valid: data valid signals: tlx_cfg_cmd_data_valid = %d, tlx_afu_cmd_data_valid = %d\n", event.tlx_cfg_cmd_data_valid, event.tlx_afu_cmd_data_valid );
-          if(event.tlx_afu_cmd_data_valid) {
+          printf(" The TLX-AFU Config Cmd with OPCODE=0x%x \n",  event.tlx_cfg_opcode);
+          event.tlx_cfg_valid = 0;
+	  //printf( "lgt:tlx_cfg_valid: data valid signals: tlx_cfg_cmd_data_valid = %d, tlx_afu_cmd_data_valid = %d\n", event.tlx_cfg_cmd_data_valid, event.tlx_afu_cmd_data_valid );
+          //if(event.tlx_afu_cmd_data_valid) {
 	    // c_tlx_afu_cmd_data_del = *event.tlx_afu_cmd_data_bus;   	// lgt use data from tlx_cfg part of event. or not
-	    memcpy( &c_tlx_afu_cmd_data_del, event.tlx_afu_cmd_data_bus, 4 );
-	    c_tlx_afu_cmd_bdi_del = (event.tlx_afu_cmd_data_bdi) & 0x1;   
-	    printf( "lgt:tlx_afu_cmd_data_valid: received data from tlx.  raw data=0x" );
-	    for ( i=0; i<4; i++ ) {
-	      printf( "%02x", event.tlx_afu_cmd_data_bus[i] );
-	    }
-	    printf( "\n" );
-	    printf( "lgt:tlx_afu_cmd_data_valid: received data from tlx.  copied data=0x%08x\n", c_tlx_afu_cmd_data_del );
-	    c_config_cmd_data_valid = 1;
-	    printf( "lgt:tlx_afu_cmd_data_valid: set config_cmd_data_valid=%d\n", c_config_cmd_data_valid );
-	    // just try to drive it and not reset it.
-	  }
-        }
-        else
-        {
+	  memcpy( &c_tlx_cfg0_data_del, event.tlx_cfg_data_bus, 4 );
+	  c_tlx_cfg0_data_bdi_del = (event.tlx_cfg_data_bdi) & 0x1;   
+	  printf( "lgt:tlx_afu_cfg_data_valid: received data from tlx.  raw data=0x" );
+	  for ( i=0; i<4; i++ ) {
+	      printf( "%02x", event.tlx_cfg_data_bus[i] );
+	   }
+	  printf( "\n" );
+	  printf( "lgt:tlx_afu_cfg_data_valid: received data from tlx.  copied data=0x%08x\n", c_tlx_cfg0_data_del );
+
+          setDpiSignal32(tlx_cfg0_data_bus_top, c_tlx_cfg0_data_del, 32); // lgt might need to delay these in top.v
+ 	  *tlx_cfg0_data_bdi_top = c_tlx_cfg0_data_bdi_del;
+      }
+      if(event.tlx_afu_cmd_valid)
+      {
           setDpiSignal32(tlx_afu_cmd_opcode_top, event.tlx_afu_cmd_opcode, 8);
           setDpiSignal32(tlx_afu_cmd_capptag_top, event.tlx_afu_cmd_capptag, 16);
           setDpiSignal32(tlx_afu_cmd_dl_top, event.tlx_afu_cmd_dl, 2);
@@ -797,23 +817,46 @@ void tlx_bfm(
 #endif
           *tlx_afu_cmd_valid_top = 1;
           clk_afu_cmd_val = CLOCK_EDGE_DELAY;
-          printf("%08lld: ", (long long) c_sim_time);
-          printf(" The TLX-AFU Cmd with OPCODE=0x%x \n",  event.tlx_afu_cmd_opcode);
+          debug_msg("%08lld: The TLX-AFU Cmd OPCODE=0x%x", (long long) c_sim_time, event.tlx_afu_cmd_opcode);
           event.tlx_afu_cmd_valid = 0;
-        }
-
-	// try moving the config data drive to just after the command drive (to here)
-	// printf( "lgt:tlx_bfm:config_cmd_data_valid=%d\n", c_config_cmd_data_valid );
-	//	if(c_config_cmd_data_valid) {
-	//	  printf( "lgt:config_cmd_data_valid=%d,driving tlx_cfg0_data_bus_top\n", c_config_cmd_data_valid );
-	//	  setDpiSignal32(tlx_cfg0_data_bus_top, c_tlx_afu_cmd_data_del, 32); // lgt might need to delay these in top.v
-	//	  *tlx_cfg0_data_bdi_top = c_tlx_afu_cmd_bdi_del;
-	//	} else {
-	//	  printf( "lgt:config_cmd_data_valid=%d,clearing tlx_cfg0_data_bus_top\n", c_config_cmd_data_valid );
-	//	  setDpiSignal32(tlx_cfg0_data_bus_top, 0, 32);
-	//	  *tlx_cfg0_data_bdi_top = 0;
-	//	}
-
+	  // if data is valid, pull and buffer it to send out later on a cmd_rd_req
+	  if(event.tlx_afu_cmd_data_valid) {
+	    // split it into 64 B chucks an add it to the tail of a fifo
+	    // the event struct can hold the head and tail pointers, and a rd_cnt that we get later
+	    // the afu will issue afu_tlx_resp_rd_req later to tell us to start to pump the data out
+	    // imbed the check for tlx_afu_cmd_data_valid in here to grab the data, if any.
+	    // event->tlx_afu_resp_data has all the data
+	    // use dl to create dl 64 B enties in a fifo linked list cdata_head, cdata_tail, cdata_rd_cnt
+	    // cdata_pkt contain _next, and 64 B of cdata
+	    if (event.tlx_afu_cmd_dl == 0) {
+	      new_line_cnt = 1;
+	    } else {
+	      new_line_cnt = decode_dl(event.tlx_afu_cmd_dl);
+	    }
+	    debug_msg( "cmd new_line_cnt = %d", new_line_cnt );
+	    for ( i = 0; i < new_line_cnt; i++ ) {  
+	      new_cdata_pkt = (struct DATA_PKT *)malloc( sizeof( struct DATA_PKT ) );
+	      // copy data from response event data to rdata_pkt
+	      new_cdata_pkt->_next = NULL;
+	      for ( j=0; j<64; j++ ) {
+		new_cdata_pkt->data[j] = event.tlx_afu_cmd_data_bus[(64*i)+j];
+#ifdef DEBUG
+		printf( "%02x", event.tlx_afu_cmd_data_bus[(64*i)+j] );
+#endif	      
+	      }
+#ifdef DEBUG
+	      printf( "\n" );
+#endif	      
+	      // put the packet at the tail of the fifo
+	      if ( event.cdata_head == NULL ) {
+		event.cdata_head = new_cdata_pkt;
+	      } else {
+		event.cdata_tail->_next = new_cdata_pkt;
+	      }
+	      event.cdata_tail = new_cdata_pkt;
+	    }
+	    event.tlx_afu_cmd_data_valid = 0;
+	  }
       }
       if (clk_afu_cmd_val) {
     	--clk_afu_cmd_val;
@@ -828,7 +871,7 @@ void tlx_bfm(
 	// if event.resp_rd_cnt > 0, there is response data to drive to the afu 
 	//    put the rdata at rdata_head on the tlx_afu_resp_data_bus and set tlx_afu_resp_data_valid
 	//    decrement rdata_rd_cnt and free the head of the fifo
-        setMyCacheLine( tlx_afu_resp_data_bus_top, event.rdata_head->rdata );
+        setMyCacheLine( tlx_afu_resp_data_bus_top, event.rdata_head->data );
         *tlx_afu_resp_data_valid_top = 1;
         *tlx_afu_resp_data_bdi_top = (event.tlx_afu_resp_data_bdi) & 0x1;
         clk_afu_resp_dat_val = CLOCK_EDGE_DELAY;
@@ -844,18 +887,34 @@ void tlx_bfm(
     	if (!clk_afu_resp_dat_val)
     		*tlx_afu_resp_data_valid_top = 0;
       }
-      if(event.tlx_afu_cmd_data_valid)
+      /* if(event.tlx_afu_cmd_data_valid) */
+      /* { */
+      /* 	// except for config read and config write */
+      /* 	if ( ( event.tlx_afu_cmd_opcode != 0xE0 ) && ( event.tlx_afu_cmd_opcode != 0xE1 ) ) { // if the command is a not config_read (0xE0) and not a config wreite */
+      /* 	  *tlx_afu_cmd_data_bdi_top = (event.tlx_afu_cmd_data_bdi) & 0x1; */
+      /* 	  setMyCacheLine(tlx_afu_cmd_data_bus_top, event.tlx_afu_cmd_data_bus); */
+      /* 	  *tlx_afu_cmd_data_valid_top = 1; */
+      /* 	  clk_afu_cmd_dat_val = CLOCK_EDGE_DELAY; */
+      /* 	  event.tlx_afu_cmd_data_valid = 0; */
+      /* 	  printf("%08lld: ", (long long) c_sim_time); */
+      /* 	  printf(" The TLX-AFU Command with Data Available \n"); */
+      /* 	} */
+      /* } */
+      if(event.cdata_rd_cnt > 0)
       {
-	// except for config read and config write
-	if ( ( event.tlx_afu_cmd_opcode != 0xE0 ) && ( event.tlx_afu_cmd_opcode != 0xE1 ) ) { // if the command is a not config_read (0xE0) and not a config wreite
-	  *tlx_afu_cmd_data_bdi_top = (event.tlx_afu_cmd_data_bdi) & 0x1;
-	  setMyCacheLine(tlx_afu_cmd_data_bus_top, event.tlx_afu_cmd_data_bus);
-	  *tlx_afu_cmd_data_valid_top = 1;
-	  clk_afu_cmd_dat_val = CLOCK_EDGE_DELAY;
-	  event.tlx_afu_cmd_data_valid = 0;
-	  printf("%08lld: ", (long long) c_sim_time);
-	  printf(" The TLX-AFU Command with Data Available \n");
-	}
+	// if event.cdata_rd_cnt > 0, there is command data to drive to the afu 
+	//    put the data at cdata_head on the tlx_afu_cmd_data_bus and set tlx_afu_cmd_data_valid
+	//    decrement cdata_rd_cnt and free the head of the fifo
+        setMyCacheLine( tlx_afu_cmd_data_bus_top, event.cdata_head->data );
+        *tlx_afu_cmd_data_valid_top = 1;
+        *tlx_afu_cmd_data_bdi_top = (event.tlx_afu_cmd_data_bdi) & 0x1;
+        clk_afu_cmd_dat_val = CLOCK_EDGE_DELAY;
+        event.cdata_rd_cnt = event.cdata_rd_cnt - 1;
+	old_cdata_pkt = event.cdata_head;
+	event.cdata_head = event.cdata_head->_next;
+	free( old_cdata_pkt ); // DANGER - if this is the last one, tail will point to unallocated memory
+        printf("%08lld: ", (long long) c_sim_time);
+        printf(" The TLX-AFU Command with Data Available \n");
       }
       if (clk_afu_cmd_dat_val) {
     	--clk_afu_cmd_dat_val;
@@ -867,7 +926,7 @@ void tlx_bfm(
 	// only drive initial credits if the credit event is valid.
 	// should we only do this once some how?
 	setDpiSignal32(tlx_afu_cmd_resp_initial_credit_top, event.tlx_afu_cmd_resp_initial_credit, 3);
-	setDpiSignal32(tlx_afu_data_initial_credit_top, event.tlx_afu_data_initial_credit, 4);
+	setDpiSignal32(tlx_afu_data_initial_credit_top, event.tlx_afu_data_initial_credit, 5);
 
       }
       // printf("lgt: tlx_bfm: driving tlx to afu credits\n");

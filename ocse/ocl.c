@@ -17,7 +17,7 @@
 /*
  * Description: ocl.c
  *
- *  This file contains the foundation for the TLX code for a single AFU.
+ *  This file contains the foundation for the OCSE code for a single AFU.
  *  ocl_init() attempts to connect to an AFU simulator and initializes a
  *  ocl struct if successful.  Finally it starts a _ocl_loop thread for
  *  that AFU that will monitor any incoming socket data from either the
@@ -67,24 +67,18 @@ static void _attach(struct ocl *ocl, struct client *client)
 {
 	uint8_t ack;
 
-
-
-	// TODO do we still Send start to AFU?
-	// in past wey add TLX_JOB_START for dedicated and master clients.
-	// send an empty wed in the case of master
-	// lgt - new idea:
 	// track number of clients in ocl
 	// increment number of clients (decrement where we handle the completion of the detach)
-	 if (ocl->attached_clients < ocl->max_clients) {
-	 ocl->idle_cycles = TLX_IDLE_CYCLES;
-	 ack = OCSE_ATTACH;
+	if (ocl->attached_clients < ocl->max_clients) {
+	 	ocl->idle_cycles = TLX_IDLE_CYCLES;
+	 	ack = OCSE_ATTACH;
 	 }
 	ocl->attached_clients++;
 	ocl->state = OCSE_RUNNING;
 	info_msg( "Attached client context %d: current attached clients = %d: client type = %c\n", client->context, ocl->attached_clients, client->type );
 
 
- //attach_done:
+ 	//attach_done:
 	if (put_bytes(client->fd, 1, &ack, ocl->dbg_fp, ocl->dbg_id,
 		      client->context) < 0) {
 		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
@@ -99,25 +93,12 @@ static void _detach(struct ocl *ocl, struct client *client)
 	debug_msg("DETACH from client context 0x%02x", client->context);
 	put_bytes(client->fd, 1, &ack, ocl->dbg_fp, ocl->dbg_id,
 		      client->context);
-		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
-		//_free( ocl, client );
-		//ocl->client->context = NULL;  // I don't like this part...
+	client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 
-	// DO we still need this?
-	//if (client->type == 'd')
-        //	client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
-
-//}
-// TEMP FOR NOW< MAY BECOME PERMANENT...if we no longer need to have a separate _free call from
-// ocl_loop (the OLD way to detach clients in dedicated mode)
-// Client release from AFU
-//static void _free(struct ocl *ocl, struct client *client)
-//{
 	struct cmd_event *mem_access;
 
 	// DEBUG
 	debug_context_remove(ocl->dbg_fp, ocl->dbg_id, client->context);
-
 	info_msg("%s client disconnect from %s context %d", client->ip,
 		 ocl->name, client->context);
 	close_socket(&(client->fd));
@@ -148,24 +129,23 @@ static void _detach(struct ocl *ocl, struct client *client)
 // Handle events from AFU
 static void _handle_afu(struct ocl *ocl)
 {
-	//struct client *client;
-	//uint64_t error;
-	//uint8_t *buffer;
-	//int i;
-	//size_t size;
 	if (ocl->mmio->list !=NULL) {
-	  handle_mmio_ack(ocl->mmio, ocl->parity_enabled);
-	} 
+	  handle_ap_resp(ocl->mmio);
+	  handle_ap_resp_data(ocl->mmio);
+	}
 
 	if (ocl->cmd != NULL) {
+	  // handle_response should follow a similar flow to handle_cmd
+	  // that is, the response may need subsequent resp data valid beats to complete the data for a give response, just like a command...
 	  handle_response(ocl->cmd);  // sends response and data (if required)
 	  handle_buffer_write(ocl->cmd);  // just finishes up the read command structures
-	  handle_xlate_intrp_pending_sent(ocl->cmd);  // just finishes up an xlate_pending resp 
+	  handle_xlate_intrp_pending_sent(ocl->cmd);  // just finishes up an xlate_pending resp
 	  handle_cmd(ocl->cmd, ocl->latency);
 	  handle_afu_tlx_cmd_data_read(ocl->cmd);  // just fills up the write command structures
+	  handle_afu_tlx_write_cmd(ocl->cmd);  // completes the write command
 	  handle_touch(ocl->cmd);
 	  handle_interrupt(ocl->cmd);
-	  handle_write_be_or_amo(ocl->cmd); 
+	  handle_write_be_or_amo(ocl->cmd);
 	}
 }
 
@@ -200,11 +180,9 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 			return;
 		}
-		info_msg("buffer[0] is 0x%02x from client %d", buffer[0], client->fd);
 		switch (buffer[0]) {
 		case OCSE_DETACH:
 		        debug_msg("DETACH request from client context %d on socket %d", client->context, client->fd);
-		        //client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		        _detach(ocl, client);
 			break;
 		case OCSE_ATTACH:
@@ -347,7 +325,6 @@ static void *_ocl_loop(void *ptr)
 				put_bytes(ocl->client[i]->fd, 1, &ack,
 					  ocl->dbg_fp, ocl->dbg_id,
 					  ocl->client[i]->context);
-				//_free(ocl, ocl->client[i]);
 				ocl->client[i] = NULL;  // aha - this is how we only called _free once the old way
 				                        // why do we not free client[i]?
 				                        // because this was a short cut pointer
@@ -376,14 +353,14 @@ static void *_ocl_loop(void *ptr)
 					    ("Client dropped context before AFU completed");
 					reset = 0;
 				}
-				info_msg("Dumping command tag=0x%02x",
-					 event->tag);
+				info_msg("Dumping command afutag=0x%02x",
+					 event->afutag);
 				if (event->data) {
 					free(event->data);
 				}
-				if (event->parity) {
-					free(event->parity);
-				}
+				//if (event->parity) {
+				//	free(event->parity);
+				//}
 				temp = event;
 				event = event->_next;
 				free(temp);
@@ -444,7 +421,7 @@ static void *_ocl_loop(void *ptr)
 // The return value is encode int a 16-bit value divided into 4 for each
 // possible adapter.  Then the 4 bits in each adapter represent the 4 possible
 // AFUs on an adapter.  For example: afu0.0 is 0x8000 and afu3.0 is 0x0008.
-// 
+//
 // The return value is encode int a 16-bit value where each bit represents a
 // possible tlx interface.  For example: tlx0 is 0x8000 and tlx5 is 0x0400.
 uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
@@ -460,34 +437,26 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 		goto init_fail;
 	}
 	ocl->timeout = parms->timeout;
-	//if ((strlen(id) != 4) || strncmp(id, "tlx", 3) || (id[4] != '.')) {
 	if ( (strlen(id) != 4) || strncmp(id, "tlx", 3) ) {
 		warn_msg("Invalid afu name: %s", id);
 		goto init_fail;
 	}
+
 	// check and map id[3] to an integer - be mindful of the hex upper/lower case character
 	if ( (id[3] >= '0') && (id[3] <= '9') ) {
-	  ocl->major = id[3] - '0';
+	  ocl->bus = id[3] - '0';
 	} else if ( (id[3] >= 'A') && (id[3] <= 'F') ) {
-	  ocl->major = id[3] - 'A' + 10;
+	  ocl->bus = id[3] - 'A' + 10;
 	} else if ( (id[3] >= 'a') && (id[3] <= 'f') ) {
-	  ocl->major = id[3] - 'a' + 10;
+	  ocl->bus = id[3] - 'a' + 10;
 	} else {
-		warn_msg("Invalid afu major: %c", id[3]);
+		warn_msg("Invalid afu bus: %c", id[3]);
 		goto init_fail;
 	}
-        //if ((id[5] < '0') || (id[5] > '3')) {
-        //		warn_msg("Invalid afu minor: %c", id[5]);
-        //		goto init_fail;
-        //}
-	ocl->minor = 0; // id[5] - '0';
+
 	ocl->dbg_fp = dbg_fp;
-	ocl->dbg_id = ocl->major; // << 4;
-	ocl->dbg_id |= ocl->minor;
-	// location is now a straight mapping of the character to a number
-	// location >>= (4 * ocl->major);
-	// location >>= ocl->minor;
-	location >>= ocl->major;
+	ocl->dbg_id = ocl->bus; // << 4;
+	location >>= ocl->bus;
 	if ((ocl->name = (char *)malloc(strlen(id) + 1)) == NULL) {
 		perror("malloc");
 		error_msg("Unable to allocation memory for ocl->name");
@@ -522,8 +491,7 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 	// DEBUG
 	debug_afu_connect(ocl->dbg_fp, ocl->dbg_id);
 
-	// Initialize credit handler ?
-	// Initialize mmio and TL cnd handler
+	// Initialize mmio and TL cmd handler
 	debug_msg("ocl_init: %s @ %s:%d: mmio_init", ocl->name, ocl->host, ocl->port);
 	if ((ocl->mmio = mmio_init(ocl->afu_event, ocl->timeout, ocl->name,
 				   ocl->dbg_fp, ocl->dbg_id)) == NULL) {
@@ -557,11 +525,7 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 		goto init_fail;
 	}
 	// Add ocl to list
-	while ((*head != NULL) && ((*head)->major < ocl->major)) {
-		head = &((*head)->_next);
-	}
-	while ((*head != NULL) && ((*head)->major == ocl->major) &&
-	       ((*head)->minor < ocl->minor)) {
+	while ((*head != NULL) && ((*head)->bus < ocl->bus)) {
 		head = &((*head)->_next);
 	}
 	ocl->_next = *head;
@@ -569,15 +533,10 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 		ocl->_next->_prev = ocl;
 	*head = ocl;
 
-	//
 	// no need to reset anymore
-	//
-	// debug_msg("%s @ %s:%d: No need to send reset job.", ocl->name, ocl->host, ocl->port);
 
 	// Read AFU initial credit values
 	int event;
-	//uint8_t   afu_tlx_cmd_credits_available;
-	//uint8_t   afu_tlx_resp_credits_available;
 	event = tlx_get_afu_events(ocl->afu_event);
 	//printf("after tlx_get_afu_events, event is 0x%3x \n", event);
 	// Error on socket
@@ -587,24 +546,17 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 	// Handle events from AFU
 	if (event > 0)
 		_handle_afu(ocl);
-	//if (afu_tlx_read_initial_credits(ocl->afu_event, &afu_tlx_cmd_credits_available,
-	// &afu_tlx_resp_credits_available) != TLX_SUCCESS)
-	//	printf("NO CREDITS FROM AFU!!\n");
-	//printf("afu_tlx_cmd_credits_available is %d, afu_tlx_resp_credits_available is %d \n",
-	//	afu_tlx_cmd_credits_available, afu_tlx_resp_credits_available);
 
 	// Read AFU descriptor
 	debug_msg("%s @ %s:%d: Reading AFU config record and VSEC.", ocl->name, ocl->host,
 	          ocl->port);
 	ocl->state = OCSE_DESC;
-	read_afu_config(ocl->mmio, ocl->lock);
+	read_afu_config(ocl, ocl->bus, ocl->lock);
 
 	// Finish TLX configuration
 	ocl->state = OCSE_IDLE;
 
-	// TODO FIX THIS TO USE NEW CFG VALUES!!
-	// we can get this from "max pasid width" in the process address space id extended capability
-	ocl->max_clients = 4;
+	// ocl->max_clients = 4; // this is set in read_afu_config now
 	if (ocl->max_clients == 0) {
 		error_msg("AFU programming model is invalid");
 		goto init_fail;

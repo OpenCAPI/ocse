@@ -76,6 +76,12 @@
 #define OCSE_LPC_WRITE_BE          	0x2d
 #define OCSE_LPC_ACK            	0x2e
 #define OCSE_LPC_FAIL            	0x2f
+#define OCSE_FIND                       0x30
+#define OCSE_FIND_NTH                   0x31
+#define OCSE_FIND_ACK                   0x32
+
+#define OCSE_FAILED                     0xff
+
 #define MAX_INT32 0x7fffffffU
 #define MIN_INT32 0x80000000U
 #define MAX_UINT32 0xffffffffU
@@ -91,6 +97,7 @@ enum ocse_state {
 	OCSE_DESC,
 	OCSE_RD_RQ_PENDING,
 	OCSE_PENDING,
+	OCSE_BUFFER,
 	OCSE_RUNNING,
 	OCSE_DONE
 };

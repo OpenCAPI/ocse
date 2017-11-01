@@ -9,6 +9,8 @@ LIBOCXL_1 {
 		ocxl_afu_get_fd;
 
 		ocxl_afu_open_from_dev;
+		ocxl_afu_open_specific;
+		ocxl_afu_open_by_id;
 		ocxl_afu_open;
 		ocxl_afu_attach;
 		ocxl_afu_close;

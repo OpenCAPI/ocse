@@ -154,11 +154,6 @@ static int _handle_wake_host_thread(struct ocxl_afu *afu)
 	// we should find that address in the afu's irq list
 	// if we find it, we should put some stuff(?) in the event array
 
-	// propose
-	// 1 byte of cmd flag
-	// 8 bytes of address aka tid
-
-	// HMP idea
 	//buffer[0] = OCSE_WAKE (already read)
 	//buffer[1] = event->cmd_flag
 	//buffer[2] = event->addr 
@@ -176,23 +171,6 @@ static int _handle_wake_host_thread(struct ocxl_afu *afu)
 	memcpy(&addr, adata, 8);
 	// addr = ntohs(addr);
 	debug_msg("_handle_wake_host_thread: received wake_host_thread thread id 0x%016lx", addr);
-
-	// not sure if we need this code block for wake_host_thread
-	// search for addr in tid list of afu
-	// if we don't find it, warn_msg
-	// if we do find it, add an event if it is new for this irq
-	/* tid = afu->tid; */
-	/* while (tid != NULL) { */
-	/*   debug_msg("_handle_wake: compare wake to addr : 0x%016lx ?= 0x%016lx", (uint64_t)tid, addr); */
-	/*   if ( (uint64_t)tid == addr ) { */
-	/*     break; */
-	/*   } */
-	/*   tid = tid->_next; */
-	/* } */
-	/* if ( tid == NULL ) { */
-	/*   warn_msg( "_handle_wake: no matching tid in this application" ); */
-	/*   return -1; */
-	/* } */
 
 	// we have the matching tid pointer
 
@@ -235,7 +213,7 @@ static int _handle_interrupt(struct ocxl_afu *afu, uint8_t data_is_valid)
 
 	if (!afu) fatal_msg("_handle_interrupt:NULL afu passed");
 
-	debug_msg("_handle_interrupt:");
+	debug_msg( "_handle_interrupt for afu %d:", afu->context );
 
 	// in opencapi, we should get a 64 bit address (and maybe data)
 	// we should find that address in the afu's irq list
@@ -257,7 +235,7 @@ static int _handle_interrupt(struct ocxl_afu *afu, uint8_t data_is_valid)
 	}
 	memcpy(&addr, adata, 8);
 	// addr = ntohs(addr);
-	debug_msg("_handle_interrupt: received intrp_req addr 0x%016lx", addr);
+	debug_msg("_handle_interrupt: afu %d received intrp_req addr 0x%016lx", afu->context, addr);
 	
 	if (data_is_valid) {  //this is an AFU_CMD_INTRP_REQ_D
 	// For now, up to 32bytes of data is sent over, pulled  from the addr offset 
@@ -333,52 +311,6 @@ static int _handle_interrupt(struct ocxl_afu *afu, uint8_t data_is_valid)
 	return i;
 }
 
-
-/* static int _handle_afu_error(struct ocxl_afu *afu) */
-/* { */
-/* 	uint64_t error; */
-/* 	uint16_t size; */
-/* 	uint8_t data[sizeof(error)]; */
-/* 	int i; */
-
-/* 	if (!afu) */
-/* 		fatal_msg("NULL afu passed to libocxl.c:_handle_afu_error"); */
-/* 	DPRINTF("AFU ERROR\n"); */
-/* 	if (get_bytes_silent(afu->fd, sizeof(error), data, 1000, 0) < 0) { */
-/* 		warn_msg("Socket failure getting AFU ERROR"); */
-/* 		_all_idle(afu); */
-/* 		return -1; */
-/* 	} */
-/* 	memcpy(&error, data, sizeof(error)); */
-/* 	error = ntohll(error); */
-
-/* 	// Only track a single AFU error at a time */
-/* 	pthread_mutex_lock(&(afu->event_lock)); */
-/* 	i = 0; */
-/* 	while (afu->events[i] != NULL) { */
-/* 		if (afu->events[i]->header.type == OCXL_EVENT_AFU_ERROR) { */
-/* 			pthread_mutex_unlock(&(afu->event_lock)); */
-/* 			return 0; */
-/* 		} */
-/* 		++i; */
-/* 	} */
-/* 	assert(i < EVENT_QUEUE_MAX); */
-
-/* 	size = sizeof(struct ocxl_event_header) + */
-/* 	    sizeof(struct ocxl_event_afu_error); */
-/* 	afu->events[i] = (struct ocxl_event *)calloc(1, size); */
-/* 	afu->events[i]->header.type = OCXL_EVENT_AFU_ERROR; */
-/* 	afu->events[i]->header.size = size; */
-/* 	afu->events[i]->header.process_element = afu->context; */
-/* 	afu->events[i]->afu_error.error = error; */
-
-/* 	do { */
-/* 		i = write(afu->pipe[1], &(afu->events[i]->header.type), 1); */
-/* 	} */
-/* 	while ((i == 0) || (errno == EINTR)); */
-/* 	pthread_mutex_unlock(&(afu->event_lock)); */
-/* 	return i; */
-/* } */
 
 static void _handle_read(struct ocxl_afu *afu, uint64_t addr, uint16_t size)
 {
@@ -1032,7 +964,7 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op, uint8_t op_siz
 		}
 	}
 
-// only AMO_ARMWF_* commands return back original data from EA, otherwise just MEM ACK
+	// only AMO_ARMWF_* commands return back original data from EA, otherwise just MEM ACK
 	switch (wb)  {
 			case 0:
 				buffer = OCSE_MEM_SUCCESS;
@@ -1171,6 +1103,7 @@ static void _mmio_write64(struct ocxl_afu *afu)
 	offset += sizeof(addr);
 	data = htonll(afu->mmio.data);
 	memcpy((char *)&(buffer[offset]), (char *)&data, sizeof(data));
+	debug_msg( "_mmio_write64: type = %02x, offset = %08x", afu->mmio.type, afu->mmio.addr );
 	if (put_bytes_silent(afu->fd, size, buffer) != size) {
 		free(buffer);
 		close_socket(&(afu->fd));
@@ -1201,6 +1134,7 @@ static void _mmio_write32(struct ocxl_afu *afu)
 	offset += sizeof(addr);
 	data = htonl(afu->mmio.data);
 	memcpy((char *)&(buffer[offset]), (char *)&data, sizeof(data));
+	debug_msg( "_mmio_write32: type = %02x, offset = %08x", afu->mmio.type, afu->mmio.addr );
 	if (put_bytes_silent(afu->fd, size, buffer) != size) {
 		free(buffer);
 		close_socket(&(afu->fd));
@@ -1227,6 +1161,7 @@ static void _mmio_read(struct ocxl_afu *afu)
 	offset = 1;
 	addr = htonl(afu->mmio.addr);
 	memcpy((char *)&(buffer[offset]), (char *)&addr, sizeof(addr));
+	debug_msg( "_mmio_read: type = %02x, offset = %08x", afu->mmio.type, afu->mmio.addr );
 	if (put_bytes_silent(afu->fd, size, buffer) != size) {
 	        warn_msg("_mmio_read: put_bytes_silent failed");
 		free(buffer);
@@ -1243,36 +1178,11 @@ static void _mmio_read(struct ocxl_afu *afu)
 
 static void _mem_map(struct ocxl_afu *afu)
 {
-  // _mem_map doesn't really need to do anything for ocse...  the fact that we have a socket is enough
-  // all the information we need is over in ocse already as it has gone through the config space
-
-        // uint8_t *buffer;
-        // uint32_t *flags_ptr;
-        // uint32_t flags;
-        // int size;
-
+        // _mem_map doesn't really need to do anything for ocse...  the fact that we have a socket is enough
+        // all the information we need is over in ocse already as it has gone through the config space
 
         if (!afu)
 	      fatal_msg("NULL afu passed to libocxl.c:_mem_map");
-
-	/* size = 1 + sizeof(uint32_t); */
-	/* buffer = (uint8_t *) malloc(size); */
-	/* buffer[0] = afu->mem.type; */
-
-	/* flags = (uint32_t)afu->mmio.data; */
-	/* flags_ptr = (uint32_t *) & (buffer[1]); */
-	/* *flags_ptr = htonl(flags); */
-
-	/* if (put_bytes_silent(afu->fd, size, buffer) != size) { */
-	/* 	free(buffer); */
-	/* 	close_socket(&(afu->fd)); */
-	/* 	afu->opened = 0; */
-	/* 	afu->attached = 0; */
-	/* 	afu->mem.state = LIBOCXL_REQ_IDLE; */
-	/* 	return; */
-	/* } */
-
-	/* free(buffer); */
 
 	afu->mem.state = LIBOCXL_REQ_IDLE; // make pending if we really have to send something to ocse...
 	return;
@@ -1347,7 +1257,7 @@ static void _mem_write(struct ocxl_afu *afu)
 
 	buffer_offset = 1;
 	debug_msg( "_mem_write: buffer[%d]", buffer_offset );
-	offset = htonl(afu->mem.addr);
+	offset = htonl(afu->mem.addr); 
 	memcpy( (char *)&(buffer[buffer_offset]), (char *)&offset, sizeof(offset));
 	buffer_offset += sizeof(offset);
 
@@ -1458,9 +1368,13 @@ static void *_psl_loop(void *ptr)
 	uint8_t op_size, function_code, amo_op, cmd_endian, cmd_pg_size;
 	uint64_t addr, wr_be;
 	uint16_t size;
-	uint32_t value, lvalue;
-	uint64_t llvalue, op1, op2;
+	uint8_t bvalue;
+	uint16_t value;
+	uint32_t lvalue;
+	uint64_t llvalue;
+	uint64_t op1, op2;
 	int rc;
+	int offset;
 
 	if (!afu)
 		fatal_msg("NULL afu passed to libocxl.c:_psl_loop");
@@ -1531,7 +1445,7 @@ static void *_psl_loop(void *ptr)
 			break;
 		}
 
-		debug_msg("OCL EVENT = 0x%02x\n", buffer[0]);
+		debug_msg("OCL EVENT = 0x%02x", buffer[0]);
 		switch (buffer[0]) {
 		case OCSE_OPEN:
 			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
@@ -1572,68 +1486,67 @@ static void *_psl_loop(void *ptr)
 			afu->int_req.state = LIBOCXL_REQ_IDLE;
 			break;
 		case OCSE_QUERY: {
-    		        // update to reflect opencapi configuration information
-		        // right now we only save the cr_device and cr_vendor
-		        size = sizeof(uint32_t) + // AFU_CTL_ACTAG_LEN_EN_S
-			       sizeof(uint16_t) + // max_irqs
-			  sizeof(uint32_t) + // OCAPI_TL_MAXAFU
-			  sizeof(uint32_t) + // AFU_INFO_REVID
-			  sizeof(uint32_t) + // AFU_CTL_PASID_BASE
-			  sizeof(uint32_t) + // AFU_CTL_ACTAG_BASE
-			  sizeof(uint16_t) + // cr_device
-			  sizeof(uint16_t) + // cr_vendor
-			  sizeof(uint32_t) + // AFU_CTL_EN_RST_INDEX
-			  sizeof(uint32_t) + // pp_MMIO_offset_high
-			  sizeof(uint32_t) + // pp_MMIO_offset_low
-			  sizeof(uint32_t) + // pp_MMIO_BAR
-			  sizeof(uint32_t) ; // pp_MMIO_stride
+		        size = 
+			  sizeof(uint16_t) + // device_id
+			  sizeof(uint16_t) + // vendor_id
+			  sizeof(uint8_t)  + // afu_version_major
+			  sizeof(uint8_t)  + // afu_version_minor
+			  sizeof(uint64_t) + // global_mmio_offset
+			  sizeof(uint32_t) + // global_mmio_size
+			  sizeof(uint64_t) + // pp_mmio_offset
+			  sizeof(uint32_t) + // pp_mmio_stride
+			  sizeof(uint64_t) + // mem_base_address
+			  sizeof(uint8_t)  ; // mem_size
+
 			if (get_bytes_silent(afu->fd, size, buffer, 1000, 0) <
 			    0) {
 				warn_msg("Socket failure getting OCSE query");
 				_all_idle(afu);
 				break;
 			}
-			// from pcie 0 header
-			// device id
-			// vendor id
-			// revision id
-			// maybe subsystem id and subsystem vendor id
-			// from vsec's
-			// tl version capability and configuration
-			// lpc size = lpc memory always starts at 0
-			// there is a bit of cleverness in the mmio space...  need to think more about this.
-			// from afu_descriptor vsec
-			// mmio offset, stride
-			// number of pasid s and offset
-			// and stuff
-			memcpy((char *)&value, (char *)&(buffer[0]), 4); // AFU_CTL_ACTAG_LEN_EN_S
-			//afu->irqs_min = (long)(value);
-			memcpy((char *)&value, (char *)&(buffer[4]), 2); // max_irqs
-			//afu->irqs_max = (long)(value);
-                	memcpy((char *)&value, (char *)&(buffer[6]), 4); // OCAPI_TL_MAXAFU
-			//afu->modes_supported = (long)(value);
-                	memcpy((char *)&llvalue, (char *)&(buffer[10]), 4); // AFU_INFO_REVID
-			//afu->mmio_len = (long)(llvalue & 0x00ffffffffffffff);
-                	memcpy((char *)&llvalue, (char *)&(buffer[14]), 4); // AFU_CTL_PASID_BASE
-			//afu->mmio_off = (long)(llvalue);
-                	memcpy((char *)&llvalue, (char *)&(buffer[18]), 4); // AFU_CTL_ACTAG_BASE
-			//afu->eb_len = (long)(llvalue);
-                	memcpy((char *)&value, (char *)&(buffer[22]), 2); // cr_device
-			afu->cr_device = value;
-                        memcpy((char *)&value, (char *)&(buffer[24]), 2); // cr_vendor
-			afu->cr_vendor = value;
-                        memcpy((char *)&lvalue, (char *)&(buffer[26]), 4); // AFU_CTL_EN_RST_INDEX
-			//afu->cr_class = ntohl(lvalue);
-                        memcpy((char *)&lvalue, (char *)&(buffer[30]), 4); // pp_MMIO_offset_high
-			//afu->pp_MMIO_offset_high = ntohl(lvalue);
-                        memcpy((char *)&lvalue, (char *)&(buffer[30]), 4); // pp_MMIO_offset_low
-			//afu->pp_MMIO_offset_low = ntohl(lvalue);
-                        memcpy((char *)&lvalue, (char *)&(buffer[34]), 4); // pp_MMIO_BAR
-			//afu->pp_MMIO_BAR = ntohl(lvalue);
-                        memcpy((char *)&lvalue, (char *)&(buffer[38]), 4); // pp_MMIO_stride
-			//afu->pp_MMIO_stride = ntohl(lvalue);
-			//no better place to put this right now
-			// afu->prefault_mode = OCXL_PREFAULT_MODE_NONE;
+
+			offset = 0;
+
+                	memcpy((char *)&value, (char *)&(buffer[offset]), 2); // device_id
+			afu->device_id = value;
+			offset += sizeof(uint16_t);
+
+                        memcpy((char *)&value, (char *)&(buffer[offset]), 2); // vendor_id
+			afu->vendor_id = value;
+			offset += sizeof(uint16_t);
+
+                        memcpy((char *)&bvalue, (char *)&(buffer[offset]), 1); // afu_version_major
+			afu->afu_version_major = bvalue;
+			offset += sizeof(uint8_t);
+
+                        memcpy((char *)&bvalue, (char *)&(buffer[offset]), 1); // afu_version_minor
+			afu->afu_version_minor = bvalue;
+			offset += sizeof(uint8_t);
+
+                        memcpy((char *)&llvalue, (char *)&(buffer[offset]), 8); // global_mmio_offset
+			afu->global_mmio_offset = llvalue;
+			offset += sizeof(uint64_t);
+
+                        memcpy((char *)&lvalue, (char *)&(buffer[offset]), 4); // global_mmio_size
+			afu->global_mmio_size = lvalue;
+			offset += sizeof(uint32_t);
+
+                        memcpy((char *)&llvalue, (char *)&(buffer[offset]), 8); // pp_mmio_offset
+			afu->pp_mmio_offset = llvalue;
+			offset += sizeof(uint64_t);
+
+                        memcpy((char *)&lvalue, (char *)&(buffer[offset]), 4); // pp_mmio_stride
+			afu->pp_mmio_stride = lvalue;
+			offset += sizeof(uint32_t);
+
+                        memcpy((char *)&llvalue, (char *)&(buffer[offset]), 8); // mem_base_address
+			afu->mem_base_address = llvalue;
+			offset += sizeof(uint64_t);
+
+                        memcpy((char *)&bvalue, (char *)&(buffer[offset]), 1); // mem_size
+			afu->mem_size = bvalue;
+			offset += sizeof(uint8_t);
+
 			break;
 		}
 		case OCSE_MEMORY_READ:
@@ -1980,8 +1893,11 @@ static int _ocse_connect(uint16_t * afu_map, int *fd)
 		close_socket(fd);
 		goto connect_fail;
 	}
+
+	// afu_map contains a 1 at each position a tlx interface exists - i.e. the bus numbers that have been "discovered"
 	memcpy((char *)afu_map, (char *)buffer, 2);
 	*afu_map = (long)ntohs(*afu_map);
+	debug_msg("opened host-side socket %d", fd);
 	return 0;
 
  connect_fail:
@@ -1989,173 +1905,256 @@ static int _ocse_connect(uint16_t * afu_map, int *fd)
 	return -1;
 }
 
-/* static struct ocxl_adapter_h *_new_adapter(uint16_t afu_map, uint16_t position, */
-/* 					  int fd) */
+/* static struct ocxl_afu *_new_afu(uint16_t afu_map, uint16_t position, int fd) */
 /* { */
-/* 	struct ocxl_adapter_h *adapter; */
-/* 	uint16_t mask = 0xf000; */
-/* 	int id_num = 0; */
+/* 	uint8_t *buffer; */
+/* 	int size; */
+/* 	struct ocxl_afu *afu_h; */
+/* 	uint16_t afu_mask = 0x8000; */
+/* 	int major = 0; */
+/* 	int minor = 0; */
 
-/* 	if (position == 0) */
+/* 	if (position == 0) { */
+/* 		errno = ENODEV; */
+/* 		return NULL; */
+/* 	} */
+/* 	while ((position & afu_mask) == 0) { */
+/* 		afu_mask >>= 1; */
+/* 		++major; */
+/* 	} */
+
+/* 	afu_h = (struct ocxl_afu *)calloc(1, sizeof(struct ocxl_afu)); */
+/* 	if (afu_h == NULL) { */
+/* 		errno = ENOMEM; */
+/* 		return NULL; */
+/* 	} */
+
+/* 	if (pipe(afu_h->pipe) < 0) */
 /* 		return NULL; */
 
-/* 	adapter = (struct ocxl_adapter_h *) */
-/* 	    calloc(1, sizeof(struct ocxl_adapter_h)); */
-/* 	while ((position & mask) == 0) { */
-/* 		mask >>= 4; */
-/* 		++id_num; */
+/* 	pthread_mutex_init(&(afu_h->event_lock), NULL); */
+/* 	afu_h->fd = fd; */
+/* 	afu_h->map = afu_map; */
+/* 	afu_h->dbg_id = major; */
+/* 	debug_msg("opened host-side socket %d", afu_h->fd); */
+
+/* 	// Send OCSE query */
+/* 	size = 1 + sizeof(uint8_t); */
+/* 	buffer = (uint8_t *) malloc(size); */
+/* 	buffer[0] = OCSE_QUERY; */
+/* 	buffer[1] = afu_h->dbg_id; */
+/* 	if (put_bytes_silent(afu_h->fd, size, buffer) != size) { */
+/* 		free(buffer); */
+/* 		close_socket(&(afu_h->fd)); */
+/* 		errno = ENODEV; */
+/* 		return NULL; */
 /* 	} */
-/* 	adapter->map = afu_map; */
-/* 	adapter->position = position; */
-/* 	adapter->mask = mask; */
-/* 	adapter->fd = fd; */
-/* 	adapter->id = calloc(6, sizeof(char)); */
-/* 	sprintf(adapter->id, "card%d", id_num); */
-/* 	return adapter; */
+/* 	free(buffer); */
+
+/* 	afu_h->adapter = major; */
+/* 	afu_h->position = position; */
+/* 	afu_h->id = calloc(7, sizeof(char)); */
+/* 	_all_idle(afu_h); */
+/* 	sprintf(afu_h->id, "afu%d.%d", major, minor); */
+
+/* 	return afu_h; */
 /* } */
 
-static struct ocxl_afu *_new_afu(uint16_t afu_map, uint16_t position, int fd)
+ocxl_err _alloc_afu( ocxl_afu_h *afu_out ) 
+{
+	struct ocxl_afu *afu;
+
+	debug_msg( "_alloc_afu" );
+	afu = (struct ocxl_afu *)calloc(1, sizeof(struct ocxl_afu));
+	if (afu == NULL) {
+         	error_msg( "Could not alloc memory for afu structure" );
+		return OCXL_NO_MEM;
+	}
+
+	*afu_out = (ocxl_afu_h)afu;
+
+	return OCXL_OK;
+}
+
+ocxl_err _find_afu_nth( int fd, const char *name, uint8_t card_index, int16_t afu_index, uint8_t *bus, uint8_t *dev, uint8_t *fcn, uint8_t *afuid )
 {
 	uint8_t *buffer;
 	int size;
-	struct ocxl_afu *afu_h;
-	uint16_t afu_mask = 0x8000;
-	int major = 0;
-	int minor = 0;
-
-	if (position == 0) {
-		errno = ENODEV;
-		return NULL;
-	}
-	while ((position & afu_mask) == 0) {
-		afu_mask >>= 1;
-		++major;
-	}
-
-	afu_h = (struct ocxl_afu *)calloc(1, sizeof(struct ocxl_afu));
-	if (afu_h == NULL) {
-		errno = ENOMEM;
-		return NULL;
-	}
-
-	if (pipe(afu_h->pipe) < 0)
-		return NULL;
-
-	pthread_mutex_init(&(afu_h->event_lock), NULL);
-	afu_h->fd = fd;
-	afu_h->map = afu_map;
-	afu_h->dbg_id = major;
-	debug_msg("opened host-side socket %d", afu_h->fd);
+	int offset;
 
 	// Send OCSE query
-	size = 1 + sizeof(uint8_t);
+
+	// size is message type (1), name length (1), name (name_length), card_index (1), afu_index_valid (1), afu_index (1)
+	size = 1 + 1 + strlen( name ) + 1 + 1 + 1;
+	buffer = (uint8_t *) malloc(size);
+	
+	offset = 0;
+	buffer[offset] = OCSE_FIND_NTH;
+	offset = offset + 1;
+
+	buffer[offset] = strlen( name );
+	offset = offset + 1;
+
+	memcpy( &buffer[offset], name, strlen(name) ); // don't copy the '\0'
+	offset = offset + strlen(name);
+	
+	buffer[offset] = card_index;
+	offset = offset + 1;
+
+	if (afu_index < 0 ) {
+	  buffer[offset] = 0;  // afu index is not valid
+	} else {
+	  buffer[offset] = 1;  // afu index is not valid
+	}
+	offset = offset + 1;
+
+	buffer[offset] = afu_index;
+	offset = offset + 1;
+
+	if (put_bytes_silent( fd, size, buffer ) != size) {
+		free(buffer);
+		close_socket(&fd);
+		return OCXL_NO_DEV;
+	}
+	
+	buffer[0] = 0; 
+	
+	if (get_bytes_silent( fd, 1, buffer, -1, 0) < 0) {
+		warn_msg("ocxl_afu_open:Socket failed");
+		close_socket(&fd);
+		return OCXL_NO_DEV;
+	}
+
+	if ( buffer[0] == (uint8_t)OCSE_FAILED ) {
+		warn_msg("ocxl_afu_open_by_id:Socket failed FIND by name");
+		close_socket(&fd);
+		return OCXL_NO_DEV;
+	}
+	if (buffer[0] != (uint8_t) OCSE_FIND_ACK) {
+		warn_msg("ocxl_afu_open_by_id:OCSE bad acknowledge");
+		close_socket(&fd);
+		return OCXL_NO_DEV;
+	}
+
+	// read out bus, device, function, and afuid 
+	if (get_bytes_silent( fd, 4, buffer, -1, 0) < 0) {
+		warn_msg("ocxl_afu_open:Socket failed FIND by name and id");
+		close_socket(&fd);
+		return OCXL_NO_DEV;
+	}
+
+	*bus = buffer[0];
+	*dev = buffer[1];
+	*fcn = buffer[2];
+	*afuid = buffer[3];
+
+	free( buffer );
+	return OCXL_OK;
+}
+
+ocxl_err _find_afu( int fd, const char *name, uint8_t *bus, uint8_t *dev, uint8_t *fcn, uint8_t *afuid )
+{
+	uint8_t *buffer;
+	int size;
+
+	// Send OCSE query
+	size = 1 + 1 + strlen( name );
+	buffer = (uint8_t *) malloc(size);
+	buffer[0] = OCSE_FIND;
+	buffer[1] = strlen( name );
+	memcpy( &buffer[2], name, strlen(name) ); // don't copy the '\0'
+	if (put_bytes_silent( fd, size, buffer ) != size) {
+		free(buffer);
+		close_socket(&fd);
+		return OCXL_NO_DEV;
+	}
+	
+	buffer[0] = 0; 
+	
+	if (get_bytes_silent( fd, 1, buffer, -1, 0) < 0) {
+		warn_msg("ocxl_afu_open:Socket failed");
+		close_socket(&fd);
+		return OCXL_NO_DEV;
+	}
+
+	if ( buffer[0] == (uint8_t)OCSE_FAILED ) {
+		warn_msg("ocxl_afu_open:Socket failed FIND by name");
+		close_socket(&fd);
+		return OCXL_NO_DEV;
+	}
+	if (buffer[0] != (uint8_t) OCSE_FIND_ACK) {
+		warn_msg("ocxl_afu_open_dev:OCSE bad acknowledge");
+		close_socket(&fd);
+		return OCXL_NO_DEV;
+	}
+
+	// read out bus, device, function, and afuid 
+	if (get_bytes_silent( fd, 4, buffer, -1, 0) < 0) {
+		warn_msg("ocxl_afu_open:Socket failed FIND by name");
+		close_socket(&fd);
+		return OCXL_NO_DEV;
+	}
+
+	*bus = buffer[0];
+	*dev = buffer[1];
+	*fcn = buffer[2];
+	*afuid = buffer[3];
+
+	free( buffer );
+	return OCXL_OK;
+}
+
+ocxl_err _query_afu( struct ocxl_afu *afu_h, int fd, uint8_t bus, uint8_t dev, uint8_t fcn, uint8_t afuid )
+{
+	uint8_t *buffer;
+	int size;
+
+	debug_msg( "_query_afu" );
+	if ( pipe( afu_h->pipe ) < 0 )
+		return OCXL_NO_DEV;
+
+	pthread_mutex_init( &(afu_h->event_lock), NULL);
+
+	afu_h->fd = fd;
+	afu_h->bus = bus;
+	afu_h->dev = dev;
+	afu_h->fcn = fcn;
+	afu_h->ocxl_id.afu_index = afuid;
+
+	// Send OCSE query
+	size = 1 + ( 4 * sizeof( uint8_t ) );
 	buffer = (uint8_t *) malloc(size);
 	buffer[0] = OCSE_QUERY;
-	buffer[1] = afu_h->dbg_id;
+	buffer[1] = bus;
+	buffer[2] = dev;
+	buffer[3] = fcn;
+	buffer[4] = afuid;
 	if (put_bytes_silent(afu_h->fd, size, buffer) != size) {
 		free(buffer);
 		close_socket(&(afu_h->fd));
-		errno = ENODEV;
-		return NULL;
+		return OCXL_NO_DEV;
 	}
 	free(buffer);
+	_all_idle( afu_h );
 
-	afu_h->adapter = major;
-	afu_h->position = position;
-	afu_h->id = calloc(7, sizeof(char));
-	_all_idle(afu_h);
-	sprintf(afu_h->id, "afu%d.%d", major, minor);
+	afu_h->id = calloc(15, sizeof(char));
+	sprintf(afu_h->id, "afu%02x.%02x.%02x.%02x", bus, dev, fcn, afuid);
 
-	return afu_h;
+	return OCXL_OK;
 }
 
-// this routine may need some work - it does not wait for a detach response from ocse
-/* static void _release_afus(struct ocxl_afu *afu) */
-/* { */
-/* 	struct ocxl_afu *current; */
-/* 	uint8_t rc = OCSE_DETACH; */
-/* 	int adapter; */
-
-/* 	if (afu == NULL) */
-/* 		return; */
-
-/* 	current = afu->_head; */
-/* 	while (current->adapter < afu->adapter) */
-/* 		current = current->_next; */
-
-/* 	adapter = afu->adapter; */
-/* 	current = afu; */
-/* 	while ((current != NULL) && (current->adapter == adapter)) { */
-/* 		afu = current; */
-/* 		current = current->_next; */
-/* 		if (afu->fd) { */
-/* 			put_bytes_silent(afu->fd, 1, &rc); */
-/* 			close_socket(&(afu->fd)); */
-/* 		} */
-/* 		if (afu->id) */
-/* 			free(afu->id); */
-/* 		pthread_mutex_destroy(&(afu->event_lock)); */
-/* 		free(afu); */
-/* 	} */
-/* } */
-
-// this routine may need some work - it does not wait for a detach response from ocse
-/* static void _release_adapters(struct ocxl_adapter_h *adapter) */
-/* { */
-/* 	struct ocxl_adapter_h *current; */
-/* 	uint8_t rc = OCSE_DETACH; */
-
-/* 	if (!adapter) */
-/* 		fatal_msg("NULL adapter passed to libocxl.c:_release_adapters"); */
-/* 	_release_afus(adapter->afu_list); */
-/* 	current = adapter; */
-/* 	while (current != NULL) { */
-/* 		adapter = current; */
-/* 		current = current->_next; */
-/* 		// Disconnect from OCSE */
-/* 		if (adapter->fd) { */
-/* 			put_bytes_silent(adapter->fd, 1, &rc); */
-/* 			close_socket(&(adapter->fd)); */
-/* 		} */
-/* 		free(adapter->id); */
-/* 		free(adapter); */
-/* 	} */
-/* } */
-
-//static struct ocxl_afu_h *_ocse_open(int *fd, uint16_t afu_map, uint8_t major,
-static struct ocxl_afu *_ocse_open(int *fd, uint16_t afu_map, uint8_t major,
-				     uint8_t minor)
+ocxl_err _open_afu( struct ocxl_afu *afu_h )
 {
-	struct ocxl_afu *afu_h;
 	uint8_t *buffer;
-	uint16_t position;
 
-	if ( !fd )
-		fatal_msg( "NULL fd passed to libocxl.c:_ocse_open" );
-	position = 0x8000;
-	//position >>= 4 * major;
-	//position >>= minor;
-	position >>= major;
-	debug_msg("afu_map = 0x%04x", afu_map);
-	debug_msg("position = 0x%04x", position);
-	if ((afu_map & position) != position) {
-		warn_msg("open: AFU not in system");
-		close_socket(fd);
-		errno = ENODEV;
-		return NULL;
-	}
-
-	// Create struct for AFU
-	afu_h = _new_afu(afu_map, position, *fd);
-	if (afu_h == NULL)
-		return NULL;
-
+	debug_msg( "_open_afu" );
 	buffer = (uint8_t *) calloc(1, MAX_LINE_CHARS);
 	buffer[0] = (uint8_t) OCSE_OPEN;
-	buffer[1] = afu_h->dbg_id;
-	// buffer[2] = afu_type;
-	afu_h->fd = *fd;
-	if (put_bytes_silent(afu_h->fd, 2, buffer) != 2) {
+	buffer[1] = afu_h->bus;
+	buffer[2] = afu_h->dev;
+	buffer[3] = afu_h->fcn;
+	buffer[4] = afu_h->ocxl_id.afu_index;
+	if (put_bytes_silent(afu_h->fd, 5, buffer) != 5) {
 		warn_msg("open:Failed to write to socket");
 		free(buffer);
 		goto open_fail;
@@ -2163,9 +2162,7 @@ static struct ocxl_afu *_ocse_open(int *fd, uint16_t afu_map, uint8_t major,
 	free(buffer);
 
 	afu_h->irq = NULL;
-	afu_h->_head = afu_h;
-	afu_h->adapter = major;
-	afu_h->id = (char *)malloc(7);
+	// afu_h->_head = afu_h;
 	afu_h->open.state = LIBOCXL_REQ_PENDING;
 
 	// Start thread
@@ -2184,21 +2181,210 @@ static struct ocxl_afu *_ocse_open(int *fd, uint16_t afu_map, uint8_t major,
 		goto open_fail;
 	}
 
-	sprintf(afu_h->id, "tlx%d", major);
-
-	return afu_h;
+	return OCXL_OK;
 
  open_fail:
 	pthread_mutex_destroy(&(afu_h->event_lock));
-	free(afu_h);
-	errno = ENODEV;
-	return NULL;
+	free( afu_h );
+	return OCXL_INTERNAL_ERROR;
 }
+
+/* static struct ocxl_afu *_new_afu_bdfa( uint16_t afu_map,  uint8_t bus, uint8_t dev, uint8_t fcn, */
+/* 				       uint8_t afuid, int fd) */
+/* { */
+/* 	uint8_t *buffer; */
+/* 	int size; */
+/* 	struct ocxl_afu *afu_h; */
+
+/* 	afu_h = (struct ocxl_afu *)calloc(1, sizeof(struct ocxl_afu)); */
+/* 	if (afu_h == NULL) { */
+/* 		errno = ENOMEM; */
+/* 		return NULL; */
+/* 	} */
+
+/* 	if (pipe(afu_h->pipe) < 0) */
+/* 		return NULL; */
+
+/* 	pthread_mutex_init(&(afu_h->event_lock), NULL); */
+/* 	afu_h->fd = fd; */
+/* 	afu_h->map = afu_map; */
+/* 	// afu_h->dbg_id = major; */
+/* 	afu_h->bus = bus; */
+/* 	afu_h->dev = dev; */
+/* 	afu_h->fcn = fcn; */
+/* 	afu_h->ocxl_id.afu_index = afuid; */
+/* 	debug_msg("opened host-side socket %d", afu_h->fd); */
+
+/* 	// Send OCSE query */
+/* 	size = 1 + ( 4 * sizeof( uint8_t ) ); */
+/* 	buffer = (uint8_t *) malloc(size); */
+/* 	buffer[0] = OCSE_QUERY; */
+/* 	buffer[1] = bus; */
+/* 	buffer[2] = dev; */
+/* 	buffer[3] = fcn; */
+/* 	buffer[4] = afuid; */
+/* 	if (put_bytes_silent(afu_h->fd, size, buffer) != size) { */
+/* 		free(buffer); */
+/* 		close_socket(&(afu_h->fd)); */
+/* 		errno = ENODEV; */
+/* 		return NULL; */
+/* 	} */
+/* 	free(buffer); */
+
+/* 	afu_h->id = calloc(11, sizeof(char)); */
+/* 	_all_idle(afu_h); */
+/* 	sprintf(afu_h->id, "afu%02x.%02x.%02x.%02x", bus, dev, fcn, afuid); */
+
+/* 	return afu_h; */
+/* } */
+
+//static struct ocxl_afu_h *_ocse_open(int *fd, uint16_t afu_map, uint8_t major,
+/* static struct ocxl_afu *_ocse_open(int *fd, uint16_t afu_map, uint8_t major, */
+/* 				     uint8_t minor) */
+/* { */
+/* 	struct ocxl_afu *afu_h; */
+/* 	uint8_t *buffer; */
+/* 	uint16_t position; */
+
+/* 	if ( !fd ) */
+/* 		fatal_msg( "NULL fd passed to libocxl.c:_ocse_open" ); */
+/* 	position = 0x8000; */
+/* 	//position >>= 4 * major; */
+/* 	//position >>= minor; */
+/* 	position >>= major; */
+/* 	debug_msg("afu_map = 0x%04x", afu_map); */
+/* 	debug_msg("position = 0x%04x", position); */
+/* 	if ((afu_map & position) != position) { */
+/* 		warn_msg("open: AFU not in system"); */
+/* 		close_socket(fd); */
+/* 		errno = ENODEV; */
+/* 		return NULL; */
+/* 	} */
+
+/* 	// Create struct for AFU */
+/* 	afu_h = _new_afu(afu_map, position, *fd); */
+/* 	if (afu_h == NULL) */
+/* 		return NULL; */
+
+/* 	buffer = (uint8_t *) calloc(1, MAX_LINE_CHARS); */
+/* 	buffer[0] = (uint8_t) OCSE_OPEN; */
+/* 	buffer[1] = afu_h->dbg_id; */
+/* 	// buffer[2] = afu_type; */
+/* 	afu_h->fd = *fd; */
+/* 	if (put_bytes_silent(afu_h->fd, 2, buffer) != 2) { */
+/* 		warn_msg("open:Failed to write to socket"); */
+/* 		free(buffer); */
+/* 		goto open_fail; */
+/* 	} */
+/* 	free(buffer); */
+
+/* 	afu_h->irq = NULL; */
+/* 	afu_h->_head = afu_h; */
+/* 	afu_h->adapter = major; */
+/* 	afu_h->id = (char *)malloc(7); */
+/* 	afu_h->open.state = LIBOCXL_REQ_PENDING; */
+
+/* 	// Start thread */
+/* 	if (pthread_create(&(afu_h->thread), NULL, _psl_loop, afu_h)) { */
+/* 		perror("pthread_create"); */
+/* 		close_socket(&(afu_h->fd)); */
+/* 		goto open_fail; */
+/* 	} */
+
+/* 	// Wait for open acknowledgement */
+/* 	while (afu_h->open.state != LIBOCXL_REQ_IDLE)	/\*infinite loop *\/ */
+/* 		_delay_1ms(); */
+
+/* 	if (!afu_h->opened) { */
+/* 		pthread_join(afu_h->thread, NULL); */
+/* 		goto open_fail; */
+/* 	} */
+
+/* 	sprintf(afu_h->id, "tlx%d", major); */
+
+/* 	return afu_h; */
+
+/*  open_fail: */
+/* 	pthread_mutex_destroy(&(afu_h->event_lock)); */
+/* 	free(afu_h); */
+/* 	errno = ENODEV; */
+/* 	return NULL; */
+/* } */
+
+/* static struct ocxl_afu *_ocse_open_bdfa( int *fd, uint16_t afu_map, uint8_t bus, uint8_t dev, uint8_t fcn, */
+/* 					 uint8_t afuid ) */
+/* { */
+/* 	struct ocxl_afu *afu_h; */
+/* 	uint8_t *buffer; */
+/* 	uint16_t position; */
+
+/* 	if ( !fd ) */
+/* 		fatal_msg( "NULL fd passed to libocxl.c:_ocse_open" ); */
+
+/* 	position = 0x8000; */
+/* 	position >>= bus; */
+/* 	debug_msg("afu_map = 0x%04x", afu_map); */
+/* 	debug_msg("position = 0x%04x", position); */
+/* 	if ((afu_map & position) != position) { */
+/* 		warn_msg("open: AFU not in system"); */
+/* 		close_socket(fd); */
+/* 		errno = ENODEV; */
+/* 		return NULL; */
+/* 	} */
+
+/* 	// Create struct for AFU */
+/* 	afu_h = _new_afu_bdfa( afu_map, bus, dev, fcn, afuid, *fd ); */
+/* 	if (afu_h == NULL) */
+/* 		return NULL; */
+
+/* 	buffer = (uint8_t *) calloc(1, MAX_LINE_CHARS); */
+/* 	buffer[0] = (uint8_t) OCSE_OPEN; */
+/* 	buffer[1] = afu_h->bus; */
+/* 	buffer[2] = afu_h->dev; */
+/* 	buffer[3] = afu_h->fcn; */
+/* 	buffer[4] = afu_h->ocxl_id.afu_index; */
+/* 	afu_h->fd = *fd; */
+/* 	if (put_bytes_silent(afu_h->fd, 5, buffer) != 5) { */
+/* 		warn_msg("open:Failed to write to socket"); */
+/* 		free(buffer); */
+/* 		goto open_fail; */
+/* 	} */
+/* 	free(buffer); */
+
+/* 	afu_h->irq = NULL; */
+/* 	// afu_h->_head = afu_h; */
+/* 	afu_h->open.state = LIBOCXL_REQ_PENDING; */
+
+/* 	// Start thread */
+/* 	if (pthread_create(&(afu_h->thread), NULL, _psl_loop, afu_h)) { */
+/* 		perror("pthread_create"); */
+/* 		close_socket(&(afu_h->fd)); */
+/* 		goto open_fail; */
+/* 	} */
+
+/* 	// Wait for open acknowledgement */
+/* 	while (afu_h->open.state != LIBOCXL_REQ_IDLE)	/\*infinite loop *\/ */
+/* 		_delay_1ms(); */
+
+/* 	if (!afu_h->opened) { */
+/* 		pthread_join(afu_h->thread, NULL); */
+/* 		goto open_fail; */
+/* 	} */
+
+/* 	return afu_h; */
+
+/*  open_fail: */
+/* 	pthread_mutex_destroy(&(afu_h->event_lock)); */
+/* 	free(afu_h); */
+/* 	errno = ENODEV; */
+/* 	return NULL; */
+/* } */
 
 void ocxl_want_verbose_errors( int verbose )
 {
   // we should think about using this to enable debug messages in at least libocxl code...  maybe even enable debug messages in ocse...
   // for now, just return
+  warn_msg( "ocxl_want_verbose_errors is not supported in ocse" );
   return;
 }
 
@@ -2206,6 +2392,7 @@ void ocxl_set_errmsg_filehandle( FILE *handle )
 {
   // we should think about using this to redirect message to some other file
   // for now, just return
+  warn_msg( "ocxl_set_errmsg_filehandle is not supported in ocse" );
   return;
 }
 
@@ -2270,10 +2457,10 @@ const char *ocxl_afu_get_sysfs_pathname( ocxl_afu_h afu )
 	return NULL;
 }
 
-ocxl_err ocxl_afu_open_from_dev( char *path, ocxl_afu_h *afu )
+ocxl_err ocxl_afu_open_from_dev( const char *path, ocxl_afu_h *afu )
 {
 	uint16_t afu_map;
-	uint8_t major, minor;
+	uint8_t bus, dev, fcn, afuid;
 	char *my_afuid;
 	char *afu_id;
 	char *afu_name;
@@ -2282,22 +2469,24 @@ ocxl_err ocxl_afu_open_from_dev( char *path, ocxl_afu_h *afu )
 	char *dev_device;
 	char *dev_function;
 	char *afu_index;
-	char afu_type;
+	int rc;
 	int fd;
 	struct ocxl_afu *my_afu;
 
-	if ( !path )
-		return OCXL_NO_DEV;
-	if ( _ocse_connect(&afu_map, &fd) < 0 )
-		return OCXL_NO_DEV;
+	// is there a way to see if this is already done?
 
+	if ( !path ) return OCXL_NO_DEV;
+
+	// allocate afu structure
+	rc = _alloc_afu( (ocxl_afu_h *)&my_afu );
+	if (  rc != 0 ) return rc;
+
+	if ( _ocse_connect(&afu_map, &fd) < 0 ) return OCXL_NO_DEV;
+
+	// check the map after we know the bus or maybe just ignore it and let query fail...
+
+	// parse the given pathname and query the "afu" bus, device, function, and index that we've asked for
 	// Discover AFU position
-        // lgt - this part will change for opencapi, but is ok for now.
-	//       afu_type will always be directed, may not have a master/slave distinction
-	//       major and minor are yet to be defined.
-	// afu_map is now simply a number...  the bits that are on represent the tlx's that are present
-	// the name is temporarily tlxM where M can be 0 - F
-	// type is no longer relevant
 	// ocapi - /dev/ocxl/<afu_name>.<domain>:<bus>:<device>.<function>.<afu_index>
 	// we initially support only 1 afu per function per bus. bus maps to major
 	// e.g. /dev/ocxl/IBM,MEMCPY3.0000:00:00.1.0
@@ -2309,7 +2498,8 @@ ocxl_err ocxl_afu_open_from_dev( char *path, ocxl_afu_h *afu )
 	// copy to a non-constant string...
 	my_afuid = malloc( strlen( afu_id ) + 1 );
 	strcpy( my_afuid, afu_id );
-	
+
+	// see populate_metadata in the real libocxl for a nicer way to do this
 	// afu_id is now <afu_name>.<domain>:<bus>:<device>.<function>.<afu_index>
 	// we can discard domain
 	afu_name = strtok( my_afuid, "." );  // something like "IBM,MEMCPY"
@@ -2319,168 +2509,172 @@ ocxl_err ocxl_afu_open_from_dev( char *path, ocxl_afu_h *afu )
 	dev_function = strtok( NULL, "." );// one char  "f"  (0 to 7)  (8 "slots") (from discovery always 1 for now)
 	afu_index = strtok( NULL, "." );   // two chars "ii" (0 to 63) (64 "slots") (from discovery always 0 for now)
 
-	debug_msg( "afu name = %s, domain = %s, bus = %s, device = %s, function = %s, afu control index = %s", afu_name, dev_domain, dev_bus, dev_device, dev_function, afu_index );
-	// this means we can use dev_bus as the major number for now, be we have to rework this totally...
+	debug_msg( "afu name = %s, domain = %s, bus = %s, device = %s, function = %s, afu control index = %s", 
+		   afu_name, dev_domain, dev_bus, dev_device, dev_function, afu_index );
 
-	// we need a new way to map the afus that are available.  which comes from osce during connect
-	// bus, function, and afu_index are interesting to us.  device is always 0.  domain can be ignored.
-	// maybe we should just send the numbers over and let ocse find it or return a bad device result.  
-	// yes, just send to ocse and let it sort it out
+	// There are too many potential afus to created an effective map
+	// so, afu_map only represents the "bus" values that are available according to ocse
+	// AND, we have limited the number of buses to 16.
+	// So we do an initial check on bus vs afu_map and let ocse do the other work
 
-	// check and map id[3] to an integer - be mindful of the hex upper/lower case character
-	/* if ( (afu_id[3] >= '0') && (afu_id[3] <= '9') ) { */
-	/*   major = afu_id[3] - '0'; */
-	/* } else if ( (afu_id[3] >= 'A') && (afu_id[3] <= 'F') ) { */
-	/*   major = afu_id[3] - 'A' + 10; */
-	/* } else if ( (afu_id[3] >= 'a') && (afu_id[3] <= 'f') ) { */
-	/*   major = afu_id[3] - 'a' + 10; */
-	/* } else { */
-	/* 	warn_msg("Invalid afu major: %c", afu_id[3]); */
-	/* 	errno = ENODEV; */
-	/* 	return OCXL_NO_DEV; */
-	/* } */
-	major = (uint8_t)strtol( dev_bus, NULL, 16 );
-	debug_msg("major number = 0x%01x", major);
+	bus = (uint8_t)strtol( dev_bus, NULL, 16 );
+	dev = (uint8_t)strtol( dev_device, NULL, 16 );
+	fcn = (uint8_t)strtol( dev_function, NULL, 16 );
+	afuid = (uint8_t)strtol( afu_index, NULL, 16 );
 
-	// if ((afu_id[5] < '0') || (afu_id[5] > '3')) {
-	// 	warn_msg("Invalid afu minor: %c", afu_id[5]);
-	//	errno = ENODEV;
-	// 	return NULL;
-	// }
-	minor = 0; // afu_id[5] - '0';  // minor is no longer used
-	afu_type = 'o';                 // afu_type is no longer used
+	// makes sure we test to see that bus, dev, and fcn are within syntactic limits
 
-	// return _ocse_open(&fd, afu_map, major, minor);
-	my_afu = _ocse_open(&fd, afu_map, major, minor);
 	strcpy( (char *)&(my_afu->ocxl_id.afu_name[0]), afu_name );
-	my_afu->bus = (uint8_t)strtol( dev_bus, NULL, 16 );
-	my_afu->dev = (uint8_t)strtol( dev_device, NULL, 16 );
-	my_afu->fcn = (uint8_t)strtol( dev_function, NULL, 16 );
-	my_afu->ocxl_id.afu_index = (uint8_t)strtol( afu_index, NULL, 16 );
+
+	debug_msg("major number = 0x%01x", bus);
+
+	rc = _query_afu( my_afu, fd, bus, dev, fcn, afuid );
+
+	// open the "afu"
+	rc = _open_afu( my_afu );
 
 	// now, how do I return afu_h (struct ocxl_afu *) through afu (ocxl_afu_h *)?
 	*afu = ( ocxl_afu_h )my_afu;
 	return OCXL_OK;
 }
 
-ocxl_err ocxl_afu_open( ocxl_afu_h afu )
-{
-	uint8_t major, minor;
-	uint16_t mask;
-	// char afu_type;
-	// enum ocxl_views view = OCXL_VIEW_SLAVE;
+ocxl_err ocxl_afu_open( const char *name, ocxl_afu_h *afu ) {
 
-        struct ocxl_afu *my_afu;
+        uint8_t bus, dev, fcn, afuid;
+	int rc;
+	uint16_t afu_map;
+	int fd;
+	struct ocxl_afu *my_afu;
+	// connect
+	// is there a way to see if this is already done?
 
-	my_afu = (struct ocxl_afu *)afu;
+	// allocate afu structure
+	rc = _alloc_afu( (ocxl_afu_h *)&my_afu );
+	if (  rc != 0 ) return rc;
 
-	if (my_afu == NULL) {
-		errno = EINVAL;
-		return OCXL_NO_DEV;
-	}
-	// Query OCSE
-	if (my_afu->fd == 0) {
-		if (_ocse_connect(&(my_afu->map), &my_afu->fd) < 0)
-			return OCXL_NO_DEV;
-	}
+	if ( _ocse_connect(&afu_map, &fd) < 0 ) return OCXL_NO_DEV;
 
-	mask = 0xf000;
-	major = minor = 0;
-	while (((mask & my_afu->position) != my_afu->position) && (mask != 0)) {
-		mask >>= 4;
-		major++;
-	}
-	mask &= 0x8888;
-	while (((mask & my_afu->position) != my_afu->position) && (mask != 0)) {
-		mask >>= 1;
-		minor++;
-	}
-	/* switch (view) { */
-	/* case OCXL_VIEW_DEDICATED: */
-	/* 	afu_type = 'd'; */
-	/* 	// afu->mode = OCXL_MODE_DEDICATED; */
-	/* 	break; */
-	/* case OCXL_VIEW_MASTER: */
-	/* 	afu_type = 'm'; */
-	/* 	// afu->mode = OCXL_MODE_DIRECTED; */
-	/* 	break; */
-	/* case OCXL_VIEW_SLAVE: */
-	/* 	afu_type = 's'; */
-	/* 	// afu->mode = OCXL_MODE_DIRECTED; */
-	/* 	break; */
-	/* default: */
-	/* 	errno = ENODEV; */
-	/* 	return NULL; */
-	/* } */
-	// return _ocse_open(&(my_afu->fd), afu->map, major, minor);
+	// find name - returns bus, device, function, afu_index
+	strcpy( (char *)&(my_afu->ocxl_id.afu_name[0]), name );
+
+	// new routine here
+	rc = _find_afu( fd, name, &bus, &dev, &fcn, &afuid );
+	if (  rc != 0 ) return rc;
+
+	// query
+	rc = _query_afu( my_afu, fd, bus, dev, fcn, afuid );
+	if (  rc != 0 ) return rc;
+
+	// open the "afu"
+	rc = _open_afu( my_afu );
+	if (  rc != 0 ) return rc;
+
+	*afu = ( ocxl_afu_h )my_afu;
 	return OCXL_OK;
 }
 
-ocxl_err ocxl_afu_close( ocxl_afu_h afu )
+ocxl_err ocxl_afu_open_specific( const char *name, const char *physical_function, int16_t afu_index, ocxl_afu_h *afu ) {
+  // real code builds the device path name and calls ocxl_afu_open_by_dev
+  // we can call open_dev because physical function + afu_index contains the information we really use there.
+	int rc;
+	uint16_t afu_map;
+	int fd;
+	struct ocxl_afu *my_afu;
+
+	// _alloc_afu
+	rc = _alloc_afu( (ocxl_afu_h *)&my_afu );
+	if (  rc != 0 ) return rc;
+
+	// _connect
+	if ( _ocse_connect(&afu_map, &fd) < 0 ) return OCXL_NO_DEV;
+
+	// parse physical function into domain, bus, dev, and fcn
+        uint16_t domain;
+	uint8_t bus, device, function;
+        int found = sscanf( physical_function, "%hu:%hhu:%hhu.%hhu", &domain, &bus, &device, &function );
+        if (found != 4) {
+	  warn_msg( "physical function could not be parsed into domain, bus, device, and function" );
+	  return OCXL_NO_DEV;
+        }
+	
+	// _query_afu
+	rc = _query_afu( my_afu, fd, bus, device, function, afu_index );
+	if (  rc != 0 ) return rc;
+
+	// open the "afu"
+	rc = _open_afu( my_afu );
+	if (  rc != 0 ) return rc;
+
+	*afu = ( ocxl_afu_h )my_afu;
+	return OCXL_OK;
+}
+
+ocxl_err ocxl_afu_open_by_id( const char *name, uint8_t card_index, int16_t afu_index, ocxl_afu_h *afu ) {
+  // real code builds the device path name and calls ocxl_afu_open_by_dev
+  // card index is an index into a sorted list of physical_functions that have matching "name"
+  // afu_index may be -1 indicating that any name matching afu within the physical function may be used.
+  // in fact, if the afu it tries is full, we should go to the next one...  We will not do that for now.
+  // need a find_nth routine to find the card index for that name/afu_id
+        warn_msg( "ocxl_afu_open_by_id is not fully tested yet" );
+
+        uint8_t bus, dev, fcn, afuid;
+	int rc;
+	uint16_t afu_map;
+	int fd;
+	struct ocxl_afu *my_afu;
+	// connect
+	// is there a way to see if this is already done?
+
+	// allocate afu structure
+	rc = _alloc_afu( (ocxl_afu_h *)&my_afu );
+	if (  rc != 0 ) return rc;
+
+	if ( _ocse_connect(&afu_map, &fd) < 0 ) return OCXL_NO_DEV;
+
+	// find name - returns bus, device, function, afu_index
+	strcpy( (char *)&(my_afu->ocxl_id.afu_name[0]), name );
+
+	// new routine here
+	rc = _find_afu_nth( fd, name, card_index, afu_index, &bus, &dev, &fcn, &afuid );
+	if (  rc != 0 ) return rc;
+
+	// query
+	rc = _query_afu( my_afu, fd, bus, dev, fcn, afuid );
+	if (  rc != 0 ) return rc;
+
+	// open the "afu"
+	rc = _open_afu( my_afu );
+	if (  rc != 0 ) return rc;
+
+	*afu = ( ocxl_afu_h )my_afu;
+	return OCXL_OK;
+}
+
+void _afu_free( ocxl_afu_h afu )
 {
 	uint8_t buffer;
 	int rc;
-
         struct ocxl_afu *my_afu;
 
 	my_afu = (struct ocxl_afu *)afu;
 
 	if (!my_afu) {
-		warn_msg("ocxl_afu_close: No AFU given");
-		return OCXL_NO_DEV;
-	}
-	if (!my_afu->opened)
-		return OCXL_ALREADY_DONE;
-
-	debug_msg( "ocxl_afu_close: AFU CLOSE");
-	buffer = OCSE_DETACH;
-	rc = put_bytes_silent(my_afu->fd, 1, &buffer);
-	if (rc == 1) {
-	        debug_msg("ocxl_afu_close: detach request sent from from host on socket %d", my_afu->fd);
-		while (my_afu->attached)	/*infinite loop */
-			_delay_1ms();
-	}
-	debug_msg("ocxl_afu_close: closing host side socket %d", my_afu->fd);
-	// free some other stuff in the afu like the irq list
-	close_socket(&(my_afu->fd));
-	my_afu->opened = 0;
-	pthread_join(my_afu->thread, NULL);
-
- free_done:
-	if (my_afu->id != NULL)
-		free(my_afu->id);
- free_done_no_afu:
-	pthread_mutex_destroy(&(my_afu->event_lock));
-	// free(my_afu);
-	return OCXL_OK;
-}
-
-void ocxl_afu_free( ocxl_afu_h *afu)
-{
-	uint8_t buffer;
-	int rc;
-        struct ocxl_afu *my_afu;
-
-	debug_msg( "ocxl_afu_free:AFU FREE" );
-
-	my_afu = (struct ocxl_afu *)*afu;
-
-	if (!my_afu) {
-		warn_msg("ocxl_afu_free: No AFU given");
+		warn_msg("_afu_free: No AFU given");
 		goto free_done_no_afu;
 	}
 
 	if (!my_afu->opened)
 		goto free_done;
 
+	// detach
 	buffer = OCSE_DETACH;
 	rc = put_bytes_silent(my_afu->fd, 1, &buffer);
 	if (rc == 1) {
-	        debug_msg("ocxl_afu_free:detach request sent from from host on socket %d", my_afu->fd);
+	        debug_msg("_afu_free:detach request sent from from host on socket %d", my_afu->fd);
 		while (my_afu->attached)	/*infinite loop */
 			_delay_1ms();
 	}
-	debug_msg( "ocxl_afu_free: closing host side socket %d", my_afu->fd );
+	debug_msg( "_afu_free: closing host side socket %d", my_afu->fd );
 	// free some other stuff in the afu like the irq list
 	close_socket(&(my_afu->fd));
 	my_afu->opened = 0;
@@ -2491,17 +2685,32 @@ void ocxl_afu_free( ocxl_afu_h *afu)
 		free( my_afu->id );
  free_done_no_afu:
 	pthread_mutex_destroy( &(my_afu->event_lock) );
-	free( *afu );
+	free( afu );
 }
 
-/* int ocxl_afu_opened(struct ocxl_afu_h *afu) */
-/* { */
-/* 	if (!afu) { */
-/* 		errno = EINVAL; */
-/* 		return -1; */
-/* 	} */
-/* 	return afu->opened; */
-/* } */
+ocxl_err ocxl_afu_close( ocxl_afu_h afu )
+{
+        struct ocxl_afu *my_afu;
+	struct ocxl_irq *irq;
+
+	// mmio unmap
+        ocxl_mmio_unmap( afu );
+	ocxl_global_mmio_unmap( afu );
+  
+	my_afu = (struct ocxl_afu *)afu;
+
+	// if there are any irq's, free them
+	irq = my_afu->irq;
+	while ( irq != NULL ) {
+	  my_afu->irq = irq->_next;
+	  free( irq );
+	  irq = my_afu->irq;
+	}
+
+	_afu_free( afu );
+
+	return OCXL_OK;
+}
 
 ocxl_err ocxl_afu_attach( ocxl_afu_h afu )
 {
@@ -2536,36 +2745,6 @@ ocxl_err ocxl_afu_attach( ocxl_afu_h afu )
 	return OCXL_OK;
 }
 
-/* int ocxl_afu_attach_full(struct ocxl_afu_h *afu, uint64_t wed, */
-/* 			uint16_t num_interrupts, uint64_t amr) */
-/* { */
-/* 	if (!afu) { */
-/* 		errno = EINVAL; */
-/* 		return -1; */
-/* 	} */
-/* 	// Request maximum interrupts */
-/* 	afu->int_req.max = num_interrupts; */
-
-/* 	return ocxl_afu_attach(afu, wed); */
-/* } */
-
-/* int ocxl_afu_get_process_element(struct ocxl_afu_h *afu) */
-/* { */
-/* 	DPRINTF("AFU GET PROCESS ELEMENT\n"); */
-/* 	if (!afu->opened) { */
-/* 		warn_msg("ocxl_afu_get_process_element: Must open AFU first"); */
-/* 		errno = ENODEV; */
-/* 		return -1; */
-/* 	} */
-
-/* 	if (!afu->attached) { */
-/* 		warn_msg("ocxl_afu_get_process_element: Must attach AFU first"); */
-/* 		errno = ENODEV; */
-/* 		return -1; */
-/* 	} */
-/* 	return afu->context; */
-/* } */
-
 int ocxl_afu_get_fd( ocxl_afu_h afu )
 { 
         struct ocxl_afu *my_afu;
@@ -2578,71 +2757,6 @@ int ocxl_afu_get_fd( ocxl_afu_h afu )
 	}
 	return my_afu->pipe[0];
 }
-
-/* int ocxl_get_api_version(struct ocxl_afu_h *afu, long *valp) */
-/* { */
-/* 	if ((afu == NULL) || (!afu->opened)) */
-/* 		return -1; */
-/* 	*valp = API_VERSION; */
-/* 	return 0; */
-/* } */
-
-/* int ocxl_get_api_version_compatible(struct ocxl_afu_h *afu, long *valp) */
-/* { */
-/* 	if ((afu == NULL) || (!afu->opened)) */
-/* 		return -1; */
-/* 	*valp = API_VERSION_COMPATIBLE; */
-/* 	return 0; */
-/* } */
-
-/* int ocxl_get_num_irqs(struct ocxl_afu_h *afu, long *valp) */
-/* { */
-/* 	if (!afu) { */
-/* 		warn_msg("ocxl_get_irqs_max: No AFU given"); */
-/* 		errno = ENODEV; */
-/* 		return -1; */
-/* 	} */
-/* 	*valp = 0; // FIXME - return the number of interrupts discovered in afu descriptor or something like that; */
-/* 	return 0; */
-/* } */
-
-/* int ocxl_get_irqs_max(struct ocxl_afu_h *afu, long *valp) */
-/* { */
-/* 	if (!afu) { */
-/* 		warn_msg("ocxl_get_irqs_max: No AFU given"); */
-/* 		errno = ENODEV; */
-/* 		return -1; */
-/* 	} */
-/* 	*valp = 0; // afu->irqs_max; */
-/* 	return 0; */
-/* } */
-
-/* int ocxl_get_irqs_min(struct ocxl_afu_h *afu, long *valp) */
-/* { */
-/* 	if (!afu) { */
-/* 		warn_msg("ocxl_get_irqs_min: No AFU given"); */
-/* 		errno = ENODEV; */
-/* 		return -1; */
-/* 	} */
-/* 	*valp = 0; // afu->irqs_min; */
-/* 	return 0; */
-/* } */
-
-/* int ocxl_set_irqs_max(struct ocxl_afu_h *afu, long value) */
-/* { */
-/* 	if (!afu) { */
-/* 		warn_msg("ocxl_set_irqs_max: No AFU given"); */
-/* 		errno = ENODEV; */
-/* 		return -1; */
-/* 	} */
-/* 	//if (value > afu->irqs_max) */
-/* 	// 	warn_msg("ocxl_set_irqs_max: value is greater than limit, ignoring \n"); */
-/* 	//else */
-/* 	//	afu->irqs_max = value; */
-/* 	//TODO	 Send the new irqs_max value back to psl's client struct */
-/* 	return 0; */
-/* } */
-
 
 ocxl_err ocxl_afu_irq_alloc( ocxl_afu_h afu, void *info, ocxl_irq_h *irq_handle )
 {
@@ -2692,52 +2806,6 @@ ocxl_err ocxl_afu_irq_alloc( ocxl_afu_h afu, void *info, ocxl_irq_h *irq_handle 
 
 	return OCXL_OK;
 }
-
-/* ocxl_err ocxl_afu_irq_free( ocxl_afu_h afu, ocxl_irq_h *irq_handle ) */
-/* { */
-/*   // remove this irq from it's afu and free the storage */
-/*         struct ocxl_irq *current_irq; */
-/*         struct ocxl_afu *my_afu; */
-/* 	struct ocxl_irq *my_irq; */
-
-/* 	my_afu = (struct ocxl_afu *)afu; */
-/* 	my_irq = (struct ocxl_irq *)*irq_handle; */
-
-/*         if (!my_irq) { */
-/* 		warn_msg("ocxl_irq_free: No irq given"); */
-/* 		errno = ENODEV; */
-/* 		return OCXL_NO_IRQ; */
-/* 	} */
-
-/* 	// afu = irq->afu; */
-
-/* 	// find this irq in the list on the afu */
-/* 	if (my_afu->irq == my_irq) { */
-/* 	  // irq is the first in the list */
-/* 	  my_afu->irq = my_irq->_next; */
-/* 	  free( my_irq ); */
-/* 	  return OCXL_OK; */
-/* 	} */
-
-/* 	current_irq = my_afu->irq; */
-/* 	// the current irq is not it, take a peek a the next irq */
-/* 	while (current_irq->_next != NULL) { */
-/* 	  if (current_irq->_next == my_irq) { */
-/* 	    // the next irq is the one we are looking for */
-/* 	    // make the current irq skip over it and free it */
-/* 	    current_irq->_next = my_irq->_next; */
-/* 	    free( my_irq ); */
-/* 	    return OCXL_OK; */
-/* 	  } else { */
-/* 	    // the next irq is not it, so make it the current irq */
-/* 	    current_irq = current_irq->_next; */
-/* 	  } */
-/* 	} */
-
-/* 	// if we get here, we didn't find irq in the afu! */
-/* 	warn_msg("ocxl_irq_free: irq not found in afu"); */
-/* 	return OCXL_NO_IRQ; */
-/* } */
 
 uint64_t ocxl_afu_irq_get_id( ocxl_afu_h afu, ocxl_irq_h irq )
 {
@@ -2806,66 +2874,6 @@ uint16_t ocxl_afu_event_check( ocxl_afu_h afu, struct timeval *timeout, ocxl_eve
 		return 1;
 	return -1;
 }
-
-/* int ocxl_event_pending(struct ocxl_afu_h *afu) */
-/* { */
-/* 	if (afu->events[0] != NULL) */
-/* 		return 1; */
-
-/* 	return 0; */
-/* } */
-
-/* int ocxl_read_event(struct ocxl_afu_h *afu, struct ocxl_event *event) */
-/* { */
-/* 	uint8_t type; */
-/* 	int i; */
-
-/* 	if (afu == NULL || event == NULL) { */
-/* 		errno = EINVAL; */
-/* 		return -1; */
-/* 	} */
-
-/* 	debug_msg("ocxl_read_event: waiting for event"); */
-
-/* 	// Function will block until event occurs */
-/* 	pthread_mutex_lock(&(afu->event_lock)); */
-/* 	while (afu->opened && !afu->events[0]) {	/\*infinite loop *\/ */
-/* 		pthread_mutex_unlock(&(afu->event_lock)); */
-/* 		if (_delay_1ms() < 0) */
-/* 			return -1; */
-/* 		pthread_mutex_lock(&(afu->event_lock)); */
-/* 	} */
-
-/* 	debug_msg("ocxl_read_event: received event"); */
-/* 	// Copy event data, free and move remaining events in queue */
-/* 	memcpy(event, afu->events[0], afu->events[0]->header.size); */
-/* 	free(afu->events[0]); */
-/* 	for (i = 1; i < EVENT_QUEUE_MAX; i++) */
-/* 		afu->events[i - 1] = afu->events[i]; */
-/* 	afu->events[EVENT_QUEUE_MAX - 1] = NULL; */
-/* 	pthread_mutex_unlock(&(afu->event_lock)); */
-/* 	if (read(afu->pipe[0], &type, 1) > 0) */
-/* 		return 0; */
-/* 	return -1; */
-/* } */
-
-/* int ocxl_read_expected_event(struct ocxl_afu_h *afu, struct ocxl_event *event, */
-/* 			    uint32_t type, uint16_t irq) */
-/* { */
-/* 	if (!afu) */
-/* 		return -1; */
-/* 	if (ocxl_read_event(afu, event) < 0) */
-/* 		return -1; */
-
-/* 	if (event->header.type != type) */
-/* 		return -1; */
-
-/* 	if ((event->header.type == OCXL_EVENT_AFU_INTERRUPT) && */
-/* 	    (event->irq.irq != irq)) */
-/* 		return -1; */
-
-/* 	return 0; */
-/* } */
 
 ocxl_err ocxl_mmio_map( ocxl_afu_h afu, ocxl_endian endian )
 {
@@ -3150,11 +3158,11 @@ ocxl_err ocxl_global_mmio_write64( ocxl_afu_h afu, uint64_t offset, uint64_t val
 		return OCXL_OUT_OF_BOUNDS;
 	}
 
-	if ( offset >= my_afu->mmio_offset ) {
-		warn_msg("ocxl_global_mmio_write64: offset out of bounds!");
-		errno = EINVAL;
-		return OCXL_OUT_OF_BOUNDS;
-	}
+	/* if ( offset >= my_afu->mmio_offset ) { */
+	/* 	warn_msg("ocxl_global_mmio_write64: offset out of bounds!"); */
+	/* 	errno = EINVAL; */
+	/* 	return OCXL_OUT_OF_BOUNDS; */
+	/* } */
 
 	// Send MMIO map to OCSE
 	my_afu->mmio.type = OCSE_GLOBAL_MMIO_WRITE64;
@@ -3189,11 +3197,11 @@ ocxl_err ocxl_global_mmio_read64( ocxl_afu_h afu, uint64_t offset, uint64_t *out
 		return OCXL_OUT_OF_BOUNDS;
 	}
 
-	if ( offset >= my_afu->mmio_offset ) {
-		warn_msg("ocxl_global_mmio_read64: offset out of bounds!");
-		errno = EINVAL;
-		return OCXL_OUT_OF_BOUNDS;
-	}
+	/* if ( offset >= my_afu->mmio_offset ) { */
+	/* 	warn_msg("ocxl_global_mmio_read64: offset out of bounds!"); */
+	/* 	errno = EINVAL; */
+	/* 	return OCXL_OUT_OF_BOUNDS; */
+	/* } */
 
 	// Send MMIO map to OCSE
 	my_afu->mmio.type = OCSE_GLOBAL_MMIO_READ64;
@@ -3228,11 +3236,11 @@ ocxl_err ocxl_global_mmio_write32( ocxl_afu_h afu, uint64_t offset, uint32_t val
 		return OCXL_OUT_OF_BOUNDS;
 	}
 
-	if ( offset >= my_afu->mmio_offset ) {
-		warn_msg("ocxl_global_mmio_write32: offset out of bounds!");
-		errno = EINVAL;
-		return OCXL_OUT_OF_BOUNDS;
-	}
+	/* if ( offset >= my_afu->mmio_offset ) { */
+	/* 	warn_msg("ocxl_global_mmio_write32: offset out of bounds!"); */
+	/* 	errno = EINVAL; */
+	/* 	return OCXL_OUT_OF_BOUNDS; */
+	/* } */
 
 	// Send MMIO map to OCSE
 	my_afu->mmio.type = OCSE_GLOBAL_MMIO_WRITE32;
@@ -3267,11 +3275,11 @@ ocxl_err ocxl_global_mmio_read32( ocxl_afu_h afu, uint64_t offset, uint32_t *out
 		return OCXL_OUT_OF_BOUNDS;
 	}
 	
-	if (offset >= my_afu->mmio_offset) {
-		warn_msg("ocxl_global_mmio_read32: offset out of bounds");
-		errno = EINVAL;
-		return OCXL_OUT_OF_BOUNDS;
-	}
+	/* if (offset >= my_afu->mmio_offset) { */
+	/* 	warn_msg("ocxl_global_mmio_read32: offset out of bounds"); */
+	/* 	errno = EINVAL; */
+	/* 	return OCXL_OUT_OF_BOUNDS; */
+	/* } */
 
 	// Send MMIO map to OCSE
 	my_afu->mmio.type = OCSE_GLOBAL_MMIO_READ32;
@@ -3301,7 +3309,7 @@ size_t ocxl_afu_get_mmio_size( ocxl_afu_h afu )
                    return OCXL_NO_DEV;
 
         // this is the mmio stride for this afu
-        return my_afu->mmio_length;
+        return my_afu->pp_mmio_stride;
 }
 
 size_t ocxl_afu_get_global_mmio_size( ocxl_afu_h afu )
@@ -3315,24 +3323,37 @@ size_t ocxl_afu_get_global_mmio_size( ocxl_afu_h afu )
 
         // this is the per pasid mmio offset for this afu
 	// there might be a more accurate method - look for it
-        return my_afu->mmio_offset;
+        return my_afu->global_mmio_size;
 
 }
 
-/* inline */
-/* int ocxl_work_set_amr(struct ocxl_ioctl_start_work *work, __u64 amr) */
-/* { */
-/* 	if (work == NULL) { */
-/* 		errno = EINVAL; */
-/* 		return -1; */
-/* 	} */
-/* 	work->amr = amr; */
-/* 	if (amr) */
-/* 		work->flags |= OCXL_START_WORK_AMR; */
-/* 	else */
-/* 		work->flags &= ~(OCXL_START_WORK_AMR); */
-/* 	return 0; */
-/* } */
+ocxl_err ocxl_afu_get_version( ocxl_afu_h afu, uint8_t *major, uint8_t *minor )
+{
+        struct ocxl_afu *my_afu;
+
+	my_afu = (struct ocxl_afu *)afu;
+
+	if (my_afu == NULL)
+                   return OCXL_NO_DEV;
+
+        // these are from the afu descriptor that we retrieved when we opened the afu
+	*major = my_afu->afu_version_major;
+	*minor = my_afu->afu_version_minor;
+
+        return OCXL_OK;
+
+}
+
+ocxl_err ocxl_afu_set_ppc64_amr( ocxl_afu_h afu, uint64_t amr)
+{
+        struct ocxl_afu *my_afu;
+
+	my_afu = (struct ocxl_afu *)afu;
+	
+	my_afu->ppc64_amr = amr;
+
+	return OCXL_OK;
+}
 
 // ocxl_sleep should behave very much like read_event
 // however, I don't think we can use the event structure as is
@@ -3371,3 +3392,68 @@ int ocxl_sleep( ocxl_afu_h afu )
 	return -1;
 }
 
+ocxl_err ocxl_afu_use( const char *name, ocxl_afu_h *afu, uint64_t amr, ocxl_endian global_endianess, ocxl_endian per_pasid_endianess ) 
+{
+  ocxl_err rc;
+ // open
+  rc = ocxl_afu_open( name, afu );
+  if (rc != OCXL_OK) {
+    return rc;
+  }
+
+  // attach
+  rc = ocxl_afu_attach( *afu );
+  if (rc != OCXL_OK) {
+    ocxl_afu_close( *afu );
+    return rc;
+  }
+
+  // global mmio map
+  rc = ocxl_global_mmio_map( *afu, global_endianess );
+  if (rc != OCXL_OK) {
+    ocxl_afu_close( *afu );
+    return rc;
+  }
+
+  // mmio map
+  rc = ocxl_mmio_map( *afu, per_pasid_endianess );
+  if (rc != OCXL_OK) {
+    ocxl_afu_close( *afu );
+    return rc;
+  }
+
+  return OCXL_OK;
+}
+
+ocxl_err ocxl_afu_use_from_dev( const char *path, ocxl_afu_h *afu, uint64_t amr, ocxl_endian global_endianess, ocxl_endian per_pasid_endianess )
+{
+  ocxl_err rc;
+  // open
+  rc = ocxl_afu_open_from_dev( path, afu );
+  if (rc != OCXL_OK) {
+    return rc;
+  }
+
+  // attach
+  rc = ocxl_afu_attach( *afu );
+  if (rc != OCXL_OK) {
+    ocxl_afu_close( *afu );
+    return rc;
+  }
+
+  // global mmio map
+  rc = ocxl_global_mmio_map( *afu, global_endianess );
+  if (rc != OCXL_OK) {
+    ocxl_afu_close( *afu );
+    return rc;
+  }
+
+  // mmio map
+  rc = ocxl_mmio_map( *afu, per_pasid_endianess );
+  if (rc != OCXL_OK) {
+    ocxl_afu_close( *afu );
+    return rc;
+  }
+
+  return OCXL_OK;
+}

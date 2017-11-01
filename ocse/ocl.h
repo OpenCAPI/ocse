@@ -35,22 +35,19 @@ struct ocl {
 	FILE *dbg_fp;
 	struct client **client;
 	struct cmd *cmd;
-	//struct job *job; // NEED TO REMOVE THIS OR REWORK IT?
 	struct mmio *mmio;
 	struct ocl **head;
 	struct ocl *_prev;
 	struct ocl *_next;
 	volatile enum ocse_state state;
-	uint32_t parity_enabled;
 	uint32_t latency;
 	char *name;
 	char *host;
-	uint8_t major;
-	uint8_t minor;
+        uint8_t bus;
 	uint8_t dbg_id;
 	int port;
 	int idle_cycles;
-	int max_clients;
+        int max_clients;                 // this is the sum of the max_pasids in each functions pasid dvsec
 	int attached_clients;
 	int timeout;
 	int has_been_reset;

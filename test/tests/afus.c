@@ -7,12 +7,14 @@
 #include "../../libocxl/libocxl.h"
 #include <time.h>
 
+#define ProcessControl_REGISTER 0x0018
+#define PROCESS_CONTROL_RESTART 0x0000000000000001
+#define ProcessInterruptControl_REGISTER 0x0020
+#define ProcessInterruptObject_REGISTER 0x0028
+#define ProcessInterruptData_REGISTER 0x0030
+
 #define CACHELINE 128
-#define MDEVICE "/dev/cxl/tlx0.0000:00:0.1.0"
-
-#define PHYSICAL_FUNCTION "1234:00:00.1"
-#define NAME "tlx"
-
+#define MDEVICE "/dev/cxl/tlx0.0000:00:00.1.0"
 static int verbose;
 static unsigned int buffer_cl = 64;
 static unsigned int timeout   = 1;
@@ -34,9 +36,13 @@ int main(int argc, char *argv[])
     int rc;
     char *rcacheline, *wcacheline;
     char *status;
-    ocxl_afu_h mafu_h;
+    ocxl_afu_h mafu_h, safu_h;
+    ocxl_irq_h irq_h;
+    //ocxl_irq_h err_irq_h;
+    ocxl_event event;
     MachineConfig machine_config;
     MachineConfigParam config_param;
+    uint64_t irq_id;
 
     static struct option long_options[] = {
 	{"cachelines", required_argument, 0	  , 'c'},
@@ -68,7 +74,7 @@ int main(int argc, char *argv[])
     }
 
     t.tv_sec = 0;
-    t.tv_nsec = 1000000;
+    t.tv_nsec = 100000;
     // initialize machine
     init_machine(&machine_config);
 
@@ -97,17 +103,16 @@ int main(int argc, char *argv[])
     
     //status[0]=0xff;
     // open master device
-    printf("Calling ocxl_afu_open_specific\n");
+    printf("Attempt open device for mafu\n");
     
-    rc = ocxl_afu_open_specific(NAME, PHYSICAL_FUNCTION, 0, &mafu_h);
-    //rc = ocxl_afu_open_from_dev(MDEVICE, &mafu_h);
+    rc = ocxl_afu_open_from_dev(MDEVICE, &mafu_h);
     if(rc != 0) {
-	perror("cxl_afu_open_dev: "MDEVICE);
+	perror("cxl_afu_open_dev: for mafu"MDEVICE);
 	return -1;
     }
-    
+     
     // attach device
-    printf("Attaching device ...\n");
+    printf("Attaching mafu device ...\n");
     rc = ocxl_afu_attach(mafu_h);
     if(rc != 0) {
 	perror("cxl_afu_attach:"MDEVICE);
@@ -116,15 +121,13 @@ int main(int argc, char *argv[])
 
     printf("Attempt mmio mapping afu registers\n");
     if (ocxl_mmio_map(mafu_h, OCXL_MMIO_BIG_ENDIAN) != 0) {
-	printf("FAILED: ocxl_mmio_map\n");
+	printf("FAILED: ocxl_mmio_map mafu\n");
 	goto done;
     }
-    printf("Attempt Read command\n");
-    //status[0] = 0xff;
+        printf("Attempt Read command\n");
     config_param.context = 0;
     config_param.enable_always = 1;
-    //config_param.mem_size = CACHELINE;
-    config_param.mem_size = 64;
+    config_param.mem_size = CACHELINE;
     config_param.command = AFU_CMD_RD_WNITC;
     config_param.mem_base_address = (uint64_t)rcacheline;
     config_param.machine_number = 0;
@@ -134,7 +137,8 @@ int main(int argc, char *argv[])
     printf("command = 0x%x\n", config_param.command);
     printf("mem base address = 0x%"PRIx64"\n", config_param.mem_base_address);
     rc = config_enable_and_run_machine(mafu_h, &machine_config, config_param, DIRECTED);
-    status[0] = 0xff;
+    printf("set status data = 0xff\n");
+    //status[0] = 0xff;
     if( rc != -1) {
 	printf("Response = 0x%x\n", rc);
 	printf("config_enable_and_run_machine PASS\n");
@@ -151,12 +155,14 @@ int main(int argc, char *argv[])
     // clear machine config
     rc = clear_machine_config(mafu_h, &machine_config, config_param, DIRECTED);
     if(rc != 0) {
-	printf("Failed to clear machine config for read command\n");
+	printf("Failed to clear machine config\n");
 	goto done;
     }
     // Attemp write command
     printf("Attempt Write command\n");
     //status[0] = 0xff;
+    config_param.context = 0;
+    config_param.enable_always = 1;
     config_param.command = AFU_CMD_DMA_W;
     config_param.mem_size = 64;
     config_param.mem_base_address = (uint64_t)wcacheline;
@@ -173,30 +179,100 @@ int main(int argc, char *argv[])
 	printf("FAILED: config_enable_and_run_machine\n");
 	goto done;
     }
+    printf("set status data = 0xff\n");
     status[0] = 0xff;
     while(status[0] != 0x00) {
 	nanosleep(&t, &t);
 	printf("Polling write completion status = 0x%x\n", *status);
     }
+
+    // clear machine config
     rc = clear_machine_config(mafu_h, &machine_config, config_param, DIRECTED);
     if(rc != 0) {
-	printf("Failed clear machine config for write command\n");
-    	goto done;
+	printf("Failed to clear machine config\n");
+	goto done;
     }
-    status[0] = 0x55;	// send test complete status
-    while(status[0] != 0x00) {
-	nanosleep(&t, &t);
-	printf("Polling test completion status\n");
-    } 
+
     printf("wcacheline = 0x");
     for(i=0; i<CACHELINE; i++) {
 	printf("%02x", (uint8_t)wcacheline[i]);
     }
     printf("\n");
 
+    printf("set status data = 0x55\n");
+    status[0] = 0x55;	// test complete flag
+    while(status[0] != 0x0) {
+	nanosleep(&t, &t);
+	printf("Polling mafu test completion status\n");
+    }
+
+    printf("Attempt open device for safu\n");
+    rc = ocxl_afu_open_from_dev(MDEVICE, &safu_h);
+    if(rc != 0) {
+	perror("cxl_afu_open_dev: for safu"MDEVICE);
+	return -1;
+    }
+    printf("Attaching safu device ....\n");
+    rc = ocxl_afu_attach(safu_h);
+    if(rc != 0) {
+	perror("cxl_afu_attach: for safu"MDEVICE);
+	return -1;
+    }
+    printf("Attempt mmio map safu registers\n");
+    if(ocxl_mmio_map(safu_h, OCXL_MMIO_BIG_ENDIAN) != 0) {
+	printf("AFILED: ocxl_mmio_map safu\n");
+	goto done;
+    }
+
+    rc = ocxl_afu_irq_alloc(safu_h, NULL, &irq_h);
+    irq_id = ocxl_afu_irq_get_id(safu_h, irq_h);
+
+    printf("Set irq id source ea field = 0x%016lx\n", (uint64_t)irq_id);
+    printf("Attempt interrupt command\n");
+    config_param.context = 1;
+    config_param.command = AFU_CMD_INTRP_REQ;
+    config_param.mem_base_address = (uint64_t)irq_id;
+    rc = config_enable_and_run_machine(safu_h, &machine_config, config_param, DIRECTED);
+    if(rc != -1) {
+	printf("Response = 0x%x\n", rc);
+ 	printf("safu config_enable_and_run_machine PASS\n");
+    }
+    else {
+	printf("FAILED: config_enable_and_run_machine\n");
+	goto done;
+    }
+    printf("set status data = 0xff\n");
+    status[0] = 0xff;
+    while(status[0] != 0x0) {
+	nanosleep(&t, &t);
+	printf("Polling interrupt completion status\n");
+    }
+    // clear machine config
+    rc = clear_machine_config(safu_h, &machine_config, config_param, DIRECTED);
+    if(rc != 0) {
+	printf("Failed to clear machine config\n");
+	goto done;
+    }
+
+    rc = ocxl_afu_event_check(safu_h, NULL, &event, 1);
+    printf("Returned from ocxl_read_event -> there is an interrupt\n");
+    if(rc == 0) {
+	printf("Error retrieving interrupt event %d\n", rc);
+	return -1;
+    }
+    ocxl_mmio_write64(safu_h, ProcessControl_REGISTER, PROCESS_CONTROL_RESTART);
+    
+    // set test status to completion
+    status[0] = 0x55;
+    while(status[0] != 0x0) {
+	nanosleep(&t, &t);
+	printf("Polling test completion status = 0x%x\n", status[0]);
+    }
 done:
     // free device
-    printf("Freeing device ... \n");
+    printf("Freeing safu device ... \n");
+    ocxl_afu_close(safu_h);
+    printf("Freeing mafu device ...\n");
     ocxl_afu_close(mafu_h);
 
     return 0;

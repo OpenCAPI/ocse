@@ -24,6 +24,7 @@ struct parms {
 	unsigned int timeout;
 	unsigned int seed;
 	unsigned int pagesize;
+	unsigned int host_CL_size;
 	unsigned int resp_percent;
 	unsigned int paged_percent;
 	unsigned int retry_percent;

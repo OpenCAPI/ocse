@@ -55,7 +55,6 @@
 #include "../common/debug.h"
 #include "../common/utils.h"
 
-#define OCL_MAX_IRQS 2037
 
 struct ocl *ocl_list;
 struct client *client_list;
@@ -107,116 +106,351 @@ static struct ocl *_find_ocl(uint8_t id, uint8_t * major)
 }
 
 // Query AFU descriptor data
-static void _query(struct client *client, uint8_t id)
+static void _find_nth(struct client *client)
 {
 	struct ocl *ocl;
 	uint8_t *buffer;
-	uint8_t major;
+	uint8_t fcn, afuid;
+	int size, offset;
+	uint8_t name_length;
+	char name[25];
+	uint8_t card_index;
+	uint8_t afu_index_valid;
+	uint8_t afu_index;
+	int this_iteration;
+
+	// get the string length from the socket
+	// get the string from the socket
+	if (get_bytes_silent(client->fd, 1, &name_length, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_find_nth: could not communicate with socket");
+	  return;
+	}
+	if (get_bytes_silent(client->fd, name_length, (uint8_t *)name, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_find_nth: could not communicate with socket");
+	  return;
+	}
+	name[name_length] = '\0'; // null terminate name
+	if (get_bytes_silent(client->fd, 1, &card_index, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_find_nth: could not communicate with socket");
+	  return;
+	}
+	if (get_bytes_silent(client->fd, 1, &afu_index_valid, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_find_nth: could not communicate with socket");
+	  return;
+	}
+	if (get_bytes_silent(client->fd, 1, &afu_index, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_find_nth: could not communicate with socket");
+	  return;
+	}
+
+	debug_msg( "_find_nth: looking for the %d occurance of name: %s", card_index, name );
+
+	// scan the ocl->function->afu structs for a matching name
+	// loop through the ocl's
+	ocl = ocl_list;
+	this_iteration = 0;
+	while (ocl != NULL) {
+	      debug_msg("_find: ocl lop");
+	      for (fcn = 0; fcn < 8; fcn++ ) {
+		    debug_msg("_find: fcn %d lop", fcn);
+		    if (ocl->mmio->fcn_cfg_array[fcn] == NULL) continue;
+
+		    if (ocl->mmio->fcn_cfg_array[fcn]->afu_present == 0) continue;
+
+		    for (afuid = 0; afuid <= ocl->mmio->fcn_cfg_array[fcn]->max_afu_index; afuid++ ) {
+		          debug_msg("_find: afuid %d lop", afuid);
+		          if (ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid] == NULL) continue;
+
+			  // if the name here doesn't match, continue
+		          debug_msg("_find: compare %s to %s", name, ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace);
+			  if ( strcmp( name, ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace ) != 0 ) continue;
+
+			  // the names match, so we've found an instance of this afu
+			  // if this_iteration is not the card_index, increment and break the afuid loop.
+			  if ( this_iteration != card_index ) {
+			    this_iteration++;
+			    // we only want to look once within a funciton, so break instead of continue
+			    break;
+			  }
+
+			  // the names match and this_iteration is the card-indexth iteration, then return
+			  // I'm not really sure this is accurate as we have ignored the afu_index that was
+			  // sent in.  but the real ltc code seems to assume an afu index of 0, so this will
+			  // do for now.
+			  size =
+			    1 +
+			    sizeof(uint8_t) +
+			    sizeof(uint8_t) +
+			    sizeof(uint8_t) +
+			    sizeof(uint8_t) ;
+
+			  buffer = (uint8_t *) malloc(size);
+			  offset = 0;
+
+			  buffer[offset] = OCSE_FIND_ACK;
+			  offset++;
+
+			  buffer[offset] = ocl->bus;
+			  offset = offset + sizeof(uint8_t);
+
+			  buffer[offset] = 0;
+			  offset = offset + sizeof(uint8_t);
+
+			  buffer[offset] = fcn;
+			  offset = offset + sizeof(uint8_t);
+
+			  buffer[offset] = afuid;
+			  offset = offset + sizeof(uint8_t);
+
+			  if ( offset != size ) {
+			    warn_msg( "anomoly in construction of OCSE_FIND_ACK message" );
+			  }
+
+		          debug_msg("_find_nth: found name the %d occurance of %s with bus %d, dev %d, fcn %d, afuid &d",
+				    card_index, ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace, ocl->bus, 0, fcn, afuid);
+			  if ( put_bytes( client->fd, size, buffer, ocl->dbg_fp, ocl->dbg_id,
+					  client->context ) < 0) {
+			    client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+			  }
+
+			  free(buffer);
+			  return;
+		    }
+		    this_iteration++;
+	      }
+	      ocl = ocl->_next;
+	}
+
+	// if we are here, we did not find anything
+	debug_msg( "_find_nth: did not the %d occurance of find name %s", card_index, name );
+	size = 1;
+	buffer = (uint8_t *) malloc(size);
+	buffer[0] = OCSE_FAILED;
+	if ( put_bytes_silent( client->fd, size, buffer ) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	}
+	free(buffer);
+
+	return;
+}
+
+// Query AFU descriptor data
+static void _find(struct client *client)
+{
+	struct ocl *ocl;
+	uint8_t *buffer;
+	uint8_t fcn, afuid;
+	int size, offset;
+	uint8_t name_length;
+	char name[25];
+
+	// get the string length from the socket
+	// get the string from the socket
+	if (get_bytes_silent(client->fd, 1, &name_length, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_find: could not communicate with socket");
+	  return;
+	}
+	if (get_bytes_silent(client->fd, name_length, (uint8_t *)name, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_find: could not communicate with socket");
+	  return;
+	}
+	name[name_length] = '\0'; // null terminate name
+
+	debug_msg( "_find: looking up name: %s", name );
+
+	// scan the ocl->function->afu structs for a matching name
+	// loop through the ocl's
+	ocl = ocl_list;
+	while (ocl != NULL) {
+	      debug_msg("_find: ocl lop");
+	      for (fcn = 0; fcn < 8; fcn++ ) {
+		    debug_msg("_find: fcn %d lop", fcn);
+		    if (ocl->mmio->fcn_cfg_array[fcn] == NULL) continue;
+
+		    if (ocl->mmio->fcn_cfg_array[fcn]->afu_present == 0) continue;
+
+		    for (afuid = 0; afuid <= ocl->mmio->fcn_cfg_array[fcn]->max_afu_index; afuid++ ) {
+		          debug_msg("_find: afuid %d lop", afuid);
+		          if (ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid] == NULL) continue;
+
+			  // if the name here doesn't match, continue
+		          debug_msg("_find: compare %s to %s", name, ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace);
+			  if ( strcmp( name, ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace ) != 0 ) continue;
+
+			  // the names match, so return bus, function, device, and afu_index
+			  size =
+			    1 +
+			    sizeof(uint8_t) +
+			    sizeof(uint8_t) +
+			    sizeof(uint8_t) +
+			    sizeof(uint8_t) ;
+
+			  buffer = (uint8_t *) malloc(size);
+			  offset = 0;
+
+			  buffer[offset] = OCSE_FIND_ACK;
+			  offset++;
+
+			  buffer[offset] = ocl->bus;
+			  offset = offset + sizeof(uint8_t);
+
+			  buffer[offset] = 0;
+			  offset = offset + sizeof(uint8_t);
+
+			  buffer[offset] = fcn;
+			  offset = offset + sizeof(uint8_t);
+
+			  buffer[offset] = afuid;
+			  offset = offset + sizeof(uint8_t);
+
+			  if ( offset != size ) {
+			    warn_msg( "anomoly in construction of OCSE_FIND_ACK message" );
+			  }
+
+		          debug_msg("_find: found name %s with bus %d, dev %d, fcn %d, afuid &d",
+				    ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace, ocl->bus, 0, fcn, afuid);
+			  if ( put_bytes( client->fd, size, buffer, ocl->dbg_fp, ocl->dbg_id,
+					  client->context ) < 0) {
+			    client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+			  }
+
+			  free(buffer);
+			  return;
+		    }
+	      }
+	      ocl = ocl->_next;
+	}
+
+	// if we are here, we did not find anything
+	debug_msg( "_find: did not find name %s", name );
+	size = 1;
+	buffer = (uint8_t *) malloc(size);
+	buffer[0] = OCSE_FAILED;
+	if ( put_bytes_silent( client->fd, size, buffer ) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	}
+	free(buffer);
+
+	return;
+}
+
+// Query AFU descriptor data
+static void _query(struct client *client)
+{
+	struct ocl *ocl;
+	uint8_t *buffer;
+	uint8_t major, bus, dev, fcn, afuid;
 	int size, offset;
 
-	ocl = _find_ocl(id, &major);
-	size = 1 + sizeof(ocl->mmio->cfg.AFU_CTL_ACTAG_LEN_EN_S) + sizeof(client->max_irqs) +
-	    sizeof(ocl->mmio->cfg.FUNC_CFG_MAXAFU) +
-	    sizeof(ocl->mmio->cfg.AFU_INFO_REVID) + sizeof(ocl->mmio->cfg.AFU_CTL_PASID_BASE_14) +
-	    sizeof(ocl->mmio->cfg.AFU_CTL_ACTAG_BASE) + sizeof(ocl->mmio->cfg.cr_device) +
-	    sizeof(ocl->mmio->cfg.cr_vendor) + sizeof(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX_8) +
-	    sizeof(ocl->mmio->cfg.pp_MMIO_offset_high) + sizeof(ocl->mmio->cfg.pp_MMIO_offset_low) +
-	    sizeof(ocl->mmio->cfg.pp_MMIO_BAR) + sizeof(ocl->mmio->cfg.pp_MMIO_stride);
+	if (get_bytes_silent(client->fd, 1, &bus, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_query: could not communicate with socket");
+	  return;
+	}
+	if (get_bytes_silent(client->fd, 1, &dev, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_query: could not communicate with socket");
+	  return;
+	}
+	if (get_bytes_silent(client->fd, 1, &fcn, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_query: could not communicate with socket");
+	  return;
+	}
+	if (get_bytes_silent(client->fd, 1, &afuid, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_query: could not communicate with socket");
+	  return;
+	}
+
+	// use bus for id into _find_ocl for now - the pointers to all of the following values will change later.
+	ocl = _find_ocl(bus, &major);
+	client->bus = bus;
+	client->dev = dev;
+	client->fcn = fcn;
+	client->afuid = afuid;
+	client->bdf = ( (uint16_t)bus << 8 ) | ( (uint16_t)dev << 3 ) | ( (uint16_t)fcn );
+
+	size =
+	  1 +
+	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->device_id) + // 2
+	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->vendor_id) + // 2
+	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->afu_version_major) + // 1
+	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->afu_version_minor) + // 1
+	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_offset) + // 8
+	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_size) + // 4
+	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_offset) + // 8
+	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_stride) + // 4
+	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->mem_base_address) + // 8
+	  sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->mem_size) ; // 4
+
 	buffer = (uint8_t *) malloc(size);
 	buffer[0] = OCSE_QUERY;
 	offset = 1;
+
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.AFU_CTL_ACTAG_LEN_EN_S),
-	       sizeof(ocl->mmio->cfg.AFU_CTL_ACTAG_LEN_EN_S));
-	offset += sizeof(ocl->mmio->cfg.AFU_CTL_ACTAG_LEN_EN_S);
-	if (client->max_irqs == 0)
-		client->max_irqs = 2037; // TODO FIX THIS eventually
+	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->device_id),
+	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->device_id));
+        offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->device_id);
+
 	memcpy(&(buffer[offset]),
-	       (char *)&(client->max_irqs), sizeof(client->max_irqs));
-        offset += sizeof(client->max_irqs);
+	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->vendor_id),
+	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->vendor_id));
+        offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->vendor_id);
+
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.FUNC_CFG_MAXAFU),
-	       sizeof(ocl->mmio->cfg.FUNC_CFG_MAXAFU));
-        offset += sizeof(ocl->mmio->cfg.FUNC_CFG_MAXAFU);
+	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->afu_version_major),
+	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->afu_version_major));
+	offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->afu_version_major);
+
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.AFU_INFO_REVID),
-	       sizeof(ocl->mmio->cfg.AFU_INFO_REVID));
-        offset += sizeof(ocl->mmio->cfg.AFU_INFO_REVID);
+	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->afu_version_minor),
+	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->afu_version_minor));
+	offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->afu_version_minor);
+
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.AFU_CTL_PASID_BASE_14),
-	       sizeof(ocl->mmio->cfg.AFU_CTL_PASID_BASE_14));
-        offset += sizeof(ocl->mmio->cfg.AFU_CTL_PASID_BASE_14);
+	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_offset),
+	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_offset));
+	offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_offset);
+
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.AFU_CTL_ACTAG_BASE),
-	       sizeof(ocl->mmio->cfg.AFU_CTL_ACTAG_BASE));
-        offset += sizeof(ocl->mmio->cfg.AFU_CTL_ACTAG_BASE);
+	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_size),
+	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_size));
+	offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_size);
+
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.cr_device),
-	       sizeof(ocl->mmio->cfg.cr_device));
-        offset += sizeof(ocl->mmio->cfg.cr_device);
+	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_offset),
+	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_offset));
+	offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_offset);
+
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.cr_vendor),
-	       sizeof(ocl->mmio->cfg.cr_vendor));
-        offset += sizeof(ocl->mmio->cfg.cr_vendor);
+	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_stride),
+	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_stride));
+	offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_stride);
+
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX_8),
-	       sizeof(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX_8));
-        offset += sizeof(ocl->mmio->cfg.AFU_CTL_EN_RST_INDEX_8);
+	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->mem_base_address),
+	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->mem_base_address));
+	offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->mem_base_address);
+
 	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.pp_MMIO_offset_high),
-	       sizeof(ocl->mmio->cfg.pp_MMIO_offset_high));
-        offset += sizeof(ocl->mmio->cfg.pp_MMIO_offset_high);
-	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.pp_MMIO_offset_low),
-	       sizeof(ocl->mmio->cfg.pp_MMIO_offset_low));
-        offset += sizeof(ocl->mmio->cfg.pp_MMIO_offset_low);
-	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.pp_MMIO_BAR),
-	       sizeof(ocl->mmio->cfg.pp_MMIO_BAR));
-        offset += sizeof(ocl->mmio->cfg.pp_MMIO_BAR);
-	memcpy(&(buffer[offset]),
-	       (char *)&(ocl->mmio->cfg.pp_MMIO_stride),
-	       sizeof(ocl->mmio->cfg.pp_MMIO_stride));
+	       (char *)&(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->mem_size),
+	       sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->mem_size));
+	offset += sizeof(ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->mem_size);
+
 	if (put_bytes(client->fd, size, buffer, ocl->dbg_fp, ocl->dbg_id,
 		      client->context) < 0) {
 		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 	}
+
 	free(buffer);
-}
-
-// Increase the maximum number of interrupts
-static void _max_irqs(struct client *client, uint8_t id)
-{
-	struct ocl *ocl;
-	uint8_t buffer[MAX_LINE_CHARS];
-	uint8_t major;
-	uint16_t value;
-
-	// Retrieve requested new maximum interrupts
-	ocl = _find_ocl(id, &major);
-	if (get_bytes(client->fd, 2, buffer, ocl->timeout, &(client->abort),
-		      ocl->dbg_fp, ocl->dbg_id, client->context) < 0) {
-		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
-		return;
-	}
-	memcpy((char *)&client->max_irqs, (char *)buffer, sizeof(uint16_t));
-	client->max_irqs = ntohs(client->max_irqs);
-
-	// Limit to legal value TODO REMOVE OR FIX
-	//if (client->max_irqs < ocl->mmio->cfg.num_ints_per_process)
-	//	client->max_irqs = ocl->mmio->cfg.num_ints_per_process;
-	//if (client->max_irqs > 2037 / ocl->mmio->cfg.num_of_processes)
-	//	client->max_irqs = 2037 / ocl->mmio->cfg.num_of_processes;
-		client->max_irqs = 2037;
-
-	// Return set value
-	buffer[0] = OCSE_MAX_INT;
-	value = htons(client->max_irqs);
-	memcpy(&(buffer[1]), (char *)&value, 2);
-	if (put_bytes(client->fd, 3, buffer, ocl->dbg_fp, ocl->dbg_id,
-		      client->context) < 0) {
-		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
-	}
 }
 
 static void _free_client(struct client *client)
@@ -266,7 +500,7 @@ static struct client *_client_connect(int *fd, char *ip)
 	client->timeout = timeout;
 	client->flushing = FLUSH_NONE;
 	client->state = CLIENT_INIT;
-	
+
 	// lgt quick fix for bdf
 	client->bdf = 0x5001;
 
@@ -284,54 +518,45 @@ static struct client *_client_connect(int *fd, char *ip)
 }
 
 // Associate client to OCL
-static int _client_associate(struct client *client, uint8_t id)
+static int _client_associate(struct client *client)
 {
 	struct ocl *ocl;
 	uint32_t mmio_offset, mmio_size;
-	uint8_t major;
+	uint8_t major, bus, dev, fcn, afuid;
 	int i, context, clients;
 	uint8_t rc[2];
 
+	// retreive bus, dev, fcn, and afuid from socket
+	if (get_bytes_silent(client->fd, 1, &bus, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_query: could not communicate with socket");
+	  return -1;
+	}
+	if (get_bytes_silent(client->fd, 1, &dev, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_query: could not communicate with socket");
+	  return -1;
+	}
+	if (get_bytes_silent(client->fd, 1, &fcn, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_query: could not communicate with socket");
+	  return -1;
+	}
+	if (get_bytes_silent(client->fd, 1, &afuid, timeout, &(client->abort)) < 0) {
+	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	  debug_msg("_query: could not communicate with socket");
+	  return -1;
+	}
+
 	// Associate with OCL
-	// minor can go away
 	rc[0] = OCSE_DETACH;
-	ocl = _find_ocl(id, &major);
+	ocl = _find_ocl(bus, &major);
 	if (!ocl) {
 		info_msg("Did not find valid OCL for tlx%d\n", major);
 		put_bytes(client->fd, 1, &(rc[0]), fp, -1, -1);
 		close_socket(&(client->fd));
 		return -1;
 	}
-
-	// Check AFU type is valid for connection
-	// afu_type can go away
-	/* switch (afu_type) { */
-	/* case 'd': */
-	/* 	warn_msg ("afu%d.%d is does not support dedicated mode\n", */
-	/* 		     major, minor); */
-	/* 		put_bytes(client->fd, 1, &(rc[0]), fp, ocl->dbg_id, -1); */
-	/* 		close_socket(&(client->fd)); */
-	/* 		return -1; */
-	/* 	break; */
-	/* case 'm': */
-	/* 	warn_msg("afu%d.%d is does not support directed mode (master)\n", */
-	/* 			 major, minor); */
-	/* 		put_bytes(client->fd, 1, &(rc[0]), fp, ocl->dbg_id, -1); */
-	/* 		close_socket(&(client->fd)); */
-	/* 		return -1; */
-	/* 	break; */
-	/* case 's': */
-	/* 	info_msg("AFU supports directed mode (slave) "); */
-	/* 	break; */
-	/* default: */
-	/* 	warn_msg("AFU device type '%c' is not valid\n", afu_type); */
-	/* 	put_bytes(client->fd, 1, &(rc[0]), fp, ocl->dbg_id, -1); */
-	/* 	close_socket(&(client->fd)); */
-	/* 	return -1; */
-	/* } */
-
-	// NO LONGER check to see if device is already open
-	// lgt - I think I can open any combination of m/s upto max
 
 	// Look for open client slot
 	// dedicated - client[0] is the only client.
@@ -364,19 +589,9 @@ static int _client_associate(struct client *client, uint8_t id)
 	rc[0] = OCSE_OPEN;
 	rc[1] = context;
 	mmio_offset = 0;
-	//if (ocl->mmio->cfg.PerProcessPSA & PROCESS_PSA_REQUIRED) {
-	//	mmio_size = ocl->mmio->cfg.PerProcessPSA & PSA_MASK;
-	//	mmio_size *= FOUR_K;
-	//	mmio_offset = ocl->mmio->cfg.PerProcessPSA_offset;
-	//	mmio_offset += mmio_size * i;
-	//} else { // TODO FIX OR REMOVE
-		mmio_size = MMIO_FULL_RANGE;
-	//}
+	mmio_size = MMIO_FULL_RANGE;
 	client->mmio_size = mmio_size;
 	client->mmio_offset = mmio_offset;
-	//client->max_irqs = OCL_MAX_IRQS / ocl->mmio->cfg.num_of_processes;
-	client->max_irqs = OCL_MAX_IRQS; // TODO FIX OR REMOVE
-	// client->type = afu_type;
 
 	// We NO LONGER Send reset to AFU, even if no other clients are connected
 	// don't even send a reset if we've dropped to 0 clients and are now opening a new one
@@ -410,37 +625,22 @@ static void *_client_loop(void *ptr)
 			break;
 		}
 		if (data[0] == OCSE_QUERY) {
-			if (get_bytes_silent(client->fd, 1, data, timeout,
-					     &(client->abort)) < 0) {
-			        debug_msg("_client_loop failed OCSE_QUERY");
-				client_drop(client, TLX_IDLE_CYCLES,
-					    CLIENT_NONE);
-				break;
-			}
-			_query(client, data[0]);
+			_query(client);
 			lock_delay(&lock);
 			continue;
 		}
-		if (data[0] == OCSE_MAX_INT) {
-			if (get_bytes(client->fd, 2, data, timeout,
-				      &(client->abort), fp, -1, -1) < 0) {
-				client_drop(client, TLX_IDLE_CYCLES,
-					    CLIENT_NONE);
-				break;
-			}
-			_max_irqs(client, data[0]);
+		if (data[0] == OCSE_FIND) {
+			_find(client);
+			lock_delay(&lock);
+			continue;
+		}
+		if (data[0] == OCSE_FIND_NTH) {
+			_find_nth(client);
 			lock_delay(&lock);
 			continue;
 		}
 		if (data[0] == OCSE_OPEN) {
-			if (get_bytes_silent(client->fd, 1, data, timeout,
-					     &(client->abort)) < 0) {
-				client_drop(client, TLX_IDLE_CYCLES,
-					    CLIENT_NONE);
-				debug_msg("_client_loop: client associate failed; could not communicate with socket");
-				break;
-			}
-			_client_associate(client, data[0]);
+			_client_associate(client);
 			debug_msg("_client_loop: client associated");
 			break;
 		}
@@ -636,6 +836,7 @@ int main(int argc, char **argv)
 		pthread_mutex_unlock(&lock);
 		pthread_join(client->thread, NULL);
 		pthread_mutex_lock(&lock);
+
 		close_socket(&(client->fd));
 		_free_client(client);
 	}

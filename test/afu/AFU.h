@@ -37,7 +37,7 @@ private:
 
     AFU_State state;
     AFU_State config_state;
-    AFU_State mem_state;
+    AFU_State mem_state, resp_state;
     uint8_t *status_address;
 //    uint8_t  memory[128];
     uint64_t global_configs[3];	// stores MMIO registers for global configurations
@@ -48,6 +48,7 @@ private:
 
     void resolve_tlx_afu_cmd();
     void resolve_tlx_afu_resp();
+    void resolve_cfg_cmd();
     void tlx_afu_config_read();
     void tlx_afu_config_write();
     void tlx_pr_rd_mem();

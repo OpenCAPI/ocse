@@ -83,15 +83,24 @@ struct ocxl_afu {
 	pthread_mutex_t waitasec_lock;
 	ocxl_event *events[EVENT_QUEUE_MAX];
 	struct ocxl_waitasec *waitasec;
-	int adapter;
+        uint64_t ppc64_amr;
 	char *id;
         ocxl_identifier ocxl_id;
         uint8_t bus;
         uint8_t dev;
         uint8_t fcn;
+	uint16_t device_id;
+	uint16_t vendor_id;
+        uint8_t afu_version_major;
+        uint8_t afu_version_minor;
+        uint64_t global_mmio_offset;
+        uint32_t global_mmio_size;
+        uint64_t pp_mmio_offset;
+        uint32_t pp_mmio_stride;
+        uint64_t mem_base_address;
+        uint8_t mem_size;
 	uint16_t context;
-	uint16_t map;
-	uint16_t position;
+	uint16_t map;  
 	uint8_t dbg_id;
 	int fd;
 	int opened;
@@ -100,10 +109,6 @@ struct ocxl_afu {
 	int global_mapped;
 	int lpc_mapped;
 	int pipe[2];
-        long mmio_length;  // this pasid stride
-        long mmio_offset;  // this pasid mmio offset - f(pasid, per pasid stride, per pasid mmio offset)
-	uint16_t cr_device;
-	uint16_t cr_vendor;
         int irq_count;
 	struct int_req int_req;
 	struct open_req open;
@@ -111,37 +116,26 @@ struct ocxl_afu {
 	struct mmio_req mmio;
 	struct mem_req mem;
 	struct ocxl_irq *irq;
-	struct ocxl_afu *_head;
-	struct ocxl_afu *_next;
-        struct ocxl_afu *_next_adapter; // ???
+  //struct ocxl_afu *_head;
+  //struct ocxl_afu *_next;
+  //struct ocxl_afu *_next_adapter; // ???
 };
-  /*
-	long irqs_max;
-	long irqs_min;
-	long mode;
-	long modes_supported;
-	long mmio_len;
-	long mmio_off;
-	long prefault_mode;
-        size_t eb_len;
-	long cr_class;
-  */
 
-struct ocxl_adapter_h {
-	DIR *enum_dir;
-	struct dirent *enum_ent;
-	char *sysfs_path;
-	long oppa_major;
-	long oppa_minor;
-	long ocse_version;
-	int fd;
-	char *id;
-	uint16_t map;
-	uint16_t mask;
-	uint16_t position;
-	struct ocxl_adapter_h *_head;
-	struct ocxl_adapter_h *_next;
-	struct ocxl_afu *afu_list;
-};
+/* struct ocxl_adapter_h { */
+/* 	DIR *enum_dir; */
+/* 	struct dirent *enum_ent; */
+/* 	char *sysfs_path; */
+/* 	long oppa_major; */
+/* 	long oppa_minor; */
+/* 	long ocse_version; */
+/* 	int fd; */
+/* 	char *id; */
+/* 	uint16_t map; */
+/* 	uint16_t mask; */
+/* 	uint16_t position; */
+/* 	struct ocxl_adapter_h *_head; */
+/* 	struct ocxl_adapter_h *_next; */
+/* 	struct ocxl_afu *afu_list; */
+/* }; */
 
 #endif

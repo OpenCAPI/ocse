@@ -152,6 +152,7 @@ struct parms *parse_parms(char *filename, FILE * dbg_fp)
 	// Set default parameter values
 	parms->timeout = 10;
 	parms->pagesize = DEFAULT_PAGESIZE;
+	parms->host_CL_size = 128;
 	parms->seed = (unsigned int)time(NULL);
 	parms->resp_percent = 20;
 	parms->paged_percent = 5;
@@ -214,6 +215,12 @@ struct parms *parse_parms(char *filename, FILE * dbg_fp)
 			else
 				parms->pagesize = data;
 			//debug_parm(dbg_fp, DBG_PARM_PAGESIZE, parms->pagesize);
+		} else if (!(strcmp(parm, "HOST_CL_SIZE"))) {
+			data = atoi(value);
+			if ((data != 128) && (data != 64) && (data != 256)) 
+				warn_msg("HOST_CL_SIZE must be either 64 or 128 or 256 ");
+			else
+				parms->host_CL_size = data;
 		} else if (!(strcmp(parm, "RESPONSE_PERCENT"))) {
 			percent_parm(value, &data);
 			if ((data > 100) || (data <= 0))
@@ -345,6 +352,7 @@ struct parms *parse_parms(char *filename, FILE * dbg_fp)
 	else
 		printf("\tTimeout  = DISABLED\n");
 	printf("\tResponse = %d%%\n", parms->resp_percent);
+	printf("\tHost_CL_sz = %d\n", parms->host_CL_size);
 	printf("\tPaged    = %d%%\n", parms->paged_percent);
 	printf("\tRetry    = %d%%\n", parms->retry_percent);
 	printf("\tFailed   = %d%%\n", parms->failed_percent);
