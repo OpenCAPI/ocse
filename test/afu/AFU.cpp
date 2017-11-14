@@ -38,6 +38,7 @@ uint32_t afu_function = 0;
 uint16_t gBDF = 0; 
 uint16_t gACTAG = 0;
 uint16_t gDUT = 0;
+uint16_t other_resp_completed = 0;
 
 AFU::AFU (int port, string filename, bool parity, bool jerror):
     descriptor (filename),
@@ -243,18 +244,25 @@ AFU::start ()
 		request_assign_actag();
 	    	printf("AFU: set state = RUNNING\n");
 	    	state = RUNNING;
+		//debug1
+		read_resp_completed = 0;
+		write_resp_completed = 0;
+		other_resp_completed = 0;
 	    }
 	}
   	
         // generate commands, initial read_resp_completed=0; write_resp_completed=0
-	// initial cmd_ready=1; next_cmd=0;
+	// initial cmd_ready=1; next_cmd=0, other_resp_competed=0;
         else if (state == RUNNING) {
-	    if((read_resp_completed ||  write_resp_completed) &&
+	    if((read_resp_completed ||  write_resp_completed || other_resp_completed) &&
 		!(next_cmd) && !(cmd_ready)) {
 		printf("AFU: writing app status\n");
+		printf("AFU: read resp = %d write resp = %d other resp = %d\n", read_resp_completed,
+			write_resp_completed, other_resp_completed);
 		write_app_status(status_address, 0x0);
 		read_resp_completed = 0;
 		write_resp_completed = 0;
+		other_resp_completed = 0;
 		next_cmd = 1;
 	    }
 	    else if(next_cmd) {
@@ -270,6 +278,7 @@ AFU::start ()
 		    	next_cmd = 0;
 		    	cmd_ready = 1;
 			read_status_resp = 0;
+			read_resp_completed = 0; //debug1
 		    	get_machine_context();
 		    }
 		    else if(status_data[0] == 0x0) {
@@ -605,8 +614,7 @@ AFU::resolve_tlx_afu_resp()
 #endif
 		&resp_dp, &resp_addr_tag);
  
-	//next_cmd = 1;
-	read_resp_completed = 1;
+//	read_resp_completed = 1;	//debug1
     }
 
     switch (tlx_resp_opcode) {
@@ -617,6 +625,7 @@ AFU::resolve_tlx_afu_resp()
 	case TLX_RSP_TOUCH_RESP:
 	    break;
 	case TLX_RSP_READ_RESP:
+	    read_resp_completed = 1;	// debug1
 	    debug_msg("AFU: read_resp: calling afu_tlx_resp_data_read_req");
 	    read_status_resp = 1;
 	    cmd_rd_req = 0x1;	
@@ -664,6 +673,7 @@ AFU::resolve_tlx_afu_resp()
 	    switch(resp_code) {
 		case 0x0:
 		    printf("AFU: Interrupt request accepted\n");
+		    other_resp_completed = 1;
 		    break;
 		case 0x2:
 		    printf("AFU: Retry request\n");
