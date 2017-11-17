@@ -803,11 +803,14 @@ int afu_tlx_read_resp_and_data(struct AFU_EVENT *event,
 			*resp_data_is_valid = 1;
 			*rdata_bdi = event->afu_tlx_rdata_bdi;
 			memcpy(rdata_bus, event->afu_tlx_rdata_bus, 64);
+	       //		event->tlx_afu_resp_data_credit = 1;
+		printf("in afu_tlx_read_resp_and_data and NOT setting tlx_afu_resp_data_credit to 1 bc we got resp data\n");
 			//return TLX_SUCCESS;
 			}
 	//	return AFU_TLX_RESP_NO_DATA;
-		event->tlx_afu_resp_credit = 1;
-		event->tlx_afu_credit_valid = 1;
+		printf("in afu_tlx_read_resp_and_data and NOT setting tlx_afu_resp_credit  to 1 bc we got resp \n");
+		//event->tlx_afu_resp_credit = 1;
+		//event->tlx_afu_credit_valid = 1;
 		return TLX_SUCCESS;
 		}
 }
@@ -832,8 +835,9 @@ int afu_tlx_read_resp(struct AFU_EVENT *event,
 		*resp_dp = event->afu_tlx_resp_dp;
 		*resp_code = event->afu_tlx_resp_code;
 
-		event->tlx_afu_resp_credit = 1;
-		event->tlx_afu_credit_valid = 1;
+		//event->tlx_afu_resp_credit = 1;
+		printf("in afu_tlx_read_resp and NOT setting tlx_afu_resp_credit to 1 bc we got resp \n");
+		//event->tlx_afu_credit_valid = 1;
 		return TLX_SUCCESS;
 		}
 }
@@ -855,8 +859,9 @@ int afu_tlx_read_resp_data( struct AFU_EVENT *event,
 	       *resp_data_is_valid = 1;
 	       *rdata_bdi = event->afu_tlx_rdata_bdi;
 	       memcpy(rdata_bus, event->afu_tlx_rdata_bus, 64);
-	       event->tlx_afu_resp_data_credit = 1;
-	       event->tlx_afu_credit_valid = 1;
+	       //event->tlx_afu_resp_data_credit = 1;
+		printf("in afu_tlx_read_resp_data and NOT setting tlx_afu_resp_data_credit  to 1 bc we got resp data\n");
+	       //event->tlx_afu_credit_valid = 1;
 	       return TLX_SUCCESS;
        }
 	//	return AFU_TLX_RESP_NO_DATA;
@@ -1479,8 +1484,9 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 	if ((event->rbuf[0] & 0x08) != 0) {
 	        debug_msg("      parsing afu tlx resp");
 		event->afu_tlx_resp_valid = 1;
-		// event->tlx_afu_resp_credit = 1;  // allow ocse to process the response and return the credit
-		// event->tlx_afu_credit_valid = 1;
+		 event->tlx_afu_resp_credit = 1;  // allow ocse to process the response and return the credit
+		 event->tlx_afu_credit_valid = 1;
+		printf("in tlx_get_afu_events and setting tlx_afu_credit & resp credits to 1 bc we got resp \n");
 		event->afu_tlx_resp_opcode = event->rbuf[rbc++];
 		event->afu_tlx_resp_dl = event->rbuf[rbc++];
 		event->afu_tlx_resp_capptag = event->rbuf[rbc++];
@@ -1496,6 +1502,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		event->afu_tlx_rdata_valid = 1;
 		event->tlx_afu_resp_data_credit = 1;
 		event->tlx_afu_credit_valid = 1;
+		printf("in tlx_get_afu_events and setting tlx_afu_credit & resp_data credits to 1 bc we got resp data\n");
 		event->afu_tlx_rdata_bdi= event->rbuf[rbc++];
 		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
 		for (i = 0; i < 64; i++) {

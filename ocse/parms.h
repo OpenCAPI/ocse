@@ -21,24 +21,24 @@
 #include "../common/tlx_interface.h"
 
 struct parms {
-	unsigned int timeout;
-	unsigned int seed;
-	unsigned int pagesize;
-	unsigned int host_CL_size;
-	unsigned int resp_percent;
-	unsigned int paged_percent;
-	unsigned int retry_percent;
-	unsigned int failed_percent;
-	unsigned int pending_percent;
-	unsigned int derror_percent;
-	unsigned int int_retry_percent;
-	unsigned int int_failed_percent;
-	unsigned int int_pending_percent;
-	unsigned int int_derror_percent;
-	unsigned int bdi_resp_err_percent;
-	unsigned int bdi_cmd_err_percent;
-	unsigned int reorder_percent;
-	unsigned int buffer_percent;
+	uint32_t timeout;
+	uint32_t seed;
+	uint32_t pagesize;
+	uint32_t host_CL_size;
+	uint32_t resp_percent;
+	uint32_t paged_percent;
+	uint32_t retry_percent;
+	uint32_t failed_percent;
+	uint32_t pending_percent;
+	uint32_t derror_percent;
+	uint32_t int_retry_percent;
+	uint32_t int_failed_percent;
+	uint32_t int_pending_percent;
+	uint32_t int_derror_percent;
+	uint32_t bdi_resp_err_percent;
+	uint32_t bdi_cmd_err_percent;
+	uint32_t reorder_percent;
+	uint32_t buffer_percent;
 };
 
 // Randomly decide to allow response to AFU
