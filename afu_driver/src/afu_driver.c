@@ -624,8 +624,10 @@ void tlx_bfm(
         		c_afu_tlx_resp_opcode, c_afu_tlx_resp_dl, c_afu_tlx_resp_capptag,
         		c_afu_tlx_resp_dp, c_afu_tlx_resp_code
         );
+        printf("%08lld: ", (long long) c_sim_time);
+        printf(" The AFU-TLX Regular Command Response Data transferred thru resp_valid method  \n");
       }
-      else if(c_afu_tlx_rdata_valid)
+      else if(c_afu_tlx_resp_valid && c_afu_tlx_rdata_valid)
       {
         int resp_code = afu_tlx_send_resp_and_data(&event,
         		c_afu_tlx_resp_opcode, c_afu_tlx_resp_dl, c_afu_tlx_resp_capptag,
@@ -633,7 +635,16 @@ void tlx_bfm(
         		c_afu_tlx_rdata_bus, c_afu_tlx_rdata_bdi
         );
         printf("%08lld: ", (long long) c_sim_time);
-        printf(" The AFU-TLX Regular Command Response Data transferred thru method and the resp code is %d \n",  resp_code);
+        printf(" The AFU-TLX Regular Command Response Data transferred thru resp_and_data method and the resp code is %d \n",  resp_code);
+      }
+      else if(!c_afu_tlx_resp_valid && c_afu_tlx_rdata_valid)
+      {
+        int resp_code = afu_tlx_send_resp_data(&event, 1,
+        		c_afu_tlx_rdata_bdi, c_afu_tlx_resp_dp, c_afu_tlx_resp_dl,
+        		c_afu_tlx_rdata_bus 
+       );
+        printf("%08lld: ", (long long) c_sim_time);
+        printf(" The AFU-TLX Regular Command Response Data transferred thru resp_data method and the resp code is %d \n",  resp_code);
       }
       else if(c_cfg0_tlx_resp_valid && (c_cfg_resp_ack_pending == 0))
       {
