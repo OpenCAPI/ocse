@@ -854,8 +854,10 @@ AFU::tlx_afu_config_write()
 
     debug_msg("AFU: cmd_pa = 0x%x", cmd_pa);
     // get BDF during configuration
-    bdf = (afu_event.tlx_cfg_pa & 0xFFFF0000) >> 16;
-    gDUT = bdf;    
+    if(afu_event.tlx_cfg_t == 0) {
+    	bdf = (afu_event.tlx_cfg_pa & 0xFFFF0000) >> 16;
+    	gDUT = bdf;
+    }    
     printf("AFU: bdf = 0x%x\n", (afu_event.tlx_cfg_pa & 0xFFFF0000) >> 16);
 //    if(config_state == IDLE) {
 	//afu_tlx_cmd_rd_req = 0x1;
