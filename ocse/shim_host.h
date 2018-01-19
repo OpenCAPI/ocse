@@ -22,6 +22,7 @@
 #include <stdio.h>
 
 #include "parms.h"
+#include "mmio.h"
 #include "ocl.h"
 
 uint16_t parse_host_data(struct ocl ** head, struct parms * parms,
