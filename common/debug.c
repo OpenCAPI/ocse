@@ -127,27 +127,27 @@ static void _debug_send_id_16(FILE * fp, DBG_HEADER header, uint8_t id,
 	}
 }
 
-static void _debug_send_id_32(FILE * fp, DBG_HEADER header, uint8_t id,
-			      uint32_t value)
-{
-	char *buffer;
-	size_t size;
-	int offset;
+/* static void _debug_send_id_32(FILE * fp, DBG_HEADER header, uint8_t id, */
+/* 			      uint32_t value) */
+/* { */
+/* 	char *buffer; */
+/* 	size_t size; */
+/* 	int offset; */
 
-	offset = 0;
-	header = adjust_header(header);
-	size = sizeof(DBG_HEADER) + sizeof(id) + sizeof(value);
-	if ((buffer = (char *)malloc(size)) != NULL) {
-		memcpy(buffer, (char *)&header, sizeof(DBG_HEADER));
-		offset += sizeof(header);
-		buffer[offset] = id;
-		offset += sizeof(id);
-		value = htonl(value);
-		memcpy(buffer + offset, (char *)&value, sizeof(value));
-		fwrite(buffer, size, 1, fp);
-		free(buffer);
-	}
-}
+/* 	offset = 0; */
+/* 	header = adjust_header(header); */
+/* 	size = sizeof(DBG_HEADER) + sizeof(id) + sizeof(value); */
+/* 	if ((buffer = (char *)malloc(size)) != NULL) { */
+/* 		memcpy(buffer, (char *)&header, sizeof(DBG_HEADER)); */
+/* 		offset += sizeof(header); */
+/* 		buffer[offset] = id; */
+/* 		offset += sizeof(id); */
+/* 		value = htonl(value); */
+/* 		memcpy(buffer + offset, (char *)&value, sizeof(value)); */
+/* 		fwrite(buffer, size, 1, fp); */
+/* 		free(buffer); */
+/* 	} */
+/* } */
 
 static void _debug_send_32_32(FILE * fp, DBG_HEADER header, uint32_t value0,
 			      uint32_t value1)
@@ -199,31 +199,31 @@ static void _debug_send_id_8_16(FILE * fp, DBG_HEADER header, uint8_t id,
 	}
 }
 
-static void _debug_send_id_32_64(FILE * fp, DBG_HEADER header, uint8_t id,
-				uint32_t value0, uint64_t value1)
-{
-	char *buffer;
-	size_t size;
-	int offset;
+/* static void _debug_send_id_32_64(FILE * fp, DBG_HEADER header, uint8_t id, */
+/* 				uint32_t value0, uint64_t value1) */
+/* { */
+/* 	char *buffer; */
+/* 	size_t size; */
+/* 	int offset; */
 
-	offset = 0;
-	header = adjust_header(header);
-	size =
-	    sizeof(DBG_HEADER) + sizeof(id) + sizeof(value0) + sizeof(value1);
-	if ((buffer = (char *)malloc(size)) != NULL) {
-		memcpy(buffer, (char *)&header, sizeof(DBG_HEADER));
-		offset += sizeof(header);
-		buffer[offset] = id;
-		offset += sizeof(id);
-		value0 = htonl(value0);
-		memcpy(buffer + offset, (char *)&value0, sizeof(value0));
-		offset += sizeof(value0);
-		value1 = htonll(value1);
-		memcpy(buffer + offset, (char *)&value1, sizeof(value1));
-		fwrite(buffer, size, 1, fp);
-		free(buffer);
-	}
-}
+/* 	offset = 0; */
+/* 	header = adjust_header(header); */
+/* 	size = */
+/* 	    sizeof(DBG_HEADER) + sizeof(id) + sizeof(value0) + sizeof(value1); */
+/* 	if ((buffer = (char *)malloc(size)) != NULL) { */
+/* 		memcpy(buffer, (char *)&header, sizeof(DBG_HEADER)); */
+/* 		offset += sizeof(header); */
+/* 		buffer[offset] = id; */
+/* 		offset += sizeof(id); */
+/* 		value0 = htonl(value0); */
+/* 		memcpy(buffer + offset, (char *)&value0, sizeof(value0)); */
+/* 		offset += sizeof(value0); */
+/* 		value1 = htonll(value1); */
+/* 		memcpy(buffer + offset, (char *)&value1, sizeof(value1)); */
+/* 		fwrite(buffer, size, 1, fp); */
+/* 		free(buffer); */
+/* 	} */
+/* } */
 
 
 static void _debug_send_id_8_16_16(FILE * fp, DBG_HEADER header, uint8_t id,
