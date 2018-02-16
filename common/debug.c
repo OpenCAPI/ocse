@@ -1,3 +1,19 @@
+/*
+ * Copyright 2015,2017 International Business Machines
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -64,6 +80,31 @@ static void _debug_send_id_8(FILE * fp, DBG_HEADER header, uint8_t id,
 	}
 }
 
+static void _debug_send_id_8_8_8(FILE * fp, DBG_HEADER header, uint8_t id,
+			     uint8_t value, uint8_t value1, uint8_t value2)
+{
+	char *buffer;
+	size_t size;
+	int offset;
+
+	offset = 0;
+	header = adjust_header(header);
+	size = sizeof(DBG_HEADER) + sizeof(id) + sizeof(value) + sizeof(value1) + sizeof(value2);
+	if ((buffer = (char *)malloc(size)) != NULL) {
+		memcpy(buffer, (char *)&header, sizeof(DBG_HEADER));
+		offset += sizeof(header);
+		buffer[offset] = id;
+		offset += sizeof(id);
+		buffer[offset] = value;
+		offset += sizeof(value);
+		buffer[offset] = value1;
+		offset += sizeof(value1);
+		buffer[offset] = value2;
+		fwrite(buffer, size, 1, fp);
+		free(buffer);
+	}
+}
+
 static void _debug_send_id_16(FILE * fp, DBG_HEADER header, uint8_t id,
 			      uint16_t value)
 {
@@ -86,27 +127,27 @@ static void _debug_send_id_16(FILE * fp, DBG_HEADER header, uint8_t id,
 	}
 }
 
-static void _debug_send_id_32(FILE * fp, DBG_HEADER header, uint8_t id,
-			      uint32_t value)
-{
-	char *buffer;
-	size_t size;
-	int offset;
+/* static void _debug_send_id_32(FILE * fp, DBG_HEADER header, uint8_t id, */
+/* 			      uint32_t value) */
+/* { */
+/* 	char *buffer; */
+/* 	size_t size; */
+/* 	int offset; */
 
-	offset = 0;
-	header = adjust_header(header);
-	size = sizeof(DBG_HEADER) + sizeof(id) + sizeof(value);
-	if ((buffer = (char *)malloc(size)) != NULL) {
-		memcpy(buffer, (char *)&header, sizeof(DBG_HEADER));
-		offset += sizeof(header);
-		buffer[offset] = id;
-		offset += sizeof(id);
-		value = htonl(value);
-		memcpy(buffer + offset, (char *)&value, sizeof(value));
-		fwrite(buffer, size, 1, fp);
-		free(buffer);
-	}
-}
+/* 	offset = 0; */
+/* 	header = adjust_header(header); */
+/* 	size = sizeof(DBG_HEADER) + sizeof(id) + sizeof(value); */
+/* 	if ((buffer = (char *)malloc(size)) != NULL) { */
+/* 		memcpy(buffer, (char *)&header, sizeof(DBG_HEADER)); */
+/* 		offset += sizeof(header); */
+/* 		buffer[offset] = id; */
+/* 		offset += sizeof(id); */
+/* 		value = htonl(value); */
+/* 		memcpy(buffer + offset, (char *)&value, sizeof(value)); */
+/* 		fwrite(buffer, size, 1, fp); */
+/* 		free(buffer); */
+/* 	} */
+/* } */
 
 static void _debug_send_32_32(FILE * fp, DBG_HEADER header, uint32_t value0,
 			      uint32_t value1)
@@ -124,7 +165,7 @@ static void _debug_send_32_32(FILE * fp, DBG_HEADER header, uint32_t value0,
 		value0 = htonl(value0);
 		memcpy(buffer + offset, (char *)&value0, sizeof(value0));
 		offset += sizeof(value0);
-		value0 = htonl(value1);
+		value1 = htonl(value1);
 		memcpy(buffer + offset, (char *)&value1, sizeof(value1));
 		fwrite(buffer, size, 1, fp);
 		free(buffer);
@@ -158,31 +199,31 @@ static void _debug_send_id_8_16(FILE * fp, DBG_HEADER header, uint8_t id,
 	}
 }
 
-static void _debug_send_id_32_64(FILE * fp, DBG_HEADER header, uint8_t id,
-				uint32_t value0, uint64_t value1)
-{
-	char *buffer;
-	size_t size;
-	int offset;
+/* static void _debug_send_id_32_64(FILE * fp, DBG_HEADER header, uint8_t id, */
+/* 				uint32_t value0, uint64_t value1) */
+/* { */
+/* 	char *buffer; */
+/* 	size_t size; */
+/* 	int offset; */
 
-	offset = 0;
-	header = adjust_header(header);
-	size =
-	    sizeof(DBG_HEADER) + sizeof(id) + sizeof(value0) + sizeof(value1);
-	if ((buffer = (char *)malloc(size)) != NULL) {
-		memcpy(buffer, (char *)&header, sizeof(DBG_HEADER));
-		offset += sizeof(header);
-		buffer[offset] = id;
-		offset += sizeof(id);
-		value0 = htonl(value0);
-		memcpy(buffer + offset, (char *)&value0, sizeof(value0));
-		offset += sizeof(value0);
-		value1 = htonll(value1);
-		memcpy(buffer + offset, (char *)&value1, sizeof(value1));
-		fwrite(buffer, size, 1, fp);
-		free(buffer);
-	}
-}
+/* 	offset = 0; */
+/* 	header = adjust_header(header); */
+/* 	size = */
+/* 	    sizeof(DBG_HEADER) + sizeof(id) + sizeof(value0) + sizeof(value1); */
+/* 	if ((buffer = (char *)malloc(size)) != NULL) { */
+/* 		memcpy(buffer, (char *)&header, sizeof(DBG_HEADER)); */
+/* 		offset += sizeof(header); */
+/* 		buffer[offset] = id; */
+/* 		offset += sizeof(id); */
+/* 		value0 = htonl(value0); */
+/* 		memcpy(buffer + offset, (char *)&value0, sizeof(value0)); */
+/* 		offset += sizeof(value0); */
+/* 		value1 = htonll(value1); */
+/* 		memcpy(buffer + offset, (char *)&value1, sizeof(value1)); */
+/* 		fwrite(buffer, size, 1, fp); */
+/* 		free(buffer); */
+/* 	} */
+/* } */
 
 
 static void _debug_send_id_8_16_16(FILE * fp, DBG_HEADER header, uint8_t id,
@@ -332,7 +373,7 @@ void debug_afu_drop(FILE * fp, uint8_t id)
 	_debug_send_id(fp, DBG_HEADER_AFU_DROP, id);
 }
 
-void debug_job_add(FILE * fp, uint8_t id, uint32_t code)
+/*void debug_job_add(FILE * fp, uint8_t id, uint32_t code)
 {
 	_debug_send_id_32(fp, DBG_HEADER_JOB_ADD, id, code);
 }
@@ -355,7 +396,7 @@ void debug_pe_send(FILE * fp, uint8_t id, uint32_t code, uint64_t addr)
 void debug_job_aux2(FILE * fp, uint8_t id, uint8_t aux2)
 {
 	_debug_send_id_8(fp, DBG_HEADER_JOB_AUX2, id, aux2);
-}
+} */
 
 void debug_context_add(FILE * fp, uint8_t id, uint16_t context)
 {
@@ -435,9 +476,9 @@ void debug_cmd_buffer_read(FILE * fp, uint8_t id, uint8_t afutag)
 	_debug_send_id_8(fp, DBG_HEADER_CMD_BUFFER_READ, id, afutag);
 }
 
-void debug_cmd_response(FILE * fp, uint8_t id, uint8_t afutag)
+void debug_cmd_response(FILE * fp, uint8_t id, uint8_t afutag, uint8_t resp, uint8_t opcode)
 {
-	_debug_send_id_8(fp, DBG_HEADER_CMD_RESPONSE, id, afutag);
+	_debug_send_id_8_8_8(fp, DBG_HEADER_CMD_RESPONSE, id, afutag, resp, opcode);
 }
 
 void debug_socket_put(FILE * fp, uint8_t id, uint16_t context, uint8_t type)

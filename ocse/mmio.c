@@ -727,7 +727,9 @@ void send_mmio(struct mmio *mmio)
 	uint16_t  cmd_byte_cnt;
 	uint64_t offset;
 
+#ifdef DEBUG
 	int i;
+#endif
 	
 	// debug_msg( "send_mmio: " );
 
@@ -980,9 +982,12 @@ void handle_ap_resp_data(struct mmio *mmio)
 	unsigned char   rdata_bus[64];
 	int offset, length;
 
+#ifdef DEBUG
 	int i;
+#endif	  
 
 	// debug_msg( "handle_ap_resp_data:" );
+	rc = 0;
 
 	// handle mmio, and lpc response data 
 	// we are expecting 1 to 4 beats of data depending on the value of dL or dw
@@ -1111,7 +1116,9 @@ void handle_ap_resp(struct mmio *mmio)
 	unsigned char   rdata_bus[64];
 	int length;
 
+#ifdef DEBUG
 	int i;
+#endif	  
 
 	// debug_msg( "handle_ap_rep:" );
 	// handle config, mmio, and lpc responses
@@ -1227,13 +1234,16 @@ void handle_mmio_ack(struct mmio *mmio)
 	unsigned char   mem_data[64];
 	int offset, length;
 
+#ifdef DEBUG
 	int i;
+#endif	  
 
 	// handle config and mmio responses
 	// length can be calculated from the mmio->list->dw or cmd_pL
 	// location of data in rdata_bus is address aligned based on mmio->list->cmd_PA
 	// that is, mask off the high order address bits to form the offset - keep the low order 6 bits.
 
+	length = 0;
 	rdata = rdata_bus;
 
 	// NEEDS MODIFICATION for > 64 Byte responses

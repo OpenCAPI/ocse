@@ -803,9 +803,12 @@ int afu_tlx_read_resp_and_data(struct AFU_EVENT *event,
 			*resp_data_is_valid = 1;
 			*rdata_bdi = event->afu_tlx_rdata_bdi;
 			memcpy(rdata_bus, event->afu_tlx_rdata_bus, 64);
+	       		event->tlx_afu_resp_data_credit = 1;
+		printf("in afu_tlx_read_resp_and_data and setting tlx_afu_resp_data_credit to 1 bc we got resp data\n");
 			//return TLX_SUCCESS;
 			}
 	//	return AFU_TLX_RESP_NO_DATA;
+		printf("in afu_tlx_read_resp_and_data and setting tlx_afu_resp_credit  to 1 bc we got resp \n");
 		event->tlx_afu_resp_credit = 1;
 		event->tlx_afu_credit_valid = 1;
 		return TLX_SUCCESS;
@@ -833,6 +836,7 @@ int afu_tlx_read_resp(struct AFU_EVENT *event,
 		*resp_code = event->afu_tlx_resp_code;
 
 		event->tlx_afu_resp_credit = 1;
+		printf("in afu_tlx_read_resp and setting tlx_afu_resp_credit to 1 bc we got resp \n");
 		event->tlx_afu_credit_valid = 1;
 		return TLX_SUCCESS;
 		}
@@ -856,6 +860,7 @@ int afu_tlx_read_resp_data( struct AFU_EVENT *event,
 	       *rdata_bdi = event->afu_tlx_rdata_bdi;
 	       memcpy(rdata_bus, event->afu_tlx_rdata_bus, 64);
 	       event->tlx_afu_resp_data_credit = 1;
+		printf("in afu_tlx_read_resp_data and setting tlx_afu_resp_data_credit  to 1 bc we got resp data\n");
 	       event->tlx_afu_credit_valid = 1;
 	       return TLX_SUCCESS;
        }
@@ -1481,6 +1486,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		event->afu_tlx_resp_valid = 1;
 		// event->tlx_afu_resp_credit = 1;  // allow ocse to process the response and return the credit
 		// event->tlx_afu_credit_valid = 1;
+		printf("in tlx_get_afu_events and NOT setting tlx_afu_credit & resp credits to 1 bc we got resp \n");
 		event->afu_tlx_resp_opcode = event->rbuf[rbc++];
 		event->afu_tlx_resp_dl = event->rbuf[rbc++];
 		event->afu_tlx_resp_capptag = event->rbuf[rbc++];
@@ -1490,12 +1496,14 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		event->afu_tlx_resp_code = event->rbuf[rbc++];
 	} else {
 		event->afu_tlx_resp_valid = 0;
+		event->tlx_afu_resp_credit = 0;  
 	}
 	if ((event->rbuf[0] & 0x20) != 0) {
 	        debug_msg("            cmd resp data");
 		event->afu_tlx_rdata_valid = 1;
-		event->tlx_afu_resp_data_credit = 1;
-		event->tlx_afu_credit_valid = 1;
+		//event->tlx_afu_resp_data_credit = 1;
+		//event->tlx_afu_credit_valid = 1;
+		printf("in tlx_get_afu_events and NOT setting tlx_afu_credit & resp_data credits to 1 bc we got resp data\n");
 		event->afu_tlx_rdata_bdi= event->rbuf[rbc++];
 		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
 		for (i = 0; i < 64; i++) {
@@ -1934,7 +1942,6 @@ int afu_tlx_send_resp(struct AFU_EVENT *event,
 }
 
 
-// TODO - DON"T CALL THIS YET - IT WON"T WORK
 /* Call this from afu to send response data to ocse   assume can only send 64B
  * @ time to FIFO ?*/
 
@@ -1944,8 +1951,32 @@ int afu_tlx_send_resp_data(struct AFU_EVENT *event,
 		 uint8_t resp_dl,uint8_t * rdata_bus)
 
 {
-	printf("THIS FUNCTION ISN'T SUPPORTED YET \n");
-	return AFU_TLX_RESP_DATA_NOT_VALID;
+        debug_msg ( "afu_tlx_send_resp_data: available resp data credits = %d", event->tlx_afu_resp_data_credits_available );
+        if  (event->tlx_afu_resp_data_credits_available == 0)
+		return TLX_AFU_NO_CREDITS;
+	if (event->afu_tlx_rdata_valid == 1) {
+		return AFU_TLX_DOUBLE_RESP_DATA;
+	} else {
+		event->afu_tlx_rdata_valid = 1;
+		event->tlx_afu_resp_data_credits_available -= 1;
+		// printf("tlx_afu_resp_data_credits available is %d  \n", event->tlx_afu_resp_data_credits_available);
+		event->afu_tlx_resp_dp = resp_dp;
+		event->afu_tlx_rdata_bdi = rdata_bdi;
+		// LGT - we will always get 64 Bytes of data from the afu
+		// LGT - it will be up to "ocse" to extract the interesting data from the response
+		// LGT - for partial reads, the data will be address aligned in the vector
+		// LGT - go look for byte counts!
+		memcpy(event->afu_tlx_rdata_bus, rdata_bus, 64);
+	//	int i;
+	//	for (i = 0; i <5 ; i++) {
+	//		printf("Send data is %02x"  , rdata_bus[i]);
+	//	}
+	//	printf("\n");
+		debug_msg ( "afu_tlx_send_resp_data: afu consumed resp data credits, now resp data credits = %d",  event->tlx_afu_resp_data_credits_available );
+		return TLX_SUCCESS;
+	}
+
+
 }
 
 

@@ -783,7 +783,7 @@ void handle_buffer_write(struct cmd *cmd)
 	while ( event != NULL ) {
 	        if ( ( event->type == CMD_READ ) &&
 		     ( event->state != MEM_DONE ) &&
-		     ( ( event->client_state != CLIENT_VALID ) ) ) { // || ( !allow_reorder( cmd->parms ) ) ) ) {
+		     ( ( event->client_state != CLIENT_VALID ) ) ) { 
 			break;
 		}
 		event = event->_next;
@@ -793,32 +793,35 @@ void handle_buffer_write(struct cmd *cmd)
 	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
 		return;
 
+
 	debug_msg( "handle_buffer_write: we've picked a non-NULL event and the client is still there" );
 
+	if ((event->state == MEM_IDLE) && (client->mem_access == NULL)) {
 	// Check to see if this cmd gets selected for a RETRY or FAILED or PENDING or DERROR read_failed response
-	if ( allow_retry(cmd->parms)) {
-		event->state = MEM_DONE;
-		event->type = CMD_FAILED;
-		event->resp_opcode = TLX_RSP_READ_FAILED;
-		event->resp = 0x02;
-		debug_msg("handle_buffer_write:RETRY this cmd =0x%x \n", event->command);
-		return;
-	}
-	if ( allow_failed(cmd->parms)) {
-		event->state = MEM_DONE;
-		event->type = CMD_FAILED;
-		event->resp_opcode = TLX_RSP_READ_FAILED;
-		event->resp = 0x0e;
-		debug_msg("handle_buffer_write: FAIL this cmd =0x%x \n", event->command);
-		return;
-	}
-	if ( allow_derror(cmd->parms)) {
-		event->state = MEM_DONE;
-		event->type = CMD_FAILED;
-		event->resp_opcode = TLX_RSP_READ_FAILED;
-		event->resp = 0x08;
-		debug_msg("handle_buffer_write: DERROR this cmd =0x%x \n", event->command);
-		return;
+		if ( allow_retry(cmd->parms)) {
+			event->state = MEM_DONE;
+			event->type = CMD_FAILED;
+			event->resp_opcode = TLX_RSP_READ_FAILED;
+			event->resp = 0x02;
+			debug_msg("handle_buffer_write:RETRY this cmd =0x%x \n", event->command);
+			return;
+		}
+		if ( allow_failed(cmd->parms)) {
+			event->state = MEM_DONE;
+			event->type = CMD_FAILED;
+			event->resp_opcode = TLX_RSP_READ_FAILED;
+			event->resp = 0x0e;
+			debug_msg("handle_buffer_write: FAIL this cmd =0x%x \n", event->command);
+			return;
+		}
+		if ( allow_derror(cmd->parms)) {
+			event->state = MEM_DONE;
+			event->type = CMD_FAILED;
+			event->resp_opcode = TLX_RSP_READ_FAILED;
+			event->resp = 0x08;
+			debug_msg("handle_buffer_write: DERROR this cmd =0x%x \n", event->command);
+			return;
+		}
 	}
 	// for xlate_pending response, ocse has to THEN follow up with an xlate_done response
 	// (at some unknown time later) and that will "complete" the original cmd (no rd/write )
@@ -866,9 +869,7 @@ void handle_buffer_write(struct cmd *cmd)
 	    // anything other than an overrun (i.e. resp_rd_req of an empty fifo, or resp_rd_cnt exceeds the amount of data in the fifo)
 	      	event->resp = TLX_RESPONSE_DONE;
 	      	event->state = MEM_DONE;
-	  } //else {
-	  // unsupport read command message
-	  //	}
+	  } 
 	}
 
 	debug_msg( "event->state is not MEM_RECEIVED and event->type is not CMD_READ" );
@@ -888,7 +889,7 @@ void handle_buffer_write(struct cmd *cmd)
 		  }
 		  event->state = MEM_REQUEST;
 		  client->mem_access = (void *)event;
-	        debug_msg("Setting client->mem_access in handle_buffer_write");
+	        debug_msg("Setting client->mem_access in handle_buffer_write ");
 	        return; //exit immediately
 	}
 
@@ -931,11 +932,10 @@ void handle_buffer_write(struct cmd *cmd)
 		    debug_cmd_client( cmd->dbg_fp, cmd->dbg_id, event->afutag,
 				      event->context );
 		    client->mem_access = (void *)event;
-	            debug_msg("Setting client->mem_access in handle_buffer_write 2");
+	            debug_msg("Setting client->mem_access in handle_buffer_write 2 for event @ 0x%016" PRIx64 , event);
 		}
-	}
-
-	debug_msg( "client->mem_access was not NULL meaning we have a memory action in progress" );
+	} else
+		debug_msg( "client->mem_access was not NULL meaning we have a memory action in progress" );
 }
 
 // Handle incoming write data from AFU
@@ -1036,7 +1036,7 @@ void handle_afu_tlx_write_cmd(struct cmd *cmd)
 		event->type = CMD_FAILED;
 		event->resp_opcode = TLX_RSP_WRITE_FAILED;
 		event->resp = 0x02;
-		debug_msg("handle_afu_tlx_cmd_data_read: RETRY this cmd =0x%x \n", event->command);
+		debug_msg("handle_afu_tlx_write_cmd: RETRY this cmd =0x%x \n", event->command);
 		return;
 	}
 	if ( allow_failed(cmd->parms)) {
@@ -1044,7 +1044,7 @@ void handle_afu_tlx_write_cmd(struct cmd *cmd)
 		event->type = CMD_FAILED;
 		event->resp_opcode = TLX_RSP_WRITE_FAILED;
 		event->resp = 0x0e;
-		debug_msg("handle_afu_tlx_cmd_data_read: FAIL this cmd =0x%x \n", event->command);
+		debug_msg("handle_afu_tlx_write_cmd: FAIL this cmd =0x%x \n", event->command);
 		return;
 	}
 	if ( allow_derror(cmd->parms)) {
@@ -1052,7 +1052,7 @@ void handle_afu_tlx_write_cmd(struct cmd *cmd)
 		event->type = CMD_FAILED;
 		event->resp_opcode = TLX_RSP_WRITE_FAILED;
 		event->resp = 0x08;
-		debug_msg("handle_afu_tlx_cmd_data_read: DERROR this cmd =0x%x \n", event->command);
+		debug_msg("handle_afu_tlx_write_cmd: DERROR this cmd =0x%x \n", event->command);
 		return;
 	}
 
@@ -1063,7 +1063,7 @@ void handle_afu_tlx_write_cmd(struct cmd *cmd)
 		event->type = CMD_FAILED;
 		event->resp_opcode = TLX_RSP_WRITE_FAILED;
 		event->resp = 0x04;
-		debug_msg("handle_afu_tlx_cmd_data_read: send XLATE_PENDING for this cmd =0x%x \n", event->command);
+		debug_msg("handle_afu_tlx_write_cmd: send XLATE_PENDING for this cmd =0x%x \n", event->command);
 		return;
 	}
 
@@ -1956,7 +1956,7 @@ void handle_response(struct cmd *cmd)
 		//else {
 			debug_msg("%s:RESPONSE event @ 0x%016" PRIx64 ", sent afutag=0x%02x code=0x%x", cmd->afu_name,
 			    event, event->afutag, event->resp);
-			debug_cmd_response(cmd->dbg_fp, cmd->dbg_id, event->afutag);
+			debug_cmd_response(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->resp_opcode, event->resp);
 		            debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", free event",
 			    cmd->afu_name, event );
 			*head = event->_next;

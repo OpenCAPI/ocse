@@ -3,7 +3,7 @@ OCSE Quick Start Guide
 SETUP:
 
 1) Use "make" to compile the code in the directory ocse. You will have to first
-        set the appropriate #define in common/psl_interface_t.h to select the TLX
+        set the appropriate #define in common/tlx_interface_t.h to select the TLX
         version you want to work with; be sure to do a "make clean" before your make. 
 	This creates a stand-alone executable that mimics the behavior of 
 	OpenCAPI/TLx and the linux reference kernel code that supports it.

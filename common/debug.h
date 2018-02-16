@@ -30,9 +30,9 @@ typedef uint8_t DBG_HEADER;
 #define DBG_HEADER_AFU_DROP   		0x05
 #define DBG_HEADER_CONTEXT_ADD    	0x06
 #define DBG_HEADER_CONTEXT_REMOVE 	0x07
-#define DBG_HEADER_JOB_ADD       	0x08
-#define DBG_HEADER_JOB_SEND       	0x09
-#define DBG_HEADER_JOB_AUX2       	0x0A
+//#define DBG_HEADER_JOB_ADD       	0x08
+//#define DBG_HEADER_JOB_SEND       	0x09
+//#define DBG_HEADER_JOB_AUX2       	0x0A
 #define DBG_HEADER_MMIO_MAP       	0x0B
 #define DBG_HEADER_MMIO_ADD       	0x0C
 #define DBG_HEADER_MMIO_SEND       	0x0D
@@ -45,15 +45,15 @@ typedef uint8_t DBG_HEADER;
 #define DBG_HEADER_CMD_BUFFER_WRITE 	0x14
 #define DBG_HEADER_CMD_BUFFER_READ 	0x15
 #define DBG_HEADER_CMD_RESPONSE    	0x16
-#define DBG_HEADER_PE_ADD		0x18
-#define DBG_HEADER_PE_SEND		0x19
+//#define DBG_HEADER_PE_ADD		0x18
+//#define DBG_HEADER_PE_SEND		0x19
 
-#define DBG_AUX2_DONE			0x80
-#define DBG_AUX2_RUNNING		0x40
-#define DBG_AUX2_LLCACK			0x20
-#define DBG_AUX2_TBREQ			0x10
-#define DBG_AUX2_PAREN			0x08
-#define DBG_AUX2_LAT_MASK		0x07
+//#define DBG_AUX2_DONE			0x80
+//#define DBG_AUX2_RUNNING		0x40
+//#define DBG_AUX2_LLCACK			0x20
+//#define DBG_AUX2_TBREQ			0x10
+//#define DBG_AUX2_PAREN			0x08
+//#define DBG_AUX2_LAT_MASK		0x07
 
 #define DBG_PARM_TIMEOUT		0x0
 #define DBG_PARM_SEED   		0x1
@@ -89,7 +89,7 @@ void debug_cmd_client(FILE * fp, uint8_t id, uint8_t tag, uint16_t context);
 void debug_cmd_return(FILE * fp, uint8_t id, uint8_t tag, uint16_t context);
 void debug_cmd_buffer_write(FILE * fp, uint8_t id, uint8_t tag);
 void debug_cmd_buffer_read(FILE * fp, uint8_t id, uint8_t tag);
-void debug_cmd_response(FILE * fp, uint8_t id, uint8_t tag);
+void debug_cmd_response(FILE * fp, uint8_t id, uint8_t tag, uint8_t resp, uint8_t opcode);
 void debug_context_add(FILE * fp, uint8_t id, uint16_t context);
 void debug_context_remove(FILE * fp, uint8_t id, uint16_t context);
 void debug_job_add(FILE * fp, uint8_t id, uint32_t code);

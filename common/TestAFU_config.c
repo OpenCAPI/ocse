@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 International Business Machines
+ * Copyright 2015,2017 International Business Machines
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -83,15 +83,7 @@ int enable_machine(ocxl_afu_h afu, MachineConfig *machine, MachineConfigParam pa
 	machine_number = param.machine_number;
 	int machine_config_base_address = _machine_base_address_index(machine_number, mode);
 
-//	switch (mode) {
-//		case DIRECTED:
-//			machine_config_base_address += context * 0x1000 ;
-//			break;
-//		default:
-//			break;
-//	}
-	// initialize response code
-	//machine->config[1] |= 0x000000FF00000000;
+	machine_config_base_address += context * 0x1000; //debug1
 	printf("machine config base address = 0x%x\n", machine_config_base_address);
 	for (i = 3; i >= 0; --i){
 		uint64_t data = machine->config[i];
