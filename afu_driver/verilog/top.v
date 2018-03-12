@@ -79,8 +79,10 @@ module top (
 				inout             tlx_afu_resp_data_credit_top,
 				inout             tlx_afu_cmd_credit_top,
 				inout             tlx_afu_cmd_data_credit_top,
-				inout [2:0]       tlx_afu_cmd_resp_initial_credit_top,
-				inout [4:0]       tlx_afu_data_initial_credit_top,
+				inout [3:0]       tlx_afu_cmd_initial_credit_top,
+				inout [3:0]       tlx_afu_resp_initial_credit_top,
+				inout [5:0]       tlx_afu_cmd_data_initial_credit_top,
+				inout [5:0]       tlx_afu_resp_data_initial_credit_top,
 
 				//	Table 8: TLX Framer Command Interface
 				input			afu_tlx_cmd_valid_top,
@@ -207,8 +209,10 @@ module top (
    reg             tlx_afu_resp_data_credit_top;
    reg             tlx_afu_cmd_credit_top;
    reg             tlx_afu_cmd_data_credit_top;
-   reg [2:0]       tlx_afu_cmd_resp_initial_credit_top;
-   reg [4:0]       tlx_afu_data_initial_credit_top;
+   reg [3:0]       tlx_afu_cmd_initial_credit_top;
+   reg [3:0]       tlx_afu_resp_initial_credit_top;
+   reg [5:0]       tlx_afu_cmd_data_initial_credit_top;
+   reg [5:0]       tlx_afu_resp_data_initial_credit_top;
 
   // These signals do not appear on the RefDesign Doc. However it is present
   // on the TLX spec
@@ -405,8 +409,10 @@ module top (
    wire             tlx_afu_resp_data_credit;
    wire             tlx_afu_cmd_credit;
    wire             tlx_afu_cmd_data_credit;
-   wire [2:0]       tlx_afu_cmd_resp_initial_credit;
-   wire [4:0]       tlx_afu_data_initial_credit;
+   wire [3:0]       tlx_afu_cmd_initial_credit;
+   wire [3:0]       tlx_afu_resp_initial_credit;
+   wire [5:0]       tlx_afu_cmd_data_initial_credit;
+   wire [5:0]       tlx_afu_resp_data_initial_credit;
 
   // These signals do not appear on the RefDesign Doc. However it is present
   // on the TLX spec
@@ -500,8 +506,10 @@ initial begin
     tlx_afu_resp_data_credit_top		<= 0;
     tlx_afu_cmd_credit_top			<= 0;
     tlx_afu_cmd_data_credit_top		<= 0;
-    tlx_afu_cmd_resp_initial_credit_top	<= 3'b100;
-    tlx_afu_data_initial_credit_top		<= 5'b10000;
+    tlx_afu_cmd_initial_credit_top	<= 4'b1000;
+    tlx_afu_resp_initial_credit_top	<= 4'b0111;
+    tlx_afu_cmd_data_initial_credit_top		<= 6'b100000;
+    tlx_afu_resp_data_initial_credit_top	<= 6'b100000;
 
   // These signals do not appear on the RefDesign Doc. However it is present
   // on the TLX spec
@@ -663,8 +671,10 @@ end
     assign 	tlx_afu_resp_data_credit		= tlx_afu_resp_data_credit_top;
     assign 	tlx_afu_cmd_credit			= tlx_afu_cmd_credit_top;
     assign 	tlx_afu_cmd_data_credit			= tlx_afu_cmd_data_credit_top;
-    assign 	tlx_afu_cmd_resp_initial_credit		= tlx_afu_cmd_resp_initial_credit_top;
-    assign 	tlx_afu_data_initial_credit		= tlx_afu_data_initial_credit_top;
+    assign 	tlx_afu_cmd_initial_credit		= tlx_afu_cmd_initial_credit_top;
+    assign 	tlx_afu_resp_initial_credit		= tlx_afu_resp_initial_credit_top;
+    assign 	tlx_afu_cmd_data_initial_credit		= tlx_afu_cmd_data_initial_credit_top;
+    assign 	tlx_afu_resp_data_initial_credit	= tlx_afu_resp_data_initial_credit_top;
 
   // These signals do not appear on the RefDesign Doc. However it is present
   // on the TLX spec
@@ -768,8 +778,10 @@ end
 	tlx_afu_resp_data_credit_top,
 	tlx_afu_cmd_credit_top,
 	tlx_afu_cmd_data_credit_top,
-	tlx_afu_cmd_resp_initial_credit_top,
-	tlx_afu_data_initial_credit_top,
+	tlx_afu_cmd_initial_credit_top,
+	tlx_afu_resp_initial_credit_top,
+	tlx_afu_cmd_data_initial_credit_top,
+	tlx_afu_resp_data_initial_credit_top,
 
 				//	Table 8: TLX Framer Command Interface
 	afu_tlx_cmd_valid_top,
@@ -909,8 +921,10 @@ end
     .tlx_afu_resp_data_credit         (tlx_afu_resp_data_credit),
     .tlx_afu_cmd_credit               (tlx_afu_cmd_credit),
     .tlx_afu_cmd_data_credit          (tlx_afu_cmd_data_credit),
-    .tlx_afu_cmd_resp_initial_credit  (tlx_afu_cmd_resp_initial_credit),
-    .tlx_afu_data_initial_credit      (tlx_afu_data_initial_credit),
+    .tlx_afu_cmd_initial_credit  (tlx_afu_cmd_initial_credit),
+    .tlx_afu_resp_initial_credit  (tlx_afu_resp_initial_credit),
+    .tlx_afu_cmd_data_initial_credit      (tlx_afu_cmd_data_initial_credit),
+    .tlx_afu_resp_data_initial_credit      (tlx_afu_resp_data_initial_credit),
 
 //	Table 8: TLX Framer Command Interface
     .afu_tlx_cmd_valid                (afu_tlx_cmd_valid),

@@ -19,7 +19,8 @@ limitations under the License.
 This is a simulation environment that allows a programmer to use the opencapi reference user api (libocxl) in their 
 software to communicate with an accelerator design that is running in a 3rd party event simulator.  This permits a 
 degree of hardware/software co-verification.  The accelerator design must use the opencapi reference tlx hardware 
-interface and protocol to communicate with ocse.
+interface and protocol to communicate with ocse.  The reference tlx hardware interface supported was version 0.5 
+dated 12 October 2017.  
 
 NOTE: we currently include common/misc/ocxl.h.  When the Linux Technical Center creates a "generic reference kernel 
 driver," they will likely deliver the official version of ocxl.h.  At that time, due to differences in licensing 
@@ -34,8 +35,6 @@ host application.  This should a) allow you to validate your installation, and b
 of how to used various interfaces.  Please note that the demo kit designs are not exhaustively tested, best in class
 designs.  While they may be used to start your own design, they are not intended to be the final answer to your
 specific acceleration problem.
-
-sprint j
 
 version 1.0 Known limitations:
 	- we've simulated with Cadence NCSim, Xilinx Xsim, Synopsys VCS, and Mentor Graphics Questa

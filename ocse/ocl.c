@@ -511,9 +511,17 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 	// Set credits for TLX interface
 	ocl->state = OCSE_DESC;
 
-	debug_msg( "ocl_init: %s @ %s:%d: sending initial credits to afu: tlx_afu_cmd_resp_credits = %d, tlx_afu_data_credits = %d", ocl->name, ocl->host, ocl->port, MAX_TLX_AFU_CMD_RESP_CREDITS, MAX_TLX_AFU_DATA_CREDITS );
-	if (tlx_afu_send_initial_credits(ocl->afu_event,MAX_TLX_AFU_CMD_RESP_CREDITS,
-		MAX_TLX_AFU_DATA_CREDITS) != TLX_SUCCESS) {
+	debug_msg( "ocl_init: %s @ %s:%d: sending initial credits to afu: tlx_afu_cmd_credits = %d, tlx_afu_resp_credits = %d, tlx_afu_cmd_data_credits = %d, tlx_afu_resp_data_credits = %d", 
+		   ocl->name, ocl->host, ocl->port, 
+		   MAX_TLX_AFU_CMD_CREDITS, 
+		   MAX_TLX_AFU_RESP_CREDITS, 
+		   MAX_TLX_AFU_CMD_DATA_CREDITS, 
+		   MAX_TLX_AFU_RESP_DATA_CREDITS );
+	if (tlx_afu_send_initial_credits(ocl->afu_event,
+					 MAX_TLX_AFU_CMD_CREDITS,
+					 MAX_TLX_AFU_RESP_CREDITS,
+					 MAX_TLX_AFU_CMD_DATA_CREDITS,
+					 MAX_TLX_AFU_RESP_DATA_CREDITS) != TLX_SUCCESS) {
 		warn_msg("ocl_init: Unable to set initial credits");
 		goto init_fail;
 	}
