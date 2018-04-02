@@ -60,8 +60,6 @@ uint8_t		c_afu_tlx_resp_credit;
 uint8_t		c_afu_tlx_resp_initial_credit;
 uint8_t		c_cfg0_tlx_initial_credit;
 
-// uint8_t		c_tlx_afu_cmd_resp_initial_credit;
-// uint8_t		c_tlx_afu_data_initial_credit;
 uint8_t		c_tlx_afu_cmd_initial_credit;
 uint8_t		c_tlx_afu_resp_initial_credit;
 uint8_t		c_tlx_afu_cmd_data_initial_credit;
@@ -303,8 +301,8 @@ void tlx_bfm(
 			svLogic		*tlx_afu_resp_data_credit_top,
 			svLogic		*tlx_afu_cmd_credit_top,
 			svLogic		*tlx_afu_cmd_data_credit_top,
-			svLogicVecVal	*tlx_afu_cmd_initial_credit_top,
-			svLogicVecVal	*tlx_afu_resp_initial_credit_top,
+			svLogicVecVal	*tlx_afu_cmd_resp_initial_credit_top,
+			svLogicVecVal	*tlx_afu_data_initial_credit_top,
 			svLogicVecVal	*tlx_afu_cmd_data_initial_credit_top,
 			svLogicVecVal	*tlx_afu_resp_data_initial_credit_top,
 
@@ -400,7 +398,7 @@ void tlx_bfm(
 	}
 	if (tlx_afu_credits_initialized == 0 ) {
 	  debug_msg("tlx_bfm: reading initial credits from tlx\n" );
-	  rc = tlx_afu_read_initial_credits (&event, &c_tlx_afu_cmd_initial_credit,  &c_tlx_afu_resp_initial_credit, &c_tlx_afu_cmd_data_initial_credit, &c_tlx_afu_resp_data_initial_credit);
+	  rc = tlx_afu_read_initial_credits (&event, &c_tlx_afu_cmd_initial_credit, &c_tlx_afu_resp_initial_credit, &c_tlx_afu_cmd_data_initial_credit, &c_tlx_afu_resp_data_initial_credit);
 	  if (rc == 0) {
 	    debug_msg("tlx_bfm: read initial credits from tlx cmd/resp = %d/%d, cmd/resp data = %d/%d\n", c_tlx_afu_cmd_initial_credit, c_tlx_afu_resp_initial_credit, c_tlx_afu_cmd_data_initial_credit, c_tlx_afu_resp_data_initial_credit);
 	    tlx_afu_credits_initialized = 1;
@@ -942,8 +940,8 @@ void tlx_bfm(
       {
 	// only drive initial credits if the credit event is valid.
 	// should we only do this once some how?
-	setDpiSignal32(tlx_afu_cmd_initial_credit_top, event.tlx_afu_cmd_initial_credit, 4);
-	setDpiSignal32(tlx_afu_resp_initial_credit_top, event.tlx_afu_resp_initial_credit, 4);
+	setDpiSignal32(tlx_afu_cmd_resp_initial_credit_top, event.tlx_afu_cmd_initial_credit, 4);
+	setDpiSignal32(tlx_afu_data_initial_credit_top, event.tlx_afu_resp_initial_credit, 4);
 	setDpiSignal32(tlx_afu_cmd_data_initial_credit_top, event.tlx_afu_cmd_data_initial_credit, 6);
 	setDpiSignal32(tlx_afu_resp_data_initial_credit_top, event.tlx_afu_resp_data_initial_credit, 6);
 
