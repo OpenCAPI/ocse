@@ -1070,7 +1070,7 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 		event->tlx_afu_resp_data_valid = 0;
 	}
 	//Not sure what qualifies the read requests, rd counts so let's always send these, along with credit signals
-	if (event->tlx_afu_credit_valid != 0) { // There are 7 bytes to xfer
+	if (event->tlx_afu_credit_valid != 0) { // There are 9 bytes to xfer now with new credit scheme
 	   //printf("lgt: tlx_signal_afu_model: credit valid to sent to afu\n");
 	   debug_msg("lgt: tlx_signal_afu_model: cmd_initial_credit: %d, cmd_data_initial_credit:%d, resp_initial_credit: %d, resp_data_initial_credit:%d, resp_credit:%d. cmd_credit:%d, resp_data_credit:%d, cmd_data_credit:%d\n",
 	          event->tlx_afu_cmd_initial_credit,
@@ -1696,7 +1696,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 		}
 		if ((event->rbuf[0] & 0x01) != 0) {
 		        // printf("tlx_get_tlx_events: tlx_afu_credit\n" );
-			rbc += 7; //TODO for now, send all credits
+			rbc += 9; //TODO for now, send all credits which are now 9 bytes
 			// printf("tlx_get_tlx_events: tlx_afu_credit: rbc is 0x%x \n", rbc);
 		}
 		//printf("rbc is 0x%x \n", rbc);
