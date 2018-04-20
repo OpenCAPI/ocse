@@ -79,8 +79,10 @@ module top (
 				inout             tlx_afu_resp_data_credit_top,
 				inout             tlx_afu_cmd_credit_top,
 				inout             tlx_afu_cmd_data_credit_top,
-				inout [2:0]       tlx_afu_cmd_resp_initial_credit_top,
-				inout [4:0]       tlx_afu_data_initial_credit_top,
+				inout [3:0]       tlx_afu_cmd_resp_initial_credit_top,
+				inout [3:0]       tlx_afu_data_initial_credit_top,
+				inout [5:0]       tlx_afu_cmd_data_initial_credit_top,
+				inout [5:0]       tlx_afu_resp_data_initial_credit_top,
 
 				//	Table 8: TLX Framer Command Interface
 				input			afu_tlx_cmd_valid_top,
@@ -207,8 +209,10 @@ module top (
    reg             tlx_afu_resp_data_credit_top;
    reg             tlx_afu_cmd_credit_top;
    reg             tlx_afu_cmd_data_credit_top;
-   reg [2:0]       tlx_afu_cmd_resp_initial_credit_top;
-   reg [4:0]       tlx_afu_data_initial_credit_top;
+   reg [3:0]       tlx_afu_cmd_resp_initial_credit_top;
+   reg [3:0]       tlx_afu_data_initial_credit_top;
+   reg [5:0]       tlx_afu_cmd_data_initial_credit_top;
+   reg [5:0]       tlx_afu_resp_data_initial_credit_top;
 
   // These signals do not appear on the RefDesign Doc. However it is present
   // on the TLX spec
@@ -405,8 +409,10 @@ module top (
    wire             tlx_afu_resp_data_credit;
    wire             tlx_afu_cmd_credit;
    wire             tlx_afu_cmd_data_credit;
-   wire [2:0]       tlx_afu_cmd_resp_initial_credit;
-   wire [4:0]       tlx_afu_data_initial_credit;
+   wire [3:0]       tlx_afu_cmd_initial_credit;
+   wire [3:0]       tlx_afu_resp_initial_credit;
+   wire [5:0]       tlx_afu_cmd_data_initial_credit;
+   wire [5:0]       tlx_afu_resp_data_initial_credit;
 
   // These signals do not appear on the RefDesign Doc. However it is present
   // on the TLX spec
@@ -446,6 +452,13 @@ module top (
    wire      [31:0] cfg0_tlx_rdata_bus	;
    wire		    cfg0_tlx_rdata_bdi	;
    wire      [4:0]  ro_device;
+   wire     [31:0] ro_dlx0_version ;                     // -- Connect to DLX output at next level, or tie off to all 0s
+   wire     [31:0] tlx0_cfg_oc4_tlx_version ;                     // -- (was ro_tlx0_version[31:0])
+   wire     [31:0] flsh_cfg_rdata ;                     // -- Contains data read back from FLASH register (valid when rden=1 and 'flsh_done'=1)
+   wire            flsh_cfg_done  ;                     // -- FLASH logic pulses to 1 for 1 cycle when write is complete, or when rdata contains valid results
+   wire      [7:0] flsh_cfg_status;                     // -- Device Specific status information
+   wire      [1:0] flsh_cfg_bresp ;                     // -- Write response from selected AXI4-Lite device
+   wire      [1:0] flsh_cfg_rresp ;                     // -- Read  response from selected AXI4-Lite device
  // Integers
   integer         i;
   integer         resetCnt;
@@ -500,8 +513,10 @@ initial begin
     tlx_afu_resp_data_credit_top		<= 0;
     tlx_afu_cmd_credit_top			<= 0;
     tlx_afu_cmd_data_credit_top		<= 0;
-    tlx_afu_cmd_resp_initial_credit_top	<= 3'b100;
-    tlx_afu_data_initial_credit_top		<= 5'b10000;
+    tlx_afu_cmd_resp_initial_credit_top	<= 4'b1000;
+    tlx_afu_data_initial_credit_top	<= 4'b0111;
+    tlx_afu_cmd_data_initial_credit_top		<= 6'b100000;
+    tlx_afu_resp_data_initial_credit_top	<= 6'b100000;
 
   // These signals do not appear on the RefDesign Doc. However it is present
   // on the TLX spec
@@ -663,8 +678,10 @@ end
     assign 	tlx_afu_resp_data_credit		= tlx_afu_resp_data_credit_top;
     assign 	tlx_afu_cmd_credit			= tlx_afu_cmd_credit_top;
     assign 	tlx_afu_cmd_data_credit			= tlx_afu_cmd_data_credit_top;
-    assign 	tlx_afu_cmd_resp_initial_credit		= tlx_afu_cmd_resp_initial_credit_top;
-    assign 	tlx_afu_data_initial_credit		= tlx_afu_data_initial_credit_top;
+    assign 	tlx_afu_cmd_initial_credit		= tlx_afu_cmd_resp_initial_credit_top;
+    assign 	tlx_afu_resp_initial_credit		= tlx_afu_data_initial_credit_top;
+    assign 	tlx_afu_cmd_data_initial_credit		= tlx_afu_cmd_data_initial_credit_top;
+    assign 	tlx_afu_resp_data_initial_credit	= tlx_afu_resp_data_initial_credit_top;
 
   // These signals do not appear on the RefDesign Doc. However it is present
   // on the TLX spec
@@ -695,6 +712,13 @@ end
     assign 	tlx_cfg0_data_bus			= tlx_cfg0_data_bus_top;
     assign 	tlx_cfg0_data_bdi			= tlx_cfg0_data_bdi_top;
     assign 	tlx_cfg0_resp_ack			= tlx_cfg0_resp_ack_top;
+    assign 	ro_dlx0_version				= 32'b0;
+    assign 	tlx0_cfg_oc4_tlx_version		= 32'b0;
+    assign 	flsh_cfg_rdata				= 32'b0;
+    assign 	flsh_cfg_done				= 1'b0;
+    assign 	flsh_cfg_status				= 8'b0;
+    assign 	flsh_cfg_bresp				= 2'b0;
+    assign 	flsh_cfg_rresp				= 2'b0;
 
    // a block to delay the resp_data path 1 cycle
    // todo: variable number of cycles from 1 to n
@@ -770,6 +794,8 @@ end
 	tlx_afu_cmd_data_credit_top,
 	tlx_afu_cmd_resp_initial_credit_top,
 	tlx_afu_data_initial_credit_top,
+	tlx_afu_cmd_data_initial_credit_top,
+	tlx_afu_resp_data_initial_credit_top,
 
 				//	Table 8: TLX Framer Command Interface
 	afu_tlx_cmd_valid_top,
@@ -802,15 +828,6 @@ end
 	afu_tlx_rdata_bus_top,
 	afu_tlx_rdata_bdi_top,
 
-// These signals do not appear on the RefDesign Doc. However it is present on the TLX spec
-// mcp3 release of 12/Jun does not have this port       afu_cfg_in_rcv_tmpl_capability_0_top,
-// mcp3 release of 12/Jun does not have this port       afu_cfg_in_rcv_tmpl_capability_1_top,
-// mcp3 release of 12/Jun does not have this port       afu_cfg_in_rcv_tmpl_capability_2_top,
-// mcp3 release of 12/Jun does not have this port       afu_cfg_in_rcv_tmpl_capability_3_top,
-// mcp3 release of 12/Jun does not have this port       afu_cfg_in_rcv_rate_capability_0_top,
-// mcp3 release of 12/Jun does not have this port       afu_cfg_in_rcv_rate_capability_1_top,
-// mcp3 release of 12/Jun does not have this port       afu_cfg_in_rcv_rate_capability_2_top,
-// mcp3 release of 12/Jun does not have this port       afu_cfg_in_rcv_rate_capability_3_top,
 	tlx_afu_ready_top,
         tlx_cfg0_in_rcv_tmpl_capability_0_top,
         tlx_cfg0_in_rcv_tmpl_capability_1_top,
@@ -820,6 +837,7 @@ end
         tlx_cfg0_in_rcv_rate_capability_1_top,
         tlx_cfg0_in_rcv_rate_capability_2_top,
         tlx_cfg0_in_rcv_rate_capability_3_top,
+
         tlx_cfg0_valid_top,
         tlx_cfg0_opcode_top,
         tlx_cfg0_pa_top,
@@ -829,6 +847,7 @@ end
         tlx_cfg0_data_bus_top,
         tlx_cfg0_data_bdi_top,
         tlx_cfg0_resp_ack_top,
+
   	cfg0_tlx_initial_credit_top,
   	cfg0_tlx_credit_return_top,
    	cfg0_tlx_resp_valid_top	,
@@ -909,8 +928,10 @@ end
     .tlx_afu_resp_data_credit         (tlx_afu_resp_data_credit),
     .tlx_afu_cmd_credit               (tlx_afu_cmd_credit),
     .tlx_afu_cmd_data_credit          (tlx_afu_cmd_data_credit),
-    .tlx_afu_cmd_resp_initial_credit  (tlx_afu_cmd_resp_initial_credit),
-    .tlx_afu_data_initial_credit      (tlx_afu_data_initial_credit),
+    .tlx_afu_cmd_initial_credit  (tlx_afu_cmd_initial_credit),
+    .tlx_afu_resp_initial_credit  (tlx_afu_resp_initial_credit),
+    .tlx_afu_cmd_data_initial_credit      (tlx_afu_cmd_data_initial_credit),
+    .tlx_afu_resp_data_initial_credit      (tlx_afu_resp_data_initial_credit),
 
 //	Table 8: TLX Framer Command Interface
     .afu_tlx_cmd_valid                (afu_tlx_cmd_valid),
@@ -991,7 +1012,21 @@ end
    .cfg0_tlx_rdata_bdi			(cfg0_tlx_rdata_bdi),
    .tlx_cfg0_resp_ack			(tlx_cfg0_resp_ack),
    .ro_device				(ro_device),
-   .vpd_err_unimplemented_addr          (1'b0)
+   .vpd_err_unimplemented_addr          (1'b0),
+   .ro_dlx0_version                     (ro_dlx0_version),	// -- Contains data read back from FLASH register (valid when rden=1 and 'flsh_done'=1) - left open
+   .tlx0_cfg_oc4_tlx_version            (tlx0_cfg_oc4_tlx_version),	// -- Contains data read back from FLASH register (valid when rden=1 and 'flsh_done'=1) - left open
+   .cfg_flsh_devsel                     (),                  // -- Select AXI4-Lite device to target - left open
+   .cfg_flsh_addr                       (),                 // -- Read or write address to selected target - left open
+   .cfg_flsh_wren                       (),                 // -- Set to 1 to write a location, hold at 1 until see 'flsh_done' = 1 then clear to 0 - left open
+   .cfg_flsh_wdata                      (),                 // -- Contains data to write to FLASH register (valid while wren=1) - left open
+   .cfg_flsh_rden                       (),                 // -- Set to 1 to read  a location, hold at 1 until see 'flsh_done' = 1 the clear to 0 - left open
+   .flsh_cfg_rdata                      (flsh_cfg_rdata),	// -- Contains data read back from FLASH register (valid when rden=1 and 'flsh_done'=1) - left open
+   .flsh_cfg_done                       (flsh_cfg_done),	// -- FLASH logic pulses to 1 for 1 cycle when write is complete, or when rdata contains valid results
+   .flsh_cfg_status                     (flsh_cfg_status),	// -- Device Specific status information
+   .flsh_cfg_bresp                      (flsh_cfg_bresp),	// -- Write response from selected AXI4-Lite device
+   .flsh_cfg_rresp                      (flsh_cfg_rresp),	// -- Read  response from selected AXI4-Lite device
+   .cfg_flsh_expand_enable              (),             // -- When 1, expand/collapse 4 bytes of data into four, 1 byte AXI operations - left open
+   .cfg_flsh_expand_dir                 ()             // -- When 0, expand bytes [3:0] in order 0,1,2,3 . When 1, expand in order 3,2,1,0 . - left open
   );
 
 endmodule

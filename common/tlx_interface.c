@@ -162,8 +162,10 @@ int tlx_init_afu_event(struct AFU_EVENT *event, char *server_host, int port)
 	// ocse has to WAIT until AFU sets initial value before sending first
 	// config_read cmd.
 	debug_msg( "tlx_init_afu_event: port=%d", port );
-	event->tlx_afu_cmd_resp_initial_credit = 0;
-	event->tlx_afu_data_initial_credit = 0;
+	event->tlx_afu_cmd_initial_credit = 0;
+	event->tlx_afu_resp_initial_credit = 0;
+	event->tlx_afu_cmd_data_initial_credit = 0;
+	event->tlx_afu_resp_data_initial_credit = 0;
 	event->afu_tlx_cmd_credits_available = 0;
 	event->cfg_tlx_credits_available = 0;
 	event->afu_tlx_resp_credits_available = 0;
@@ -314,18 +316,24 @@ int tlx_serv_afu_event(struct AFU_EVENT *event, int port)
 /* Call this from ocse to set the initial tlx_afu credit values */
 
 int tlx_afu_send_initial_credits(struct AFU_EVENT *event,
-		uint8_t tlx_afu_cmd_resp_initial_credit,
-		uint8_t tlx_afu_data_initial_credit)
+				 uint8_t tlx_afu_cmd_initial_credit,
+				 uint8_t tlx_afu_resp_initial_credit,
+				 uint8_t tlx_afu_cmd_data_initial_credit,
+				 uint8_t tlx_afu_resp_data_initial_credit)
 
 {
         debug_msg( "tlx_afu_send_initial_credits" );
 
-	event->tlx_afu_cmd_resp_initial_credit = tlx_afu_cmd_resp_initial_credit;
-	event->tlx_afu_data_initial_credit = tlx_afu_data_initial_credit;
+	event->tlx_afu_cmd_initial_credit = tlx_afu_cmd_initial_credit;
+	event->tlx_afu_cmd_data_initial_credit = tlx_afu_cmd_data_initial_credit;
+	event->tlx_afu_resp_initial_credit = tlx_afu_resp_initial_credit;
+	event->tlx_afu_resp_data_initial_credit = tlx_afu_resp_data_initial_credit;
 	event->tlx_afu_credit_valid = 1;
 
-	debug_msg("      tlx_afu_cmd_resp_initial_credit = %d", event->tlx_afu_cmd_resp_initial_credit );
-	debug_msg("      tlx_afu_data_initial_credit = %d", event->tlx_afu_data_initial_credit );
+	debug_msg("      tlx_afu_cmd_initial_credit = %d", event->tlx_afu_cmd_initial_credit );
+	debug_msg("      tlx_afu_resp_initial_credit = %d", event->tlx_afu_resp_initial_credit );
+	debug_msg("      tlx_afu_cmd_data_initial_credit = %d", event->tlx_afu_cmd_data_initial_credit );
+	debug_msg("      tlx_afu_resp_data_initial_credit = %d", event->tlx_afu_resp_data_initial_credit );
 	return TLX_SUCCESS;
 }
 
@@ -1062,18 +1070,22 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 		event->tlx_afu_resp_data_valid = 0;
 	}
 	//Not sure what qualifies the read requests, rd counts so let's always send these, along with credit signals
-	if (event->tlx_afu_credit_valid != 0) { // There are 7 bytes to xfer
+	if (event->tlx_afu_credit_valid != 0) { // There are 9 bytes to xfer now with new credit scheme
 	   //printf("lgt: tlx_signal_afu_model: credit valid to sent to afu\n");
-	   debug_msg("lgt: tlx_signal_afu_model: cmd_resp_initial_credit: %d, data_initial_credit:%d, resp_credit:%d. cmd_credit:%d, resp_data_credit:%d, cmd_data_credit:%d\n",
-	          event->tlx_afu_cmd_resp_initial_credit,
-	          event->tlx_afu_data_initial_credit,
+	   debug_msg("lgt: tlx_signal_afu_model: cmd_initial_credit: %d, cmd_data_initial_credit:%d, resp_initial_credit: %d, resp_data_initial_credit:%d, resp_credit:%d. cmd_credit:%d, resp_data_credit:%d, cmd_data_credit:%d\n",
+	          event->tlx_afu_cmd_initial_credit,
+	          event->tlx_afu_cmd_data_initial_credit,
+	          event->tlx_afu_resp_initial_credit,
+	          event->tlx_afu_resp_data_initial_credit,
 	          event->tlx_afu_resp_credit,
 	          event->tlx_afu_cmd_credit,
 	          event->tlx_afu_resp_data_credit,
 	          event->tlx_afu_cmd_data_credit);
 		event->tbuf[0] = event->tbuf[0] | 0x01;
-		event->tbuf[bp++] = event->tlx_afu_cmd_resp_initial_credit;
-		event->tbuf[bp++] = event->tlx_afu_data_initial_credit;
+		event->tbuf[bp++] = event->tlx_afu_cmd_initial_credit;
+		event->tbuf[bp++] = event->tlx_afu_cmd_data_initial_credit;
+		event->tbuf[bp++] = event->tlx_afu_resp_initial_credit;
+		event->tbuf[bp++] = event->tlx_afu_resp_data_initial_credit;
 		event->tbuf[bp++] = event->tlx_afu_resp_credit;
 		event->tbuf[bp++] = event->tlx_afu_cmd_credit;
 		event->tbuf[bp++] = event->tlx_afu_resp_data_credit;
@@ -1684,7 +1696,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 		}
 		if ((event->rbuf[0] & 0x01) != 0) {
 		        // printf("tlx_get_tlx_events: tlx_afu_credit\n" );
-			rbc += 7; //TODO for now, send all credits
+			rbc += 9; //TODO for now, send all credits which are now 9 bytes
 			// printf("tlx_get_tlx_events: tlx_afu_credit: rbc is 0x%x \n", rbc);
 		}
 		//printf("rbc is 0x%x \n", rbc);
@@ -1831,8 +1843,10 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 	if (event->rbuf[0] & 0x01) {
 		event->tlx_afu_credit_valid = 1;
 		//printf("tlx_get_tlx_events: just set tlx_afu_credit_valid = %d \n", event->tlx_afu_credit_valid);
-		event->tlx_afu_cmd_resp_initial_credit = event->rbuf[rbc++];
-		event->tlx_afu_data_initial_credit = event->rbuf[rbc++];
+		event->tlx_afu_cmd_initial_credit = event->rbuf[rbc++];
+		event->tlx_afu_cmd_data_initial_credit = event->rbuf[rbc++];
+		event->tlx_afu_resp_initial_credit = event->rbuf[rbc++];
+		event->tlx_afu_resp_data_initial_credit = event->rbuf[rbc++];
 		event->tlx_afu_resp_credit = event->rbuf[rbc++];
 		event->tlx_afu_cmd_credit = event->rbuf[rbc++];
 		event->tlx_afu_resp_data_credit = event->rbuf[rbc++];
@@ -1884,8 +1898,10 @@ int afu_tlx_send_initial_credits(struct AFU_EVENT *event,
 /* Call this from AFU to read the initial tlx_afu credit values */
 
 int tlx_afu_read_initial_credits(struct AFU_EVENT *event,
-		uint8_t * tlx_afu_cmd_resp_initial_credit,
-		uint8_t * tlx_afu_data_initial_credit)
+				 uint8_t * tlx_afu_cmd_initial_credit,
+				 uint8_t * tlx_afu_resp_initial_credit,
+				 uint8_t * tlx_afu_cmd_data_initial_credit,
+				 uint8_t * tlx_afu_resp_data_initial_credit)
 
 {
         debug_msg( "tlx_afu_read_initial_credits" );
@@ -1897,13 +1913,15 @@ int tlx_afu_read_initial_credits(struct AFU_EVENT *event,
 		return TLX_AFU_NO_CREDITS;
 	}
 
-	*tlx_afu_cmd_resp_initial_credit = event->tlx_afu_cmd_resp_initial_credit;
-	*tlx_afu_data_initial_credit = event->tlx_afu_data_initial_credit;
+	*tlx_afu_cmd_initial_credit = event->tlx_afu_cmd_initial_credit;
+	*tlx_afu_resp_initial_credit = event->tlx_afu_resp_initial_credit;
+	*tlx_afu_cmd_data_initial_credit = event->tlx_afu_cmd_data_initial_credit;
+	*tlx_afu_resp_data_initial_credit = event->tlx_afu_resp_data_initial_credit;
 
-	event->tlx_afu_cmd_credits_available = event->tlx_afu_cmd_resp_initial_credit;
-	event->tlx_afu_resp_credits_available = event->tlx_afu_cmd_resp_initial_credit;
-	event->tlx_afu_cmd_data_credits_available = event->tlx_afu_data_initial_credit;
-	event->tlx_afu_resp_data_credits_available = event->tlx_afu_data_initial_credit;
+	event->tlx_afu_cmd_credits_available = event->tlx_afu_cmd_initial_credit;
+	event->tlx_afu_resp_credits_available = event->tlx_afu_resp_initial_credit;
+	event->tlx_afu_cmd_data_credits_available = event->tlx_afu_cmd_data_initial_credit;
+	event->tlx_afu_resp_data_credits_available = event->tlx_afu_resp_data_initial_credit;
 	event->tlx_afu_credit_valid = 0;
 
         debug_msg( "      tlx_afu_cmd_credits_available = %d", event->tlx_afu_cmd_credits_available );

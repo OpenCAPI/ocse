@@ -45,8 +45,10 @@
 /* Select the initial value for credits??  */
 #define MAX_AFU_TLX_CMD_CREDITS 5
 #define MAX_AFU_TLX_RESP_CREDITS 10
-#define MAX_TLX_AFU_CMD_RESP_CREDITS 4
-#define MAX_TLX_AFU_DATA_CREDITS 16
+#define MAX_TLX_AFU_CMD_CREDITS 8
+#define MAX_TLX_AFU_CMD_DATA_CREDITS 32
+#define MAX_TLX_AFU_RESP_CREDITS 7
+#define MAX_TLX_AFU_RESP_DATA_CREDITS 32
 
 
 /* Return codes for TLX interface functions */
@@ -389,8 +391,10 @@ struct AFU_EVENT {
 
 
   // TLX Framer Misc Interface (table 8)
-  uint8_t tlx_afu_cmd_resp_initial_credit; /* 3 bit initial number of response credits available to the afu - when is this valid? */
-  uint8_t tlx_afu_data_initial_credit;     /* 5 bit initial number of data credits available to the afu - when is this valid? */
+  uint8_t tlx_afu_cmd_initial_credit;  /* 4 bit initial number of response credits available to the afu - when is this valid? */
+  uint8_t tlx_afu_resp_initial_credit; /* 4 bit initial number of response credits available to the afu - when is this valid? */
+  uint8_t tlx_afu_cmd_data_initial_credit;     /* 6 bit initial number of data credits available to the afu - when is this valid? */
+  uint8_t tlx_afu_resp_data_initial_credit;    /* 6 bit initial number of data credits available to the afu - when is this valid? */
 
   // TLX Framer - AFU to TLX AP Command Interface (table 11)
   // AP to CAPP (afu to host) commands and data

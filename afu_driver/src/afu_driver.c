@@ -60,8 +60,10 @@ uint8_t		c_afu_tlx_resp_credit;
 uint8_t		c_afu_tlx_resp_initial_credit;
 uint8_t		c_cfg0_tlx_initial_credit;
 
-uint8_t		c_tlx_afu_cmd_resp_initial_credit;
-uint8_t		c_tlx_afu_data_initial_credit;
+uint8_t		c_tlx_afu_cmd_initial_credit;
+uint8_t		c_tlx_afu_resp_initial_credit;
+uint8_t		c_tlx_afu_cmd_data_initial_credit;
+uint8_t		c_tlx_afu_resp_data_initial_credit;
 
 uint8_t		c_afu_tlx_cmd_valid;
 uint8_t		c_afu_tlx_cmd_opcode;
@@ -301,6 +303,8 @@ void tlx_bfm(
 			svLogic		*tlx_afu_cmd_data_credit_top,
 			svLogicVecVal	*tlx_afu_cmd_resp_initial_credit_top,
 			svLogicVecVal	*tlx_afu_data_initial_credit_top,
+			svLogicVecVal	*tlx_afu_cmd_data_initial_credit_top,
+			svLogicVecVal	*tlx_afu_resp_data_initial_credit_top,
 
 				//	Table 8: TLX Framer Command Interface
 			const svLogic	afu_tlx_cmd_valid_top,
@@ -394,9 +398,9 @@ void tlx_bfm(
 	}
 	if (tlx_afu_credits_initialized == 0 ) {
 	  debug_msg("tlx_bfm: reading initial credits from tlx\n" );
-	  rc = tlx_afu_read_initial_credits (&event, &c_tlx_afu_cmd_resp_initial_credit, &c_tlx_afu_data_initial_credit);
+	  rc = tlx_afu_read_initial_credits (&event, &c_tlx_afu_cmd_initial_credit, &c_tlx_afu_resp_initial_credit, &c_tlx_afu_cmd_data_initial_credit, &c_tlx_afu_resp_data_initial_credit);
 	  if (rc == 0) {
-	    debug_msg("tlx_bfm: read initial credits from tlx cmd/resp = %d, data = %d\n", c_tlx_afu_cmd_resp_initial_credit, c_tlx_afu_data_initial_credit);
+	    debug_msg("tlx_bfm: read initial credits from tlx cmd/resp = %d/%d, cmd/resp data = %d/%d\n", c_tlx_afu_cmd_initial_credit, c_tlx_afu_resp_initial_credit, c_tlx_afu_cmd_data_initial_credit, c_tlx_afu_resp_data_initial_credit);
 	    tlx_afu_credits_initialized = 1;
 	  } else {
 	    debug_msg("tlx_bfm: initial credits not ready" );
@@ -936,8 +940,10 @@ void tlx_bfm(
       {
 	// only drive initial credits if the credit event is valid.
 	// should we only do this once some how?
-	setDpiSignal32(tlx_afu_cmd_resp_initial_credit_top, event.tlx_afu_cmd_resp_initial_credit, 3);
-	setDpiSignal32(tlx_afu_data_initial_credit_top, event.tlx_afu_data_initial_credit, 5);
+	setDpiSignal32(tlx_afu_cmd_resp_initial_credit_top, event.tlx_afu_cmd_initial_credit, 4);
+	setDpiSignal32(tlx_afu_data_initial_credit_top, event.tlx_afu_resp_initial_credit, 4);
+	setDpiSignal32(tlx_afu_cmd_data_initial_credit_top, event.tlx_afu_cmd_data_initial_credit, 6);
+	setDpiSignal32(tlx_afu_resp_data_initial_credit_top, event.tlx_afu_resp_data_initial_credit, 6);
 
       }
       // printf("lgt: tlx_bfm: driving tlx to afu credits\n");
