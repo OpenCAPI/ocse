@@ -16,6 +16,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
+--- ATTENTION ATTENTION ATTENTION ---
+changes to tlx interface will require changes to your afu
+
 This is a simulation environment that allows a programmer to use the opencapi reference user api (libocxl) in their 
 software to communicate with an accelerator design that is running in a 3rd party event simulator.  This permits a 
 degree of hardware/software co-verification.  The accelerator design must use the opencapi reference tlx hardware 
