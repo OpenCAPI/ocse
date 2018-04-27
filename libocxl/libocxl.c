@@ -451,12 +451,27 @@ static void _handle_ack(struct ocxl_afu *afu)
 	if (!afu)
 		fatal_msg("NULL afu passed to libocxl.c:_handle_ack");
 	DPRINTF("MMIO ACK\n");
+
 	if (get_bytes_silent(afu->fd, 1, &resp_code, 1000, 0) < 0) {
 		warn_msg("Socket failure getting resp_code");
 		_all_idle(afu);
 	} 
+
 	if (resp_code !=0) // TODO update this to handle resp code retry requests
 		error_msg ("handle_ack: AFU sent RD or WR FAILED response code = 0x%d ", resp_code);
+
+	if ((afu->mmio.type == OCSE_MMIO_MAP) | (afu->mmio.type == OCSE_GLOBAL_MMIO_MAP) ) {
+	  afu->mmios[afu->mmio_count].afu = afu;
+	  afu->mmios[afu->mmio_count].type = afu->mmio.type;
+	  if (afu->mmio.type == OCSE_GLOBAL_MMIO_MAP) {
+	    afu->mmios[afu->mmio_count].start = afu->global_mmio.start;
+	    afu->mmios[afu->mmio_count].length = afu->global_mmio.length;
+	  } else {
+	    afu->mmios[afu->mmio_count].start = afu->per_pasid_mmio.start;
+	    afu->mmios[afu->mmio_count].length = afu->per_pasid_mmio.length;
+	  }
+	}
+
 	if ((afu->mmio.type == OCSE_MMIO_READ64) | (afu->mmio.type == OCSE_GLOBAL_MMIO_READ64) ) {
 		if (get_bytes_silent(afu->fd, sizeof(uint64_t), data, 1000, 0) <
 		    0) {
@@ -468,6 +483,7 @@ static void _handle_ack(struct ocxl_afu *afu)
 			afu->mmio.data = ntohll(afu->mmio.data);
 		}
 	}
+
 	if ((afu->mmio.type == OCSE_MMIO_READ32) | (afu->mmio.type == OCSE_GLOBAL_MMIO_READ32)) {
 		if (get_bytes_silent(afu->fd, sizeof(uint32_t), data, 1000, 0) <
 		    0) {
@@ -1061,18 +1077,18 @@ static void _ocse_attach(struct ocxl_afu *afu)
 static void _mmio_map(struct ocxl_afu *afu)
 {
 	uint8_t *buffer;
-	uint32_t *flags_ptr;
-	uint32_t flags;
+	//uint32_t *flags_ptr;
+	//uint32_t flags;
 	int size;
 
 	if (!afu)
 		fatal_msg("NULL afu passed to libocxl.c:_mmio_map");
-	size = 1 + sizeof(uint32_t);
+	size = 1; // + sizeof(uint32_t);
 	buffer = (uint8_t *) malloc(size);
 	buffer[0] = afu->mmio.type;
-	flags = (uint32_t) afu->mmio.data;
-	flags_ptr = (uint32_t *) & (buffer[1]);
-	*flags_ptr = htonl(flags);
+	// flags = (uint32_t) afu->mmio.data;
+	// flags_ptr = (uint32_t *) & (buffer[1]);
+	// *flags_ptr = htonl(flags);
 	if (put_bytes_silent(afu->fd, size, buffer) != size) {
 		free(buffer);
 		close_socket(&(afu->fd));
@@ -1523,22 +1539,37 @@ static void *_psl_loop(void *ptr)
 			afu->afu_version_minor = bvalue;
 			offset += sizeof(uint8_t);
 
+			afu->global_mmio.type = OCXL_GLOBAL_MMIO;
+
                         memcpy((char *)&llvalue, (char *)&(buffer[offset]), 8); // global_mmio_offset
-			afu->global_mmio_offset = llvalue;
+			// afu->global_mmio_offset = llvalue;
+			afu->global_mmio.start = (char *)llvalue;
 			offset += sizeof(uint64_t);
 
                         memcpy((char *)&lvalue, (char *)&(buffer[offset]), 4); // global_mmio_size
-			afu->global_mmio_size = lvalue;
+			// afu->global_mmio_size = lvalue;
+			afu->global_mmio.length = lvalue;
 			offset += sizeof(uint32_t);
 
+			afu->per_pasid_mmio.type = OCXL_PER_PASID_MMIO;
+
                         memcpy((char *)&llvalue, (char *)&(buffer[offset]), 8); // pp_mmio_offset
-			afu->pp_mmio_offset = llvalue;
+			// afu->pp_mmio_offset = llvalue;
+			afu->per_pasid_mmio.start = (char *)llvalue;
 			offset += sizeof(uint64_t);
 
                         memcpy((char *)&lvalue, (char *)&(buffer[offset]), 4); // pp_mmio_stride
-			afu->pp_mmio_stride = lvalue;
+			// afu->pp_mmio_stride = lvalue;
+			afu->per_pasid_mmio.length = lvalue;
 			offset += sizeof(uint32_t);
 
+			// we will only allow 2 mmio areas per attach.  one for global and the second for per pasid.
+			// we will only allow 1 per pasid area per attach and it must be the full area for this pasid,
+			// that is, the full stride.  and the offset is 0 from this pasid's (context) area
+
+			afu->mmio_count = 0;
+			afu->mmio_max = 2;
+			
                         memcpy((char *)&llvalue, (char *)&(buffer[offset]), 8); // mem_base_address
 			afu->mem_base_address = llvalue;
 			offset += sizeof(uint64_t);
@@ -2380,20 +2411,44 @@ ocxl_err _open_afu( struct ocxl_afu *afu_h )
 /* 	return NULL; */
 /* } */
 
-void ocxl_want_verbose_errors( int verbose )
+void ocxl_enable_messages( uint64_t sources )
 {
   // we should think about using this to enable debug messages in at least libocxl code...  maybe even enable debug messages in ocse...
   // for now, just return
-  warn_msg( "ocxl_want_verbose_errors is not supported in ocse" );
+  warn_msg( "ocxl_enable_messages is not supported in ocse" );
   return;
 }
 
-void ocxl_set_errmsg_filehandle( FILE *handle )
+void ocxl_afu_enable_messages( ocxl_afu_h *afu, uint64_t sources )
+{
+  // we should think about using this to enable debug messages in at least libocxl code...  maybe even enable debug messages in ocse...
+  // for now, just return
+  warn_msg( "ocxl_afu_enable_messages is not supported in ocse" );
+  return;
+}
+
+void ocxl_set_error_message_handler( void (*handler)( ocxl_err error, const char *message ) )
 {
   // we should think about using this to redirect message to some other file
   // for now, just return
-  warn_msg( "ocxl_set_errmsg_filehandle is not supported in ocse" );
+  warn_msg( "ocxl_set_error_message_handler is not supported in ocse" );
   return;
+}
+
+void ocxl_afu_set_error_message_handler( ocxl_afu_h *afu, void (*handler)( ocxl_err error, const char *message ) )
+{
+  // we should think about using this to redirect message to some other file
+  // for now, just return
+  warn_msg( "ocxl_afu_set_error_message_handler is not supported in ocse" );
+  return;
+}
+
+const char *ocxl_err_to_string( ocxl_err err )
+{
+  // we could probably convert the number to a string based on the ocxl_er type
+  // for now, just return
+  warn_msg( "ocxl_err_to_string is not supported in ocse" );
+  return "";
 }
 
 const ocxl_identifier *ocxl_afu_get_identifier( ocxl_afu_h afu )
@@ -2609,46 +2664,46 @@ ocxl_err ocxl_afu_open_specific( const char *name, const char *physical_function
 	return OCXL_OK;
 }
 
-ocxl_err ocxl_afu_open_by_id( const char *name, uint8_t card_index, int16_t afu_index, ocxl_afu_h *afu ) {
-  // real code builds the device path name and calls ocxl_afu_open_by_dev
-  // card index is an index into a sorted list of physical_functions that have matching "name"
-  // afu_index may be -1 indicating that any name matching afu within the physical function may be used.
-  // in fact, if the afu it tries is full, we should go to the next one...  We will not do that for now.
-  // need a find_nth routine to find the card index for that name/afu_id
-        warn_msg( "ocxl_afu_open_by_id is not fully tested yet" );
+/* ocxl_err ocxl_afu_open_by_id( const char *name, uint8_t card_index, int16_t afu_index, ocxl_afu_h *afu ) { */
+/*   // real code builds the device path name and calls ocxl_afu_open_by_dev */
+/*   // card index is an index into a sorted list of physical_functions that have matching "name" */
+/*   // afu_index may be -1 indicating that any name matching afu within the physical function may be used. */
+/*   // in fact, if the afu it tries is full, we should go to the next one...  We will not do that for now. */
+/*   // need a find_nth routine to find the card index for that name/afu_id */
+/*         warn_msg( "ocxl_afu_open_by_id is not fully tested yet" ); */
 
-        uint8_t bus, dev, fcn, afuid;
-	int rc;
-	uint16_t afu_map;
-	int fd;
-	struct ocxl_afu *my_afu;
-	// connect
-	// is there a way to see if this is already done?
+/*         uint8_t bus, dev, fcn, afuid; */
+/* 	int rc; */
+/* 	uint16_t afu_map; */
+/* 	int fd; */
+/* 	struct ocxl_afu *my_afu; */
+/* 	// connect */
+/* 	// is there a way to see if this is already done? */
 
-	// allocate afu structure
-	rc = _alloc_afu( (ocxl_afu_h *)&my_afu );
-	if (  rc != 0 ) return rc;
+/* 	// allocate afu structure */
+/* 	rc = _alloc_afu( (ocxl_afu_h *)&my_afu ); */
+/* 	if (  rc != 0 ) return rc; */
 
-	if ( _ocse_connect(&afu_map, &fd) < 0 ) return OCXL_NO_DEV;
+/* 	if ( _ocse_connect(&afu_map, &fd) < 0 ) return OCXL_NO_DEV; */
 
-	// find name - returns bus, device, function, afu_index
-	strcpy( (char *)&(my_afu->ocxl_id.afu_name[0]), name );
+/* 	// find name - returns bus, device, function, afu_index */
+/* 	strcpy( (char *)&(my_afu->ocxl_id.afu_name[0]), name ); */
 
-	// new routine here
-	rc = _find_afu_nth( fd, name, card_index, afu_index, &bus, &dev, &fcn, &afuid );
-	if (  rc != 0 ) return rc;
+/* 	// new routine here */
+/* 	rc = _find_afu_nth( fd, name, card_index, afu_index, &bus, &dev, &fcn, &afuid ); */
+/* 	if (  rc != 0 ) return rc; */
 
-	// query
-	rc = _query_afu( my_afu, fd, bus, dev, fcn, afuid );
-	if (  rc != 0 ) return rc;
+/* 	// query */
+/* 	rc = _query_afu( my_afu, fd, bus, dev, fcn, afuid ); */
+/* 	if (  rc != 0 ) return rc; */
 
-	// open the "afu"
-	rc = _open_afu( my_afu );
-	if (  rc != 0 ) return rc;
+/* 	// open the "afu" */
+/* 	rc = _open_afu( my_afu ); */
+/* 	if (  rc != 0 ) return rc; */
 
-	*afu = ( ocxl_afu_h )my_afu;
-	return OCXL_OK;
-}
+/* 	*afu = ( ocxl_afu_h )my_afu; */
+/* 	return OCXL_OK; */
+/* } */
 
 void _afu_free( ocxl_afu_h afu )
 {
@@ -2693,10 +2748,6 @@ ocxl_err ocxl_afu_close( ocxl_afu_h afu )
         struct ocxl_afu *my_afu;
 	struct ocxl_irq *irq;
 
-	// mmio unmap
-        ocxl_mmio_unmap( afu );
-	ocxl_global_mmio_unmap( afu );
-  
 	my_afu = (struct ocxl_afu *)afu;
 
 	// if there are any irq's, free them
@@ -2707,12 +2758,16 @@ ocxl_err ocxl_afu_close( ocxl_afu_h afu )
 	  irq = my_afu->irq;
 	}
 
+	// mmio unmap
+	my_afu->global_mapped = 0;
+	my_afu->mapped = 0;
+  
 	_afu_free( afu );
 
 	return OCXL_OK;
 }
 
-ocxl_err ocxl_afu_attach( ocxl_afu_h afu )
+ocxl_err ocxl_afu_attach( ocxl_afu_h afu, uint64_t flags )
 {
         struct ocxl_afu *my_afu;
 
@@ -2745,13 +2800,28 @@ ocxl_err ocxl_afu_attach( ocxl_afu_h afu )
 	return OCXL_OK;
 }
 
-int ocxl_afu_get_fd( ocxl_afu_h afu )
+int ocxl_afu_get_event_fd( ocxl_afu_h afu )
 { 
         struct ocxl_afu *my_afu;
 	my_afu = (struct ocxl_afu *)afu;
 
 	if (!my_afu) {
-		warn_msg("ocxl_afu_attach_full: No AFU given");
+		warn_msg("ocxl_afu_get_event_fd: No AFU given");
+		errno = ENODEV;
+		return -1;
+	}
+	return my_afu->pipe[0];
+}
+
+int ocxl_irq_get_fd( ocxl_afu_h afu, ocxl_irq_h irq )
+{ 
+  // I don't think this is correct.  I appears that the irq can have it's own path back to the code...  but I'm not
+  // sure yet.  We'll just use the afu pipe as the path for now
+        struct ocxl_afu *my_afu;
+	my_afu = (struct ocxl_afu *)afu;
+
+	if (!my_afu) {
+		warn_msg("ocxl_afu_get_event_fd: No AFU given");
 		errno = ENODEV;
 		return -1;
 	}
@@ -2807,7 +2877,7 @@ ocxl_err ocxl_afu_irq_alloc( ocxl_afu_h afu, void *info, ocxl_irq_h *irq_handle 
 	return OCXL_OK;
 }
 
-uint64_t ocxl_afu_irq_get_id( ocxl_afu_h afu, ocxl_irq_h irq )
+uint64_t ocxl_afu_irq_get_handle( ocxl_afu_h afu, ocxl_irq_h irq )
 {
   // scan the irq list of the afu for an irq with a matching ocxl_irq_h
   // return the id of the irq we found or 0 if none found
@@ -2833,7 +2903,7 @@ uint64_t ocxl_afu_irq_get_id( ocxl_afu_h afu, ocxl_irq_h irq )
 	return 0;
 }
 
-uint16_t ocxl_afu_event_check( ocxl_afu_h afu, struct timeval *timeout, ocxl_event *events, uint16_t event_count )
+uint16_t ocxl_afu_event_check_versioned( ocxl_afu_h afu, int timeout, ocxl_event *events, uint16_t event_count, uint16_t event_api_version )
 {
         struct ocxl_afu *my_afu;
 	int i;
@@ -2846,9 +2916,14 @@ uint16_t ocxl_afu_event_check( ocxl_afu_h afu, struct timeval *timeout, ocxl_eve
 		return OCXL_NO_DEV;
 	}
 
+	// we support event_api_version = 0 for now...
+	if (event_api_version != 1) {
+		warn_msg("ocxl_afu_event_check_versioned: event api version must be 0, continuing as if 0 had be sent.");
+	}
+
 	// we support event_count = 1 for now...
 	if (event_count != 1) {
-		warn_msg("ocxl_afu_event_check: event count must be 1, continuing as if 1 had be sent.");
+		warn_msg("ocxl_afu_event_check_versioned: event count must be 1, continuing as if 1 had be sent.");
 	}
 
 	// read an event - if not one, just wait here
@@ -2872,80 +2947,130 @@ uint16_t ocxl_afu_event_check( ocxl_afu_h afu, struct timeval *timeout, ocxl_eve
 	pthread_mutex_unlock(&(my_afu->event_lock));
 	if (read(my_afu->pipe[0], &type, 1) > 0)
 		return 1;
+
 	return -1;
 }
 
-ocxl_err ocxl_mmio_map( ocxl_afu_h afu, ocxl_endian endian )
+uint16_t ocxl_afu_event_check( ocxl_afu_h afu, int timeout, ocxl_event *events, uint16_t event_count )
 {
-        struct ocxl_afu *my_afu;
+	uint16_t event_api_version = 0;
 
-	my_afu = (struct ocxl_afu *)afu;
+	return ocxl_afu_event_check_versioned( afu, timeout, events, event_count, event_api_version );
+}
+
+ocxl_err ocxl_mmio_map( ocxl_afu_h afu, ocxl_mmio_type type, ocxl_mmio_h *mmio )
+{
+        ocxl_afu *my_afu;
+	ocxl_err err;
+
+	my_afu = (ocxl_afu *)afu;
 
 	debug_msg( "MMIO MAP" );
 	if (my_afu == NULL) {
 		warn_msg("ocxl_mmio_map: NULL afu!");
+		err = OCXL_NO_CONTEXT;
 		goto map_fail;
 	}
 
 	if (!my_afu->opened) {
 		warn_msg("ocxl_mmio_map: Must open afu first!");
+		err = OCXL_NO_CONTEXT;
 		goto map_fail;
 	}
 
 	if (!my_afu->attached) {
 		warn_msg("ocxl_mmio_map: Must attach afu first!");
+		err = OCXL_NO_CONTEXT;
 		goto map_fail;
 	}
 
-	if (endian & ~(OCXL_MMIO_FLAGS)) {
-		warn_msg("ocxl_mmio_map: Invalid endian!");
+	if (my_afu->mmio_count == my_afu->mmio_max) {
+		warn_msg("ocxl_mmio_map: insufficient memory to map the new mmio area!");
+		err = OCXL_NO_MEM;
 		goto map_fail;
 	}
 
-	// Send MMIO map to OCSE
-	my_afu->mmio.type = OCSE_MMIO_MAP;
-	my_afu->mmio.data = (uint64_t) endian;
-	my_afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	switch (type) {
+	case OCXL_GLOBAL_MMIO:
+	  // Send MMIO map to OCSE
+	  my_afu->mmio.type = OCSE_GLOBAL_MMIO_MAP;
+	  // my_afu->mmio.data = (uint64_t) endian;
+	  my_afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	  break;
+	case OCXL_PER_PASID_MMIO:
+	  // Send MMIO map to OCSE
+	  my_afu->mmio.type = OCSE_MMIO_MAP;
+	  // my_afu->mmio.data = (uint64_t) endian;
+	  my_afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	  break;
+	default:
+	  err = OCXL_INVALID_ARGS;
+	  goto map_fail;
+	  break;
+	}
+
 	while (my_afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
 
-	my_afu->mapped = 1;
-
+	if (type == OCXL_GLOBAL_MMIO)
+	  my_afu->global_mapped = 1;
+	else
+	  my_afu->mapped = 1;
+	
+	mmio = (ocxl_mmio_h)&(my_afu->mmios[my_afu->mmio_count]);
+	my_afu->mmio_count++;
+	  
 	return OCXL_OK;
  map_fail:
-	errno = ENODEV;
-	return OCXL_NO_DEV;
+	return err;
 }
 
-ocxl_err ocxl_mmio_unmap( ocxl_afu_h afu )
+ocxl_err ocxl_mmio_unmap( ocxl_mmio_h region )
 {
-        struct ocxl_afu *my_afu;
+        ocxl_mmio_area *mmio;
 
-	my_afu = (struct ocxl_afu *)afu;
+	mmio = (ocxl_mmio_area *)region;
 
-	if (my_afu == NULL) {
-		warn_msg("ocxl_mmio_map: NULL afu!");
-		return OCXL_NO_DEV;
-	}
+// since we've created a static array for the areas, this is tricky...
+	if (mmio->type == OCXL_GLOBAL_MMIO)
+	  mmio->afu->global_mapped = 0;
+	else
+	  mmio->afu->mapped = 0;
 
-	my_afu->mapped = 0;
+// but what about mmio_count?
 
 	return OCXL_OK;
 }
 
-ocxl_err ocxl_mmio_write64( ocxl_afu_h afu, uint64_t offset, uint64_t val)
+ocxl_err ocxl_mmio_write64( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, uint64_t value )
 {
-        struct ocxl_afu *my_afu;
+        ocxl_mmio_area *my_mmio;
+	ocxl_err err;
 
-	my_afu = (struct ocxl_afu *)afu;
+	my_mmio = (ocxl_mmio_area *)mmio;
 
-	if ((my_afu == NULL) || !my_afu->mapped)
-		goto write64_fail;
+	if (my_mmio->afu == NULL) {
+	  err = OCXL_NO_MEM;
+	  goto write64_fail;
+	}
+
+	if (my_mmio->type == OCXL_GLOBAL_MMIO) {
+	  if (!my_mmio->afu->global_mapped) {
+	    err = OCXL_NO_MEM;
+	    goto write64_fail;
+	  }
+	} else {
+	  if (!my_mmio->afu->mapped) {
+	    err = OCXL_NO_MEM;
+	    goto write64_fail;
+	  }
+	}
 
 	if ( offset & 0x7 ) {
 		warn_msg("ocxl_mmio_write64: offset not properly aligned!");
 		errno = EINVAL;
-		return OCXL_OUT_OF_BOUNDS;
+		err = OCXL_OUT_OF_BOUNDS;
+		goto write64_fail;
 	}
 
 	/* if ( offset >= my_afu->mmio_length ) { */
@@ -2955,36 +3080,59 @@ ocxl_err ocxl_mmio_write64( ocxl_afu_h afu, uint64_t offset, uint64_t val)
 	/* } */
 
 	// Send MMIO map to OCSE
-	my_afu->mmio.type = OCSE_MMIO_WRITE64;
-	my_afu->mmio.addr = (uint32_t) offset;
-	my_afu->mmio.data = val;
-	my_afu->mmio.state = LIBOCXL_REQ_REQUEST;
-	while (my_afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+	if (my_mmio->type == OCXL_GLOBAL_MMIO) {
+	  my_mmio->afu->mmio.type = OCSE_GLOBAL_MMIO_WRITE64;
+	} else {
+	  my_mmio->afu->mmio.type = OCSE_MMIO_WRITE64;
+	}
+	my_mmio->afu->mmio.addr = (uint32_t) offset;
+	// should I use endian here???  maybe
+	my_mmio->afu->mmio.data = value;
+	my_mmio->afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	while (my_mmio->afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
 
-	if (!my_afu->opened)
-		goto write64_fail;
+	if (!my_mmio->afu->opened) {
+	  err = OCXL_NO_DEV;
+	  goto write64_fail;
+	}
 
 	return OCXL_OK;
 
  write64_fail:
-	errno = ENODEV;
-	return OCXL_NO_DEV;
+	return err;
 }
 
-ocxl_err ocxl_mmio_read64(ocxl_afu_h afu, uint64_t offset, uint64_t * out)
+ocxl_err ocxl_mmio_read64( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, uint64_t *out )
 {
-        struct ocxl_afu *my_afu;
+        ocxl_mmio_area *my_mmio;
+	ocxl_err err;
 
-	my_afu = (struct ocxl_afu *)afu;
+	my_mmio = (ocxl_mmio_area *)mmio;
 
-	if ((my_afu == NULL) || !my_afu->mapped)
-		goto read64_fail;
+	if (my_mmio->afu == NULL) {
+	  err = OCXL_NO_MEM;
+	  goto read64_fail;
+	}
 
-	if (offset & 0x7) {
+	if (my_mmio->type == OCXL_GLOBAL_MMIO) {
+	  if (!my_mmio->afu->global_mapped) {
+	    err = OCXL_NO_MEM;
+	    goto read64_fail;
+	  }
+	} else {
+	  if (!my_mmio->afu->mapped) {
+	    err = OCXL_NO_MEM;
+	    goto read64_fail;
+	  }
+	}
+
+
+	if ( offset & 0x7 ) {
 		warn_msg("ocxl_mmio_read64: offset not properly aligned!");
 		errno = EINVAL;
-		return OCXL_OUT_OF_BOUNDS;
+		err = OCXL_OUT_OF_BOUNDS;
+		goto read64_fail;
 	}
 
 	/* if ( offset >= my_afu->mmio_length ) { */
@@ -2994,36 +3142,60 @@ ocxl_err ocxl_mmio_read64(ocxl_afu_h afu, uint64_t offset, uint64_t * out)
 	/* } */
 
 	// Send MMIO map to OCSE
-	my_afu->mmio.type = OCSE_MMIO_READ64;
-	my_afu->mmio.addr = (uint32_t) offset;
-	my_afu->mmio.state = LIBOCXL_REQ_REQUEST;
-	while (my_afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+	if (my_mmio->type == OCXL_GLOBAL_MMIO) {
+	  my_mmio->afu->mmio.type = OCSE_GLOBAL_MMIO_READ64;
+	} else {
+	  my_mmio->afu->mmio.type = OCSE_MMIO_READ64;
+	}
+	my_mmio->afu->mmio.addr = (uint32_t) offset;
+	my_mmio->afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	while (my_mmio->afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
-	*out = my_afu->mmio.data;
 
-	if (!my_afu->opened)
-		goto read64_fail;
+	// should use endian here...  maybe
+	*out = my_mmio->afu->mmio.data;
+
+	if (!my_mmio->afu->opened) {
+	  err = OCXL_NO_DEV;
+	  goto read64_fail;
+	}
+
 
 	return OCXL_OK;
 
  read64_fail:
-	errno = ENODEV;
-	return OCXL_NO_DEV;
+	return err;
 }
 
-ocxl_err ocxl_mmio_write32(ocxl_afu_h afu, uint64_t offset, uint32_t val)
+ocxl_err ocxl_mmio_write32( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, uint32_t value )
 {
-        struct ocxl_afu *my_afu;
+        ocxl_mmio_area *my_mmio;
+	ocxl_err err;
 
-	my_afu = (struct ocxl_afu *)afu;
+	my_mmio = (ocxl_mmio_area *)mmio;
 
-	if ((my_afu == NULL) || !my_afu->mapped)
-		goto write32_fail;
+	if (my_mmio->afu == NULL) {
+	  err = OCXL_NO_MEM;
+	  goto write32_fail;
+	}
+
+	if (my_mmio->type == OCXL_GLOBAL_MMIO) {
+	  if (!my_mmio->afu->global_mapped) {
+	    err = OCXL_NO_MEM;
+	    goto write32_fail;
+	  }
+	} else {
+	  if (!my_mmio->afu->mapped) {
+	    err = OCXL_NO_MEM;
+	    goto write32_fail;
+	  }
+	}
 
 	if (offset & 0x3) {
 		warn_msg("ocxl_mmio_write32: offset not properly aligned!");
 		errno = EINVAL;
-		return OCXL_OUT_OF_BOUNDS;
+		err = OCXL_OUT_OF_BOUNDS;
+		goto write32_fail;
 	}
 	/* if ( offset >= my_afu->mmio_length ) { */
 	/* 	warn_msg("ocxl_mmio_write32: offset out of bounds!"); */
@@ -3032,37 +3204,59 @@ ocxl_err ocxl_mmio_write32(ocxl_afu_h afu, uint64_t offset, uint32_t val)
 	/* } */
 
 	// Send MMIO map to OCSE
-	my_afu->mmio.type = OCSE_MMIO_WRITE32;
-	my_afu->mmio.addr = (uint32_t) offset;
-	my_afu->mmio.data = (uint64_t) val;
-	my_afu->mmio.state = LIBOCXL_REQ_REQUEST;
-	while (my_afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+	if (my_mmio->type == OCXL_GLOBAL_MMIO) {
+	  my_mmio->afu->mmio.type = OCSE_GLOBAL_MMIO_WRITE32;
+	} else {
+	  my_mmio->afu->mmio.type = OCSE_MMIO_WRITE32;
+	}
+	my_mmio->afu->mmio.addr = (uint32_t) offset;
+	my_mmio->afu->mmio.data = (uint64_t) value;
+	my_mmio->afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	while (my_mmio->afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
 
-	if (!my_afu->opened)
-		goto write32_fail;
+	if (!my_mmio->afu->opened){
+	  err = OCXL_NO_DEV;
+	  goto write32_fail;
+	}
 
 	return OCXL_OK;
 
  write32_fail:
-	errno = ENODEV;
-	return OCXL_NO_DEV;
+	return err;
 }
 
-ocxl_err ocxl_mmio_read32(ocxl_afu_h afu, uint64_t offset, uint32_t * out)
+ocxl_err ocxl_mmio_read32( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, uint32_t *out )
 {
-        struct ocxl_afu *my_afu;
+        ocxl_mmio_area *my_mmio;
+	ocxl_err err;
 
-	my_afu = (struct ocxl_afu *)afu;
+	my_mmio = (ocxl_mmio_area *)mmio;
 
-	if ((my_afu == NULL) || !my_afu->mapped)
-		goto read32_fail;
+	if (my_mmio->afu == NULL) {
+	  err = OCXL_NO_MEM;
+	  goto read32_fail;
+	}
+
+	if (my_mmio->type == OCXL_GLOBAL_MMIO) {
+	  if (!my_mmio->afu->global_mapped) {
+	    err = OCXL_NO_MEM;
+	    goto read32_fail;
+	  }
+	} else {
+	  if (!my_mmio->afu->mapped) {
+	    err = OCXL_NO_MEM;
+	    goto read32_fail;
+	  }
+	}
 
 	if (offset & 0x3) {
 		warn_msg("ocxl_mmio_read32: offset not properly aligned!");
 		errno = EINVAL;
-		return OCXL_OUT_OF_BOUNDS;
+		err = OCXL_OUT_OF_BOUNDS;
+		goto read32_fail;
 	}
+
 	/* if ( offset >= my_afu->mmio_length ) { */
 	/* 	warn_msg("ocxl_mmio_read32: offset out of bounds!"); */
 	/* 	errno = EINVAL; */
@@ -3070,78 +3264,84 @@ ocxl_err ocxl_mmio_read32(ocxl_afu_h afu, uint64_t offset, uint32_t * out)
 	/* } */
 
 	// Send MMIO map to OCSE
-	my_afu->mmio.type = OCSE_MMIO_READ32;
-	my_afu->mmio.addr = (uint32_t) offset;
-	my_afu->mmio.state = LIBOCXL_REQ_REQUEST;
-	while (my_afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+	if (my_mmio->type == OCXL_GLOBAL_MMIO) {
+	  my_mmio->afu->mmio.type = OCSE_GLOBAL_MMIO_READ32;
+	} else {
+	  my_mmio->afu->mmio.type = OCSE_MMIO_READ32;
+	}
+	my_mmio->afu->mmio.addr = (uint32_t) offset;
+	my_mmio->afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	while (my_mmio->afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
-	*out = (uint32_t) my_afu->mmio.data;
+	*out = (uint32_t) my_mmio->afu->mmio.data;
 
-	if (!my_afu->opened)
-		goto read32_fail;
+	if (!my_mmio->afu->opened) {
+	  err = OCXL_NO_DEV;
+	  goto read32_fail;
+	}
 
 	return OCXL_OK;
 
  read32_fail:
 	errno = ENODEV;
-	return OCXL_NO_DEV;
+	return err;
 }
 
-ocxl_err ocxl_global_mmio_map( ocxl_afu_h afu, ocxl_endian endian)
-{
-        struct ocxl_afu *my_afu;
+/* ocxl_err ocxl_global_mmio_map( ocxl_afu_h afu, ocxl_endian endian) */
+/* { */
+/*         struct ocxl_afu *my_afu; */
 
-	my_afu = (struct ocxl_afu *)afu;
+/* 	my_afu = (struct ocxl_afu *)afu; */
 
-	debug_msg( "GLOBAL MMIO MAP" );
-	if (my_afu == NULL) {
-		warn_msg("ocxl_global_mmio_map: NULL afu!");
-		goto map_fail;
-	}
+/* 	debug_msg( "GLOBAL MMIO MAP" ); */
+/* 	if (my_afu == NULL) { */
+/* 		warn_msg("ocxl_global_mmio_map: NULL afu!"); */
+/* 		goto map_fail; */
+/* 	} */
 
-	if (!my_afu->opened) {
-		printf("ocxl_global_mmio_map: Must open afu first!\n");
-		goto map_fail;
-	}
+/* 	if (!my_afu->opened) { */
+/* 		printf("ocxl_global_mmio_map: Must open afu first!\n"); */
+/* 		goto map_fail; */
+/* 	} */
 
-	if (!my_afu->attached) {
-		printf("ocxl_global_mmio_map: Must attach first!\n");
-		goto map_fail;
-	}
+/* 	if (!my_afu->attached) { */
+/* 		printf("ocxl_global_mmio_map: Must attach first!\n"); */
+/* 		goto map_fail; */
+/* 	} */
 
-	if (endian & ~(OCXL_MMIO_FLAGS)) {
-		printf("ocxl_global_mmio_map: Invalid flags!\n");
-		goto map_fail;
-	}
-	// Send MMIO map to OCSE
-	my_afu->mmio.type = OCSE_GLOBAL_MMIO_MAP;
-	my_afu->mmio.data = (uint64_t) endian;
-	my_afu->mmio.state = LIBOCXL_REQ_REQUEST;
-	while (my_afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
-		_delay_1ms();
-	my_afu->global_mapped = 1;
+/* 	if (endian & ~(OCXL_MMIO_FLAGS)) { */
+/* 		printf("ocxl_global_mmio_map: Invalid flags!\n"); */
+/* 		goto map_fail; */
+/* 	} */
+/* 	// Send MMIO map to OCSE */
+/* 	my_afu->mmio.type = OCSE_GLOBAL_MMIO_MAP; */
+/* 	my_afu->mmio.data = (uint64_t) endian; */
+/* 	my_afu->mmio.state = LIBOCXL_REQ_REQUEST; */
+/* 	while (my_afu->mmio.state != LIBOCXL_REQ_IDLE)	/\*infinite loop *\/ */
+/* 		_delay_1ms(); */
+/* 	my_afu->global_mapped = 1; */
 
-	return OCXL_OK;
- map_fail:
-	errno = ENODEV;
-	return OCXL_NO_DEV;
-}
+/* 	return OCXL_OK; */
+/*  map_fail: */
+/* 	errno = ENODEV; */
+/* 	return OCXL_NO_DEV; */
+/* } */
 
-ocxl_err ocxl_global_mmio_unmap( ocxl_afu_h afu )
-{
-        struct ocxl_afu *my_afu;
+/* ocxl_err ocxl_global_mmio_unmap( ocxl_afu_h afu ) */
+/* { */
+/*         struct ocxl_afu *my_afu; */
 
-	my_afu = (struct ocxl_afu *)afu;
+/* 	my_afu = (struct ocxl_afu *)afu; */
 
-	if (my_afu == NULL) {
-		warn_msg("ocxl_global_mmio_map: NULL afu!");
-		return OCXL_NO_DEV;
-	}
+/* 	if (my_afu == NULL) { */
+/* 		warn_msg("ocxl_global_mmio_map: NULL afu!"); */
+/* 		return OCXL_NO_DEV; */
+/* 	} */
 
-	my_afu->global_mapped = 0;
+/* 	my_afu->global_mapped = 0; */
 	
-	return OCXL_OK;
-}
+/* 	return OCXL_OK; */
+/* } */
 
 ocxl_err ocxl_global_mmio_write64( ocxl_afu_h afu, uint64_t offset, uint64_t val)
 {
@@ -3309,7 +3509,7 @@ size_t ocxl_afu_get_mmio_size( ocxl_afu_h afu )
                    return OCXL_NO_DEV;
 
         // this is the mmio stride for this afu
-        return my_afu->pp_mmio_stride;
+        return my_afu->per_pasid_mmio.length;
 }
 
 size_t ocxl_afu_get_global_mmio_size( ocxl_afu_h afu )
@@ -3323,24 +3523,38 @@ size_t ocxl_afu_get_global_mmio_size( ocxl_afu_h afu )
 
         // this is the per pasid mmio offset for this afu
 	// there might be a more accurate method - look for it
-        return my_afu->global_mmio_size;
+        return my_afu->global_mmio.length;
 
 }
 
-ocxl_err ocxl_afu_get_version( ocxl_afu_h afu, uint8_t *major, uint8_t *minor )
+void  ocxl_afu_get_version( ocxl_afu_h afu, uint8_t *major, uint8_t *minor )
 {
         struct ocxl_afu *my_afu;
 
 	my_afu = (struct ocxl_afu *)afu;
 
-	if (my_afu == NULL)
-                   return OCXL_NO_DEV;
+	// if (my_afu == NULL)
+        //           return OCXL_NO_DEV;
 
         // these are from the afu descriptor that we retrieved when we opened the afu
 	*major = my_afu->afu_version_major;
 	*minor = my_afu->afu_version_minor;
 
-        return OCXL_OK;
+        return;
+
+}
+
+uint32_t  ocxl_afu_get_pasid( ocxl_afu_h afu )
+{
+        struct ocxl_afu *my_afu;
+
+	my_afu = (struct ocxl_afu *)afu;
+
+	// if (my_afu == NULL)
+        //           return OCXL_NO_DEV;
+
+        // we use the term context as the equivalent for the pasid
+        return my_afu->context;
 
 }
 
@@ -3392,68 +3606,68 @@ int ocxl_sleep( ocxl_afu_h afu )
 	return -1;
 }
 
-ocxl_err ocxl_afu_use( const char *name, ocxl_afu_h *afu, uint64_t amr, ocxl_endian global_endianess, ocxl_endian per_pasid_endianess ) 
-{
-  ocxl_err rc;
- // open
-  rc = ocxl_afu_open( name, afu );
-  if (rc != OCXL_OK) {
-    return rc;
-  }
+/* ocxl_err ocxl_afu_use( const char *name, ocxl_afu_h *afu, uint64_t amr, ocxl_endian global_endianess, ocxl_endian per_pasid_endianess )  */
+/* { */
+/*   ocxl_err rc; */
+/*  // open */
+/*   rc = ocxl_afu_open( name, afu ); */
+/*   if (rc != OCXL_OK) { */
+/*     return rc; */
+/*   } */
 
-  // attach
-  rc = ocxl_afu_attach( *afu );
-  if (rc != OCXL_OK) {
-    ocxl_afu_close( *afu );
-    return rc;
-  }
+/*   // attach */
+/*   rc = ocxl_afu_attach( *afu ); */
+/*   if (rc != OCXL_OK) { */
+/*     ocxl_afu_close( *afu ); */
+/*     return rc; */
+/*   } */
 
-  // global mmio map
-  rc = ocxl_global_mmio_map( *afu, global_endianess );
-  if (rc != OCXL_OK) {
-    ocxl_afu_close( *afu );
-    return rc;
-  }
+/*   // global mmio map */
+/*   rc = ocxl_global_mmio_map( *afu, global_endianess ); */
+/*   if (rc != OCXL_OK) { */
+/*     ocxl_afu_close( *afu ); */
+/*     return rc; */
+/*   } */
 
-  // mmio map
-  rc = ocxl_mmio_map( *afu, per_pasid_endianess );
-  if (rc != OCXL_OK) {
-    ocxl_afu_close( *afu );
-    return rc;
-  }
+/*   // mmio map */
+/*   rc = ocxl_mmio_map( *afu, per_pasid_endianess ); */
+/*   if (rc != OCXL_OK) { */
+/*     ocxl_afu_close( *afu ); */
+/*     return rc; */
+/*   } */
 
-  return OCXL_OK;
-}
+/*   return OCXL_OK; */
+/* } */
 
-ocxl_err ocxl_afu_use_from_dev( const char *path, ocxl_afu_h *afu, uint64_t amr, ocxl_endian global_endianess, ocxl_endian per_pasid_endianess )
-{
-  ocxl_err rc;
-  // open
-  rc = ocxl_afu_open_from_dev( path, afu );
-  if (rc != OCXL_OK) {
-    return rc;
-  }
+/* ocxl_err ocxl_afu_use_from_dev( const char *path, ocxl_afu_h *afu, uint64_t amr, ocxl_endian global_endianess, ocxl_endian per_pasid_endianess ) */
+/* { */
+/*   ocxl_err rc; */
+/*   // open */
+/*   rc = ocxl_afu_open_from_dev( path, afu ); */
+/*   if (rc != OCXL_OK) { */
+/*     return rc; */
+/*   } */
 
-  // attach
-  rc = ocxl_afu_attach( *afu );
-  if (rc != OCXL_OK) {
-    ocxl_afu_close( *afu );
-    return rc;
-  }
+/*   // attach */
+/*   rc = ocxl_afu_attach( *afu ); */
+/*   if (rc != OCXL_OK) { */
+/*     ocxl_afu_close( *afu ); */
+/*     return rc; */
+/*   } */
 
-  // global mmio map
-  rc = ocxl_global_mmio_map( *afu, global_endianess );
-  if (rc != OCXL_OK) {
-    ocxl_afu_close( *afu );
-    return rc;
-  }
+/*   // global mmio map */
+/*   rc = ocxl_global_mmio_map( *afu, global_endianess ); */
+/*   if (rc != OCXL_OK) { */
+/*     ocxl_afu_close( *afu ); */
+/*     return rc; */
+/*   } */
 
-  // mmio map
-  rc = ocxl_mmio_map( *afu, per_pasid_endianess );
-  if (rc != OCXL_OK) {
-    ocxl_afu_close( *afu );
-    return rc;
-  }
+/*   // mmio map */
+/*   rc = ocxl_mmio_map( *afu, per_pasid_endianess ); */
+/*   if (rc != OCXL_OK) { */
+/*     ocxl_afu_close( *afu ); */
+/*     return rc; */
+/*   } */
 
-  return OCXL_OK;
-}
+/*   return OCXL_OK; */
+/* } */
