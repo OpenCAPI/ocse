@@ -3017,7 +3017,7 @@ ocxl_err ocxl_mmio_map( ocxl_afu_h afu, ocxl_mmio_type type, ocxl_mmio_h *mmio )
 	else
 	  my_afu->mapped = 1;
 	
-	mmio = (ocxl_mmio_h)&(my_afu->mmios[my_afu->mmio_count]);
+	*mmio = (ocxl_mmio_h)&(my_afu->mmios[my_afu->mmio_count]);
 	my_afu->mmio_count++;
 	  
 	return OCXL_OK;
@@ -3047,12 +3047,14 @@ ocxl_err ocxl_mmio_write64( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, 
         ocxl_mmio_area *my_mmio;
 	ocxl_err err;
 
+	//debug_msg("ocxl_mmio_write64: entered");
 	my_mmio = (ocxl_mmio_area *)mmio;
 
 	if (my_mmio->afu == NULL) {
 	  err = OCXL_NO_MEM;
 	  goto write64_fail;
 	}
+	//debug_msg("ocxl_mmio_write64: my_mmio->afu ok");
 
 	if (my_mmio->type == OCXL_GLOBAL_MMIO) {
 	  if (!my_mmio->afu->global_mapped) {
@@ -3065,6 +3067,7 @@ ocxl_err ocxl_mmio_write64( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, 
 	    goto write64_fail;
 	  }
 	}
+	//debug_msg("ocxl_mmio_write64: my_mmio->afu->*mapped ok");
 
 	if ( offset & 0x7 ) {
 		warn_msg("ocxl_mmio_write64: offset not properly aligned!");
@@ -3072,6 +3075,8 @@ ocxl_err ocxl_mmio_write64( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, 
 		err = OCXL_OUT_OF_BOUNDS;
 		goto write64_fail;
 	}
+
+	//debug_msg("ocxl_mmio_write64: passed parameter checks");
 
 	/* if ( offset >= my_afu->mmio_length ) { */
 	/* 	warn_msg("ocxl_mmio_write64: offset out of bounds!"); */
@@ -3089,17 +3094,24 @@ ocxl_err ocxl_mmio_write64( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, 
 	// should I use endian here???  maybe
 	my_mmio->afu->mmio.data = value;
 	my_mmio->afu->mmio.state = LIBOCXL_REQ_REQUEST;
+
+	//debug_msg("ocxl_mmio_write64: waiting for idle");
+
 	while (my_mmio->afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
+
+	//debug_msg("ocxl_mmio_write64: mmio acked");
 
 	if (!my_mmio->afu->opened) {
 	  err = OCXL_NO_DEV;
 	  goto write64_fail;
 	}
 
+	//debug_msg("ocxl_mmio_write64: leaving normally");
 	return OCXL_OK;
 
  write64_fail:
+	//debug_msg("ocxl_mmio_write64: leaving abnormally");
 	return err;
 }
 
