@@ -84,7 +84,7 @@ ocxl_err ocxl_lpc_map(ocxl_afu_h afu, uint32_t flags)
 {
         struct ocxl_afu *my_afu;
 	my_afu = (struct ocxl_afu *)afu;
-	debug_msg("ocxl_lpc_map:");
+	debug_msg("ocxl_lpc_map: entered");
 	if (!my_afu->opened) {
 		warn_msg("ocxl_lpc_map: Must open first!");
 		goto lpcmap_fail;
