@@ -2917,7 +2917,7 @@ uint16_t ocxl_afu_event_check_versioned( ocxl_afu_h afu, int timeout, ocxl_event
 	}
 
 	// we support event_api_version = 0 for now...
-	if (event_api_version != 1) {
+	if (event_api_version != 0 ) {
 		warn_msg("ocxl_afu_event_check_versioned: event api version must be 0, continuing as if 0 had be sent.");
 	}
 
