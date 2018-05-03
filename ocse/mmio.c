@@ -986,8 +986,7 @@ void handle_ap_resp_data(struct mmio *mmio)
 	int i;
 #endif	  
 
-	// debug_msg( "handle_ap_resp_data:" );
-	rc = 0;
+	rc = 1;
 
 	// handle mmio, and lpc response data 
 	// we are expecting 1 to 4 beats of data depending on the value of dL or dw
@@ -996,25 +995,31 @@ void handle_ap_resp_data(struct mmio *mmio)
 	// notes:
 	//   if size < 64, the interesting data is at an offset in rdata_bus
 
-	// debug_msg( "handle_ap_resp_data: event cfg = %d, rnw = %d, current event state = %d", mmio->list->cfg, mmio->list->rnw, mmio->list->state );
+	// debug_msg( "handle_ap_resp_data: event cfg = %d, rnw = %d, current event state = %d", 
+	// 	   mmio->list->cfg, 
+	//	   mmio->list->rnw, 
+	//	   mmio->list->state );
+
 	if ( mmio->list->cfg ) {
 	  if ( mmio->list->state == OCSE_DONE ) {
 	    // we have read the response and the data (if any) already so just return
 	    mmio->list = mmio->list->_next;
 	    // debug_msg( "handle_ap_resp_data: removed cfg from list" );
-	    return;
 	  }
+	  // debug_msg( "handle_ap_resp_data: have a cfg, but state is not done: rc = %d", rc );
+	  return;
 	} else {
 	  if (mmio->list->rnw) {
 	    rc = afu_tlx_read_resp_data( mmio->afu_event,
 					 &resp_data_is_valid, rdata_bus, &rdata_bad);
+	    // debug_msg( "handle_ap_resp_data: not cfg, but a mmio read: attempted a read of resp data: rc = %d", rc );
 	  } else {
 	    // no resp data to read
 	    if ( mmio->list->state == OCSE_DONE ) {
 	      mmio->list = mmio->list->_next;
 	      // debug_msg( "handle_ap_resp_data: removed mmio/lpc write from list" );
-	      return;
 	    }
+	    return;
 	  }
 	
 	  if (rc == TLX_SUCCESS) {

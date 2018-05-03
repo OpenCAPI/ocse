@@ -129,7 +129,7 @@ static void _detach(struct ocl *ocl, struct client *client)
 // Handle events from AFU
 static void _handle_afu(struct ocl *ocl)
 {
-	if (ocl->mmio->list !=NULL) {
+	if (ocl->mmio->list != NULL) {
 	  handle_ap_resp(ocl->mmio);
 	  handle_ap_resp_data(ocl->mmio);
 	}
