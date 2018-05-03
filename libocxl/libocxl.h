@@ -258,7 +258,7 @@ const char *ocxl_err_to_string( ocxl_err err );
 
 
 /*
- * "wait a sec"
+ * "wait a sec".
  */
 // a non-standardized routine that models the behavior of the Power ISA wait instruction
 // to allow you to experiment with the idea of the Power ISA wait instruction(s)
