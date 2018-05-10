@@ -499,7 +499,7 @@ int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 						     mmio->fcn_cfg_array[f]->function_actag_base = actag;
 								
 						     // one or more afu's are present, so set the memory space bit in the configuration space header
-						     eventc  = _add_cfg(mmio, 0, 0, cmd_pa_bus + 0x04, 0x00000002 );
+						     eventc  = _add_cfg(mmio, 0, 0, cmd_pa_fcn + 0x04, 0x00000002 );
 						     _wait_for_done( &(eventc->state), lock );
 						     free( eventc );
 						     info_msg( "    Enabled memory space for function %d", f );	
