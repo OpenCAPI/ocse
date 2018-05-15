@@ -986,8 +986,7 @@ void handle_ap_resp_data(struct mmio *mmio)
 	int i;
 #endif	  
 
-	// debug_msg( "handle_ap_resp_data:" );
-	rc = 0;
+	rc = 1;
 
 	// handle mmio, and lpc response data 
 	// we are expecting 1 to 4 beats of data depending on the value of dL or dw
@@ -996,25 +995,31 @@ void handle_ap_resp_data(struct mmio *mmio)
 	// notes:
 	//   if size < 64, the interesting data is at an offset in rdata_bus
 
-	// debug_msg( "handle_ap_resp_data: event cfg = %d, rnw = %d, current event state = %d", mmio->list->cfg, mmio->list->rnw, mmio->list->state );
+	// debug_msg( "handle_ap_resp_data: event cfg = %d, rnw = %d, current event state = %d", 
+	// 	   mmio->list->cfg, 
+	//	   mmio->list->rnw, 
+	//	   mmio->list->state );
+
 	if ( mmio->list->cfg ) {
 	  if ( mmio->list->state == OCSE_DONE ) {
 	    // we have read the response and the data (if any) already so just return
 	    mmio->list = mmio->list->_next;
 	    // debug_msg( "handle_ap_resp_data: removed cfg from list" );
-	    return;
 	  }
+	  // debug_msg( "handle_ap_resp_data: have a cfg, but state is not done: rc = %d", rc );
+	  return;
 	} else {
 	  if (mmio->list->rnw) {
 	    rc = afu_tlx_read_resp_data( mmio->afu_event,
 					 &resp_data_is_valid, rdata_bus, &rdata_bad);
+	    // debug_msg( "handle_ap_resp_data: not cfg, but a mmio read: attempted a read of resp data: rc = %d", rc );
 	  } else {
 	    // no resp data to read
 	    if ( mmio->list->state == OCSE_DONE ) {
 	      mmio->list = mmio->list->_next;
 	      // debug_msg( "handle_ap_resp_data: removed mmio/lpc write from list" );
-	      return;
 	    }
+	    return;
 	  }
 	
 	  if (rc == TLX_SUCCESS) {
@@ -1394,42 +1399,42 @@ void handle_mmio_ack(struct mmio *mmio)
 // Handle MMIO map request from client
 void handle_mmio_map(struct mmio *mmio, struct client *client)
 {
-	uint32_t flags;
+  // uint32_t flags;
 	uint8_t *buffer;
 	uint8_t ack = OCSE_MMIO_ACK;
 	int fd = client->fd;
 
+	// flag data is no longer passed for the mmio map request
 	// Check for errors
-	if (get_bytes_silent(fd, 4, (uint8_t *) & flags, mmio->timeout,
-			     &(client->abort)) < 0) {
-	        debug_msg("%s:handle_mmio_map failed context=%d",
-			  mmio->afu_name, client->context);
-		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
-		warn_msg("Socket failure with client context %d",
-			 client->context);
-		ack = OCSE_MMIO_FAIL;
-		goto map_done;
-	}
+	/* if (get_bytes_silent(fd, 4, (uint8_t *) & flags, mmio->timeout, */
+	/* 		     &(client->abort)) < 0) { */
+	/*         debug_msg("%s:handle_mmio_map failed context=%d", */
+	/* 		  mmio->afu_name, client->context); */
+	/* 	client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE); */
+	/* 	warn_msg("Socket failure with client context %d", */
+	/* 		 client->context); */
+	/* 	ack = OCSE_MMIO_FAIL; */
+	/* 	goto map_done; */
+	/* } */
 	// Check flags value and set
 	// For now, we assume that the global and per pasid areas have the same endianness
-	if (!mmio->flags) {
-		mmio->flags = ntohl(flags);
-	} else if (mmio->flags != ntohl(flags)) {
-		warn_msg("Set conflicting mmio endianess for AFU");
-		ack = OCSE_MMIO_FAIL;
-	}
+	/* if (!mmio->flags) { */
+	/* 	mmio->flags = ntohl(flags); */
+	/* } else if (mmio->flags != ntohl(flags)) { */
+	/* 	warn_msg("Set conflicting mmio endianess for AFU"); */
+	/* 	ack = OCSE_MMIO_FAIL; */
+	/* } */
 
 	if (ack == OCSE_MMIO_ACK) {
 		debug_mmio_map(mmio->dbg_fp, mmio->dbg_id, client->context);
 	}
 
- map_done:
+	// map_done:
 	// Send acknowledge to client	   
 	buffer = (uint8_t *) malloc(2);
 	buffer[0] = ack;
 	buffer[1] = 0;
-	if (put_bytes(fd, 2, buffer, mmio->dbg_fp, mmio->dbg_id,
-		      client->context) < 0) {
+	if (put_bytes(fd, 2, buffer, mmio->dbg_fp, mmio->dbg_id, client->context) < 0) {
 	  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 	}
 

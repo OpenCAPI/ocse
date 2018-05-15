@@ -481,7 +481,7 @@ static void _add_amo(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 		return;
 	}
 	// Check command size and address
-	if (_aligned(addr, size) == BAD_ADDR_OFFSET) { //invalid address alignment
+	if (_aligned(addr, sizecheck) == BAD_ADDR_OFFSET) { //invalid address alignment
 		if ((cmd_opcode == AFU_CMD_AMO_RW) || (cmd_opcode == AFU_CMD_AMO_RW_N) || (cmd_opcode == AFU_CMD_AMO_RD))  
 			resp_opcode = TLX_RSP_READ_FAILED;
 		else
@@ -1658,7 +1658,7 @@ static void _handle_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
         // have to expect data back from some AMO ops
 	else if ((event->type == CMD_AMO_RD) || (event->type == CMD_AMO_RW)) {
 		// Client is returning data from AMO memory read
-                 debug_msg( "_handle_mem_read: AFU_CMD_AMO_RD or AFU_CMD_AMP_RW \n" );
+                 debug_msg( "_handle_mem_read: AFU_CMD_AMO_RD or AFU_CMD_AMO_RW \n" );
 		if (get_bytes_silent(fd, event->size, data, cmd->parms->timeout,
 			     event->abort) < 0) {
 	        	debug_msg("%s:_handle_amo_mem_read failed afutag=0x%02x size=%d addr=0x%016"PRIx64,
