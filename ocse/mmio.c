@@ -313,7 +313,7 @@ static struct mmio_event *_read_afu_descriptor(struct mmio *mmio, uint64_t addr,
 // and AFU control information extended capabilities and keep a copy
 int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 {
-	printf("In read_descriptor and WON'T BE ABLE TO SEND CMD UNTIL AFU GIVES US INITIAL CREDIT!!\n");
+	printf("In read_afu_config and WON'T BE ABLE TO SEND CMD UNTIL AFU GIVES US INITIAL CREDIT!!\n");
 	uint8_t   afu_tlx_cmd_credits_available;
 	uint8_t   cfg_tlx_credits_available;
 	uint8_t   afu_tlx_resp_credits_available;
