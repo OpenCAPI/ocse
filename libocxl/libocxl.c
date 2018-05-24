@@ -462,19 +462,19 @@ static void _handle_ack(struct ocxl_afu *afu)
 
 	if ((afu->mmio.type == OCSE_MMIO_MAP) | (afu->mmio.type == OCSE_GLOBAL_MMIO_MAP) ) {
 	  afu->mmios[afu->mmio_count].afu = afu;
-	  afu->mmios[afu->mmio_count].type = afu->mmio.type;
 	  if (afu->mmio.type == OCSE_GLOBAL_MMIO_MAP) {
+	    afu->mmios[afu->mmio_count].type = OCXL_GLOBAL_MMIO;
 	    afu->mmios[afu->mmio_count].start = afu->global_mmio.start;
 	    afu->mmios[afu->mmio_count].length = afu->global_mmio.length;
 	  } else {
+	  afu->mmios[afu->mmio_count].type = OCXL_PER_PASID_MMIO;
 	    afu->mmios[afu->mmio_count].start = afu->per_pasid_mmio.start;
 	    afu->mmios[afu->mmio_count].length = afu->per_pasid_mmio.length;
 	  }
 	}
 
 	if ((afu->mmio.type == OCSE_MMIO_READ64) | (afu->mmio.type == OCSE_GLOBAL_MMIO_READ64) ) {
-		if (get_bytes_silent(afu->fd, sizeof(uint64_t), data, 1000, 0) <
-		    0) {
+		if (get_bytes_silent(afu->fd, sizeof(uint64_t), data, 1000, 0) < 0) {
 			warn_msg("Socket failure getting MMIO Ack");
 			_all_idle(afu);
 			afu->mmio.data = 0xFEEDB00FFEEDB00FL;
@@ -485,8 +485,7 @@ static void _handle_ack(struct ocxl_afu *afu)
 	}
 
 	if ((afu->mmio.type == OCSE_MMIO_READ32) | (afu->mmio.type == OCSE_GLOBAL_MMIO_READ32)) {
-		if (get_bytes_silent(afu->fd, sizeof(uint32_t), data, 1000, 0) <
-		    0) {
+		if (get_bytes_silent(afu->fd, sizeof(uint32_t), data, 1000, 0) < 0) {
 			warn_msg("Socket failure getting MMIO Read 32 data");
 			afu->mmio.data = 0xFEEDB00FL;
 			_all_idle(afu);
