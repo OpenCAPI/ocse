@@ -102,14 +102,17 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 	  afuid = client->afuid;
 
 	  if (global == 1) {
-	    // global mmio offset + offset
-	    event->cmd_PA = mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_offset + addr;
+	    // bar0 + global mmio offset + offset
+	    event->cmd_PA = mmio->fcn_cfg_array[fcn]->bar0 + 
+	                    mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_offset + 
+	                    addr;
 	    debug_msg( "global mmio to fcn/afu %d/%d : offset (0x%016x) + addr (0x%016x) = cmd_pa (0x%016x)", 
 		       fcn, afuid, mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_offset, addr, event->cmd_PA );
 	  } else {
-	    // per pasid mmio offset + (client context * stride) + offset
+	    // bar0 + per pasid mmio offset + (client context * stride) + offset
 	    // TODO offset is NOW 64b, comprised of offset_high & offset_low
-	    event->cmd_PA = mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_offset + 
+	    event->cmd_PA = mmio->fcn_cfg_array[fcn]->bar0 + 
+	                    mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_offset + 
 	                    ( mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_stride * client->context ) + 
 	                    addr;
 	    debug_msg( "per pasid mmio to fcn/afu %d/%d : offset (0x%016x) + ( stride (0x%016x) * context (%d) ) + addr (0x%016x) = cmd_pa (0x%016x)", 
