@@ -359,7 +359,10 @@ int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 	// loop through all the potential functions by incrementing the fcn portion of the physical address.
 	// eventually, we might want to set up "bus" in a parm file.  For now, we assume bus = 0
 	// init high water marks so we can build up base values for BARs and acTag
-	bar = 0;
+	// 5/24/2018 - in Power Systems, the initial bar setting is controlled by the processor side
+	// it is NOT calculated based on the the memory usage profile that can be obtained by walking the
+	// config space.  The initial value used in Power is 4 TB (the LPC size reserved by the OS)
+	bar = 0x0000040000000000; // 4 TB
 	actag = 0;
 
 	for (f = 0; f < 8; f++ ) {
