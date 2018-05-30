@@ -1927,7 +1927,7 @@ static int _ocse_connect(uint16_t * afu_map, int *fd)
 	// afu_map contains a 1 at each position a tlx interface exists - i.e. the bus numbers that have been "discovered"
 	memcpy((char *)afu_map, (char *)buffer, 2);
 	*afu_map = (long)ntohs(*afu_map);
-	debug_msg("opened host-side socket %d", fd);
+	debug_msg("opened host-side socket %d", *fd);
 	return 0;
 
  connect_fail:
