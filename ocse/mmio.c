@@ -102,14 +102,17 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 	  afuid = client->afuid;
 
 	  if (global == 1) {
-	    // global mmio offset + offset
-	    event->cmd_PA = mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_offset + addr;
+	    // bar0 + global mmio offset + offset
+	    event->cmd_PA = mmio->fcn_cfg_array[fcn]->bar0 + 
+	                    mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_offset + 
+	                    addr;
 	    debug_msg( "global mmio to fcn/afu %d/%d : offset (0x%016x) + addr (0x%016x) = cmd_pa (0x%016x)", 
 		       fcn, afuid, mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_offset, addr, event->cmd_PA );
 	  } else {
-	    // per pasid mmio offset + (client context * stride) + offset
+	    // bar0 + per pasid mmio offset + (client context * stride) + offset
 	    // TODO offset is NOW 64b, comprised of offset_high & offset_low
-	    event->cmd_PA = mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_offset + 
+	    event->cmd_PA = mmio->fcn_cfg_array[fcn]->bar0 + 
+	                    mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_offset + 
 	                    ( mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_stride * client->context ) + 
 	                    addr;
 	    debug_msg( "per pasid mmio to fcn/afu %d/%d : offset (0x%016x) + ( stride (0x%016x) * context (%d) ) + addr (0x%016x) = cmd_pa (0x%016x)", 
@@ -359,7 +362,10 @@ int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 	// loop through all the potential functions by incrementing the fcn portion of the physical address.
 	// eventually, we might want to set up "bus" in a parm file.  For now, we assume bus = 0
 	// init high water marks so we can build up base values for BARs and acTag
-	bar = 0;
+	// 5/24/2018 - in Power Systems, the initial bar setting is controlled by the processor side
+	// it is NOT calculated based on the the memory usage profile that can be obtained by walking the
+	// config space.  The initial value used in Power is 4 TB (the LPC size reserved by the OS)
+	bar = 0x0000040000000000; // 4 TB
 	actag = 0;
 
 	for (f = 0; f < 8; f++ ) {
