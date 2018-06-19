@@ -2766,7 +2766,7 @@ ocxl_err ocxl_afu_close( ocxl_afu_h afu )
 	return OCXL_OK;
 }
 
-ocxl_err ocxl_afu_attach( ocxl_afu_h afu, uint64_t flags )
+ocxl_err ocxl_afu_attach( ocxl_afu_h afu, __attribute__((unused)) uint64_t flags )
 {
         struct ocxl_afu *my_afu;
 
