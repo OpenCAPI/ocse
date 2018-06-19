@@ -63,7 +63,7 @@ typedef struct ocxl_identifier {
 // deprecate struct ocxl_adapter_h;
 // deprecate struct ocxl_ioctl_start_work;
 
-typedef void *ocxl_afu_h;
+typedef struct ocxl_afu *ocxl_afu_h;
 
 #define OCXL_INVALID_AFU NULL
 
@@ -71,7 +71,7 @@ typedef uint16_t ocxl_irq_h;
 
 #define OCXL_INVALID_IRQ UINT16_MAX;
 
-typedef void *ocxl_mmio_h;
+typedef struct ocxl_mmio_area *ocxl_mmio_h;
 
 /*
  * various return codes from ocxl functions

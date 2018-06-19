@@ -2959,31 +2959,28 @@ uint16_t ocxl_afu_event_check( ocxl_afu_h afu, int timeout, ocxl_event *events, 
 
 ocxl_err ocxl_mmio_map( ocxl_afu_h afu, ocxl_mmio_type type, ocxl_mmio_h *mmio )
 {
-        ocxl_afu *my_afu;
 	ocxl_err err;
 
-	my_afu = (ocxl_afu *)afu;
-
 	debug_msg( "MMIO MAP" );
-	if (my_afu == NULL) {
+	if (afu == NULL) {
 		warn_msg("ocxl_mmio_map: NULL afu!");
 		err = OCXL_NO_CONTEXT;
 		goto map_fail;
 	}
 
-	if (!my_afu->opened) {
+	if (!afu->opened) {
 		warn_msg("ocxl_mmio_map: Must open afu first!");
 		err = OCXL_NO_CONTEXT;
 		goto map_fail;
 	}
 
-	if (!my_afu->attached) {
+	if (!afu->attached) {
 		warn_msg("ocxl_mmio_map: Must attach afu first!");
 		err = OCXL_NO_CONTEXT;
 		goto map_fail;
 	}
 
-	if (my_afu->mmio_count == my_afu->mmio_max) {
+	if (afu->mmio_count == afu->mmio_max) {
 		warn_msg("ocxl_mmio_map: insufficient memory to map the new mmio area!");
 		err = OCXL_NO_MEM;
 		goto map_fail;
@@ -2992,15 +2989,15 @@ ocxl_err ocxl_mmio_map( ocxl_afu_h afu, ocxl_mmio_type type, ocxl_mmio_h *mmio )
 	switch (type) {
 	case OCXL_GLOBAL_MMIO:
 	  // Send MMIO map to OCSE
-	  my_afu->mmio.type = OCSE_GLOBAL_MMIO_MAP;
+	  afu->mmio.type = OCSE_GLOBAL_MMIO_MAP;
 	  // my_afu->mmio.data = (uint64_t) endian;
-	  my_afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	  afu->mmio.state = LIBOCXL_REQ_REQUEST;
 	  break;
 	case OCXL_PER_PASID_MMIO:
 	  // Send MMIO map to OCSE
-	  my_afu->mmio.type = OCSE_MMIO_MAP;
+	  afu->mmio.type = OCSE_MMIO_MAP;
 	  // my_afu->mmio.data = (uint64_t) endian;
-	  my_afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	  afu->mmio.state = LIBOCXL_REQ_REQUEST;
 	  break;
 	default:
 	  err = OCXL_INVALID_ARGS;
@@ -3008,16 +3005,16 @@ ocxl_err ocxl_mmio_map( ocxl_afu_h afu, ocxl_mmio_type type, ocxl_mmio_h *mmio )
 	  break;
 	}
 
-	while (my_afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+	while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
 
 	if (type == OCXL_GLOBAL_MMIO)
-	  my_afu->global_mapped = 1;
+	  afu->global_mapped = 1;
 	else
-	  my_afu->mapped = 1;
+	  afu->mapped = 1;
 	
-	*mmio = (ocxl_mmio_h)&(my_afu->mmios[my_afu->mmio_count]);
-	my_afu->mmio_count++;
+	*mmio = (ocxl_mmio_h)&(afu->mmios[afu->mmio_count]);
+	afu->mmio_count++;
 	  
 	return OCXL_OK;
  map_fail:
@@ -3026,15 +3023,11 @@ ocxl_err ocxl_mmio_map( ocxl_afu_h afu, ocxl_mmio_type type, ocxl_mmio_h *mmio )
 
 ocxl_err ocxl_mmio_unmap( ocxl_mmio_h region )
 {
-        ocxl_mmio_area *mmio;
-
-	mmio = (ocxl_mmio_area *)region;
-
 // since we've created a static array for the areas, this is tricky...
-	if (mmio->type == OCXL_GLOBAL_MMIO)
-	  mmio->afu->global_mapped = 0;
+	if (region->type == OCXL_GLOBAL_MMIO)
+	  region->afu->global_mapped = 0;
 	else
-	  mmio->afu->mapped = 0;
+	  region->afu->mapped = 0;
 
 // but what about mmio_count?
 
@@ -3043,30 +3036,28 @@ ocxl_err ocxl_mmio_unmap( ocxl_mmio_h region )
 
 ocxl_err ocxl_mmio_write64( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, uint64_t value )
 {
-        ocxl_mmio_area *my_mmio;
 	ocxl_err err;
 
 	//debug_msg("ocxl_mmio_write64: entered");
-	my_mmio = (ocxl_mmio_area *)mmio;
 
-	if (my_mmio->afu == NULL) {
+	if (mmio->afu == NULL) {
 	  err = OCXL_NO_MEM;
 	  goto write64_fail;
 	}
-	//debug_msg("ocxl_mmio_write64: my_mmio->afu ok");
+	//debug_msg("ocxl_mmio_write64: mmio->afu ok");
 
-	if (my_mmio->type == OCXL_GLOBAL_MMIO) {
-	  if (!my_mmio->afu->global_mapped) {
+	if (mmio->type == OCXL_GLOBAL_MMIO) {
+	  if (!mmio->afu->global_mapped) {
 	    err = OCXL_NO_MEM;
 	    goto write64_fail;
 	  }
 	} else {
-	  if (!my_mmio->afu->mapped) {
+	  if (!mmio->afu->mapped) {
 	    err = OCXL_NO_MEM;
 	    goto write64_fail;
 	  }
 	}
-	//debug_msg("ocxl_mmio_write64: my_mmio->afu->*mapped ok");
+	//debug_msg("ocxl_mmio_write64: mmio->afu->*mapped ok");
 
 	if ( offset & 0x7 ) {
 		warn_msg("ocxl_mmio_write64: offset not properly aligned!");
@@ -3084,24 +3075,24 @@ ocxl_err ocxl_mmio_write64( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, 
 	/* } */
 
 	// Send MMIO map to OCSE
-	if (my_mmio->type == OCXL_GLOBAL_MMIO) {
-	  my_mmio->afu->mmio.type = OCSE_GLOBAL_MMIO_WRITE64;
+	if (mmio->type == OCXL_GLOBAL_MMIO) {
+	  mmio->afu->mmio.type = OCSE_GLOBAL_MMIO_WRITE64;
 	} else {
-	  my_mmio->afu->mmio.type = OCSE_MMIO_WRITE64;
+	  mmio->afu->mmio.type = OCSE_MMIO_WRITE64;
 	}
-	my_mmio->afu->mmio.addr = (uint32_t) offset;
+	mmio->afu->mmio.addr = (uint32_t) offset;
 	// should I use endian here???  maybe
-	my_mmio->afu->mmio.data = value;
-	my_mmio->afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	mmio->afu->mmio.data = value;
+	mmio->afu->mmio.state = LIBOCXL_REQ_REQUEST;
 
 	//debug_msg("ocxl_mmio_write64: waiting for idle");
 
-	while (my_mmio->afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+	while (mmio->afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
 
 	//debug_msg("ocxl_mmio_write64: mmio acked");
 
-	if (!my_mmio->afu->opened) {
+	if (!mmio->afu->opened) {
 	  err = OCXL_NO_DEV;
 	  goto write64_fail;
 	}
@@ -3116,23 +3107,20 @@ ocxl_err ocxl_mmio_write64( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, 
 
 ocxl_err ocxl_mmio_read64( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, uint64_t *out )
 {
-        ocxl_mmio_area *my_mmio;
 	ocxl_err err;
 
-	my_mmio = (ocxl_mmio_area *)mmio;
-
-	if (my_mmio->afu == NULL) {
+	if (mmio->afu == NULL) {
 	  err = OCXL_NO_MEM;
 	  goto read64_fail;
 	}
 
-	if (my_mmio->type == OCXL_GLOBAL_MMIO) {
-	  if (!my_mmio->afu->global_mapped) {
+	if (mmio->type == OCXL_GLOBAL_MMIO) {
+	  if (!mmio->afu->global_mapped) {
 	    err = OCXL_NO_MEM;
 	    goto read64_fail;
 	  }
 	} else {
-	  if (!my_mmio->afu->mapped) {
+	  if (!mmio->afu->mapped) {
 	    err = OCXL_NO_MEM;
 	    goto read64_fail;
 	  }
@@ -3153,20 +3141,20 @@ ocxl_err ocxl_mmio_read64( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, u
 	/* } */
 
 	// Send MMIO map to OCSE
-	if (my_mmio->type == OCXL_GLOBAL_MMIO) {
-	  my_mmio->afu->mmio.type = OCSE_GLOBAL_MMIO_READ64;
+	if (mmio->type == OCXL_GLOBAL_MMIO) {
+	  mmio->afu->mmio.type = OCSE_GLOBAL_MMIO_READ64;
 	} else {
-	  my_mmio->afu->mmio.type = OCSE_MMIO_READ64;
+	  mmio->afu->mmio.type = OCSE_MMIO_READ64;
 	}
-	my_mmio->afu->mmio.addr = (uint32_t) offset;
-	my_mmio->afu->mmio.state = LIBOCXL_REQ_REQUEST;
-	while (my_mmio->afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+	mmio->afu->mmio.addr = (uint32_t) offset;
+	mmio->afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	while (mmio->afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
 
 	// should use endian here...  maybe
-	*out = my_mmio->afu->mmio.data;
+	*out = mmio->afu->mmio.data;
 
-	if (!my_mmio->afu->opened) {
+	if (!mmio->afu->opened) {
 	  err = OCXL_NO_DEV;
 	  goto read64_fail;
 	}
@@ -3180,23 +3168,20 @@ ocxl_err ocxl_mmio_read64( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, u
 
 ocxl_err ocxl_mmio_write32( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, uint32_t value )
 {
-        ocxl_mmio_area *my_mmio;
 	ocxl_err err;
 
-	my_mmio = (ocxl_mmio_area *)mmio;
-
-	if (my_mmio->afu == NULL) {
+	if (mmio->afu == NULL) {
 	  err = OCXL_NO_MEM;
 	  goto write32_fail;
 	}
 
-	if (my_mmio->type == OCXL_GLOBAL_MMIO) {
-	  if (!my_mmio->afu->global_mapped) {
+	if (mmio->type == OCXL_GLOBAL_MMIO) {
+	  if (!mmio->afu->global_mapped) {
 	    err = OCXL_NO_MEM;
 	    goto write32_fail;
 	  }
 	} else {
-	  if (!my_mmio->afu->mapped) {
+	  if (!mmio->afu->mapped) {
 	    err = OCXL_NO_MEM;
 	    goto write32_fail;
 	  }
@@ -3215,18 +3200,18 @@ ocxl_err ocxl_mmio_write32( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, 
 	/* } */
 
 	// Send MMIO map to OCSE
-	if (my_mmio->type == OCXL_GLOBAL_MMIO) {
-	  my_mmio->afu->mmio.type = OCSE_GLOBAL_MMIO_WRITE32;
+	if (mmio->type == OCXL_GLOBAL_MMIO) {
+	  mmio->afu->mmio.type = OCSE_GLOBAL_MMIO_WRITE32;
 	} else {
-	  my_mmio->afu->mmio.type = OCSE_MMIO_WRITE32;
+	  mmio->afu->mmio.type = OCSE_MMIO_WRITE32;
 	}
-	my_mmio->afu->mmio.addr = (uint32_t) offset;
-	my_mmio->afu->mmio.data = (uint64_t) value;
-	my_mmio->afu->mmio.state = LIBOCXL_REQ_REQUEST;
-	while (my_mmio->afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+	mmio->afu->mmio.addr = (uint32_t) offset;
+	mmio->afu->mmio.data = (uint64_t) value;
+	mmio->afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	while (mmio->afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
 
-	if (!my_mmio->afu->opened){
+	if (!mmio->afu->opened){
 	  err = OCXL_NO_DEV;
 	  goto write32_fail;
 	}
@@ -3239,23 +3224,20 @@ ocxl_err ocxl_mmio_write32( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, 
 
 ocxl_err ocxl_mmio_read32( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, uint32_t *out )
 {
-        ocxl_mmio_area *my_mmio;
 	ocxl_err err;
 
-	my_mmio = (ocxl_mmio_area *)mmio;
-
-	if (my_mmio->afu == NULL) {
+	if (mmio->afu == NULL) {
 	  err = OCXL_NO_MEM;
 	  goto read32_fail;
 	}
 
-	if (my_mmio->type == OCXL_GLOBAL_MMIO) {
-	  if (!my_mmio->afu->global_mapped) {
+	if (mmio->type == OCXL_GLOBAL_MMIO) {
+	  if (!mmio->afu->global_mapped) {
 	    err = OCXL_NO_MEM;
 	    goto read32_fail;
 	  }
 	} else {
-	  if (!my_mmio->afu->mapped) {
+	  if (!mmio->afu->mapped) {
 	    err = OCXL_NO_MEM;
 	    goto read32_fail;
 	  }
@@ -3275,18 +3257,18 @@ ocxl_err ocxl_mmio_read32( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, u
 	/* } */
 
 	// Send MMIO map to OCSE
-	if (my_mmio->type == OCXL_GLOBAL_MMIO) {
-	  my_mmio->afu->mmio.type = OCSE_GLOBAL_MMIO_READ32;
+	if (mmio->type == OCXL_GLOBAL_MMIO) {
+	  mmio->afu->mmio.type = OCSE_GLOBAL_MMIO_READ32;
 	} else {
-	  my_mmio->afu->mmio.type = OCSE_MMIO_READ32;
+	  mmio->afu->mmio.type = OCSE_MMIO_READ32;
 	}
-	my_mmio->afu->mmio.addr = (uint32_t) offset;
-	my_mmio->afu->mmio.state = LIBOCXL_REQ_REQUEST;
-	while (my_mmio->afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+	mmio->afu->mmio.addr = (uint32_t) offset;
+	mmio->afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	while (mmio->afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
-	*out = (uint32_t) my_mmio->afu->mmio.data;
+	*out = (uint32_t) mmio->afu->mmio.data;
 
-	if (!my_mmio->afu->opened) {
+	if (!mmio->afu->opened) {
 	  err = OCXL_NO_DEV;
 	  goto read32_fail;
 	}
@@ -3356,11 +3338,7 @@ ocxl_err ocxl_mmio_read32( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, u
 
 ocxl_err ocxl_global_mmio_write64( ocxl_afu_h afu, uint64_t offset, uint64_t val)
 {
-        struct ocxl_afu *my_afu;
-
-	my_afu = (struct ocxl_afu *)afu;
-
-	if ((my_afu == NULL) || !my_afu->global_mapped)
+	if ((afu == NULL) || !afu->global_mapped)
 		goto write64_fail;
 
 	if (offset & 0x7) {
@@ -3376,14 +3354,14 @@ ocxl_err ocxl_global_mmio_write64( ocxl_afu_h afu, uint64_t offset, uint64_t val
 	/* } */
 
 	// Send MMIO map to OCSE
-	my_afu->mmio.type = OCSE_GLOBAL_MMIO_WRITE64;
-	my_afu->mmio.addr = (uint32_t) offset;
-	my_afu->mmio.data = val;
-	my_afu->mmio.state = LIBOCXL_REQ_REQUEST;
-	while (my_afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+	afu->mmio.type = OCSE_GLOBAL_MMIO_WRITE64;
+	afu->mmio.addr = (uint32_t) offset;
+	afu->mmio.data = val;
+	afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
 
-	if (!my_afu->opened)
+	if (!afu->opened)
 		goto write64_fail;
 
 	return OCXL_OK;
@@ -3395,11 +3373,7 @@ ocxl_err ocxl_global_mmio_write64( ocxl_afu_h afu, uint64_t offset, uint64_t val
 
 ocxl_err ocxl_global_mmio_read64( ocxl_afu_h afu, uint64_t offset, uint64_t *out)
 {
-        struct ocxl_afu *my_afu;
-
-	my_afu = (struct ocxl_afu *)afu;
-
-	if ((my_afu == NULL) || !my_afu->global_mapped)
+	if ((afu == NULL) || !afu->global_mapped)
 		goto read64_fail;
 
 	if (offset & 0x7) {
@@ -3415,14 +3389,14 @@ ocxl_err ocxl_global_mmio_read64( ocxl_afu_h afu, uint64_t offset, uint64_t *out
 	/* } */
 
 	// Send MMIO map to OCSE
-	my_afu->mmio.type = OCSE_GLOBAL_MMIO_READ64;
-	my_afu->mmio.addr = (uint32_t)offset;
-	my_afu->mmio.state = LIBOCXL_REQ_REQUEST;
-	while (my_afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+	afu->mmio.type = OCSE_GLOBAL_MMIO_READ64;
+	afu->mmio.addr = (uint32_t)offset;
+	afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
-	*out = my_afu->mmio.data;
+	*out = afu->mmio.data;
 
-	if (!my_afu->opened)
+	if (!afu->opened)
 		goto read64_fail;
 
 	return OCXL_OK;
@@ -3434,11 +3408,7 @@ ocxl_err ocxl_global_mmio_read64( ocxl_afu_h afu, uint64_t offset, uint64_t *out
 
 ocxl_err ocxl_global_mmio_write32( ocxl_afu_h afu, uint64_t offset, uint32_t val)
 {
-        struct ocxl_afu *my_afu;
-
-	my_afu = (struct ocxl_afu *)afu;
-
-	if ((my_afu == NULL) || !my_afu->global_mapped)
+	if ((afu == NULL) || !afu->global_mapped)
 		goto write32_fail;
 
 	if (offset & 0x3) {
@@ -3454,14 +3424,14 @@ ocxl_err ocxl_global_mmio_write32( ocxl_afu_h afu, uint64_t offset, uint32_t val
 	/* } */
 
 	// Send MMIO map to OCSE
-	my_afu->mmio.type = OCSE_GLOBAL_MMIO_WRITE32;
-	my_afu->mmio.addr = (uint32_t)offset;
-	my_afu->mmio.data = (uint64_t)val;
-	my_afu->mmio.state = LIBOCXL_REQ_REQUEST;
-	while (my_afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+	afu->mmio.type = OCSE_GLOBAL_MMIO_WRITE32;
+	afu->mmio.addr = (uint32_t)offset;
+	afu->mmio.data = (uint64_t)val;
+	afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
 
-	if (!my_afu->opened)
+	if (!afu->opened)
 		goto write32_fail;
 
 	return OCXL_OK;
@@ -3473,11 +3443,7 @@ ocxl_err ocxl_global_mmio_write32( ocxl_afu_h afu, uint64_t offset, uint32_t val
 
 ocxl_err ocxl_global_mmio_read32( ocxl_afu_h afu, uint64_t offset, uint32_t *out)
 {
-        struct ocxl_afu *my_afu;
-
-	my_afu = (struct ocxl_afu *)afu;
-
-	if ((my_afu == NULL) || !my_afu->global_mapped)
+	if ((afu == NULL) || !afu->global_mapped)
 		goto read32_fail;
 
 	if (offset & 0x3) {
@@ -3493,14 +3459,14 @@ ocxl_err ocxl_global_mmio_read32( ocxl_afu_h afu, uint64_t offset, uint32_t *out
 	/* } */
 
 	// Send MMIO map to OCSE
-	my_afu->mmio.type = OCSE_GLOBAL_MMIO_READ32;
-	my_afu->mmio.addr = (uint32_t)offset;
-	my_afu->mmio.state = LIBOCXL_REQ_REQUEST;
-	while (my_afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+	afu->mmio.type = OCSE_GLOBAL_MMIO_READ32;
+	afu->mmio.addr = (uint32_t)offset;
+	afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
-	*out = (uint32_t) my_afu->mmio.data;
+	*out = (uint32_t) afu->mmio.data;
 
-	if (!my_afu->opened)
+	if (!afu->opened)
 		goto read32_fail;
 
 	return OCXL_OK;
@@ -3512,44 +3478,32 @@ ocxl_err ocxl_global_mmio_read32( ocxl_afu_h afu, uint64_t offset, uint32_t *out
 
 size_t ocxl_afu_get_mmio_size( ocxl_afu_h afu )
 {
-        struct ocxl_afu *my_afu;
-
-	my_afu = (struct ocxl_afu *)afu;
-
-	if (my_afu == NULL)
+	if (afu == NULL)
                    return OCXL_NO_DEV;
 
         // this is the mmio stride for this afu
-        return my_afu->per_pasid_mmio.length;
+        return afu->per_pasid_mmio.length;
 }
 
 size_t ocxl_afu_get_global_mmio_size( ocxl_afu_h afu )
 {
-        struct ocxl_afu *my_afu;
-
-	my_afu = (struct ocxl_afu *)afu;
-
-	if (my_afu == NULL)
+	if (afu == NULL)
                    return OCXL_NO_DEV;
 
         // this is the per pasid mmio offset for this afu
 	// there might be a more accurate method - look for it
-        return my_afu->global_mmio.length;
+        return afu->global_mmio.length;
 
 }
 
 void  ocxl_afu_get_version( ocxl_afu_h afu, uint8_t *major, uint8_t *minor )
 {
-        struct ocxl_afu *my_afu;
-
-	my_afu = (struct ocxl_afu *)afu;
-
 	// if (my_afu == NULL)
         //           return OCXL_NO_DEV;
 
         // these are from the afu descriptor that we retrieved when we opened the afu
-	*major = my_afu->afu_version_major;
-	*minor = my_afu->afu_version_minor;
+	*major = afu->afu_version_major;
+	*minor = afu->afu_version_minor;
 
         return;
 
@@ -3557,25 +3511,17 @@ void  ocxl_afu_get_version( ocxl_afu_h afu, uint8_t *major, uint8_t *minor )
 
 uint32_t  ocxl_afu_get_pasid( ocxl_afu_h afu )
 {
-        struct ocxl_afu *my_afu;
-
-	my_afu = (struct ocxl_afu *)afu;
-
 	// if (my_afu == NULL)
         //           return OCXL_NO_DEV;
 
         // we use the term context as the equivalent for the pasid
-        return my_afu->context;
+        return afu->context;
 
 }
 
 ocxl_err ocxl_afu_set_ppc64_amr( ocxl_afu_h afu, uint64_t amr)
 {
-        struct ocxl_afu *my_afu;
-
-	my_afu = (struct ocxl_afu *)afu;
-	
-	my_afu->ppc64_amr = amr;
+	afu->ppc64_amr = amr;
 
 	return OCXL_OK;
 }
@@ -3587,7 +3533,6 @@ ocxl_err ocxl_afu_set_ppc64_amr( ocxl_afu_h afu, uint64_t amr)
 // only one waitasec at a time in a context/afu pair
 int ocxl_sleep( ocxl_afu_h afu )
 {
-        struct ocxl_afu *my_afu;
         struct ocxl_waitasec waitasec;
 	uint8_t type;
 	//int i;
@@ -3597,22 +3542,20 @@ int ocxl_sleep( ocxl_afu_h afu )
 		return -1;
 	}
 
-	my_afu = (struct ocxl_afu *)afu;
-
 	// Function will block until event occurs
-	pthread_mutex_lock( &(my_afu->waitasec_lock) );
-	while ( my_afu->opened && !my_afu->waitasec ) {	/*infinite loop */
-		pthread_mutex_unlock( &(my_afu->waitasec_lock) );
+	pthread_mutex_lock( &(afu->waitasec_lock) );
+	while ( afu->opened && !afu->waitasec ) {	/*infinite loop */
+		pthread_mutex_unlock( &(afu->waitasec_lock) );
 		if (_delay_1ms() < 0)
 			return -1;
-		pthread_mutex_lock(&(my_afu->waitasec_lock));
+		pthread_mutex_lock(&(afu->waitasec_lock));
 	}
 
 	// Copy event data, free and move remaining events in queue
-	memcpy( &waitasec, my_afu->waitasec, sizeof( struct ocxl_waitasec ) );
-	free( my_afu->waitasec );
-	pthread_mutex_unlock( &(my_afu->waitasec_lock) );
-	if (read(my_afu->pipe[0], &type, 1) > 0)
+	memcpy( &waitasec, afu->waitasec, sizeof( struct ocxl_waitasec ) );
+	free( afu->waitasec );
+	pthread_mutex_unlock( &(afu->waitasec_lock) );
+	if (read(afu->pipe[0], &type, 1) > 0)
 		return 0;
 	return -1;
 }
