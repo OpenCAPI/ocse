@@ -34,6 +34,8 @@ static struct DATA_PKT *new_cdata_pkt;
 static struct DATA_PKT *old_cdata_pkt;
 static struct AFU_EVENT event;
 //
+  static int tick = 0;
+
 //
 // Local Variables
 #define CLOCK_EDGE_DELAY 2
@@ -374,8 +376,13 @@ void tlx_bfm(
   int j = 0;
   int rc= 0;
   int new_line_cnt;
-
+  
   c_reset			= reset & 0x1;
+
+  // print some values
+  debug_msg("tlx_bfm: tick = %d, reset = %d, c_reset = %d, c_reset_d1 = %d, c_reset_d2 = %d, resp = %d", tick, (uint8_t)reset, c_reset, c_reset_d1, c_reset_d2 );
+  // increment tick
+  tick = tick + 1;
 
   if(!c_reset_d2)
   {
@@ -978,6 +985,8 @@ void tlx_bfm(
 void tlx_bfm_init()
 {
   int port = 32768;
+  // print some values
+  debug_msg("tlx_bfm_init: tick = %d, c_reset = %d, c_reset_d1 = %d, c_reset_d2 = %d, resp = %d", tick, c_reset, c_reset_d1, c_reset_d2 );
   while (tlx_serv_afu_event(&event, port) != TLX_SUCCESS) {
     if (tlx_serv_afu_event(&event, port) == TLX_VERSION_ERROR) {
       printf("%08lld: ", (long long) c_sim_time);

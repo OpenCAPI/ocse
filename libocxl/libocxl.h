@@ -131,6 +131,19 @@ typedef struct ocxl_event {
   };
 } ocxl_event;
 
+/*
+ * an ocxl wait event
+ * 
+ * only one wait instruction can be supported  for the time being
+ *
+ */
+struct ocxl_wait_event {
+  pthread_mutex_t wait_lock;
+  uint16_t tid; // set by ocxl_afu_get_p9_threadid  we'll use context from the afu 
+  int enabled;  // set by ocxl_wait upon entry - cleared by ocxl_wait upon receipt of the wake host thread
+  int received; // set by _handle_wake_host_thread - cleared by ocxl_wait upon receipt of the wake host thread
+} ocxl_wait_event;
+
 #define OCXL_ATTACH_FLAGS_NONE (0)
 
 /* 
@@ -169,7 +182,7 @@ const char *ocxl_err_to_string( ocxl_err err );
   // close an afu but keep the structures and info that we obtained during the open
   ocxl_err ocxl_afu_close( ocxl_afu_h afu );
   // attach this process to the afu we have opened - permits the afu to utilze the virtual address space of this process
-  ocxl_err ocxl_afu_attach( ocxl_afu_h afu, uint64_t flags );
+  ocxl_err ocxl_afu_attach( ocxl_afu_h afu, __attribute__((unused)) uint64_t flags );
 
   /* 
    * afu irq functions 
@@ -185,20 +198,12 @@ const char *ocxl_err_to_string( ocxl_err err );
   /* users should use the following subroutine rather than the _versioned one */
   uint16_t ocxl_afu_event_check( ocxl_afu_h afu, int timeout, ocxl_event *events, uint16_t event_count );
 
+  ocxl_err ocxl_afu_get_p9_thread_id(ocxl_afu_h afu, uint16_t *thread_id);
+
   // return the size of the global mmio space for this afu
   size_t ocxl_afu_get_global_mmio_size( ocxl_afu_h afu );
   // return the size of the per process mmio space for this afu
   size_t ocxl_afu_get_mmio_size( ocxl_afu_h afu );
-
-/*   /\*  */
-/*    * high level wrappers  */
-/*    * platform specific: PPC64 */
-/*    * if we want to model this in ocse, perhaps we should expose it all the time rather than hide it behind __ARCH_PPC64 */
-/*    *\/ */
-/* #ifdef __ARCH_PPC64 */
-/*   ocxl_err ocxl_afu_use( const char *name, ocxl_afu_h *afu, uint64_t amr, ocxl_endian global_endianess, ocxl_endian per_pasid_endianess ); */
-/*   ocxl_err ocxl_afu_use_from_dev( const char *path, ocxl_afu_h *afu, uint64_t amr, ocxl_endian global_endianess, ocxl_endian per_pasid_endianess ); */
-/* #endif */
 
   /*
    * platform specific: PPC64
@@ -260,12 +265,12 @@ const char *ocxl_err_to_string( ocxl_err err );
 /*
  * "wait a sec".
  */
-// a non-standardized routine that models the behavior of the Power ISA wait instruction
+// a routine that models the behavior of the Power ISA wait instruction
 // to allow you to experiment with the idea of the Power ISA wait instruction(s)
 // the routine will block until someone issues a "wake_host_thead" or asb_notify
-ocxl_err ocxl_sleep( ocxl_afu_h afu );
+ocxl_err ocxl_wait();
 
-// the following notion can be found in libocxl_lpc.  they are not part of the normal reference user api
+// the following notions can be found in libocxl_lpc.  they are not part of the normal reference user api
 // think about an lpc or "host agent memory" set of helper functions
 // maybe a map function
 // read function

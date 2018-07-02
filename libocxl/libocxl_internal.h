@@ -89,9 +89,7 @@ typedef struct ocxl_mmio_area {
 struct ocxl_afu {
 	pthread_t thread;
 	pthread_mutex_t event_lock;
-	pthread_mutex_t waitasec_lock;
 	ocxl_event *events[EVENT_QUEUE_MAX];
-	struct ocxl_waitasec *waitasec;
         uint64_t ppc64_amr;
 	char *id;
         ocxl_identifier ocxl_id;
@@ -135,22 +133,5 @@ struct ocxl_afu {
   //struct ocxl_afu *_next;
   //struct ocxl_afu *_next_adapter; // ???
 };
-
-/* struct ocxl_adapter_h { */
-/* 	DIR *enum_dir; */
-/* 	struct dirent *enum_ent; */
-/* 	char *sysfs_path; */
-/* 	long oppa_major; */
-/* 	long oppa_minor; */
-/* 	long ocse_version; */
-/* 	int fd; */
-/* 	char *id; */
-/* 	uint16_t map; */
-/* 	uint16_t mask; */
-/* 	uint16_t position; */
-/* 	struct ocxl_adapter_h *_head; */
-/* 	struct ocxl_adapter_h *_next; */
-/* 	struct ocxl_afu *afu_list; */
-/* }; */
 
 #endif

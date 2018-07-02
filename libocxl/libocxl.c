@@ -140,19 +140,17 @@ static int _handle_dsi(struct ocxl_afu *afu, uint64_t addr)
 
 static int _handle_wake_host_thread(struct ocxl_afu *afu)
 {
-	uint16_t size;
 	uint64_t addr;
 	uint8_t cmd_flag;
 	uint8_t adata[8];
-	int i;
 
 	if (!afu) fatal_msg("_handle_wake_host_thread:NULL afu passed");
 
 	debug_msg("AFU WAKE HOST THREAD");
 
-	// in opencapi, we should get a 64 bit address (and maybe data)
-	// we should find that address in the afu's irq list
-	// if we find it, we should put some stuff(?) in the event array
+	// in opencapi, we should get a 64 bit address (to be interpretted as a thread id)
+	// we should find that a match to that thread id
+	// if we find it
 
 	//buffer[0] = OCSE_WAKE (already read)
 	//buffer[1] = event->cmd_flag
@@ -172,32 +170,15 @@ static int _handle_wake_host_thread(struct ocxl_afu *afu)
 	// addr = ntohs(addr);
 	debug_msg("_handle_wake_host_thread: received wake_host_thread thread id 0x%016lx", addr);
 
-	// we have the matching tid pointer
+	// Only track a single wait at a time
+	pthread_mutex_lock(&(ocxl_wait_event.wait_lock));
 
-	// Only track a single interrupt at a time
-	// but what about a second afu_interrupt to a different irq address?  
-	// should that be saved or coalecsed?
-	// this code would coalesce them
-	pthread_mutex_lock(&(afu->waitasec_lock));
-	if ( afu->waitasec != NULL ) {
-	  // we are already waiting for someone to see the wake_host_thread
-	  pthread_mutex_unlock(&(afu->waitasec_lock));
-	  return 0;
-	}
+	// we should try to match the lower order 2 bytes of addr with the thread id that we have saved
+	// but for now we are going to assume a match
+	ocxl_wait_event.received = 1;
 
-	size = sizeof(struct ocxl_waitasec);
-
-	afu->waitasec = (struct ocxl_waitasec *)calloc(1, size);
-	afu->waitasec->type = OCXL_EVENT_IRQ;
-	afu->waitasec->size = size;
-	afu->waitasec->process_element = afu->context; // might not need this
-
-	do {
-		i = write(afu->pipe[1], &(afu->waitasec->type), 1);
-	} while ((i == 0) || (errno == EINTR));
-
-	pthread_mutex_unlock(&(afu->waitasec_lock));
-	return i;
+	pthread_mutex_unlock(&(ocxl_wait_event.wait_lock));
+	return 0;
 }
 
 static int _handle_interrupt(struct ocxl_afu *afu, uint8_t data_is_valid)
@@ -2452,60 +2433,50 @@ const char *ocxl_err_to_string( ocxl_err err )
 
 const ocxl_identifier *ocxl_afu_get_identifier( ocxl_afu_h afu )
 {
-        struct ocxl_afu *my_afu;
-
-	my_afu = (struct ocxl_afu *)afu;
-
-	if (!my_afu) {
+	if (!afu) {
 		errno = EINVAL;
 		return NULL;
 	}
 
-	return &my_afu->ocxl_id;
+	return &afu->ocxl_id;
 }
 
 const char *ocxl_afu_get_device_pathname( ocxl_afu_h afu )
 {
-        struct ocxl_afu *my_afu;	
 	char *pathname = NULL;
 
-	my_afu = (struct ocxl_afu *)afu;
-
-	if (!my_afu) {
+	if (!afu) {
 		errno = EINVAL;
 		return NULL;
 	}
 	// return /dev/ocxl/<name>.<domain>:<bus>:<device>.<function>.<index>
 	// use sprintf and strcpy to build pathname
 	sprintf( pathname, "/dev/ocxl/%s.0000:%02x:%02x.%x.%x", 
-		 (char *)&(my_afu->ocxl_id.afu_name[0]),
-		 my_afu->bus, 
-		 my_afu->dev, 
-		 my_afu->fcn, 
-		 my_afu->ocxl_id.afu_index );
+		 (char *)&(afu->ocxl_id.afu_name[0]),
+		 afu->bus, 
+		 afu->dev, 
+		 afu->fcn, 
+		 afu->ocxl_id.afu_index );
 
 	return pathname;
 }
 
 const char *ocxl_afu_get_sysfs_pathname( ocxl_afu_h afu )
 {
-        struct ocxl_afu *my_afu;
 	char *pathname = NULL;
 
-	my_afu = (struct ocxl_afu *)afu;
-
-	if (!my_afu) {
+	if (!afu) {
 		errno = EINVAL;
 		return NULL;
 	}
 	// return /dev/sysfs/class/ocxl/<name>.<domain>:<bus>:<device>.<function>.<index>
 	// use sprintf and strcpy to build pathname
 	sprintf( pathname, "/dev/sysfs/class/ocxl/%s.0000:%02x:%02x.%x.%x", 
-		 (char *)&(my_afu->ocxl_id.afu_name[0]),
-		 my_afu->bus, 
-		 my_afu->dev, 
-		 my_afu->fcn, 
-		 my_afu->ocxl_id.afu_index );
+		 (char *)&(afu->ocxl_id.afu_name[0]),
+		 afu->bus, 
+		 afu->dev, 
+		 afu->fcn, 
+		 afu->ocxl_id.afu_index );
 
 	return pathname;
 	return NULL;
@@ -2525,14 +2496,13 @@ ocxl_err ocxl_afu_open_from_dev( const char *path, ocxl_afu_h *afu )
 	char *afu_index;
 	int rc;
 	int fd;
-	struct ocxl_afu *my_afu;
 
 	// is there a way to see if this is already done?
 
 	if ( !path ) return OCXL_NO_DEV;
 
 	// allocate afu structure
-	rc = _alloc_afu( (ocxl_afu_h *)&my_afu );
+	rc = _alloc_afu( afu );
 	if (  rc != 0 ) return rc;
 
 	if ( _ocse_connect(&afu_map, &fd) < 0 ) return OCXL_NO_DEV;
@@ -2578,17 +2548,15 @@ ocxl_err ocxl_afu_open_from_dev( const char *path, ocxl_afu_h *afu )
 
 	// makes sure we test to see that bus, dev, and fcn are within syntactic limits
 
-	strcpy( (char *)&(my_afu->ocxl_id.afu_name[0]), afu_name );
+	strcpy( (char *)&((*afu)->ocxl_id.afu_name[0]), afu_name );
 
 	debug_msg("major number = 0x%01x", bus);
 
-	rc = _query_afu( my_afu, fd, bus, dev, fcn, afuid );
+	rc = _query_afu( *afu, fd, bus, dev, fcn, afuid );
 
 	// open the "afu"
-	rc = _open_afu( my_afu );
+	rc = _open_afu( *afu );
 
-	// now, how do I return afu_h (struct ocxl_afu *) through afu (ocxl_afu_h *)?
-	*afu = ( ocxl_afu_h )my_afu;
 	return OCXL_OK;
 }
 
@@ -2598,32 +2566,31 @@ ocxl_err ocxl_afu_open( const char *name, ocxl_afu_h *afu ) {
 	int rc;
 	uint16_t afu_map;
 	int fd;
-	struct ocxl_afu *my_afu;
+
 	// connect
 	// is there a way to see if this is already done?
 
 	// allocate afu structure
-	rc = _alloc_afu( (ocxl_afu_h *)&my_afu );
+	rc = _alloc_afu( afu );
 	if (  rc != 0 ) return rc;
 
 	if ( _ocse_connect(&afu_map, &fd) < 0 ) return OCXL_NO_DEV;
 
 	// find name - returns bus, device, function, afu_index
-	strcpy( (char *)&(my_afu->ocxl_id.afu_name[0]), name );
+	strcpy( (char *)&((*afu)->ocxl_id.afu_name[0]), name );
 
 	// new routine here
 	rc = _find_afu( fd, name, &bus, &dev, &fcn, &afuid );
 	if (  rc != 0 ) return rc;
 
 	// query
-	rc = _query_afu( my_afu, fd, bus, dev, fcn, afuid );
+	rc = _query_afu( *afu, fd, bus, dev, fcn, afuid );
 	if (  rc != 0 ) return rc;
 
 	// open the "afu"
-	rc = _open_afu( my_afu );
+	rc = _open_afu( *afu );
 	if (  rc != 0 ) return rc;
 
-	*afu = ( ocxl_afu_h )my_afu;
 	return OCXL_OK;
 }
 
@@ -2633,10 +2600,9 @@ ocxl_err ocxl_afu_open_specific( const char *name, const char *physical_function
 	int rc;
 	uint16_t afu_map;
 	int fd;
-	struct ocxl_afu *my_afu;
 
 	// _alloc_afu
-	rc = _alloc_afu( (ocxl_afu_h *)&my_afu );
+	rc = _alloc_afu( afu );
 	if (  rc != 0 ) return rc;
 
 	// _connect
@@ -2652,14 +2618,13 @@ ocxl_err ocxl_afu_open_specific( const char *name, const char *physical_function
         }
 	
 	// _query_afu
-	rc = _query_afu( my_afu, fd, bus, device, function, afu_index );
+	rc = _query_afu( *afu, fd, bus, device, function, afu_index );
 	if (  rc != 0 ) return rc;
 
 	// open the "afu"
-	rc = _open_afu( my_afu );
+	rc = _open_afu( *afu );
 	if (  rc != 0 ) return rc;
 
-	*afu = ( ocxl_afu_h )my_afu;
 	return OCXL_OK;
 }
 
@@ -2708,37 +2673,34 @@ void _afu_free( ocxl_afu_h afu )
 {
 	uint8_t buffer;
 	int rc;
-        struct ocxl_afu *my_afu;
 
-	my_afu = (struct ocxl_afu *)afu;
-
-	if (!my_afu) {
+	if (!afu) {
 		warn_msg("_afu_free: No AFU given");
 		goto free_done_no_afu;
 	}
 
-	if (!my_afu->opened)
+	if (!afu->opened)
 		goto free_done;
 
 	// detach
 	buffer = OCSE_DETACH;
-	rc = put_bytes_silent(my_afu->fd, 1, &buffer);
+	rc = put_bytes_silent(afu->fd, 1, &buffer);
 	if (rc == 1) {
-	        debug_msg("_afu_free:detach request sent from from host on socket %d", my_afu->fd);
-		while (my_afu->attached)	/*infinite loop */
+	        debug_msg("_afu_free:detach request sent from from host on socket %d", afu->fd);
+		while (afu->attached)	/*infinite loop */
 			_delay_1ms();
 	}
-	debug_msg( "_afu_free: closing host side socket %d", my_afu->fd );
+	debug_msg( "_afu_free: closing host side socket %d", afu->fd );
 	// free some other stuff in the afu like the irq list
-	close_socket(&(my_afu->fd));
-	my_afu->opened = 0;
-	pthread_join(my_afu->thread, NULL);
+	close_socket(&(afu->fd));
+	afu->opened = 0;
+	pthread_join(afu->thread, NULL);
 
  free_done:
-	if (my_afu->id != NULL)
-		free( my_afu->id );
+	if (afu->id != NULL)
+		free( afu->id );
  free_done_no_afu:
-	pthread_mutex_destroy( &(my_afu->event_lock) );
+	pthread_mutex_destroy( &(afu->event_lock) );
 	free( afu );
 }
 
@@ -2768,22 +2730,18 @@ ocxl_err ocxl_afu_close( ocxl_afu_h afu )
 
 ocxl_err ocxl_afu_attach( ocxl_afu_h afu, __attribute__((unused)) uint64_t flags )
 {
-        struct ocxl_afu *my_afu;
-
-	my_afu = (struct ocxl_afu *)afu;
-
-	if (!my_afu) {
+	if (!afu) {
 		errno = EINVAL;
 		return OCXL_NO_DEV;
 	}
 	DPRINTF("AFU ATTACH\n");
-	if (!my_afu->opened) {
+	if (!afu->opened) {
 		warn_msg("ocxl_afu_attach: Must open AFU first");
 		errno = ENODEV;
 		return OCXL_NO_DEV;
 	}
 
-	if (my_afu->attached) {
+	if (afu->attached) {
 		warn_msg("ocxl_afu_attach: AFU already attached");
 		errno = ENODEV;
 		return OCXL_NO_DEV;
@@ -2791,52 +2749,43 @@ ocxl_err ocxl_afu_attach( ocxl_afu_h afu, __attribute__((unused)) uint64_t flags
 	// Perform OCSE attach
 	// lgt - dont need to send amr - in fact, the parameter is gone now
 	// we don't model the change in permissions
-	my_afu->attach.state = LIBOCXL_REQ_REQUEST;
-	while (my_afu->attach.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+	afu->attach.state = LIBOCXL_REQ_REQUEST;
+	while (afu->attach.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
-	my_afu->attached = 1;
+	afu->attached = 1;
 
 	return OCXL_OK;
 }
 
 int ocxl_afu_get_event_fd( ocxl_afu_h afu )
 { 
-        struct ocxl_afu *my_afu;
-	my_afu = (struct ocxl_afu *)afu;
-
-	if (!my_afu) {
+	if (!afu) {
 		warn_msg("ocxl_afu_get_event_fd: No AFU given");
 		errno = ENODEV;
 		return -1;
 	}
-	return my_afu->pipe[0];
+	return afu->pipe[0];
 }
 
 int ocxl_irq_get_fd( ocxl_afu_h afu, ocxl_irq_h irq )
 { 
   // I don't think this is correct.  I appears that the irq can have it's own path back to the code...  but I'm not
   // sure yet.  We'll just use the afu pipe as the path for now
-        struct ocxl_afu *my_afu;
-	my_afu = (struct ocxl_afu *)afu;
-
-	if (!my_afu) {
+	if (!afu) {
 		warn_msg("ocxl_afu_get_event_fd: No AFU given");
 		errno = ENODEV;
 		return -1;
 	}
-	return my_afu->pipe[0];
+	return afu->pipe[0];
 }
 
 ocxl_err ocxl_afu_irq_alloc( ocxl_afu_h afu, void *info, ocxl_irq_h *irq_handle )
 {
         // create an irq, link it to the afu, and return the address of the irq to the caller
-        struct ocxl_afu *my_afu;
         struct ocxl_irq *new_irq;
         struct ocxl_irq *current_irq;
 
-	my_afu = (struct ocxl_afu *)afu;
-
-        if (!my_afu) {
+        if (!afu) {
 		warn_msg("ocxl_afu_new_irq: No AFU given");
 		errno = ENODEV;
 		return OCXL_NO_DEV;
@@ -2851,27 +2800,27 @@ ocxl_err ocxl_afu_irq_alloc( ocxl_afu_h afu, void *info, ocxl_irq_h *irq_handle 
 		return OCXL_NO_IRQ;
 	}
 
-	new_irq->irq = my_afu->irq_count; // the index of this new irq is the current counter value
+	new_irq->irq = afu->irq_count; // the index of this new irq is the current counter value
 	new_irq->id = (uint64_t)new_irq;  // the id of this new irq is the address of the irq
 	new_irq->_next = NULL;
-	new_irq->afu = my_afu;
+	new_irq->afu = afu;
 	*irq_handle = (ocxl_irq_h)new_irq->irq;
 
 	// add new irq to the end of the afu's list of irqs
-	if (my_afu->irq == NULL) {
+	if (afu->irq == NULL) {
 	  // this is the first new irq
-	  my_afu->irq = new_irq;
+	  afu->irq = new_irq;
 	  return OCXL_OK;
 	}
 
 	// scan the list for the last irq
-	current_irq = my_afu->irq;
+	current_irq = afu->irq;
 	while (current_irq->_next != NULL) {
 	    current_irq = current_irq->_next;
 	}
 	// we have the last one now
 	current_irq->_next = new_irq;
-	my_afu->irq_count++;
+	afu->irq_count++;
 
 	return OCXL_OK;
 }
@@ -2881,11 +2830,8 @@ uint64_t ocxl_afu_irq_get_handle( ocxl_afu_h afu, ocxl_irq_h irq )
   // scan the irq list of the afu for an irq with a matching ocxl_irq_h
   // return the id of the irq we found or 0 if none found
         struct ocxl_irq *current_irq;
-        struct ocxl_afu *my_afu;
 
-	my_afu = (struct ocxl_afu *)afu;
-
-	current_irq = my_afu->irq;
+	current_irq = afu->irq;
 	while (current_irq != NULL) {
 	  if (current_irq->irq  == irq) {
 	    // this is the irq we are looking for
@@ -2904,13 +2850,11 @@ uint64_t ocxl_afu_irq_get_handle( ocxl_afu_h afu, ocxl_irq_h irq )
 
 uint16_t ocxl_afu_event_check_versioned( ocxl_afu_h afu, int timeout, ocxl_event *events, uint16_t event_count, uint16_t event_api_version )
 {
-        struct ocxl_afu *my_afu;
 	int i;
  	uint8_t type; 
 
-	my_afu = (struct ocxl_afu *)afu;
 	// check for null afu
-	if (my_afu == NULL) {
+	if (afu == NULL) {
 		warn_msg("ocxl_afu_event_check: NULL afu!");
 		return OCXL_NO_DEV;
 	}
@@ -2928,23 +2872,23 @@ uint16_t ocxl_afu_event_check_versioned( ocxl_afu_h afu, int timeout, ocxl_event
 	// read an event - if not one, just wait here
 	//     we ignore timeout for now
 	debug_msg("ocxl_read_event: waiting for event");
-	pthread_mutex_lock(&(my_afu->event_lock));
-	while (my_afu->opened && !my_afu->events[0]) {	/*infinite loop */
-		pthread_mutex_unlock(&(my_afu->event_lock));
+	pthread_mutex_lock(&(afu->event_lock));
+	while (afu->opened && !afu->events[0]) {	/*infinite loop */
+		pthread_mutex_unlock(&(afu->event_lock));
 		if (_delay_1ms() < 0)
 			return -1;
-		pthread_mutex_lock(&(my_afu->event_lock));
+		pthread_mutex_lock(&(afu->event_lock));
 	}
 
 	debug_msg("ocxl_read_event: received event");
 	// Copy event data, free and move remaining events in queue
-	memcpy( events, my_afu->events[0], sizeof( ocxl_event ) );
-	free(my_afu->events[0]);
+	memcpy( events, afu->events[0], sizeof( ocxl_event ) );
+	free(afu->events[0]);
 	for (i = 1; i < EVENT_QUEUE_MAX; i++)
-		my_afu->events[i - 1] = my_afu->events[i];
-	my_afu->events[EVENT_QUEUE_MAX - 1] = NULL;
-	pthread_mutex_unlock(&(my_afu->event_lock));
-	if (read(my_afu->pipe[0], &type, 1) > 0)
+		afu->events[i - 1] = afu->events[i];
+	afu->events[EVENT_QUEUE_MAX - 1] = NULL;
+	pthread_mutex_unlock(&(afu->event_lock));
+	if (read(afu->pipe[0], &type, 1) > 0)
 		return 1;
 
 	return -1;
@@ -2955,6 +2899,12 @@ uint16_t ocxl_afu_event_check( ocxl_afu_h afu, int timeout, ocxl_event *events, 
 	uint16_t event_api_version = 0;
 
 	return ocxl_afu_event_check_versioned( afu, timeout, events, event_count, event_api_version );
+}
+
+ocxl_err ocxl_afu_get_p9_thread_id(ocxl_afu_h afu, uint16_t *thread_id)
+{
+  ocxl_wait_event.tid = afu->context;
+  return 0;
 }
 
 ocxl_err ocxl_mmio_map( ocxl_afu_h afu, ocxl_mmio_type type, ocxl_mmio_h *mmio )
@@ -3531,65 +3481,27 @@ ocxl_err ocxl_afu_set_ppc64_amr( ocxl_afu_h afu, uint64_t amr)
 // maybe create another event struct so that interrupt events and 
 // wake host thread events cannot collide or stall each other.
 // only one waitasec at a time in a context/afu pair
-int ocxl_sleep( ocxl_afu_h afu )
+int ocxl_wait()
 {
-        struct ocxl_waitasec waitasec;
-	uint8_t type;
-	//int i;
-
-	if (afu == NULL ) {
-		errno = EINVAL;
-		return -1;
+        if (ocxl_wait_event.enabled == 1) {
+	  // error because we only support one
 	}
 
-	// Function will block until event occurs
-	pthread_mutex_lock( &(afu->waitasec_lock) );
-	while ( afu->opened && !afu->waitasec ) {	/*infinite loop */
-		pthread_mutex_unlock( &(afu->waitasec_lock) );
+	ocxl_wait_event.enabled = 1;
+	
+	// Function will block until wake host thread occurs
+	pthread_mutex_lock( &(ocxl_wait_event.wait_lock) );
+	while ( ocxl_wait_event.received == 0 ) {	/*infinite loop */
+		pthread_mutex_unlock( &(ocxl_wait_event.wait_lock) );
 		if (_delay_1ms() < 0)
 			return -1;
-		pthread_mutex_lock(&(afu->waitasec_lock));
+		pthread_mutex_lock(&(ocxl_wait_event.wait_lock));
 	}
 
-	// Copy event data, free and move remaining events in queue
-	memcpy( &waitasec, afu->waitasec, sizeof( struct ocxl_waitasec ) );
-	free( afu->waitasec );
-	pthread_mutex_unlock( &(afu->waitasec_lock) );
-	if (read(afu->pipe[0], &type, 1) > 0)
-		return 0;
-	return -1;
+	ocxl_wait_event.enabled = 0;
+	ocxl_wait_event.received = 0;
+
+	pthread_mutex_unlock( &(ocxl_wait_event.wait_lock) );
+
+	return OCXL_OK;
 }
-
-/* ocxl_err ocxl_afu_use( const char *name, ocxl_afu_h *afu, uint64_t amr, ocxl_endian global_endianess, ocxl_endian per_pasid_endianess )  */
-/* { */
-/*   ocxl_err rc; */
-/*  // open */
-/*   rc = ocxl_afu_open( name, afu ); */
-/*   if (rc != OCXL_OK) { */
-/*     return rc; */
-/*   } */
-
-/*   // attach */
-/*   rc = ocxl_afu_attach( *afu ); */
-/*   if (rc != OCXL_OK) { */
-/*     ocxl_afu_close( *afu ); */
-/*     return rc; */
-/*   } */
-
-/*   // global mmio map */
-/*   rc = ocxl_global_mmio_map( *afu, global_endianess ); */
-/*   if (rc != OCXL_OK) { */
-/*     ocxl_afu_close( *afu ); */
-/*     return rc; */
-/*   } */
-
-/*   // mmio map */
-/*   rc = ocxl_mmio_map( *afu, per_pasid_endianess ); */
-/*   if (rc != OCXL_OK) { */
-/*     ocxl_afu_close( *afu ); */
-/*     return rc; */
-/*   } */
-
-/*   return OCXL_OK; */
-/* } */
-
