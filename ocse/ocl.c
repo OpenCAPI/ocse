@@ -525,7 +525,7 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 		warn_msg("ocl_init: Unable to set initial credits");
 		goto init_fail;
 	}
-	debug_msg("sent out initial TLX_AFU credits \n");
+	debug_msg("ocl_init: sent out initial TLX_AFU credits");
 			tlx_signal_afu_model(ocl->afu_event);
 	// Start ocl loop thread
 	if (pthread_create(&(ocl->thread), NULL, _ocl_loop, ocl)) {

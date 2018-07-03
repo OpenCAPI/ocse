@@ -199,7 +199,7 @@ int tlx_init_afu_event(struct AFU_EVENT *event, char *server_host, int port)
 	fcntl(event->sockfd, F_SETFL, O_NONBLOCK);
 
 	int rc = establish_protocol(event);
-	printf("TLX_SOCKET: Using TLX protocol level : %d.%d.%d\n",
+	info_msg("TLX_SOCKET: Using TLX protocol level : %d.%d.%d",
 	       event->proto_primary, event->proto_secondary,
 	       event->proto_tertiary);
 
@@ -248,19 +248,19 @@ int tlx_serv_afu_event(struct AFU_EVENT *event, int port)
 	// AFU & ocse have to set them to valid values.
 	// ocse has to WAIT until AFU sets initial value before sending first
 	// config_read cmd.
-	event->afu_tlx_resp_initial_credit = 0;
-	event->afu_tlx_cmd_initial_credit = 0;
-	event->cfg_tlx_initial_credit = 0;
-	event->tlx_afu_resp_credits_available = 0;
-	event->tlx_afu_cmd_credits_available = 0;
-	event->tlx_afu_resp_data_credits_available = 0;
+	//event->afu_tlx_resp_initial_credit = 0;
+	//event->afu_tlx_cmd_initial_credit = 0;
+	//event->cfg_tlx_initial_credit = 0;
+	//event->tlx_afu_resp_credits_available = 0;
+	//event->tlx_afu_cmd_credits_available = 0;
+	//event->tlx_afu_resp_data_credits_available = 0;
 	//event->tlx_afu_cmd_credits_available = 0;
 	//event->cfg_tlx_credits_available = 0;
-	event->afu_tlx_credit_req_valid = 1;//do we really need to do this
+	//event->afu_tlx_credit_req_valid = 1;//do we really need to do this
 
-	debug_msg( "      tlx_afu_cmd_credits_available = %d", event->tlx_afu_cmd_credits_available );
-	debug_msg( "      tlx_afu_resp_credits_available = %d", event->tlx_afu_resp_credits_available );
-	debug_msg( "      tlx_afu_resp_data_credits_available = %d", event->tlx_afu_resp_data_credits_available );
+	//debug_msg( "      tlx_afu_cmd_credits_available = %d", event->tlx_afu_cmd_credits_available );
+	//debug_msg( "      tlx_afu_resp_credits_available = %d", event->tlx_afu_resp_credits_available );
+	//debug_msg( "      tlx_afu_resp_data_credits_available = %d", event->tlx_afu_resp_data_credits_available );
 
 	struct sockaddr_in ssadr, csadr;
 	unsigned int csalen = sizeof(csadr);
@@ -281,7 +281,7 @@ int tlx_serv_afu_event(struct AFU_EVENT *event, int port)
 	char hostname[1024];
 	hostname[1023] = '\0';
 	gethostname(hostname, 1023);
-	printf("AFU Server is waiting for connection on %s:%d\n", hostname,
+	info_msg("AFU Server is waiting for connection on %s:%d", hostname,
 	       port);
 	fflush(stdout);
 	if (listen(event->sockfd, 10) == -1) {
@@ -304,10 +304,10 @@ int tlx_serv_afu_event(struct AFU_EVENT *event, int port)
 	clientname[1023] = '\0';
 	getnameinfo((struct sockaddr *)&csadr, sizeof(csadr), clientname, 1024,
 		    NULL, 0, 0);
-	printf("TLX client connection from %s\n", clientname);
+	info_msg("TLX client connection from %s", clientname);
 
 	int rc = establish_protocol(event);
-	printf("Using TLX protocol level : %d.%d.%d\n", event->proto_primary,
+	info_msg("Using TLX protocol level : %d.%d.%d", event->proto_primary,
 	       event->proto_secondary, event->proto_tertiary);
 
 	return rc;
@@ -1107,10 +1107,10 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 
 #ifdef DEBUG
 	// dump tbuf
-         //if (event->tbuf[0] != 0x40) { // but not for just a clock
-	if (event->tbuf[0] != 0x41) { // but not for just a clock and credit return
+        if (event->tbuf[0] != 0x40) { // but not for just a clock
+	//if (event->tbuf[0] != 0x41) { // but not for just a clock and credit return
 	  if ( bp > 1 ) {
-	    printf( "lgt: tlx_signal_afu_model: tbuf length:0x%02x tbuf: 0x", bp );
+	    printf( "DEBUG:tlx_signal_afu_model: tbuf length:0x%02x tbuf: 0x", bp );
 	    for ( i = 0; i < bp; i++ ) printf( "%02x", event->tbuf[i] );
 	    printf( "\n" );
 	  }
@@ -1144,7 +1144,7 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 	event->tbuf[3] = 0; // reserved for afu_tlx_resp_data_byte_cnt
 	event->tbuf[4] = 0; // reserved for afu_tlx_resp_data_byte_cnt
 
-	//printf("lgt:txl_signal_tlx_model\n");
+	debug_msg("txl_signal_tlx_model");
 	if (event->afu_tlx_cmd_valid != 0) { //There are 34 bytes to xfer in this group (35 for TLX4 )
 		//printf("      adding afu_tlx_cmd\n");
 		event->tbuf[0] = event->tbuf[0] | 0x02;
@@ -1267,10 +1267,10 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 
 #ifdef DEBUG
         // dump tbuf
-        // if (event->tbuf[0] != 0x10) { // but not for just a clock
-	if (event->tbuf[0] != 0x11) { // but not for just a clock and credit return
+        if (event->tbuf[0] != 0x10) { // but not for just a clock
+	// if (event->tbuf[0] != 0x11) { // but not for just a clock and credit return
 	  if ( bp > 1 ) {
-	    printf( "lgt: tlx_signal_tlx_model: tbuf length:0x%02x tbuf: 0x", bp );
+	    printf( "DEBUG:tlx_signal_tlx_model: tbuf length:0x%02x tbuf: 0x", bp );
 	    for ( i = 0; i < bp; i++ ) printf( "%02x", event->tbuf[i] );
 	    printf( "\n" );
 	  }
@@ -1418,9 +1418,9 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 
 #ifdef DEBUG
 	// dump rbuf
-	 //if (event->rbuf[0]  != 0x10) { // except when just a clock
-	if (event->rbuf[0]  != 0x11) { // except when just a clock and credit return
-		printf( "lgt: tlx_get_afu_events: rbuf length:0x%02x rbuf: 0x", rbc );
+	if (event->rbuf[0]  != 0x10) { // except when just a clock
+	//if (event->rbuf[0]  != 0x11) { // except when just a clock and credit return
+		printf( "DEBUG:tlx_get_afu_events: rbuf length:0x%02x rbuf: 0x", rbc );
 		for ( i = 0; i < rbc; i++ ) printf( "%02x", event->rbuf[i] );
 		printf( "\n" );
 	}
@@ -1624,11 +1624,11 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 		event->rbp += bc;
 	}
 	if (event->rbp != 0) {
-	        debug_msg("      rbp != 0: decoding rbuf[0]= 0x%x", event->rbuf[0] );
+	        debug_msg("tlx_get_tlx_events: rbp = %d: decoding rbuf[0]= 0x%x", event->rbp, event->rbuf[0] );
 		if ((event->rbuf[0] & 0x40) != 0) {
 		        // printf("tlx_get_tlx_events: clock\n" );
 			event->clock = 1;
-		         //printf("tlx_get_tlx_events: sending events to tlx\n" );
+		        debug_msg("tlx_get_tlx_events: sending events to tlx\n" );
 			tlx_signal_tlx_model(event);
 		        //printf("tlx_get_tlx_events: sent\n" );
 			if (event->rbuf[0] == 0x40) {
@@ -1722,10 +1722,12 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 		return 0;
 	}
 
+#ifdef DEBUG
 	// dump rbuf
-	printf( "lgt: tlx_get_tlx_events: rbuf length:0x%02x rbuf: 0x", rbc );
+	printf( "DEBUG:tlx_get_tlx_events: rbuf length:0x%02x rbuf: 0x", rbc );
 	for ( i = 0; i < rbc; i++ ) printf( "%02x", event->rbuf[i] );
 	printf( "\n" );
+#endif
 
 	//rbc = 1;
 	rbc = 5;

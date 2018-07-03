@@ -229,8 +229,10 @@ static void tlx_control(void)
 	FD_ZERO(&watchset);
 	FD_SET(event.sockfd, &watchset);
 	select(event.sockfd + 1, &watchset, NULL, NULL, NULL);
-	//printf("lgt: tlx_control: %08lld: calling get tlx events... \n", (long long) c_sim_time);
+	
+	debug_msg("tlx_control: %08lld: calling tlx_get_tlx_events... \n", (long long) c_sim_time);
 	int rc = tlx_get_tlx_events(&event);
+	
 	// printf("lgt: tlx_control: returned from tlx_get_tlx_events\n");
 	// No clock edge
 	while (!rc) {
@@ -380,7 +382,7 @@ void tlx_bfm(
   c_reset			= reset & 0x1;
 
   // print some values
-  debug_msg("tlx_bfm: tick = %d, reset = %d, c_reset = %d, c_reset_d1 = %d, c_reset_d2 = %d, resp = %d", tick, (uint8_t)reset, c_reset, c_reset_d1, c_reset_d2 );
+  debug_msg("tlx_bfm: tick = %d, reset = %d, c_reset = %d, c_reset_d1 = %d, c_reset_d2 = %d", tick, (uint8_t)reset, c_reset, c_reset_d1, c_reset_d2 );
   // increment tick
   tick = tick + 1;
 
@@ -398,9 +400,9 @@ void tlx_bfm(
       if(!c_reset)
       {
 	if (afu_tlx_credits_initialized == 0 ) {
-	  debug_msg("tlx_bfm: sending initial credits to tlx cmd = %d, cfg = %d, resp = %d", c_afu_tlx_cmd_initial_credit, c_cfg0_tlx_initial_credit, c_afu_tlx_resp_initial_credit );
+	  debug_msg("tlx_bfm: setting initial credits to tlx cmd = %d, cfg = %d, resp = %d", c_afu_tlx_cmd_initial_credit, c_cfg0_tlx_initial_credit, c_afu_tlx_resp_initial_credit );
 	  afu_tlx_send_initial_credits (&event, c_afu_tlx_cmd_initial_credit, c_cfg0_tlx_initial_credit, c_afu_tlx_resp_initial_credit);
-	  debug_msg("tlx_bfm: sent" );
+	  debug_msg("tlx_bfm: set" );
 	  afu_tlx_credits_initialized = 1;
 	}
 	if (tlx_afu_credits_initialized == 0 ) {
@@ -985,8 +987,10 @@ void tlx_bfm(
 void tlx_bfm_init()
 {
   int port = 32768;
+
   // print some values
-  debug_msg("tlx_bfm_init: tick = %d, c_reset = %d, c_reset_d1 = %d, c_reset_d2 = %d, resp = %d", tick, c_reset, c_reset_d1, c_reset_d2 );
+  debug_msg("tlx_bfm_init: tick = %d, c_reset = %d, c_reset_d1 = %d, c_reset_d2 = %d", tick, c_reset, c_reset_d1, c_reset_d2 );
+
   while (tlx_serv_afu_event(&event, port) != TLX_SUCCESS) {
     if (tlx_serv_afu_event(&event, port) == TLX_VERSION_ERROR) {
       printf("%08lld: ", (long long) c_sim_time);
