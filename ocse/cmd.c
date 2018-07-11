@@ -1314,7 +1314,7 @@ void handle_xlate_intrp_pending_sent(struct cmd *cmd)
 	else
 		cmd_to_send = TLX_CMD_INTRP_RDY;
 	if (tlx_afu_send_posted_cmd(cmd->afu_event,
-			cmd_to_send, 0xefac, event->resp) == TLX_SUCCESS){
+			cmd_to_send, event->afutag, event->resp) == TLX_SUCCESS){
 			debug_msg("%s:XLATE_INTRP_DONE CMD event @ 0x%016" PRIx64 ", sent tag=0x%02x code=0x%x cmd=0x%x", cmd->afu_name,
 			    event, event->afutag, event->resp, cmd_to_send);
 			*head = event->_next;
