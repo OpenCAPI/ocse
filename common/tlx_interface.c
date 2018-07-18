@@ -345,10 +345,12 @@ int afu_tlx_read_initial_credits(struct AFU_EVENT *event,
 		uint8_t * cfg_tlx_initial_credit,
 		uint8_t * afu_tlx_resp_initial_credit)
 {
-	debug_msg("afu_tlx_read_initial_credits");
+	debug_msg("afu_tlx_read_initial_credits:");
 
-	if (!event->afu_tlx_credit_req_valid)
+	if (!event->afu_tlx_credit_req_valid) {
+	        debug_msg("      initial credits not available");
 		return AFU_TLX_NO_CREDITS;
+	}
 
 	* cfg_tlx_initial_credit = event->cfg_tlx_initial_credit;
 	* afu_tlx_cmd_initial_credit = event->afu_tlx_cmd_initial_credit;
@@ -1107,14 +1109,14 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 
 #ifdef DEBUG
 	// dump tbuf
-        if (event->tbuf[0] != 0x40) { // but not for just a clock
+        //if (event->tbuf[0] != 0x40) { // but not for just a clock
 	//if (event->tbuf[0] != 0x41) { // but not for just a clock and credit return
 	  if ( bp > 1 ) {
 	    printf( "DEBUG:tlx_signal_afu_model: tbuf length:0x%02x tbuf: 0x", bp );
 	    for ( i = 0; i < bp; i++ ) printf( "%02x", event->tbuf[i] );
 	    printf( "\n" );
 	  }
-	}
+	//}
 #endif
 
 	bl = bp;
@@ -1135,8 +1137,10 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 {
 	int i, bc, bl;
 	int bp = 5;
-	if (event->clock != 1)
+	if (event->clock != 1) {
+	        debug_msg("tlx_signal_tlx_events: called when clock is 0 - not supposed to be transmitting now" );
 		return TLX_SUCCESS;
+	}
 	event->clock = 0;
 	event->tbuf[0] = 0x10;
 	event->tbuf[1] = 0; // reserved for afu_tlx_cmd_data_byte_cnt
@@ -1254,11 +1258,13 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 			debug_msg("TLX_SIGNAL_TLX_MODEL SETTING afu_tlx_cmd_credit = 1");
 		if (event->afu_tlx_resp_credit == 1)
 			debug_msg("TLX_SIGNAL_TLX_MODEL SETTING afu_tlx_resp_credit = 1");
-		//printf("setting afu_tlx_credit_req_valid=0 in tlx_signal_tlx_model \n");
+		debug_msg("tlx_signal_tlx_model: setting afu_tlx_credit_req_valid=0 after putting in tbuf");
 		event->afu_tlx_credit_req_valid = 0;
 		event->afu_tlx_cmd_credit = 0;
 		event->cfg_tlx_credit_return= 0;
 		event->afu_tlx_resp_credit = 0;
+	} else {
+	        debug_msg("tlx_signal_tlx_model: no (initial) credits to send");
 	}
 
 	// if nothing but a clock event, don't bother sending bytes 1->4
@@ -1267,14 +1273,14 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 
 #ifdef DEBUG
         // dump tbuf
-        if (event->tbuf[0] != 0x10) { // but not for just a clock
+        // if (event->tbuf[0] != 0x10) { // but not for just a clock
 	// if (event->tbuf[0] != 0x11) { // but not for just a clock and credit return
 	  if ( bp > 1 ) {
 	    printf( "DEBUG:tlx_signal_tlx_model: tbuf length:0x%02x tbuf: 0x", bp );
 	    for ( i = 0; i < bp; i++ ) printf( "%02x", event->tbuf[i] );
 	    printf( "\n" );
 	  }
-	}
+        // }
 #endif
 
 	bl = bp;
@@ -1311,10 +1317,11 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 	FD_ZERO(&watchset);
 	FD_SET(event->sockfd, &watchset);
 	select(event->sockfd + 1, &watchset, NULL, NULL, NULL);
-        // debug_msg("tlx_get_afu_events:");
+        debug_msg("tlx_get_afu_events:");
 	if (event->rbp == 0) {
 		if ((bc = recv(event->sockfd, event->rbuf, 1, 0)) == -1) {
 			if (errno == EWOULDBLOCK) {
+			        debug_msg("tlx_get_afu_events: nothing in socket?");
 				return 0;
 			} else {
 				return -1;
@@ -1328,7 +1335,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		if ((event->rbuf[0] & 0x10) != 0) {
 			event->clock = 0;
 			if (event->rbuf[0] == 0x10) {
-				//printf("Just a clock event \n");
+				debug_msg("tlx_get_afu_events: Just a clock event");
 				event->rbp = 0;
 				return 1;
 			}
@@ -1348,7 +1355,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		}
 		// printf("tlx_get_afu_events: read bc = 0x%04x: more bytes from rbuf\n", bc );
 		if ( bc == 0 ) {
-		        warn_msg("tlx_get_afu_events: bc = 0 after trying to reading data sizes from rbuf\n" );
+		        warn_msg("tlx_get_afu_events: bc = 0 after trying to reading data sizes from rbuf" );
 			return -1;
 		}
 		// printf("tlx_get_afu_events: bc = 0x%04x: more bytes in rbuf\n", bc );
@@ -1418,12 +1425,12 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 
 #ifdef DEBUG
 	// dump rbuf
-	if (event->rbuf[0]  != 0x10) { // except when just a clock
-	//if (event->rbuf[0]  != 0x11) { // except when just a clock and credit return
+	// if (event->rbuf[0]  != 0x10) { // except when just a clock
+	// if (event->rbuf[0]  != 0x11) { // except when just a clock and credit return
 		printf( "DEBUG:tlx_get_afu_events: rbuf length:0x%02x rbuf: 0x", rbc );
 		for ( i = 0; i < rbc; i++ ) printf( "%02x", event->rbuf[i] );
 		printf( "\n" );
-	}
+	// }
 #endif
 
 	//rbc = 1;
@@ -1585,7 +1592,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		}
 	} else {
 		event->afu_tlx_credit_req_valid = 0;
-		//printf("setting afu_tlx_credit_req_valid=0 in tlx_get_afu_model \n");
+		debug_msg("tlx_get_afu_events: setting afu_tlx_credit_req_valid=0 after processing");
 		}
 
 	event->rbp = 0;
@@ -1604,7 +1611,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 	uint16_t cmd_data_byte_cnt, resp_data_byte_cnt;
 	cmd_data_byte_cnt = 0;
 	resp_data_byte_cnt = 0;
-	debug_msg("tlx_get_tlx_events: entered\n" );
+	debug_msg("tlx_get_tlx_events: entered" );
 	if (event->rbp == 0) {
 		if ((bc = recv(event->sockfd, event->rbuf, 1, 0)) == -1) {
 			if (errno == EWOULDBLOCK) {
@@ -1618,7 +1625,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 			}
 		}
 		if (bc == 0) {
-		         printf("tlx_get_tlx_events: bc = 0, leaving with -1\n" );
+		         debug_msg("tlx_get_tlx_events: bc = 0, leaving with -1" );
 			return -1;
 		}
 		event->rbp += bc;
@@ -1628,7 +1635,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 		if ((event->rbuf[0] & 0x40) != 0) {
 		        // printf("tlx_get_tlx_events: clock\n" );
 			event->clock = 1;
-		        debug_msg("tlx_get_tlx_events: sending events to tlx\n" );
+		        debug_msg("tlx_get_tlx_events: sending events to tlx" );
 			tlx_signal_tlx_model(event);
 		        //printf("tlx_get_tlx_events: sent\n" );
 			if (event->rbuf[0] == 0x40) {
@@ -1724,9 +1731,12 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 
 #ifdef DEBUG
 	// dump rbuf
-	printf( "DEBUG:tlx_get_tlx_events: rbuf length:0x%02x rbuf: 0x", rbc );
-	for ( i = 0; i < rbc; i++ ) printf( "%02x", event->rbuf[i] );
-	printf( "\n" );
+        // if (event->tbuf[0] != 0x40) { // but not for just a clock
+	// if (event->tbuf[0] != 0x41) { // but not for just a clock and credit return
+	      printf( "DEBUG:tlx_get_tlx_events: rbuf length:0x%02x rbuf: 0x", rbc );
+	      for ( i = 0; i < rbc; i++ ) printf( "%02x", event->rbuf[i] );
+	      printf( "\n" );
+	// }
 #endif
 
 	//rbc = 1;
@@ -1889,11 +1899,15 @@ int afu_tlx_send_initial_credits(struct AFU_EVENT *event,
 		uint8_t afu_tlx_resp_initial_credit)
 
 {
-        debug_msg( "lgt:afu_tlx_send_initial_credits\n" );
 	event->afu_tlx_cmd_initial_credit = afu_tlx_cmd_initial_credit;
 	event->cfg_tlx_initial_credit = cfg_tlx_initial_credit;
 	event->afu_tlx_resp_initial_credit = afu_tlx_resp_initial_credit;
 	event->afu_tlx_credit_req_valid = 1;
+        debug_msg( "afu_tlx_send_initial_credits: cmd_initial=%d, cfg_initial=%d, resp_initial=%d, req_valid=%d", 
+		   event->afu_tlx_cmd_initial_credit, 
+		   event->cfg_tlx_initial_credit, 
+		   event->afu_tlx_resp_initial_credit,
+		   event->afu_tlx_credit_req_valid );
 	return TLX_SUCCESS;
 }
 
@@ -1911,7 +1925,7 @@ int tlx_afu_read_initial_credits(struct AFU_EVENT *event,
 	// why do I care if credit valid is on during initial credit exchange???
 	// because I could get 0 initial credits if I don't
 	if (!event->tlx_afu_credit_valid) {
-	        warn_msg("no tlx_afu_credit valid, not even initial_credits");
+	        debug_msg("      no tlx_afu_credit_valid, not even initial_credits");
 		return TLX_AFU_NO_CREDITS;
 	}
 
