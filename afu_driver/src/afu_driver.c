@@ -34,6 +34,8 @@ static struct DATA_PKT *new_cdata_pkt;
 static struct DATA_PKT *old_cdata_pkt;
 static struct AFU_EVENT event;
 //
+  static int tick = 0;
+
 //
 // Local Variables
 #define CLOCK_EDGE_DELAY 2
@@ -52,6 +54,8 @@ static int afu_tlx_credits_initialized = 0;
 uint8_t		c_reset = 1;
 uint8_t		c_reset_d1 = 1;
 uint8_t		c_reset_d2 = 1;
+uint8_t		c_reset_d3 = 1;
+uint8_t		c_reset_d4 = 1;
 uint8_t		c_config_cmd_data_valid = 0;
 uint8_t		c_afu_tlx_cmd_credit;
 uint8_t		c_cfg0_tlx_credit_return;
@@ -227,15 +231,15 @@ static void tlx_control(void)
 	FD_ZERO(&watchset);
 	FD_SET(event.sockfd, &watchset);
 	select(event.sockfd + 1, &watchset, NULL, NULL, NULL);
-	//printf("lgt: tlx_control: %08lld: calling get tlx events... \n", (long long) c_sim_time);
+	
+	debug_msg("tlx_control: %08lld: calling tlx_get_tlx_events...", (long long) c_sim_time);
 	int rc = tlx_get_tlx_events(&event);
-	// printf("lgt: tlx_control: returned from tlx_get_tlx_events\n");
+	
 	// No clock edge
 	while (!rc) {
 	  select(event.sockfd + 1, &watchset, NULL, NULL, NULL);
-	  //printf("lgt: tlx_control: no clock edge: %08lld: calling get tlx events again... \n", (long long) c_sim_time);
+	  debug_msg("tlx_control: no clock edge: %08lld: calling get tlx events again...", (long long) c_sim_time);
 	  rc = tlx_get_tlx_events(&event);
-	  //printf("lgt: tlx_control: no clock edge: returned from get tlx events\n");
 	}
 	// Error case
 	if (rc < 0) {
@@ -374,13 +378,19 @@ void tlx_bfm(
   int j = 0;
   int rc= 0;
   int new_line_cnt;
-
+  
   c_reset			= reset & 0x1;
 
-  if(!c_reset_d2)
+  // print some values
+  debug_msg("tlx_bfm: tick = %d, reset = %d, c_reset = %d, c_reset_d1 = %d, c_reset_d2 = %d, c_reset_d3 = %d, c_reset_d4 = %d", tick, (uint8_t)reset, c_reset, c_reset_d1, c_reset_d2, c_reset_d3, c_reset_d4 );
+  // increment tick
+  tick = tick + 1;
+
+  if(!c_reset_d4)
   {
     if ( tlx_clock == sv_0 ) {
-      // printf("lgt: tlx_bfm: clock = 0\n" );
+      debug_msg("tlx_bfm: clock = 0, reading inputs from AFU" );
+
       // Accessing inputs from the AFX
       c_afu_tlx_cmd_initial_credit  	= (afu_tlx_cmd_initial_credit_top->aval) & 0x7F;
       invalidVal			+= (afu_tlx_cmd_initial_credit_top->bval) & 0x7F;
@@ -391,16 +401,16 @@ void tlx_bfm(
       if(!c_reset)
       {
 	if (afu_tlx_credits_initialized == 0 ) {
-	  debug_msg("tlx_bfm: sending initial credits to tlx cmd = %d, cfg = %d, resp = %d", c_afu_tlx_cmd_initial_credit, c_cfg0_tlx_initial_credit, c_afu_tlx_resp_initial_credit );
+	  debug_msg("tlx_bfm: setting initial credits to tlx cmd = %d, cfg = %d, resp = %d", c_afu_tlx_cmd_initial_credit, c_cfg0_tlx_initial_credit, c_afu_tlx_resp_initial_credit );
 	  afu_tlx_send_initial_credits (&event, c_afu_tlx_cmd_initial_credit, c_cfg0_tlx_initial_credit, c_afu_tlx_resp_initial_credit);
-	  debug_msg("tlx_bfm: sent" );
+	  debug_msg("tlx_bfm: set" );
 	  afu_tlx_credits_initialized = 1;
 	}
 	if (tlx_afu_credits_initialized == 0 ) {
-	  debug_msg("tlx_bfm: reading initial credits from tlx\n" );
+	  debug_msg("tlx_bfm: reading initial credits from tlx" );
 	  rc = tlx_afu_read_initial_credits (&event, &c_tlx_afu_cmd_initial_credit, &c_tlx_afu_resp_initial_credit, &c_tlx_afu_cmd_data_initial_credit, &c_tlx_afu_resp_data_initial_credit);
 	  if (rc == 0) {
-	    debug_msg("tlx_bfm: read initial credits from tlx cmd/resp = %d/%d, cmd/resp data = %d/%d\n", c_tlx_afu_cmd_initial_credit, c_tlx_afu_resp_initial_credit, c_tlx_afu_cmd_data_initial_credit, c_tlx_afu_resp_data_initial_credit);
+	    debug_msg("tlx_bfm: read initial credits from tlx cmd/resp = %d/%d, cmd/resp data = %d/%d", c_tlx_afu_cmd_initial_credit, c_tlx_afu_resp_initial_credit, c_tlx_afu_cmd_data_initial_credit, c_tlx_afu_resp_data_initial_credit);
 	    tlx_afu_credits_initialized = 1;
 	  } else {
 	    debug_msg("tlx_bfm: initial credits not ready" );
@@ -417,20 +427,20 @@ void tlx_bfm(
 
       // credit managment - return credits, if any, to tlx
       // cfg interface credit
-      printf( "credit management\n" );
+      // printf( "credit management\n" );
       invalidVal = 0;
       c_cfg0_tlx_credit_return  	= (cfg0_tlx_credit_return_top & 0x2) ? 0 : (cfg0_tlx_credit_return_top & 0x1);
       invalidVal  			= (cfg0_tlx_credit_return_top & 0x2);
       if(invalidVal != 0) {
-	printf("%08lld: ", (long long) c_sim_time);
-	printf(" The CFG-TLX Credit return value has either X or Z value \n" );
+	debug_msg("%08lld: ", (long long) c_sim_time);
+	debug_msg("tlx_bfm: The CFG-TLX Credit return value has either X or Z value \n" );
       } else {
 	if (c_cfg0_tlx_credit_return == 1 ) {
-	  printf( "returning cfg credit\n" );
+	  // printf( "returning cfg credit\n" );
 	  event.cfg_tlx_credit_return = 1;
 	  event.afu_tlx_credit_req_valid = 1;
 	} else {
-	  printf( "no cfg credit to return\n" );
+	  // printf( "no cfg credit to return\n" );
 	  event.cfg_tlx_credit_return = 0;
 	}
       }
@@ -461,20 +471,20 @@ void tlx_bfm(
       // if value is invalid, force the credit to 0
       if(invalidVal != 0) {
 	  event.afu_tlx_cmd_credit = 0;
-	  printf( "AFU_TLX_CMD_CREDIT INVALID RESPONSE !!!!\n" );
+	  debug_msg( "AFU_TLX_CMD_CREDIT INVALID RESPONSE !!!!" );
       }
-           if(invalidVal != 0) {
-	printf("%08lld: ", (long long) c_sim_time);
-	printf(" The AFU-TLX Credit return value has either X or Z value \n" );
+      if(invalidVal != 0) {
+	  debug_msg("%08lld: ", (long long) c_sim_time);
+	  debug_msg(" The AFU-TLX Credit return value has either X or Z value" );
       } else {
-	if (c_afu_tlx_cmd_credit == 1 ) {
-	  printf( "returning cmd credit\n" );
-	  event.afu_tlx_cmd_credit = 1;
-	  event.afu_tlx_credit_req_valid = 1;
-	} else {
-	  printf( "no cmd credit to return\n" );
-	  event.afu_tlx_cmd_credit = 0;
-	}
+	  if (c_afu_tlx_cmd_credit == 1 ) {
+	      // printf( "returning cmd credit\n" );
+	      event.afu_tlx_cmd_credit = 1;
+	      event.afu_tlx_credit_req_valid = 1;
+	  } else {
+	      // printf( "no cmd credit to return\n" );
+	      event.afu_tlx_cmd_credit = 0;
+	  }
       }
  
       invalidVal = 0;
@@ -668,6 +678,7 @@ void tlx_bfm(
 	//printf( "\n" );
 
       }
+
       invalidVal = 0;
       c_afu_tlx_cmd_rd_req_top  	= (afu_tlx_cmd_rd_req_top & 0x2) ? 0 : (afu_tlx_cmd_rd_req_top & 0x1);
       invalidVal			= afu_tlx_cmd_rd_req_top & 0x2;
@@ -723,6 +734,9 @@ void tlx_bfm(
         printf(" The AFU-TLX Response Data Interface has either X or Z value \n" );
       }
 #endif
+
+      debug_msg("tlx_bfm: clock = 0, driving outputs to AFU" );
+
       if(event.tlx_afu_resp_valid)
       {
         setDpiSignal32(tlx_afu_resp_opcode_top, event.tlx_afu_resp_opcode, 8);
@@ -966,11 +980,13 @@ void tlx_bfm(
       event.tlx_afu_cmd_credit = 0;
       event.tlx_afu_cmd_data_credit = 0;
     } else {
-      // printf("lgt: tlx_bfm: clock = 1\n" );
+      debug_msg("tlx_bfm: clock = 1" );
       c_sim_error = 0;
       tlx_control();
     }
   }
+  c_reset_d4 = c_reset_d3;
+  c_reset_d3 = c_reset_d2;
   c_reset_d2 = c_reset_d1;
   c_reset_d1 = c_reset;
 }
@@ -978,6 +994,10 @@ void tlx_bfm(
 void tlx_bfm_init()
 {
   int port = 32768;
+
+  // print some values
+  debug_msg("tlx_bfm_init: tick = %d, c_reset = %d, c_reset_d1 = %d, c_reset_d2 = %d, c_reset_d3 = %d, c_reset_d4 = %d", tick, c_reset, c_reset_d1, c_reset_d2, c_reset_d3, c_reset_d4 );
+
   while (tlx_serv_afu_event(&event, port) != TLX_SUCCESS) {
     if (tlx_serv_afu_event(&event, port) == TLX_VERSION_ERROR) {
       printf("%08lld: ", (long long) c_sim_time);
@@ -989,7 +1009,7 @@ void tlx_bfm_init()
     }
     ++port;
   }
-//  tlx_close_afu_event(&event);
+  //  tlx_close_afu_event(&event);
   return;
 }
 

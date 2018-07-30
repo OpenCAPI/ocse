@@ -37,7 +37,7 @@ LIBOCXL_1 {
 		ocxl_mmio_write32;
 		ocxl_mmio_read32;
 
-		ocxl_sleep;
+		ocxl_wait;
 		
 	local:
 		*;
