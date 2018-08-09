@@ -37,6 +37,7 @@ LIBOCXL_1 {
 		ocxl_mmio_write32;
 		ocxl_mmio_read32;
 
+		ocxl_afu_get_p9_thread_id;
 		ocxl_wait;
 		
 	local:

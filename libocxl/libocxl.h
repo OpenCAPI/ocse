@@ -137,12 +137,15 @@ typedef struct ocxl_event {
  * only one wait instruction can be supported  for the time being
  *
  */
-struct ocxl_wait_event {
+typedef struct ocxl_wait_event {
   pthread_mutex_t wait_lock;
   uint16_t tid; // set by ocxl_afu_get_p9_threadid  we'll use context from the afu 
   int enabled;  // set by ocxl_wait upon entry - cleared by ocxl_wait upon receipt of the wake host thread
   int received; // set by _handle_wake_host_thread - cleared by ocxl_wait upon receipt of the wake host thread
+  struct ocxl_wait_event *_next;
 } ocxl_wait_event;
+
+  ocxl_wait_event *ocxl_wait_list = NULL;
 
 #define OCXL_ATTACH_FLAGS_NONE (0)
 
@@ -198,6 +201,7 @@ const char *ocxl_err_to_string( ocxl_err err );
   /* users should use the following subroutine rather than the _versioned one */
   uint16_t ocxl_afu_event_check( ocxl_afu_h afu, int timeout, ocxl_event *events, uint16_t event_count );
 
+  /* obtains the thread id of the current thread - pass it to the accererator for subsequent use in an intreq */
   ocxl_err ocxl_afu_get_p9_thread_id(ocxl_afu_h afu, uint16_t *thread_id);
 
   // return the size of the global mmio space for this afu
