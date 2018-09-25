@@ -2541,9 +2541,28 @@ ocxl_err ocxl_afu_open_from_dev( const char *path, ocxl_afu_h *afu )
 	// AND, we have limited the number of buses to 16.
 	// So we do an initial check on bus vs afu_map and let ocse do the other work
 
+	if (dev_bus == NULL) {
+		debug_msg("err: dev_bus not set");
+		return OCXL_INVALID_ARGS;
+	}
 	bus = (uint8_t)strtol( dev_bus, NULL, 16 );
+
+	if (dev_device == NULL) {
+		debug_msg("err: dev_device not set");
+		return OCXL_INVALID_ARGS;
+	}
 	dev = (uint8_t)strtol( dev_device, NULL, 16 );
+
+	if (dev_function == NULL) {
+		debug_msg("err: dev_function not set");
+		return OCXL_INVALID_ARGS;
+	}
 	fcn = (uint8_t)strtol( dev_function, NULL, 16 );
+
+	if (afu_index == NULL) {
+		debug_msg("err: afu_index not set");
+		return OCXL_INVALID_ARGS;
+	}
 	afuid = (uint8_t)strtol( afu_index, NULL, 16 );
 
 	// makes sure we test to see that bus, dev, and fcn are within syntactic limits
