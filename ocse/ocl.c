@@ -525,8 +525,10 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 		warn_msg("ocl_init: Unable to set initial credits");
 		goto init_fail;
 	}
-	debug_msg("sent out initial TLX_AFU credits \n");
-			tlx_signal_afu_model(ocl->afu_event);
+
+	debug_msg("ocl_init: transmit initial TLX_AFU credits to afu");
+	tlx_signal_afu_model(ocl->afu_event);
+
 	// Start ocl loop thread
 	if (pthread_create(&(ocl->thread), NULL, _ocl_loop, ocl)) {
 		perror("pthread_create");
@@ -544,6 +546,8 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 	// no need to reset anymore
 
 	// Read AFU initial credit values
+	debug_msg( "ocl_init: receive initial AFU_TXL credits from afu");
+
 	int event;
 	event = tlx_get_afu_events(ocl->afu_event);
 	//printf("after tlx_get_afu_events, event is 0x%3x \n", event);
@@ -551,10 +555,15 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 	if (event < 0) {
 		warn_msg("Lost connection with AFU");
 		}
+
+	// did we get credits???
+
+
 	// Handle events from AFU
 	if (event > 0)
 		_handle_afu(ocl);
 
+	
 	// Read AFU descriptor
 	debug_msg("%s @ %s:%d: Reading AFU config record and VSEC.", ocl->name, ocl->host,
 	          ocl->port);

@@ -316,7 +316,7 @@ static struct mmio_event *_read_afu_descriptor(struct mmio *mmio, uint64_t addr,
 // and AFU control information extended capabilities and keep a copy
 int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 {
-	printf("In read_afu_config and WON'T BE ABLE TO SEND CMD UNTIL AFU GIVES US INITIAL CREDIT!!\n");
+	debug_msg("read_afu_config: and WON'T BE ABLE TO SEND CMD UNTIL AFU GIVES US INITIAL CREDIT!!");
 	uint8_t   afu_tlx_cmd_credits_available;
 	uint8_t   cfg_tlx_credits_available;
 	uint8_t   afu_tlx_resp_credits_available;
@@ -326,7 +326,7 @@ int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 
 	#define AFU_DESC_DATA_VALID 0x80000000
 
-	printf("before read initial credits \n");
+	debug_msg("read_afu_config: before read initial credits");
 	//if ( afu_tlx_read_initial_credits( mmio->afu_event, &afu_tlx_cmd_credits_available,
 	//                                   &afu_tlx_resp_credits_available ) != TLX_SUCCESS )
 	//	printf("NO CREDITS FROM AFU!!\n");
@@ -335,7 +335,7 @@ int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 	  //infinite loop
 	  sleep(1);
 	} 
-	printf("afu_tlx_cmd_credits_available= %d, cfg_tlx_credits_available= %d, afu_tlx_resp_credits_available= %d \n",
+	info_msg("read_afu_config: afu_tlx_cmd_credits_available= %d, cfg_tlx_credits_available= %d, afu_tlx_resp_credits_available= %d",
 		afu_tlx_cmd_credits_available, cfg_tlx_credits_available,
 		afu_tlx_resp_credits_available);
 
