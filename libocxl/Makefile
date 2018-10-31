@@ -11,7 +11,7 @@ CHECK_HEADER := $(shell echo \\\#include\ $(1) | $(CC) $(CFLAGS) -E - > /dev/nul
 
 $(COMMON_DIR)/misc/ocxl.h:
 ifeq ($(call CHECK_HEADER,"<misc/cxl.h>"),n)
-	$(call Q,CURL $(COMMON_DIR)/misc/cxl.h, mkdir $(COMMON_DIR)/misc 2>/dev/null; curl -o $(COMMON_DIR)/misc/cxl.h -s https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/plain/include/uapi/misc/cxl.h)
+	$(call Q,CURL $(COMMON_DIR)/misc/ocxl.h, mkdir $(COMMON_DIR)/misc 2>/dev/null; curl -o $(COMMON_DIR)/misc/ocxl.h -s https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/plain/include/uapi/misc/ocxl.h)
 endif
 
 libocxl.o: $(COMMON_DIR)/misc/ocxl.h
@@ -31,6 +31,6 @@ libocxl_lpc.a: libocxl_lpc.o $(OBJS)
 	$(call Q,AR, $(AR) rcs $@ $^, $@)
 
 clean:
-	rm -f *.[od] $(COMMON_DIR)/*.[od] gmon.out libocxl.so libocxl.a libocxl_lpc.so libocx_lpcl.a $(COMMON_DIR)/misc/cxl.h
+	rm -f *.[od] $(COMMON_DIR)/*.[od] gmon.out libocxl.so libocxl.a libocxl_lpc.so libocx_lpcl.a $(COMMON_DIR)/misc/ocxl.h
 
 .PHONY: clean all
