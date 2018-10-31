@@ -90,6 +90,85 @@ static int _testmemaddr(uint8_t * memaddr)
 	return ret;
 }
 
+ocxl_wait_event *_alloc_wait_event( uint16_t tid )
+{
+  ocxl_wait_event *this_wait_event;
+
+  // scan for tid in list first - return it if you find it
+  // scan list
+  // pthread_mutex_lock(&(this_wait_event->wait_lock));
+  this_wait_event = ocxl_wait_list;
+  // pthread_mutex_unlock(&(this_wait_event->wait_lock));
+
+  debug_msg( "_alloc_wait_event: list=0x%016llx ; this=0x%016llx", (uint64_t)ocxl_wait_list, (uint64_t)this_wait_event );
+
+  while ( this_wait_event != NULL ) {
+    // pthread_mutex_lock(&(this_wait_event->wait_lock));
+      debug_msg( "_alloc_wait_event: checking @ 0x%016llx -> 0x%04x = 0x%04x", (uint64_t)this_wait_event, this_wait_event->tid, tid );
+    if ( this_wait_event->tid == tid ) {
+      // match
+      // pthread_mutex_unlock(&(this_wait_event->wait_lock));
+      debug_msg( "_alloc_wait_event: match @ 0x%016llx -> 0x%04x = 0x%04x", (uint64_t)this_wait_event, this_wait_event->tid, tid );
+      return this_wait_event;
+    }
+  
+    this_wait_event = this_wait_event->_next;
+    // pthread_mutex_unlock(&(this_wait_event->wait_lock));
+  }
+
+  // if not found, create it
+  this_wait_event = (ocxl_wait_event *)malloc( sizeof(ocxl_wait_event) );
+  this_wait_event->tid = tid;
+  this_wait_event->enabled = 0;
+  this_wait_event->received = 0;
+
+  debug_msg( "_alloc_wait_event: new wait event @ 0x%016llx -> 0x%04x", (uint64_t)this_wait_event, this_wait_event->tid );
+
+  // put it at the head of the list
+  this_wait_event->_next = ocxl_wait_list;
+  ocxl_wait_list = this_wait_event;
+
+  debug_msg( "_alloc_wait_event: list starts @ 0x%016llx", (uint64_t)ocxl_wait_list );
+
+  return this_wait_event;
+}
+
+void _free_wait_event( ocxl_wait_event *free_wait_event )
+{
+  ocxl_wait_event *this_wait_event;
+
+  if ( ocxl_wait_list == NULL ) {
+    // somehow the list is empty so just free what we got
+    free( free_wait_event );
+    return;
+  }
+
+  if ( ocxl_wait_list == free_wait_event ) {
+    // free_wait_event is the first in the list, so do it specially
+    ocxl_wait_list = free_wait_event->_next;
+    free( free_wait_event );
+    return;
+  }
+
+  // scan the list
+  this_wait_event = ocxl_wait_list;
+  while ( this_wait_event != NULL ) {
+    if ( this_wait_event->_next == free_wait_event ) {
+      // found it - adjust the pointer, free, and leave
+      this_wait_event->_next = free_wait_event->_next;
+      free( free_wait_event );
+      return;
+    } else {
+      // next!
+      this_wait_event = this_wait_event->_next;
+    }
+  }
+
+  // we've been through the list, but free_wait_event was not there...  free it anyway
+  free( free_wait_event );
+  return;
+}
+
 static void _all_idle(struct ocxl_afu *afu_h)
 {
 	if (!afu_h)
@@ -140,6 +219,7 @@ static int _handle_dsi(struct ocxl_afu *afu, uint64_t addr)
 
 static int _handle_wake_host_thread(struct ocxl_afu *afu)
 {
+        ocxl_wait_event *this_wait_event;
 	uint64_t addr;
 	uint8_t cmd_flag;
 	uint8_t adata[8];
@@ -149,8 +229,7 @@ static int _handle_wake_host_thread(struct ocxl_afu *afu)
 	debug_msg("AFU WAKE HOST THREAD");
 
 	// in opencapi, we should get a 64 bit address (to be interpretted as a thread id)
-	// we should find that a match to that thread id
-	// if we find it
+	// we should find a match to that thread id in our ocxl_wait_list
 
 	//buffer[0] = OCSE_WAKE (already read)
 	//buffer[1] = event->cmd_flag
@@ -170,14 +249,15 @@ static int _handle_wake_host_thread(struct ocxl_afu *afu)
 	// addr = ntohs(addr);
 	debug_msg("_handle_wake_host_thread: received wake_host_thread thread id 0x%016lx", addr);
 
-	// Only track a single wait at a time
-	pthread_mutex_lock(&(ocxl_wait_event.wait_lock));
+	
+	// scan list
+	// pthread_mutex_lock(&(this_wait_event->wait_lock));
+	this_wait_event = _alloc_wait_event( (uint16_t)addr );
+	// pthread_mutex_unlock(&(this_wait_event->wait_lock));
 
-	// we should try to match the lower order 2 bytes of addr with the thread id that we have saved
-	// but for now we are going to assume a match
-	ocxl_wait_event.received = 1;
-
-	pthread_mutex_unlock(&(ocxl_wait_event.wait_lock));
+	debug_msg("_handle_wake_host_thread: waking @ 0x%016llx -> 0x%04x", (uint64_t)this_wait_event, addr);
+	this_wait_event->received = 1;
+	
 	return 0;
 }
 
@@ -2923,7 +3003,9 @@ uint16_t ocxl_afu_event_check( ocxl_afu_h afu, int timeout, ocxl_event *events, 
 
 ocxl_err ocxl_afu_get_p9_thread_id(ocxl_afu_h afu, uint16_t *thread_id)
 {
-  ocxl_wait_event.tid = afu->context;
+  // obtain the current thread id - with pthread_self()
+  // app must pass thread id to afu for afu to use in subsequent wake host thread command
+  *thread_id = (uint16_t)pthread_self();
   return 0;
 }
 
@@ -3496,32 +3578,49 @@ ocxl_err ocxl_afu_set_ppc64_amr( ocxl_afu_h afu, uint64_t amr)
 	return OCXL_OK;
 }
 
-// ocxl_sleep should behave very much like read_event
+// ocxl_wait should behave very much like read_event
 // however, I don't think we can use the event structure as is
 // maybe create another event struct so that interrupt events and 
 // wake host thread events cannot collide or stall each other.
 // only one waitasec at a time in a context/afu pair
 int ocxl_wait()
 {
-        if (ocxl_wait_event.enabled == 1) {
-	  // error because we only support one
-	}
+  // multi thread safe?
+  // obtain the current thread id
+  // put it in the wait event
+  // a wake host thread command from the afu must supply a matching thread id for this to wake to clear
+  // we'll need to add a way to have multiple active wait events for a given application
+  // and remove it when the wake occurs
 
-	ocxl_wait_event.enabled = 1;
+        ocxl_wait_event *this_wait_event;
+
+        this_wait_event = _alloc_wait_event( (uint16_t)pthread_self() );
 	
-	// Function will block until wake host thread occurs
-	pthread_mutex_lock( &(ocxl_wait_event.wait_lock) );
-	while ( ocxl_wait_event.received == 0 ) {	/*infinite loop */
-		pthread_mutex_unlock( &(ocxl_wait_event.wait_lock) );
+	info_msg( "ocxl_wait: waiting for wake host thread @ 0x%016llx -> 0x%04x", 
+		   (uint64_t)this_wait_event, 
+		   this_wait_event->tid );
+	
+	// enable this wake event
+	this_wait_event->enabled = 1;
+	
+	// Function will block until wake host thread occurs and matches thread id
+	// pthread_mutex_lock( &(this_wait_event->wait_lock) );
+	while ( this_wait_event->received == 0 ) {	/*infinite loop */
+	        // pthread_mutex_unlock( &(this_wait_event->wait_lock) );
+	        // debug_msg( "ocxl_wait: stil waiting for wake host thread @ 0x%016llx -> 0x%04x", 
+		//	   (uint64_t)this_wait_event, 
+		//	   this_wait_event->tid );
 		if (_delay_1ms() < 0)
 			return -1;
-		pthread_mutex_lock(&(ocxl_wait_event.wait_lock));
+		// pthread_mutex_lock(&(this_wait_event->wait_lock));
 	}
 
-	ocxl_wait_event.enabled = 0;
-	ocxl_wait_event.received = 0;
+	// free wait event - remove it from wait event list
+	this_wait_event->enabled = 0;
+	this_wait_event->received = 0;
+	// pthread_mutex_unlock( &(this_wait_event->wait_lock) );
 
-	pthread_mutex_unlock( &(ocxl_wait_event.wait_lock) );
+	_free_wait_event( this_wait_event );
 
 	return OCXL_OK;
 }
