@@ -90,6 +90,8 @@ static int _testmemaddr(uint8_t * memaddr)
 	return ret;
 }
 
+ocxl_wait_event *ocxl_wait_list = NULL;
+
 ocxl_wait_event *_alloc_wait_event( uint16_t tid )
 {
   ocxl_wait_event *this_wait_event;

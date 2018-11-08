@@ -145,8 +145,6 @@ typedef struct ocxl_wait_event {
   struct ocxl_wait_event *_next;
 } ocxl_wait_event;
 
-  ocxl_wait_event *ocxl_wait_list = NULL;
-
 #define OCXL_ATTACH_FLAGS_NONE (0)
 
 /* 
