@@ -45,95 +45,90 @@ int tlx_serv_afu_event(struct AFU_EVENT *event, int port);
 /* Call this from ocse to set the initial tlx_afu credit values */
 
 int tlx_afu_send_initial_credits(struct AFU_EVENT *event,
-				 uint8_t  tlx_afu_cmd_initial_credit,
-				 uint8_t  tlx_afu_resp_initial_credit,
-				 uint8_t  tlx_afu_cmd_data_initial_credit,
-				 uint8_t  tlx_afu_resp_data_initial_credit);
+				 uint8_t tlx_afu_vc0_initial_credit,
+				 uint8_t tlx_afu_vc1_initial_credit,
+				 uint8_t tlx_afu_vc2_initial_credit,
+				 uint8_t tlx_afu_vc3_initial_credit,
+				 uint8_t tlx_afu_dcp0_initial_credit,
+				 uint8_t tlx_afu_dcp2_data_initial_credit,
+				 uint8_t tlx_afu_dcp3_data_initial_credit);
 
 
 /* Call this from ocse to read the initial afu_tlx credit values */
 
 int afu_tlx_read_initial_credits(struct AFU_EVENT *event,
-		uint8_t * afu_tlx_cmd_initial_credit,
-		uint8_t * cfg_tlx_initial_credit,
-		uint8_t * afu_tlx_resp_initial_credit);
+		uint8_t * afu_tlx_vc0_initial_credit,
+		uint8_t * afu_tlx_vc1_initial_credit,
+		uint8_t * afu_tlx_vc2_initial_credit,
+		uint8_t * cfg_tlx_initial_credit);
 
 
-/* Call this from ocse to send a  response  to tlx/afu*/
+/* Call this from ocse to send a response or posted cmd to tlx/afu*/
 
-int tlx_afu_send_resp(struct AFU_EVENT *event,
+int tlx_afu_send_resp_cmd_vc0(struct AFU_EVENT *event,
 		 uint8_t tlx_resp_opcode,
 		 uint16_t resp_afutag, uint8_t resp_code,
 		 uint8_t resp_pg_size, uint8_t resp_dl,
-#ifdef TLX4
 		 uint32_t resp_host_tag, uint8_t resp_cache_state,
-#endif
-		 uint8_t resp_dp, uint32_t resp_addr_tag);
+		 uint8_t resp_ef, uint8_t resp_w, uint8_t resp_mh,
+		 uint64_t resp_pa_or_ta,
+		 uint8_t resp_dp, uint16_t resp_capp_tag);
 
 
 // TODO - DON"T CALL THIS YET - IT WON"T WORK
 /* Call this from ocse to send response data to tlx/afu   assume can only send 64B
  * @ time to FIFO ?*/
 
-int tlx_afu_send_resp_data(struct AFU_EVENT *event,
+/*int tlx_afu_send_resp_data(struct AFU_EVENT *event,
 		 uint16_t resp_byte_cnt,
-		 uint8_t resp_data_bdi,uint8_t * resp_data);
+		 uint8_t resp_data_bdi,uint8_t * resp_data); */
 
 
 
-/* Call this from ocse to send both response & response data to tlx/afu  */
+/* Call this from ocse to send both response & response data to afu via vc0 & dcp0 */
 
-int tlx_afu_send_resp_and_data(struct AFU_EVENT *event,
+int tlx_afu_send_resp_vc0_and_dcp0(struct AFU_EVENT *event,
 		 uint8_t tlx_resp_opcode,
 		 uint16_t resp_afutag, uint8_t resp_code,
 		 uint8_t resp_pg_size, uint8_t resp_resp_dl,
-#ifdef TLX4
 		 uint32_t resp_host_tag, uint8_t resp_cache_state,
-#endif
-		 uint8_t resp_dp, uint32_t resp_addr_tag,
+		 uint8_t resp_ef, uint8_t resp_w, uint8_t resp_mh,
+		 uint64_t resp_pa_or_ta,
+		 uint8_t resp_dp, uint16_t resp_capp_tag,
 		 uint8_t resp_data_bdi,uint8_t * resp_data);
 
-/* Call this from ocse to send an xlate_done cmd  to tlx/afu*/
 
-int tlx_afu_send_posted_cmd(struct AFU_EVENT *event,
-		 uint8_t tlx_resp_opcode,
-		 uint16_t resp_afutag, uint8_t resp_code);
+/* Call this from ocse to send a rd_pf posted OMI cmd or other cmd to afu via vc1 */
+int tlx_afu_send_cmd_vc1(struct AFU_EVENT *event,
+		 uint8_t tlx_cmd_opcode, uint16_t cmd_afutag, uint16_t cmd_capptag,
+		 uint64_t tlx_cmd_pa, uint8_t tlx_cmd_dl, uint8_t tlx_cmd_dp, 
+		 uint64_t tlx_cmd_be, uint8_t tlx_cmd_pl, uint8_t tlx_cmd_endian,
+		 uint8_t tlx_cmd_co, uint8_t tlx_cmd_os, uint8_t tlx_cmd_cmdflag,
+		 uint8_t tlx_cmd_mad );
 
-
-/* Call this from ocse to send a command to tlx/afu */
-
-int tlx_afu_send_cmd(struct AFU_EVENT *event,
-		 uint8_t tlx_cmd_opcode,
-		 uint16_t cmd_capptag, uint8_t cmd_dl,
-		 uint8_t cmd_pl, uint64_t cmd_be,
-		 uint8_t cmd_end, //uint8_t cmd_t,
-#ifdef TLX4
-		 uint8_t cmd_os, uint8_t cmd_flag,
-#endif
-		 uint64_t cmd_pa);
+/* Call this from ocse to send a command to afu via vc2 */
+int tlx_afu_send_cmd_vc2(struct AFU_EVENT *event,
+		 uint8_t tlx_cmd_opcode, uint16_t cmd_capptag, uint8_t cmd_pg_size,
+		 uint64_t cmd_ea, uint8_t cmd_cmdflag, uint32_t cmd_pasid,
+		 uint16_t cmd_bdf);
 
 
 /* Call this from ocse to send command data to tlx/afu   assume can only send 64B
  * @ time to FIFO */
 
-int tlx_afu_send_cmd_data(struct AFU_EVENT *event,
+/* int tlx_afu_send_cmd_data(struct AFU_EVENT *event,
 		 uint16_t cmd_byte_cnt,
-		 uint8_t cmd_data_bdi,uint8_t * cmd_data);
+		 uint8_t cmd_data_bdi,uint8_t * cmd_data); */
 
 
-/* Call this from ocse to send a command with data (a write) to tlx/afu */
+/* Call this from ocse to send a command with data (a write) to /afu via vc1 & dcp1 */
 /* DO NOT USE for config_wr or config_rd commands */
-
-int tlx_afu_send_cmd_and_data( struct AFU_EVENT *event,
-			       uint8_t tlx_cmd_opcode,
-			       uint16_t cmd_capptag, uint8_t cmd_dl,
-			       uint8_t cmd_pl, uint64_t cmd_be,
-			       uint8_t cmd_end,
-#ifdef TLX4
-			       uint8_t cmd_os, uint8_t cmd_flag,
-#endif
-			       uint64_t cmd_pa,
-			       uint8_t cmd_data_bdi, uint8_t * cmd_data);
+int tlx_afu_send_cmd_vc1_and_dcp1( struct AFU_EVENT *event,
+		 uint8_t tlx_cmd_opcode, uint16_t cmd_afutag, uint16_t cmd_capptag,
+		 uint64_t tlx_cmd_pa, uint8_t tlx_cmd_dl, uint8_t tlx_cmd_dp, 
+		 uint64_t tlx_cmd_be, uint8_t tlx_cmd_pl, uint8_t tlx_cmd_endian,
+		 uint8_t tlx_cmd_co, uint8_t tlx_cmd_os, uint8_t tlx_cmd_cmdflag, uint8_t tlx_cmd_mad,
+		 uint8_t cmd_data_bdi, uint8_t * cmd_data);
 
 /* CALL THIS FOR CONFIG_RD/CONFIG_WR ONLY */
 /* This will send config_rds and config_wr only. It will check and
@@ -153,17 +148,17 @@ int tlx_afu_send_cfg_cmd_and_data(struct AFU_EVENT *event,
 		 uint8_t cfg_data_bdi, uint8_t * cfg_data);
 
 
-/* Call this from ocse to read AFU response. This reads both afu_tlx resp AND resp data interfaces */
+/* Call this from ocse to read AFU response (vc0/dcp0). This reads both afu_tlx resp vc0 AND resp dcp0 data interfaces */
 
-int afu_tlx_read_resp_and_data(struct AFU_EVENT *event,
+int afu_tlx_read_resp_vc0_and_dcp0(struct AFU_EVENT *event,
 		    uint8_t * afu_resp_opcode, uint8_t * resp_dl,
 		    uint16_t  * resp_capptag, uint8_t * resp_dp,
 		    uint8_t * resp_data_is_valid, uint8_t * resp_code, uint8_t * rdata_bus, uint8_t * rdata_bdi);
 
 
-/* Call this from ocse to read AFU response. This reads only the resp portion */
+/* Call this from ocse to read AFU response on vc0. This reads only the resp vc0 interface */
 
-int afu_tlx_read_resp(struct AFU_EVENT *event,
+int afu_tlx_read_resp_vc0(struct AFU_EVENT *event,
 		    uint8_t * afu_resp_opcode, uint8_t * resp_dl,
 		    uint16_t  * resp_capptag, uint8_t * resp_dp,
 		    uint8_t * resp_code);
@@ -171,7 +166,7 @@ int afu_tlx_read_resp(struct AFU_EVENT *event,
 
 /* Call this from ocse to read AFU response. This reads only the rdata portion */
 
-int afu_tlx_read_resp_data(struct AFU_EVENT *event,
+int afu_tlx_read_resp_dcp0_data(struct AFU_EVENT *event,
 		    uint8_t * resp_data_is_valid, uint8_t * rdata_bus, uint8_t * rdata_bdi);
 
 
@@ -190,27 +185,51 @@ int afu_tlx_read_cfg_resp_and_data(struct AFU_EVENT *event,
 		    uint8_t * cfg_resp_data_is_valid,
 		    uint8_t * cfg_resp_code, uint8_t * cfg_rdata_bus, uint8_t * cfg_rdata_bdi);
 
+/* Call this from ocse to read AFU command on vc1. This reads  afu_tlx vc1 interface */
 
-/* Call this from ocse to read AFU command. This reads both afu_tlx cmd AND cmd data interfaces */
+int afu_tlx_read_cmd_vc1(struct AFU_EVENT *event,
+  		    uint8_t * afu_cmd_opcode, uint8_t * cmd_stream_id, 
+ 		    uint16_t * cmd_afutag, uint64_t * cmd_pa,
+		    uint8_t * cmd_dl );
 
-int afu_tlx_read_cmd_and_data(struct AFU_EVENT *event,
-  		    uint8_t * afu_cmd_opcode, uint16_t * cmd_actag,
-  		    uint8_t * cmd_stream_id, uint8_t * cmd_ea_or_obj,
- 		    uint16_t * cmd_afutag, uint8_t * cmd_dl,
-  		    uint8_t * cmd_pl,
-#ifdef TLX4
-		    uint8_t * cmd_os,
-#endif
-		    uint64_t * cmd_be, uint8_t * cmd_flag,
- 		    uint8_t * cmd_endian, uint16_t * cmd_bdf,
-  	  	    uint32_t * cmd_pasid, uint8_t * cmd_pg_size, uint8_t * cmd_data_is_valid,
- 		    uint8_t * cdata_bus, uint8_t * cdata_bdi);
 
-/* Call this from ocse to read AFU command data ONLY.  */
+/* Call this from ocse to read AFU command on vc2/dcp2. This reads both afu_tlx cmd vc2 AND cmd data dcp2 interfaces */
 
-int afu_tlx_read_cmd_data(struct AFU_EVENT *event,
+int afu_tlx_read_cmd_vc2_and_dcp2_data(struct AFU_EVENT *event,
+  		    uint8_t * afu_cmd_opcode, uint8_t * cmd_dl,
+  		    uint32_t * cmd_host_tag, uint8_t * cmd_cache_state,
+ 		    uint8_t * cmd_cmdflag, 
   	  	    uint8_t * cmd_data_is_valid,
  		    uint8_t * cdata_bus, uint8_t * cdata_bdi);
+
+/* Call this from ocse to read AFU command data on dcp2. This reads afu_tlx data dcp2 interface */
+
+int afu_tlx_read_dcp2_data(struct AFU_EVENT *event,
+  	  	    uint8_t * cmd_data_is_valid,
+ 		    uint8_t * cdata_bus, uint8_t * cdata_bdi);
+
+/* Call this from ocse to read AFU command on vc3/dcp3. This reads both afu_tlx cmd vc3 AND cmd data dcp3 interfaces */
+
+int afu_tlx_read_cmd_vc3_and_dcp3_data(struct AFU_EVENT *event,
+		    uint8_t * afu_cmd_opcode, uint8_t * cmd_stream_id,
+  		    uint16_t * cmd_afu_tag, uint16_t * cmd_actag,
+ 		    uint8_t * cmd_ea_ta_or_obj, uint8_t * cmd_dl, 
+		    uint64_t * cmd_be, uint8_t * cmd_pl, uint8_t * cmd_os,
+		    uint8_t * cmd_endian, uint8_t * cmd_pg_size, uint8_t * cmd_cmdflag,
+		    uint32_t * cmd_pasid, uint16_t * cmd_bdf, uint8_t * cmd_mad,
+  	  	    uint8_t * cmd_data_is_valid,
+ 		    uint8_t * cdata_bus, uint8_t * cdata_bdi);
+
+
+/* Call this from ocse to read AFU command data on dcp3. This reads afu_tlx data dcp3 interface */
+
+int afu_tlx_read_dcp3_data(struct AFU_EVENT *event,
+  	  	    uint8_t * cmd_data_is_valid,
+ 		    uint8_t * cdata_bus, uint8_t * cdata_bdi);
+
+
+
+
 
 /* Call this periodically to send events and clocking synchronization to AFU */
 /* The comparable function, tlx_signal_tlx_model, is not defined here bc it
@@ -242,33 +261,36 @@ int tlx_get_tlx_events(struct AFU_EVENT *event);
 /* Call this from AFU to set the initial afu tlx_credit values */
 
 int afu_tlx_send_initial_credits(struct AFU_EVENT *event,
-		uint8_t afu_tlx_cmd_initial_credit,
-		uint8_t cfg_tlx_initial_credit,
-		uint8_t afu_tlx_resp_initial_credit);
+		uint8_t afu_tlx_vc0_initial_credit,
+		uint8_t afu_tlx_vc1_initial_credit,
+		uint8_t afu_tlx_vc2_initial_credit,
+		uint8_t cfg_tlx_initial_credit);
 
 
 /* Call this from AFU to read the initial tlx_afu credit values */
 
 int tlx_afu_read_initial_credits(struct AFU_EVENT *event,
-				 uint8_t * tlx_afu_cmd_initial_credit,
-				 uint8_t * tlx_afu_resp_initial_credit,
-				 uint8_t * tlx_afu_cmd_data_initial_credit,
-				 uint8_t * tlx_afu_resp_data_initial_credit);
+				 uint8_t * tlx_afu_vc0_initial_credit,
+				 uint8_t * tlx_afu_vc1_initial_credit,
+				 uint8_t * tlx_afu_vc2_initial_credit,
+				 uint8_t * tlx_afu_vc3_initial_credit,
+				 uint8_t * tlx_afu_dcp0_initial_credit,
+				 uint8_t * tlx_afu_dcp2_initial_credit,
+				 uint8_t * tlx_afu_dcp3_initial_credit);
 
 
-/* Call this on the AFU side to send a response to ocse.  */
+/* Call this on the AFU side to send a response to ocse via vc0.  */
 
-int afu_tlx_send_resp(struct AFU_EVENT *event,
+int afu_tlx_send_resp_vc0(struct AFU_EVENT *event,
  		 uint8_t afu_resp_opcode,
  		 uint8_t resp_dl, uint16_t resp_capptag,
  		 uint8_t resp_dp, uint8_t resp_code);
 
 
-// TODO - DON"T CALL THIS YET - IT WON"T WORK
 /* Call this from afu to send response data to ocse   assume can only send 64B
  * @ time to FIFO ?*/
 
-int afu_tlx_send_resp_data(struct AFU_EVENT *event,
+int afu_tlx_send_dcp0_data(struct AFU_EVENT *event,
 		 uint8_t DATA_RESP_CONTINUATION,
 		 uint8_t rdata_bdi,uint8_t resp_dp,
 		 uint8_t resp_dl,uint8_t * rdata_bus);
@@ -276,7 +298,7 @@ int afu_tlx_send_resp_data(struct AFU_EVENT *event,
 
 /* Call this on the AFU side to send a response and response data to ocse.  */
 
-int afu_tlx_send_resp_and_data(struct AFU_EVENT *event,
+int afu_tlx_send_resp_vc0_and_dcp0(struct AFU_EVENT *event,
  		 uint8_t afu_resp_opcode,
  		 uint8_t resp_dl, uint16_t resp_capptag,
  		 uint8_t resp_dp, uint8_t resp_code,
@@ -295,95 +317,126 @@ int afu_tlx_send_resp_and_data(struct AFU_EVENT *event,
 int afu_cfg_send_resp_and_data(struct AFU_EVENT *event,
  		 uint8_t cfg_resp_opcode,
  		 uint16_t cfg_resp_capptag, uint8_t cfg_resp_code,
-		 uint16_t afu_cfg_resp_data_byte_cnt,
-		 //uint8_t cfg_rdata_offset,
+		 //uint16_t afu_cfg_resp_data_byte_cnt,
+		 uint8_t cfg_rdata_offset,
   		 uint8_t cfg_rdata_valid, uint8_t * cfg_rdata_bus,
  		 uint8_t cfg_rdata_bdi);
 
 
-/* Call this on the AFU side to send a command to ocse */
+/* Call this on the AFU side to send a command to ocse via vc1 */
 
-int afu_tlx_send_cmd(struct AFU_EVENT *event,
+int afu_tlx_send_cmd_vc1(struct AFU_EVENT *event,
+		 uint8_t afu_cmd_opcode, uint8_t cmd_stream_id,
+  	 	 uint16_t cmd_afutag, uint64_t cmd_pa,
+  		 uint8_t cmd_dl);
+
+
+/* Call this on the AFU side to send a command to ocse via vc2 */
+
+int afu_tlx_send_cmd_vc2(struct AFU_EVENT *event,
+		 uint8_t afu_cmd_opcode, uint8_t cmd_dl,
+  		 uint32_t cmd_host_tag, uint8_t cmd_cache_state,
+  		 uint8_t cmd_cmdflg);
+
+
+/* Call this from afu to send command data to ocse via dcp2.  assume can only send 64B
+ * @ time to FIFO */
+int afu_tlx_send_dcp2_data( struct AFU_EVENT *event,
+			   uint8_t cdata_bdi,
+			   uint8_t * cdata_bus );
+
+/* Call this on the AFU side to send a command and cmd data to ocse via vc2 & dcp2*/
+
+int afu_tlx_send_cmd_vc2_and_dcp2_data(struct AFU_EVENT *event,
+		 uint8_t afu_cmd_opcode, uint8_t cmd_dl,
+  		 uint32_t cmd_host_tag, uint8_t cmd_cache_state,
+  		 uint8_t cmd_cmdflg,
+  		 uint8_t cdata_bdi, uint8_t * cdata_bus );
+
+
+/* Call this on the AFU side to send a command to ocse via vc3 */
+
+int afu_tlx_send_cmd_vc3(struct AFU_EVENT *event,
 		 uint8_t afu_cmd_opcode, uint16_t cmd_actag,
-  	 	 uint8_t cmd_stream_id, uint8_t * cmd_ea_or_obj,
+  	 	 uint8_t cmd_stream_id, uint8_t * cmd_ea_ta_or_obj,
   		 uint16_t cmd_afutag, uint8_t cmd_dl,
-  		 uint8_t cmd_pl,
-#ifdef TLX4
-  		 uint8_t cmd_os,     /* 1 bit ordered segment CAPI 4 */
-#endif
+  		 uint8_t cmd_pl, uint8_t cmd_os,
   	 	 uint64_t cmd_be,uint8_t cmd_flag,
 		 uint8_t cmd_endian, uint16_t cmd_bdf,
- 		 uint32_t cmd_pasid, uint8_t cmd_pg_size);
+ 		 uint32_t cmd_pasid, uint8_t cmd_pg_size, uint8_t cmd_mad );
 
 
-// TODO - DON"T CALL THIS YET - IT WON"T WORK
-/* Call this from afu to send command data to ocse   assume can only send 64B
- * @ time to FIFO ?*/
+/* Call this from afu to send command data to ocse via dcp3   assume can only send 64B
+ * @ time to FIFO */
 
-int afu_tlx_send_cmd_data(struct AFU_EVENT *event, uint8_t cdata_bdi, uint8_t * cdata_bus);
+int afu_tlx_send_dcp3_data( struct AFU_EVENT *event,
+			   uint8_t cdata_bdi,
+			   uint8_t * cdata_bus );
 
 
-/* Call this on the AFU side to send a command and cmd data to ocse */
+/* Call this on the AFU side to send a command to ocse via vc3 and dcp3 */
 
-int afu_tlx_send_cmd_and_data(struct AFU_EVENT *event,
+int afu_tlx_send_cmd_vc3_and_dcp3_data(struct AFU_EVENT *event,
 		 uint8_t afu_cmd_opcode, uint16_t cmd_actag,
-  	 	 uint8_t cmd_stream_id, uint8_t * cmd_ea_or_obj,
-  		 uint16_t cmd_afutag, uint8_t cmd_dl,  /* combine dl and pl ??? */
-  		 uint8_t cmd_pl,
-#ifdef TLX4
-  		 uint8_t cmd_os,     /* 1 bit ordered segment CAPI 4 */
-#endif
-  	 	 uint64_t cmd_be, uint8_t cmd_flag,
+  	 	 uint8_t cmd_stream_id, uint8_t * cmd_ea_ta_or_obj,
+  		 uint16_t cmd_afutag, uint8_t cmd_dl,
+  		 uint8_t cmd_pl, uint8_t cmd_os,
+  	 	 uint64_t cmd_be,uint8_t cmd_flag,
 		 uint8_t cmd_endian, uint16_t cmd_bdf,
- 		 uint32_t cmd_pasid, uint8_t cmd_pg_size,
-  		 uint8_t * cdata_bus, uint8_t cdata_bdi);
+ 		 uint32_t cmd_pasid, uint8_t cmd_pg_size, uint8_t cmd_mad,
+		 uint8_t cdata_bdi, uint8_t * cdata_bus );
 
 
+/* Call this from AFU to read ocse (CAPP/TL) response OR ocse (CAPP/TL) cmd on vc0. This reads just tlx_afu vc0 interface */
 
-/* Call this from AFU to read ocse (CAPP/TL) response. This reads just tlx_afu resp interface */
-
-int tlx_afu_read_resp(struct AFU_EVENT *event,
+int tlx_afu_read_cmd_resp_vc0(struct AFU_EVENT *event,
 		 uint8_t * tlx_resp_opcode,
 		 uint16_t * resp_afutag, uint8_t * resp_code,
 		 uint8_t * resp_pg_size, uint8_t * resp_resp_dl,
-#ifdef TLX4
 		 uint32_t * resp_host_tag, uint8_t * resp_cache_state,
-#endif
-		 uint8_t * resp_dp, uint32_t * resp_addr_tag);
+		 uint8_t * resp_ef, uint8_t * resp_w, uint8_t * resp_mh,
+		 uint64_t * resp_pa_or_ta,
+		 uint8_t * resp_dp, uint16_t * resp_capp_tag);
 
 
-/* Call this from AFU to request data on the response data interface */
-int afu_tlx_resp_data_read_req(struct AFU_EVENT *event,
-		 uint8_t resp_rd_req, uint8_t resp_rd_cnt);
+/* Call this from AFU to request data on the response data dcp0 interface  ALSO, AFU calls w/0 values to reset*/
+int afu_tlx_dcp0_data_read_req(struct AFU_EVENT *event,
+		 uint8_t  afu_tlx_resp_rd_req, uint8_t  afu_tlx_resp_rd_cnt);
 
 
-/* Call this from AFU to read data on the response data interface */
-int tlx_afu_read_resp_data(struct AFU_EVENT *event,
+/* Call this from AFU to read data on the dcp0 data interface */
+int tlx_afu_read_dcp0_data(struct AFU_EVENT *event,
 		 uint8_t * resp_data_bdi,uint8_t * resp_data);
 
 
-/* Call this from AFU to read ocse (CAPP/TL) command.This reads tlx_afu cmd interface */
+/* Call this from AFU to read ocse (CAPP/TL) command on vc1. This reads just tlx_afu vc1 interface  */
 
-int tlx_afu_read_cmd(struct AFU_EVENT *event,
-		 uint8_t * tlx_cmd_opcode,
-		 uint16_t * cmd_capptag, uint8_t * cmd_dl,
-		 uint8_t * cmd_pl, uint64_t * cmd_be,
-		 uint8_t * cmd_end, //uint8_t * cmd_t,
-#ifdef TLX4
-		 uint8_t * cmd_flag,  /* used for atomics from host CAPI 4 */
-  		 uint8_t * cmd_os,     /* 1 bit ordered segment CAPI 4 */
-#endif
-		 uint64_t * cmd_pa);
+int tlx_afu_read_cmd_vc1(struct AFU_EVENT *event,
+		 uint8_t * tlx_cmd_opcode, uint16_t * cmd_afutag, uint16_t * cmd_capptag,
+		 uint64_t * tlx_cmd_pa, uint8_t * tlx_cmd_dl, uint8_t * tlx_cmd_dp, 
+		 uint64_t * tlx_cmd_be, uint8_t * tlx_cmd_pl, uint8_t * tlx_cmd_endian,
+		 uint8_t * tlx_cmd_co, uint8_t * tlx_cmd_os, uint8_t * tlx_cmd_cmdflag,
+		 uint8_t * tlx_cmd_mad );
 
 
-/* Call this from AFU to request data on the command data interface */
-int afu_tlx_cmd_data_read_req(struct AFU_EVENT *event,
+/* Call this from AFU to request data on the dcp1 data interface */
+int afu_tlx_dcp1_data_read_req(struct AFU_EVENT *event,
 		 uint8_t cmd_rd_req, uint8_t cmd_rd_cnt);
 
 
-/* Call this from AFU to read data on the command data interface */
-int tlx_afu_read_cmd_data(struct AFU_EVENT *event,
+/* Call this from AFU to read data on the dcp1 data interface */
+int tlx_afu_read_dcp1_data(struct AFU_EVENT *event,
 		 uint8_t * cmd_data_bdi,uint8_t * cmd_data);
+
+
+/* Call this from AFU to read ocse (CAPP/TL) command on vc2. This reads just tlx_afu vc2 interface  */
+
+int tlx_afu_read_cmd_vc2(struct AFU_EVENT *event,
+		 uint8_t * tlx_cmd_opcode, uint16_t * cmd_capptag,
+		 uint64_t * tlx_cmd_ea, uint8_t * tlx_cmd_pg_size,  
+		 uint8_t * tlx_cmd_flag, uint32_t * tlx_cmd_pasid,
+		 uint16_t * tlx_cmd_bdf );
+
 
 
 /* CALL THIS FOR CONFIG_RD/CONFIG_WR ONLY */

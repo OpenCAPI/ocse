@@ -1,5 +1,5 @@
 /*
- * Copyright 2014,2017 International Business Machines
+ * Copyright 2014,2018 International Business Machines
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -517,11 +517,15 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 		   MAX_TLX_AFU_RESP_CREDITS, 
 		   MAX_TLX_AFU_CMD_DATA_CREDITS, 
 		   MAX_TLX_AFU_RESP_DATA_CREDITS );
+	// TODO for now, use same MAX num for every vc and dcp
 	if (tlx_afu_send_initial_credits(ocl->afu_event,
-					 MAX_TLX_AFU_CMD_CREDITS,
 					 MAX_TLX_AFU_RESP_CREDITS,
+					 MAX_TLX_AFU_CMD_CREDITS,
+					 MAX_TLX_AFU_CMD_CREDITS,
+					 MAX_TLX_AFU_CMD_CREDITS,
+					 MAX_TLX_AFU_RESP_DATA_CREDITS,
 					 MAX_TLX_AFU_CMD_DATA_CREDITS,
-					 MAX_TLX_AFU_RESP_DATA_CREDITS) != TLX_SUCCESS) {
+					 MAX_TLX_AFU_CMD_DATA_CREDITS) != TLX_SUCCESS) {
 		warn_msg("ocl_init: Unable to set initial credits");
 		goto init_fail;
 	}

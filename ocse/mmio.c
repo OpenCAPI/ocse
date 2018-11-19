@@ -1,5 +1,5 @@
 /*
- * Copyright 2014,2017 International Business Machines
+ * Copyright 2014,2018 International Business Machines
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -317,9 +317,10 @@ static struct mmio_event *_read_afu_descriptor(struct mmio *mmio, uint64_t addr,
 int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 {
 	debug_msg("read_afu_config: and WON'T BE ABLE TO SEND CMD UNTIL AFU GIVES US INITIAL CREDIT!!");
-	uint8_t   afu_tlx_cmd_credits_available;
+	uint8_t   afu_tlx_vc1_credits_available;
+	uint8_t   afu_tlx_vc2_credits_available;
 	uint8_t   cfg_tlx_credits_available;
-	uint8_t   afu_tlx_resp_credits_available;
+	uint8_t   afu_tlx_vc0_credits_available;
 
 	struct mmio *mmio;
 	mmio = ocl->mmio;
@@ -327,17 +328,14 @@ int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 	#define AFU_DESC_DATA_VALID 0x80000000
 
 	debug_msg("read_afu_config: before read initial credits");
-	//if ( afu_tlx_read_initial_credits( mmio->afu_event, &afu_tlx_cmd_credits_available,
-	//                                   &afu_tlx_resp_credits_available ) != TLX_SUCCESS )
-	//	printf("NO CREDITS FROM AFU!!\n");
-	while ( afu_tlx_read_initial_credits( mmio->afu_event, &afu_tlx_cmd_credits_available,
-					      &cfg_tlx_credits_available, &afu_tlx_resp_credits_available) != TLX_SUCCESS ){
+	while ( afu_tlx_read_initial_credits( mmio->afu_event, &afu_tlx_vc0_credits_available, &afu_tlx_vc1_credits_available,
+					      &afu_tlx_vc2_credits_available, &cfg_tlx_credits_available) != TLX_SUCCESS ){
 	  //infinite loop
 	  sleep(1);
 	} 
-	info_msg("read_afu_config: afu_tlx_cmd_credits_available= %d, cfg_tlx_credits_available= %d, afu_tlx_resp_credits_available= %d",
-		afu_tlx_cmd_credits_available, cfg_tlx_credits_available,
-		afu_tlx_resp_credits_available);
+	info_msg("read_afu_config: afu_tlx_vc0_credits_available= %d, afu_tlx_vc1_credits_available= %d, afu_tlx_vc2_credits_available= %d, cfg_tlx_credits_available= %d",
+		afu_tlx_vc0_credits_available, afu_tlx_vc1_credits_available, afu_tlx_vc2_credits_available,
+		cfg_tlx_credits_available);
 
         uint64_t cmd_pa_bus ; // the base physical address of the bus we are working on
         uint64_t cmd_pa_fcn ; // bus + function offset
@@ -857,15 +855,17 @@ void send_mmio(struct mmio *mmio)
 		
 		if (event->rnw) { // read
 		  if (cmd_byte_cnt < 64) { // partial
-		    if (tlx_afu_send_cmd(mmio->afu_event,
-					 TLX_CMD_PR_RD_MEM, 0xcafe, event->cmd_dL, event->cmd_pL, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
+		//TODO update event struct with new cmd fields if needed
+		    if (tlx_afu_send_cmd_vc1(mmio->afu_event,
+					 TLX_CMD_PR_RD_MEM, 0, 0xcafe, event->cmd_PA, event->cmd_dL, 0,0 ,event->cmd_pL, 0, 0, 0,0,0) == TLX_SUCCESS) {
 		      debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type, event->dw ? 64 : 32, event->cmd_PA);
-		      debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw, event->cmd_PA);
+		      debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw,event->cmd_PA );
 		      event->state = OCSE_PENDING;
 		    }
 		  } else { // full
-		    if (tlx_afu_send_cmd(mmio->afu_event,
-					 TLX_CMD_RD_MEM, 0xefac, event->cmd_dL, event->cmd_pL, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
+		//TODO update event struct with new cmd fields if needed
+		    if (tlx_afu_send_cmd_vc1(mmio->afu_event,
+					 TLX_CMD_RD_MEM, 0, 0xefac, event->cmd_PA, event->cmd_dL, 0, 0 ,event->cmd_pL, 0, 0, 0,0,0) == TLX_SUCCESS) {
 		      debug_msg("%s:%s READ size=%d offset=0x%05x", mmio->afu_name, type, cmd_byte_cnt, event->cmd_PA);
 		      debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw, event->cmd_PA);
 		      event->state = OCSE_PENDING;
@@ -920,14 +920,13 @@ void send_mmio(struct mmio *mmio)
 		      }
 		      printf( "\n" );
 #endif
-		      if (tlx_afu_send_cmd_and_data( mmio->afu_event,
-						     TLX_CMD_PR_WR_MEM, 
+		      if (tlx_afu_send_cmd_vc1_and_dcp1( mmio->afu_event,
+						     TLX_CMD_PR_WR_MEM, 0,
 						     0xbead, 
-						     event->cmd_dL, 
-						     event->cmd_pL, 
-						     0, 
-						     0, 
 						     event->cmd_PA,
+						     event->cmd_dL,0,0, 
+						     event->cmd_pL, 
+						     0, 0,0,0,0,
 						     0, // always good data for now
 						     tdata_bus ) == TLX_SUCCESS) {
 			event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
@@ -942,27 +941,26 @@ void send_mmio(struct mmio *mmio)
 		      printf( "\n" );
 #endif
 		      if (event->be_valid == 0) {
-			if (tlx_afu_send_cmd_and_data( mmio->afu_event,
-						       TLX_CMD_WRITE_MEM, // opcode
+			if (tlx_afu_send_cmd_vc1_and_dcp1( mmio->afu_event,
+						       TLX_CMD_WRITE_MEM, 0, // opcode and afutag
 						       0xdaeb,            // capp tag
-						       event->cmd_dL,     // dL
-						       event->cmd_pL,     // pL
-						       0,                 // be
-						       0,                 // end
 						       event->cmd_PA,
+						       event->cmd_dL, 0, 0,    // dL, dp, be
+						       event->cmd_pL,     // pL
+						       0, 0, 0, 0, 0,     // endian, co , os, cmdflag, mad
 						       0, // always good data for now
 						       tdata_bus ) == TLX_SUCCESS) {
 			  event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
 			}
 		      } else {
-			if (tlx_afu_send_cmd_and_data( mmio->afu_event,
-						       TLX_CMD_WRITE_MEM_BE, 
+			if (tlx_afu_send_cmd_vc1_and_dcp1( mmio->afu_event,
+						       TLX_CMD_WRITE_MEM_BE, 0,
 						       0xbebe, 
-						       event->cmd_dL, 
-						       event->cmd_pL, 
-						       event->be, 
-						       0, 
 						       event->cmd_PA,
+						       event->cmd_dL,0,
+						       event->be, 
+						       event->cmd_pL, 
+						       0, 0, 0, 0, 0, 
 						       0, // always good data for now
 						       tdata_bus ) == TLX_SUCCESS) {
 			  event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
@@ -1016,7 +1014,7 @@ void handle_ap_resp_data(struct mmio *mmio)
 	  return;
 	} else {
 	  if (mmio->list->rnw) {
-	    rc = afu_tlx_read_resp_data( mmio->afu_event,
+	    rc = afu_tlx_read_resp_dcp0_data( mmio->afu_event,
 					 &resp_data_is_valid, rdata_bus, &rdata_bad);
 	    // debug_msg( "handle_ap_resp_data: not cfg, but a mmio read: attempted a read of resp data: rc = %d", rc );
 	  } else {
@@ -1157,7 +1155,7 @@ void handle_ap_resp(struct mmio *mmio)
 		}
 	} else {
 	        // we read the response, and prepare to read the data in a subsequent routine.
-	        rc = afu_tlx_read_resp(mmio->afu_event,
+	        rc = afu_tlx_read_resp_vc0(mmio->afu_event,
 				       &afu_resp_opcode, &resp_dl, &resp_capptag, &resp_dp, &resp_code);
 		// debug_msg( "handle_ap_resp: rc from afu_tlx_read_resp = %d", rc );
 	}
@@ -1279,7 +1277,7 @@ void handle_mmio_ack(struct mmio *mmio)
 
 	} else {
 	        // we probably need to split this into afu_tlx_read_resp and afu_tlx_read_resp_data so we can collect data beats.
-	        rc = afu_tlx_read_resp_and_data(mmio->afu_event,
+	        rc = afu_tlx_read_resp_vc0_and_dcp0(mmio->afu_event,
 						&afu_resp_opcode, &resp_dl,
 						&resp_capptag, &resp_dp,
 						&resp_data_is_valid, &resp_code, rdata_bus, &rdata_bad);

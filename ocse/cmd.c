@@ -1,5 +1,5 @@
 /*
- * Copyright 2014,2017 International Business Machines
+ * Copyright 2014,2018 International Business Machines
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -252,8 +252,8 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 		cmd->buffer_read = event;
 		debug_msg("Ready to copy first 64B of write data to buffer, add=0x%016"PRIx64" , size=0x%x , afutag= 0x%x.\n",
 		 	event->addr, size, event->afutag);
-		// alway copy 64 bytes...
-		memcpy((void *)&(event->data[0]), (void *)&(cmd->afu_event->afu_tlx_cdata_bus), 64);
+		// alway copy 64 bytes... TODO for now just reading vc3 & dcp3 cmd channels
+		memcpy((void *)&(event->data[0]), (void *)&(cmd->afu_event->afu_tlx_dcp3_data_bus), 64);
 		// for type = cmd_interrupt, event->state is already correctly set to MEM_IDLE
 		if (event->type != CMD_INTERRUPT) {
 		  if (size > 64) {
@@ -267,7 +267,7 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 		}
 
   	   } else  {
-		cmd->afu_event->afu_tlx_cdata_valid = 1;
+		cmd->afu_event->afu_tlx_dcp3_data_valid = 1;
 		debug_msg("SAVING DATA FOR READ CMD DATA TO FIND LATER");
 		}
 	}
@@ -276,7 +276,7 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 
 // Format and add interrupt to command list
  static void _add_interrupt(struct cmd *cmd, uint16_t actag, uint16_t afutag,
- 			   uint8_t cmd_opcode, uint8_t *cmd_ea_or_obj, uint16_t size, uint8_t cmd_data_is_valid, uint8_t cmd_flag)
+ 			   uint8_t cmd_opcode, uint8_t *cmd_ea_ta_or_obj, uint16_t size, uint8_t cmd_data_is_valid, uint8_t cmd_flag)
  {
  	//uint32_t resp = TLX_RSP_INTRP_RESP;
  	uint32_t resp= 0; //FOR NOW, always a good response
@@ -291,7 +291,7 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 		return;
 	   }
 
-	memcpy( (void *)&addr, (void *)&(cmd_ea_or_obj[0]), sizeof(uint64_t));
+	memcpy( (void *)&addr, (void *)&(cmd_ea_ta_or_obj[0]), sizeof(uint64_t));
 
         // setting MEM_IDLE will tell handle_interrupt to send req to libocxl
         if (cmd_opcode == AFU_CMD_WAKE_HOST_THRD)
@@ -339,13 +339,13 @@ static int _aligned(uint64_t addr, uint32_t size)
 
 // Format and add memory xlate touch to command list
  static void _add_xlate_touch(struct cmd *cmd, uint16_t actag, uint16_t afutag,
- 			   uint8_t cmd_opcode, uint8_t *cmd_ea_or_obj, uint8_t cmd_flag, uint8_t cmd_pg_size)
+ 			   uint8_t cmd_opcode, uint8_t *cmd_ea_ta_or_obj, uint8_t cmd_flag, uint8_t cmd_pg_size)
  {
         int64_t addr;
 	uint32_t size = 64;
         // convert 68 bit ea/obj to 64 bit addr
         // for ap write commands, ea_or_obj is a 64 bit thing...
-        memcpy( (void *)&addr, (void *)&(cmd_ea_or_obj[0]), sizeof(int64_t));
+        memcpy( (void *)&addr, (void *)&(cmd_ea_ta_or_obj[0]), sizeof(int64_t));
  	// Check command size and address */
  	if (_aligned(addr, size) == BAD_OPERAND_SIZE) {
  		_add_fail(cmd, actag, afutag, cmd_opcode, 0x09, TLX_RSP_TOUCH_RESP);
@@ -388,7 +388,7 @@ static void _assign_actag(struct cmd *cmd, uint16_t cmd_bdf, uint32_t cmd_pasid,
 
 // Format and add memory read to command list
 static void _add_read(struct cmd *cmd, uint16_t actag, uint16_t afutag,
-		      uint8_t cmd_opcode, uint8_t *cmd_ea_or_obj, uint32_t size)
+		      uint8_t cmd_opcode, uint8_t *cmd_ea_ta_or_obj, uint32_t size)
 {
         int32_t context;
         int64_t addr;
@@ -396,7 +396,7 @@ static void _add_read(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 	debug_msg("_add_read:entered" );
         // convert 68 bit ea/obj to 64 bit addr
         // for ap read commands, ea_or_obj is a 64 bit thing...
-        memcpy( (void *)&addr, (void *)&(cmd_ea_or_obj[0]), sizeof(int64_t));
+        memcpy( (void *)&addr, (void *)&(cmd_ea_ta_or_obj[0]), sizeof(int64_t));
 
 	// Check command size and address
  	if (_aligned(addr, size) == BAD_OPERAND_SIZE) {
@@ -425,7 +425,7 @@ static void _add_read(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 
 // Format and add AMO read or write to command list
 static void _add_amo(struct cmd *cmd, uint16_t actag, uint16_t afutag,
-		      uint8_t cmd_opcode, enum cmd_type type, uint8_t *cmd_ea_or_obj,
+		      uint8_t cmd_opcode, enum cmd_type type, uint8_t *cmd_ea_ta_or_obj,
 		      uint8_t cmd_pl, uint8_t cmd_data_is_valid, uint8_t cmd_flag, uint8_t cmd_endian)
 {
         int32_t context, size, sizecheck, resp_opcode;
@@ -433,7 +433,7 @@ static void _add_amo(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 
         // convert 68 bit ea/obj to 64 bit addr
         // for ap write commands, ea_or_obj is a 64 bit thing...
-        memcpy( (void *)&addr, (void *)&(cmd_ea_or_obj[0]), sizeof(int64_t));
+        memcpy( (void *)&addr, (void *)&(cmd_ea_ta_or_obj[0]), sizeof(int64_t));
 	// check cmd_pl  size. Only certain values are valid
 	// TODO NOTE: Expect to get 64B un data buffer, with 16B of data payload starting
 	// at address offset. When data goes over to libocxl we extract and send 16B ALWAYS
@@ -517,7 +517,7 @@ static void _add_amo(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 
 // Format and add memory write to command list
 static void _add_write(struct cmd *cmd, uint16_t actag, uint16_t afutag,
-		      uint8_t cmd_opcode, uint8_t *cmd_ea_or_obj,
+		      uint8_t cmd_opcode, uint8_t *cmd_ea_ta_or_obj,
 		      uint32_t size, uint8_t cmd_data_is_valid, uint64_t cmd_be)
 {
         int32_t context;
@@ -525,7 +525,7 @@ static void _add_write(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 
         // convert 68 bit ea/obj to 64 bit addr
         // for ap write commands, ea_or_obj is a 64 bit thing...
-        memcpy( (void *)&addr, (void *)&(cmd_ea_or_obj[0]), sizeof(int64_t));
+        memcpy( (void *)&addr, (void *)&(cmd_ea_ta_or_obj[0]), sizeof(int64_t));
 
 	// Check command size and address
  	if (_aligned(addr, size) == BAD_OPERAND_SIZE) {  //invalid operand size
@@ -566,7 +566,7 @@ static void _add_write(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 // Determine what type of command to add to list
 static void _parse_cmd(struct cmd *cmd,
 		       uint8_t cmd_opcode, uint16_t cmd_actag,
-		       uint8_t cmd_stream_id, uint8_t *cmd_ea_or_obj,
+		       uint8_t cmd_stream_id, uint8_t *cmd_ea_ta_or_obj,
 		       uint16_t cmd_afutag, uint8_t cmd_dl,
 		       uint8_t cmd_pl,
 #ifdef TLX4
@@ -593,7 +593,7 @@ static void _parse_cmd(struct cmd *cmd,
 	case AFU_CMD_ASSIGN_ACTAG:
 		debug_msg("YES! AFU cmd is ASSIGN_ACTAG\n");
 		if (cmd_data_is_valid)
-		    cmd->afu_event->afu_tlx_cdata_valid = 1;
+		    cmd->afu_event->afu_tlx_dcp3_data_valid = 1;
                 _assign_actag( cmd, cmd_bdf, cmd_pasid, cmd_actag );
 		break;
 		// Memory Reads
@@ -602,69 +602,69 @@ static void _parse_cmd(struct cmd *cmd,
 		debug_msg("YES! AFU cmd is some sort of read\n");
 		// calculate size from dl
 		if (cmd_data_is_valid)
-		    cmd->afu_event->afu_tlx_cdata_valid = 1;
+		    cmd->afu_event->afu_tlx_dcp3_data_valid = 1;
 		_add_read(cmd, cmd_actag, cmd_afutag, cmd_opcode,
-			 cmd_ea_or_obj, dl_to_size( cmd_dl ));
+			 cmd_ea_ta_or_obj, dl_to_size( cmd_dl ));
 		break;
 	case AFU_CMD_PR_RD_WNITC:
 	case AFU_CMD_PR_RD_WNITC_N:
 		debug_msg("YES! AFU cmd is some sort of partial read\n");
 		// calculate size from pl
 		if (cmd_data_is_valid)
-		    cmd->afu_event->afu_tlx_cdata_valid = 1;
+		    cmd->afu_event->afu_tlx_dcp3_data_valid = 1;
 		_add_read(cmd, cmd_actag, cmd_afutag, cmd_opcode,
-			 cmd_ea_or_obj, pl_to_size( cmd_pl ));
+			 cmd_ea_ta_or_obj, pl_to_size( cmd_pl ));
 		break;
 		// Memory Writes
 	case AFU_CMD_DMA_W:
 	case AFU_CMD_DMA_W_N:
 		debug_msg("YES! AFU cmd is some sort of write\n");
 		_add_write(cmd, cmd_actag, cmd_afutag, cmd_opcode,
-			  cmd_ea_or_obj, dl_to_size( cmd_dl ), cmd_data_is_valid, 0);
+			  cmd_ea_ta_or_obj, dl_to_size( cmd_dl ), cmd_data_is_valid, 0);
 		break;
 	case AFU_CMD_DMA_PR_W:
 	case AFU_CMD_DMA_PR_W_N:
 		debug_msg("YES! AFU cmd is some sort of partial write\n");
 		_add_write(cmd, cmd_actag, cmd_afutag, cmd_opcode,
-			  cmd_ea_or_obj, pl_to_size( cmd_pl ), cmd_data_is_valid, 0);
+			  cmd_ea_ta_or_obj, pl_to_size( cmd_pl ), cmd_data_is_valid, 0);
 		break;
 		// Memory Writes with Byte Enable
 	case AFU_CMD_DMA_W_BE:
 	case AFU_CMD_DMA_W_BE_N:
 		debug_msg("YES! AFU cmd is some sort of write w/BE\n");
 		_add_write(cmd, cmd_actag, cmd_afutag, cmd_opcode,
-			  cmd_ea_or_obj, 64, cmd_data_is_valid, cmd_be);
+			  cmd_ea_ta_or_obj, 64, cmd_data_is_valid, cmd_be);
 		break;
 		// AMO reads and writes
 	case AFU_CMD_AMO_RD:
 	case AFU_CMD_AMO_RD_N:
 		debug_msg("YES! AFU cmd is some sort of AMO read\n");
 		_add_amo(cmd, cmd_actag, cmd_afutag, cmd_opcode, CMD_AMO_RD,
-			  cmd_ea_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag, cmd_endian);
+			  cmd_ea_ta_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag, cmd_endian);
 		break;
 	case AFU_CMD_AMO_RW:
 	case AFU_CMD_AMO_RW_N:
 		debug_msg("YES! AFU cmd is some sort of AMO read/write w/cmd_pl= 0x%x\n", cmd_pl);
 		_add_amo(cmd, cmd_actag, cmd_afutag, cmd_opcode, CMD_AMO_RW,
-			  cmd_ea_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag, cmd_endian);
+			  cmd_ea_ta_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag, cmd_endian);
 		break;
 	case AFU_CMD_AMO_W:
 	case AFU_CMD_AMO_W_N:
 		debug_msg("YES! AFU cmd is some sort of AMO read or write");
 		_add_amo(cmd, cmd_actag, cmd_afutag, cmd_opcode, CMD_AMO_WR,
-			  cmd_ea_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag, cmd_endian);
+			  cmd_ea_ta_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag, cmd_endian);
 		break;
 		// Interrupt
 	case AFU_CMD_INTRP_REQ_D: // not sure POWER supports this one?
 		debug_msg("YES! AFU cmd is  INTRPT REQ WITH DATA");
 		_add_interrupt(cmd, cmd_actag, cmd_afutag, cmd_opcode,
-			  cmd_ea_or_obj, pl_to_size( cmd_pl), cmd_data_is_valid, cmd_flag);
+			  cmd_ea_ta_or_obj, pl_to_size( cmd_pl), cmd_data_is_valid, cmd_flag);
 		break;
 	case AFU_CMD_INTRP_REQ:
 	case AFU_CMD_WAKE_HOST_THRD:
 		debug_msg("YES! AFU cmd is either INTRPT REQ or WAKE HOST THREAD");
 		_add_interrupt(cmd, cmd_actag, cmd_afutag, cmd_opcode,
-			  cmd_ea_or_obj, 0, cmd_data_is_valid, cmd_flag);
+			  cmd_ea_ta_or_obj, 0, cmd_data_is_valid, cmd_flag);
 	// TODO what about stream_id ?
 		break;
 	case AFU_CMD_NOP:
@@ -674,9 +674,9 @@ static void _parse_cmd(struct cmd *cmd,
 	case AFU_CMD_XLATE_TOUCH_N:
 		debug_msg("YES! AFU cmd is some kind of XLATE_TOUCH\n");
 		if (cmd_data_is_valid)
-		    cmd->afu_event->afu_tlx_cdata_valid = 1;
+		    cmd->afu_event->afu_tlx_dcp3_data_valid = 1;
 		_add_xlate_touch(cmd, cmd_actag, cmd_afutag, cmd_opcode,
-			  cmd_ea_or_obj, cmd_flag, cmd_pg_size);
+			  cmd_ea_ta_or_obj, cmd_flag, cmd_pg_size);
 		break;
 	default:
 		warn_msg("Unsupported command 0x%04x", cmd_opcode);
@@ -694,8 +694,8 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 	uint64_t cmd_be;
 	uint32_t cmd_pasid;
 	uint16_t cmd_actag, cmd_afutag, cmd_bdf;
-	uint8_t  cmd_ea_or_obj[9];
-	uint8_t  cmd_opcode, cmd_stream_id, cmd_dl, cmd_pl, cmd_flag, cmd_endian, cmd_pg_size, cmd_data_is_valid, cdata_bad;
+	uint8_t  cmd_ea_ta_or_obj[9];
+	uint8_t  cmd_opcode, cmd_stream_id, cmd_dl, cmd_pl, cmd_flag, cmd_endian, cmd_pg_size, cmd_mad, cmd_data_is_valid, cdata_bad;
 #ifdef TLX4
 	uint8_t cmd_os;
 #endif
@@ -710,17 +710,17 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 	// Check for command from AFU
 	// maybe read command and data separately to facilitate the parse_cmd and handle_buffer_data separation a 
 	// little bit later in this routine
-	rc =  afu_tlx_read_cmd_and_data(cmd->afu_event,
-  		    &cmd_opcode, &cmd_actag,
-  		    &cmd_stream_id, &cmd_ea_or_obj[0],
- 		    &cmd_afutag, &cmd_dl,
-  		    &cmd_pl,
-#ifdef TLX4
-		    &cmd_os,
-#endif
-		    &cmd_be, &cmd_flag,
- 		    &cmd_endian, &cmd_bdf,
-  	  	    &cmd_pasid, &cmd_pg_size, &cmd_data_is_valid,
+	// TODO Need to add support for handling multiple FIFOs - one for each cmd vc (vc1, vc2) 
+	// FOR NOW it all goes into the old LIFO queue and we only read vc3
+	rc =  afu_tlx_read_cmd_vc3_and_dcp3_data(cmd->afu_event,
+  		    &cmd_opcode,&cmd_stream_id, 
+		    &cmd_afutag,&cmd_actag,
+  		     &cmd_ea_ta_or_obj[0],
+ 		     &cmd_dl, &cmd_be, &cmd_pl,
+		    &cmd_os,&cmd_endian, &cmd_pg_size,
+		    &cmd_flag, &cmd_pasid, 
+ 		     &cmd_bdf, &cmd_mad,
+  	  	     &cmd_data_is_valid,
  		    dptr, &cdata_bad);
 
 
@@ -747,7 +747,7 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 		event = event->_next;
 	}
 
-	_parse_cmd(cmd, cmd_opcode, cmd_actag, cmd_stream_id, cmd_ea_or_obj, cmd_afutag, cmd_dl, cmd_pl,
+	_parse_cmd(cmd, cmd_opcode, cmd_actag, cmd_stream_id, cmd_ea_ta_or_obj, cmd_afutag, cmd_dl, cmd_pl,
 #ifdef TLX4
 		   cmd_os,
 #endif
@@ -966,13 +966,13 @@ void handle_afu_tlx_cmd_data_read(struct cmd *cmd)
 	if (event == NULL)
 		return;
 	debug_msg("entering HANDLE_AFU_TLX_CMD_DATA_READ");
-	rc = afu_tlx_read_cmd_data(cmd->afu_event, &cmd_data_is_valid, dptr,  &cdata_bad);
+	rc = afu_tlx_read_dcp3_data(cmd->afu_event, &cmd_data_is_valid, dptr,  &cdata_bad);
 	if (rc == TLX_SUCCESS) {
 		if (cmd_data_is_valid) {
 			debug_msg("Copy another 64B of write data to buffer, addr=0x%016"PRIx64", total read so far=0x%x , afutag= 0x%x .\n",
 			 event->addr, event->dpartial, event->afutag);
 			if ((event->size - event->dpartial) > 64) {
-				memcpy((void *)&(event->data[event->dpartial]), (void *)&(cmd->afu_event->afu_tlx_cdata_bus), 64);
+				memcpy((void *)&(event->data[event->dpartial]), (void *)&(cmd->afu_event->afu_tlx_dcp3_data_bus), 64);
 				debug_msg("SHOULD BE INTERMEDIATE COPY");
 				//int i;
 				//for ( i = 0; i < 64; i++ ) printf("%02x",cmd->afu_event->afu_tlx_cdata_bus[i]); printf( "\n" );
@@ -981,7 +981,7 @@ void handle_afu_tlx_cmd_data_read(struct cmd *cmd)
 				event->state = MEM_BUFFER;
 			 }
 			else  {
-				memcpy((void *)&(event->data[event->dpartial]), (void *)&(cmd->afu_event->afu_tlx_cdata_bus), (event->size - event->dpartial));
+				memcpy((void *)&(event->data[event->dpartial]), (void *)&(cmd->afu_event->afu_tlx_dcp3_data_bus), (event->size - event->dpartial));
 				debug_msg("SHOULD BE FINAL COPY and event->dpartial=0x%x , afutag= 0x%x", event->dpartial, event->afutag);
 				//for ( i = 0; i < 64; i++ ) printf("%02x",cmd->afu_event->afu_tlx_cdata_bus[i]); printf( "\n" );
 				event->state = MEM_RECEIVED;
@@ -1313,15 +1313,15 @@ void handle_xlate_intrp_pending_sent(struct cmd *cmd)
 		cmd_to_send = TLX_CMD_XLATE_DONE;
 	else
 		cmd_to_send = TLX_CMD_INTRP_RDY;
-	if (tlx_afu_send_posted_cmd(cmd->afu_event,
-			cmd_to_send, 0xefac, event->resp) == TLX_SUCCESS){
+	// These POSTED cmds get sent back over vx0 (resp channel).
+	// TODO why are we using fixed value 0xefac for afutag?
+	if (tlx_afu_send_resp_cmd_vc0(cmd->afu_event,
+			cmd_to_send, 0xefac, event->resp,0,0,0,0,0,0,0,0,0,0) == TLX_SUCCESS){
 			debug_msg("%s:XLATE_INTRP_DONE CMD event @ 0x%016" PRIx64 ", sent tag=0x%02x code=0x%x cmd=0x%x", cmd->afu_name,
 			    event, event->afutag, event->resp, cmd_to_send);
 			*head = event->_next;
 		 	free(event->data);
-		 	//free(event->parity);
 		 	free(event);
-			//cmd->credits++;
 		}
 	}
 
@@ -1874,7 +1874,7 @@ void handle_response(struct cmd *cmd)
 
 
 	if (event->type == CMD_FAILED)   //send a failed response; add_cmd set resp_dl & dp; function that FAILED cmd set event->resp_opcode appropriately
-		rc = tlx_afu_send_resp( cmd->afu_event, event->resp_opcode, event->afutag, event->resp,0,event->resp_dl,event->resp_dp,0);
+		rc = tlx_afu_send_resp_cmd_vc0( cmd->afu_event, event->resp_opcode, event->afutag, event->resp,0,event->resp_dl,0,0,0,0,0,0,event->resp_dp,0);
 
 
 	else if ( (event->command == AFU_CMD_PR_RD_WNITC) || (event->command == AFU_CMD_PR_RD_WNITC_N) ||
@@ -1906,18 +1906,26 @@ void handle_response(struct cmd *cmd)
 			if ( allow_bdi_resp_err(cmd->parms)) {
 				debug_msg("handle_response: Set BDI=1 in the resp data for afutag=0x%x \n",
 				 event->afutag);
-		    		 rc = tlx_afu_send_resp_and_data( cmd->afu_event, event->resp_opcode,
-					     event->afutag, 0, 0, event->resp_dl, event->resp_dp, 0, 1, event->data ) ;
+				 //TODO update event struct with new resp elements for TLX4
+		    		 rc = tlx_afu_send_resp_vc0_and_dcp0( cmd->afu_event, event->resp_opcode,
+					     event->afutag, 0, 0, event->resp_dl, 0,0,0,0,0,0,event->resp_dp, 0, 1, event->data ) ;
 			 } else {
-		    		rc = tlx_afu_send_resp_and_data( cmd->afu_event,
+				 //TODO update event struct with new resp elements for TLX4
+		    		rc = tlx_afu_send_resp_vc0_and_dcp0( cmd->afu_event,
 					     event->resp_opcode,
 					     event->afutag,
 					     0, // resp_code - not really used for a good response
 					     0, // resp_pg_size - not used by response,
 					     event->resp_dl, // for partials, dl is 1 (64 B)
+					     0, // resp_host_tag, - 
+					     0, // resp_cache_state, -
+					     0, // resp_ef, -
+					     0, // resp_w, -
+					     0, // resp_mh, -
+					     0, // resp_pa_or_ta, -
 					     event->resp_dp, // for partials, dp is 0 (the 0th part)
-					     0, // resp_addr_tag, - not used by response
-					     0, // - now used by response
+					     0, // resp_capp_tag, -
+					     0, // -resp_data_bdi now used by response
 					     event->data ) ; // data in this case is already at the proper offset in the 64 B data packet
 			}
 	    
@@ -1939,7 +1947,9 @@ void handle_response(struct cmd *cmd)
 					event->resp_bytes_sent += cmd->HOST_CL_SIZE;
 				}
 			}
-			rc = tlx_afu_send_resp( cmd->afu_event, event->resp_opcode, event->afutag, event->resp,0,event->resp_dl,event->resp_dp,0);
+			 //TODO update event struct with new resp elements for TLX4
+			rc = tlx_afu_send_resp_cmd_vc0( cmd->afu_event, event->resp_opcode, event->afutag, event->resp,0,event->resp_dl,0,0,0,0,0,0,event->resp_dp,0);
+
 		}
 
 	if (rc == TLX_SUCCESS) {
