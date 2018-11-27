@@ -351,7 +351,7 @@ int tlx_afu_send_initial_credits(struct AFU_EVENT *event,
 	debug_msg("      tlx_afu_vc2_initial_credit = %d", event->tlx_afu_vc2_initial_credit );
 	debug_msg("      tlx_afu_dcp2_initial_credit = %d", event->tlx_afu_dcp2_initial_credit );
 	debug_msg("      tlx_afu_vc3_initial_credit = %d", event->tlx_afu_vc3_initial_credit );
-	debug_msg("      tlx_afu_dc30_initial_credit = %d", event->tlx_afu_dcp3_initial_credit );
+	debug_msg("      tlx_afu_dcp3_initial_credit = %d", event->tlx_afu_dcp3_initial_credit );
 	return TLX_SUCCESS;
 }
 
@@ -570,7 +570,7 @@ int tlx_afu_send_cmd_vc2(struct AFU_EVENT *event,
 
 	debug_msg( "tlx_afu_send_vc2: afu_tlx_vc2_credits_available = %d", event->afu_tlx_vc2_credits_available );
 
-  	if ((tlx_cmd_opcode == TLX_CMD_CONFIG_READ) && (tlx_cmd_opcode == TLX_CMD_CONFIG_WRITE)) {
+  	if ((tlx_cmd_opcode == TLX_CMD_CONFIG_READ) || (tlx_cmd_opcode == TLX_CMD_CONFIG_WRITE)) {
 		//printf(" TRYING TO SEND CONFIG CMD w/send cmd- opcode = 0x%x \n", tlx_cmd_opcode);
 		return (CFG_TLX_NOT_CFG_CMD);
 	}
@@ -875,7 +875,7 @@ int afu_tlx_read_resp_vc0(struct AFU_EVENT *event,
 }
 
 
-/* Call this from ocse to read AFU response. This reads only the afu_tlx resp data interface */
+/* Call this from ocse to read AFU response data . This reads only the afu_tlx resp dcp0 data interface */
 /* DO NOT USE THIS FOR CONFIG_RD or CONFIG_WR RESPONSES */
 
 int afu_tlx_read_resp_dcp0_data( struct AFU_EVENT *event,
@@ -2726,7 +2726,7 @@ int afu_tlx_send_cmd_vc3_and_dcp3_data(struct AFU_EVENT *event,
 {
 	if ((event->tlx_afu_vc3_credits_available == 0) ||
 	    (event->tlx_afu_dcp3_credits_available == 0)) {
-	  warn_msg("afu_tlx_send_cmd_vc3_and_dcp3_data: no credits vc3 or dcp3 available: vc3_credits = %d, cmdcp3_credits = %d", event->tlx_afu_vc3_credits_available, event->tlx_afu_dcp3_credits_available);
+	  warn_msg("afu_tlx_send_cmd_vc3_and_dcp3_data: no credits vc3 or dcp3 available: vc3_credits = %d, dcp3_credits = %d", event->tlx_afu_vc3_credits_available, event->tlx_afu_dcp3_credits_available);
 	  return TLX_AFU_NO_CREDITS;
 	}
 	if ((event->afu_tlx_vc3_valid == 1) || (event->afu_tlx_dcp3_data_valid == 1)) {
@@ -2759,8 +2759,7 @@ int afu_tlx_send_cmd_vc3_and_dcp3_data(struct AFU_EVENT *event,
 }
 
 
-/* Call this from AFU to read ocse (CAPP/TL) response on vc0. This reads just tlx_afu vc0 interface */
-/* Call this from AFU to read ocse (CAPP/TL) command on vc0. This reads just tlx_afu vc0 interface */
+/* Call this from AFU to read ocse (CAPP/TL) responses and posted commands on vc0. This reads just tlx_afu vc0 interface */
 
 int tlx_afu_read_cmd_resp_vc0(struct AFU_EVENT *event,
 		 uint8_t * tlx_resp_opcode,
@@ -2783,7 +2782,7 @@ int tlx_afu_read_cmd_resp_vc0(struct AFU_EVENT *event,
 		* resp_dl = event->tlx_afu_vc0_dl;
 		* resp_host_tag = event->tlx_afu_vc0_host_tag;
 		* resp_cache_state = event->tlx_afu_vc0_cache_state;
-		* resp_ef = event->tlx_afu_vc0_ef;
+		* resp_dp = event->tlx_afu_vc0_dp;
 		* resp_ef = event->tlx_afu_vc0_ef;
 		* resp_w = event->tlx_afu_vc0_w;
 		* resp_mh = event->tlx_afu_vc0_mh;
@@ -2801,13 +2800,13 @@ int afu_tlx_dcp0_data_read_req(struct AFU_EVENT *event,
 	event->afu_tlx_dcp0_rd_req = afu_tlx_resp_rd_req;
 	event->afu_tlx_dcp0_rd_cnt = afu_tlx_resp_rd_cnt;
 	event->afu_tlx_credit_req_valid = 1; //TODO I don't see this signal in 4.0 spec 
-// WE rely on AFU to reset these values when data has all be read, ie, call this
+// WE rely on AFU to reset these values when data has all been read, ie, call this
 // again with 0 values
 		return TLX_SUCCESS;
 }
 
 
-/* Call this from AFU to read ocse (CAPP/TL) response data on dc0. This reads just tlx_afu dcp0 data interface */
+/* Call this from AFU to read ocse (CAPP/TL) response data on dcp0. This reads just tlx_afu dcp0 data interface */
 
 int tlx_afu_read_dcp0_data(struct AFU_EVENT *event,
 		  uint8_t * resp_data_bdi, uint8_t * resp_data)
@@ -2870,7 +2869,7 @@ int afu_tlx_dcp1_data_read_req(struct AFU_EVENT *event,
 	event->afu_tlx_dcp1_rd_req = afu_tlx_cmd_rd_req;
 	event->afu_tlx_dcp1_rd_cnt = afu_tlx_cmd_rd_cnt;
 	event->afu_tlx_credit_req_valid = 1; //TODO I don't see this in TLX4 spec
-// WE rely on AFU to reset these values when data has all be read, ie, call this
+// WE rely on AFU to reset these values when data has all been read, ie, call this
 // again with 0 values
 		return TLX_SUCCESS;
 }

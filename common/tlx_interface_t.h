@@ -41,7 +41,7 @@
 #define PROTOCOL_PRIMARY 3
 #define PROTOCOL_SECONDARY 0000
 #define PROTOCOL_TERTIARY 0
-#endif /* TLX3 */
+#endif /* TLX3 TODO we currently support TLX3 & TLX4 cmds....should we have to just support TlX3 ones? hope not... */
 
 #ifdef TLX4
 #define PROTOCOL_PRIMARY 4
@@ -288,25 +288,25 @@ struct AFU_EVENT {
 
   // TLX Receiver Interface as shown in TLX4.0 Reference Design
   //
-  // TLX to AFU VC0 Interface (table 2)
+  // TLX to AFU VC0 Interface (table 2) TLX sends CAPP responses & posted cmds to AFU
   uint8_t afu_tlx_vc0_initial_credit;     /* 7 bit initial # of credits that the afu provides to tlx for sending CAPP responses to AFU  */
   uint8_t afu_tlx_vc0_credit;             /* 1 bit return a credit to tlx */
-  uint8_t tlx_afu_vc0_valid;              /* 1 bit command valid from from host */
-  uint8_t tlx_afu_vc0_opcode;             /* 8 bit command op code */
+  uint8_t tlx_afu_vc0_valid;              /* 1 bit response/posted command valid from from host */
+  uint8_t tlx_afu_vc0_opcode;             /* 8 bit response/posted command op code */
   uint16_t tlx_afu_vc0_afutag;            /* 16 bit response tag - match to afu_tlx_cmd_afutag */
-  uint16_t tlx_afu_vc0_capptag;           /* 16 bit command tag from host */
-  uint64_t tlx_afu_vc0_pa_or_ta;          /* 52 bit command phyiscal or translated address  bits [63:12]*/
-  uint8_t tlx_afu_vc0_dl;                 /* 2 bit command encoded data length */
-  uint8_t tlx_afu_vc0_dp;                 /* 2 bit command data part - indicates data content of current resp packet */
+  uint16_t tlx_afu_vc0_capptag;           /* 16 bit unique handle/command tag from host */
+  uint64_t tlx_afu_vc0_pa_or_ta;          /* 52 bit response/command phyiscal or translated address  bits [63:12]*/
+  uint8_t tlx_afu_vc0_dl;                 /* 2 bit response/command encoded data length */
+  uint8_t tlx_afu_vc0_dp;                 /* 2 bit response/command data part - indicates data content of current resp packet */
   uint8_t tlx_afu_vc0_ef;                 /* 1 bit evict and fill directive  */
   uint8_t tlx_afu_vc0_w;                  /* 1 bit write permission flag  */
   uint8_t tlx_afu_vc0_mh;                 /* 1 bit memory hit flag  */
   uint8_t tlx_afu_vc0_pg_size;            /* 6 bit page size  */
-  uint32_t tlx_afu_vc0_host_tag;          /* 24 bit tag associated w/data held in AFU L1 RESERVED for OPENCAPI 4  */
+  uint32_t tlx_afu_vc0_host_tag;          /* 24 bit tag associated w/data held in AFU L1  */
   uint8_t tlx_afu_vc0_resp_code;          /* 4 bit response code (see TL spec for specific cmd */
-  uint8_t tlx_afu_vc0_cache_state;        /* 3 bit specifies cache state the cache line has obtained RESERVED for OPENCAPI 4 */
+  uint8_t tlx_afu_vc0_cache_state;        /* 3 bit specifies cache state the cache line has obtained  */
 
-  // TLX to AFU DCP0 DATA Interface (table 3)
+  // TLX to AFU DCP0 DATA Interface (table 3) TLX sends CAPP response data to AFU
   uint8_t afu_tlx_dcp0_rd_req;             /* 1 bit DCP0 data read request */
   uint8_t afu_tlx_dcp0_rd_cnt;             /* 3 bit encoded DCP0 data read request size */
   uint8_t tlx_afu_dcp0_data_valid;         /* 1 bit response data valid */
@@ -319,7 +319,7 @@ struct AFU_EVENT {
   struct DATA_PKT *dcp0_data_tail;
   uint32_t dcp0_data_rd_cnt;
 
-  // TLX to AFU VC1 Interface (table 4)
+  // TLX to AFU VC1 Interface (table 4)  TLX sends CAPP commands to AFU
   uint8_t afu_tlx_vc1_initial_credit;     /* 7 bit initial # of credits that the afu provides to tlx for sending CAPP cmds to AFU  */
   uint8_t afu_tlx_vc1_credit;             /* 1 bit return a credit to tlx */
   uint8_t tlx_afu_vc1_valid;              /* 1 bit command valid from from host */
@@ -337,7 +337,7 @@ struct AFU_EVENT {
   uint8_t tlx_afu_vc1_cmdflag;            /* 4 bit specifies execution behavior for cmds specified w/this field. see spec  */
   uint8_t tlx_afu_vc1_mad;                /* 8 bit memory access directive  */
 
-  // TLX to AFU DCP1 DATA Interface (table 5)
+  // TLX to AFU DCP1 DATA Interface (table 5) TLX sends CAPP command data to AFU upon request
   uint8_t afu_tlx_dcp1_rd_req;             /* 1 bit DCP0 data read request */
   uint8_t afu_tlx_dcp1_rd_cnt;             /* 3 bit encoded DCP0 data read request size */
   uint8_t tlx_afu_dcp1_data_valid;         /* 1 bit cmds data valid */
@@ -345,12 +345,12 @@ struct AFU_EVENT {
                                            /* we don't send this directly on tlx interface.  it is buffered for later distribution.   */
   uint8_t tlx_afu_dcp1_data_bdi;           /* 1 bit bad data indicator */
 
-  // response data fifo to buffer responses for later resp_rd_req
+  // response data fifo to buffer responses for later cmd_rd_req
   struct DATA_PKT *dcp1_data_head;
   struct DATA_PKT *dcp1_data_tail;
   uint32_t dcp1_data_rd_cnt;
 
-  // TLX to AFU VC2 Interface (table 6)
+  // TLX to AFU VC2 Interface (table 6) TLX sends CAPP commands to AFU
   uint8_t afu_tlx_vc2_initial_credit;     /* 7 bit initial # of credits that the afu provides to tlx for sending CAPP responses to AFU  */
   uint8_t afu_tlx_vc2_credit;             /* 1 bit return a credit to tlx */
   uint8_t tlx_afu_vc2_valid;              /* 1 bit command valid from from host */
@@ -363,7 +363,7 @@ struct AFU_EVENT {
   uint16_t tlx_afu_vc2_bdf;               /* 16 bit BDF Bus Device Function for AFU associated w/this cmd  */
 
 
-  // TLX to AFU CFG Interface for configuration cmds (table 7)
+  // TLX to AFU CFG Interface for configuration cmds (table 7) TLX sends cfg cmds to AFU
   uint8_t cfg_tlx_initial_credit;         /* 4 bit initial number of credits that the afu is providing to tlx for consumption */
   uint8_t cfg_tlx_credit_return;          /* 1 bit return a credit to tlx for config cmds */
   uint8_t tlx_cfg_valid;                  /* 1 bit cfg command valid from from host */
@@ -387,12 +387,12 @@ struct AFU_EVENT {
   uint8_t tlx_cfg_rcv_rate_capability_3;  /* 4 bit xmit rate */
   uint8_t cfg_tlx_resync_credits;         /* 1 bit 0 -> 1 transition means TLX will re-apply initial credits from AFU  */
 
-  // TLX Receiver to TLX Framer Credit Interface (table 9 & table 10) TBDTBDTBD
-  // TLX Receiver Misc Ports (table 11) TBDTBDTBD
+  // TLX Receiver to TLX Framer Credit Interface (table 9 & table 10) Not modeled
+  // TLX Receiver Misc Ports (table 11) Not modeled
 
   // TLX Framer Interfaces as shown in TLX 4.0 Reference Design
   
-  // TLX Framer - AFU to TLX AP Configuration Response Interface (table 13)
+  // TLX Framer - AFU to TLX AP Configuration Response Interface (table 13) AFU sends cfg responses to TLX
   uint8_t cfg_tlx_resp_valid;             /* 1 bit afu cfg response is valid */
   uint8_t cfg_tlx_resp_opcode;            /* 8 bit cfg response op code */
   uint16_t cfg_tlx_resp_capptag;          /* 16 bit  cfg response capptag - should match a tlx_cfg_cmd capptag */
@@ -403,9 +403,9 @@ struct AFU_EVENT {
   uint8_t cfg_tlx_rdata_bdi;              /* 1 bit config response data is bad */
   uint8_t tlx_cfg_resp_ack;		  /* 1 bit signal to AFU after taking cfg resp from interface */
 
-  // TLX Framer - AFU to TLX VC0/DCP0  Interface (table 14)
-  uint8_t tlx_afu_vc0_initial_credit;     /* 4 bit initial number of response credits available to the afu -hardcoded to 7 in TLX 4 ref design */
-  uint8_t tlx_afu_dcp0_initial_credit;    /* 6 bit initial number of response credits available to the afu - hardcoded to 16 in TLX 4 ref design */
+  // TLX Framer - AFU to TLX VC0/DCP0  Interface (table 14) AFU sends AP responses and response data to TLX
+  uint8_t tlx_afu_vc0_initial_credit;     /* 4 bit initial number of response credits available to afu for AP responses -hardcoded to 7 in TLX 4 ref design */
+  uint8_t tlx_afu_dcp0_initial_credit;    /* 6 bit initial number of response data credits available to afu ifor AP response data - hardcoded to 16 in TLX 4 ref design */
   uint8_t tlx_afu_vc0_credit;             /* 1 bit tlx returning a response credit to the afu */
   uint8_t tlx_afu_dcp0_credit;            /* 1 bit tlx returning a response data credit to the afu */
   uint8_t afu_tlx_vc0_valid;              /* 1 bit afu response is valid */
@@ -418,39 +418,39 @@ struct AFU_EVENT {
   unsigned char afu_tlx_dcp0_data_bus[64]; /* 512 bit response data */
   uint8_t afu_tlx_dcp0_data_bdi;          /* 1 bit response data is bad */
 
-  // TLX Framer - AFU to TLX VC1 Interface (table 15) 
-  uint8_t tlx_afu_vc1_initial_credit;     /* 4 bit initial number of response credits available to the afu -hardcoded to 4 in TLX 4 ref design   */
+  // TLX Framer - AFU to TLX VC1 Interface (table 15) AFU sends AP commands to TLX
+  uint8_t tlx_afu_vc1_initial_credit;     /* 4 bit initial number of cmd credits available to the afu for AP cmds -hardcoded to 4 in TLX 4 ref design   */
   uint8_t tlx_afu_vc1_credit;             /* 1 bit tlx returning a command credit to the afu */
   uint8_t afu_tlx_vc1_valid;              /* 1 bit 0|1 indicates that a valid command is being presented by the afu to tlx */
   uint8_t afu_tlx_vc1_opcode;             /* 8 bit opcode */
-  uint8_t afu_tlx_vc1_stream_id;          /* 4 bit address context tag */
+  uint8_t afu_tlx_vc1_stream_id;          /* 4 bit stream identifier used by afu (AP)  */
   uint16_t afu_tlx_vc1_afutag;            /* 16 bit command tag */
   uint64_t afu_tlx_vc1_pa;                /* 58 bit physical address  bits [63:6]*/
   uint8_t afu_tlx_vc1_dl;                 /* 2 bits encoded data length */  
 
-  // TLX Framer - AFU to TLX VC2/DCP2 Interface (table 16)
-  uint8_t tlx_afu_vc2_initial_credit;     /* 4 bit initial number of response credits available to the afu -hardcoded to 4 in TLX 4 ref design */
-  uint8_t tlx_afu_dcp2_initial_credit;    /* 6 bit initial number of response credits available to the afu - hardcoded to 16 in TLX 4 ref design */
-  uint8_t tlx_afu_vc2_credit;             /* 1 bit tlx returning a response credit to the afu */
-  uint8_t tlx_afu_dcp2_credit;            /* 1 bit tlx returning a response data credit to the afu */
-  uint8_t afu_tlx_vc2_valid;              /* 1 bit afu response is valid */
-  uint8_t afu_tlx_vc2_opcode;             /* 8 bit response op code */
-  uint8_t afu_tlx_vc2_dl;                 /* 2 bit response data length */
+  // TLX Framer - AFU to TLX VC2/DCP2 Interface (table 16) AFU sends AP commands and data to TLX
+  uint8_t tlx_afu_vc2_initial_credit;     /* 4 bit initial number of cmd credits available to afu for AP cmds -hardcoded to 4 in TLX 4 ref design */
+  uint8_t tlx_afu_dcp2_initial_credit;    /* 6 bit initial number of cmd data credits available to afu for AP cmd data - hardcoded to 16 in TLX 4 ref design */
+  uint8_t tlx_afu_vc2_credit;             /* 1 bit tlx returning a command credit to the afu */
+  uint8_t tlx_afu_dcp2_credit;            /* 1 bit tlx returning a command data credit to the afu */
+  uint8_t afu_tlx_vc2_valid;              /* 1 bit afu command is valid */
+  uint8_t afu_tlx_vc2_opcode;             /* 8 bit command op code */
+  uint8_t afu_tlx_vc2_dl;                 /* 2 bit command data length */
   uint32_t afu_tlx_vc2_host_tag;          /* 24 bit host tag */
-  uint8_t afu_tlx_vc2_cache_state;        /* 3 bit response reason code */
-  uint8_t afu_tlx_vc2_cmdflg;             /* 4 bit response reason code */
-  uint8_t afu_tlx_dcp2_data_valid;        /* 1 bit response data is valid */
-  unsigned char afu_tlx_dcp2_data_bus[64]; /* 512 bit response data */
-  uint8_t afu_tlx_dcp2_data_bdi;          /* 1 bit response data is bad */
+  uint8_t afu_tlx_vc2_cache_state;        /* 3 bit cache state the line has obtained MESEI */
+  uint8_t afu_tlx_vc2_cmdflg;             /* 4 bit cmdflg specifies exection behavior for cmds */
+  uint8_t afu_tlx_dcp2_data_valid;        /* 1 bit cmd data is valid */
+  unsigned char afu_tlx_dcp2_data_bus[64]; /* 512 bit cmd data */
+  uint8_t afu_tlx_dcp2_data_bdi;          /* 1 bit cmd data is bad */
 
-  // TLX Framer - AFU to TLX VC3/DCP3 Interface (table 17)
-  uint8_t tlx_afu_vc3_initial_credit;     /* 4 bit initial number of response credits available to the afu -hardcoded to 4 in TLX 4 ref design */
-  uint8_t tlx_afu_dcp3_initial_credit;    /* 6 bit initial number of response credits available to the afu - hardcoded to 16 in TLX 4 ref design */
+  // TLX Framer - AFU to TLX VC3/DCP3 Interface (table 17) AFU sends AP commands and data to TLX
+  uint8_t tlx_afu_vc3_initial_credit;     /* 4 bit initial number of cmd credits available to afu for AP cmds -hardcoded to 4 in TLX 4 ref design */
+  uint8_t tlx_afu_dcp3_initial_credit;    /* 6 bit initial number of cmd credits available to afu for AP cmds - hardcoded to 16 in TLX 4 ref design */
   uint8_t tlx_afu_vc3_credit;             /* 1 bit tlx returning a command credit to the afu */
   uint8_t tlx_afu_dcp3_credit;            /* 1 bit tlx returning a command data credit to the afu */
   uint8_t afu_tlx_vc3_valid;              /* 1 bit 0|1 indicates that a valid command is being presented by the afu to tlx */
   uint8_t afu_tlx_vc3_opcode;             /* 8 bit opcode */
-  uint8_t afu_tlx_vc3_stream_id;          /* 4 bit address context tag */
+  uint8_t afu_tlx_vc3_stream_id;          /* 4 bit stream identifier used by afu (AP) */
   uint16_t afu_tlx_vc3_afutag;            /* 16 bit command tag */
   uint16_t afu_tlx_vc3_actag;             /* 12 bit address context tag */
   unsigned char afu_tlx_vc3_ea_ta_or_obj[9]; /* 68 bit effective address, translated address or object handle */
