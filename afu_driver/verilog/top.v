@@ -156,6 +156,7 @@ module top (
                                        );
 
    parameter RESET_CYCLES = 9;
+   parameter EXT_RESET = 50;
    reg             tlx_clock;
    reg             afu_clock;
    reg             reset;
@@ -369,6 +370,7 @@ module top (
 
 // Other wires
    wire            reset_n;
+   reg             reset_ext;		// This is a reset which could be used by the AFU logic and could be configured for the desired number of cycles
   // Table 1: TLX to AFU Response Interface
    wire             tlx_afu_resp_valid;
    wire [7:0]       tlx_afu_resp_opcode;
@@ -462,12 +464,14 @@ module top (
  // Integers
   integer         i;
   integer         resetCnt;
+  integer         extResetCnt;
  // Sim related variables
   reg [0:63]      simulationTime ;
   reg             simulationError;
 
 initial begin
     resetCnt = 0;
+    extResetCnt = 0;
     i = 0;
     tlx_clock				<= 0;
     afu_clock				<= 0;
@@ -567,6 +571,14 @@ end
   end
 
   always @ ( tlx_clock ) begin
+    if(resetCnt < 30)
+      extResetCnt = 0;
+    else
+      extResetCnt = extResetCnt + 1;
+  end
+
+
+  always @ ( tlx_clock ) begin
     if(resetCnt == RESET_CYCLES + 2)
       #0 tlx_bfm_init();
   end
@@ -576,6 +588,13 @@ end
       reset = 1'b1;
     else
       reset = 1'b0;
+  end
+
+  always @ ( tlx_clock ) begin
+    if(extResetCnt < EXT_RESET)
+      reset_ext = 1'b0;
+    else
+      reset_ext = 1'b1;
   end
 
   always @ (posedge tlx_clock) begin

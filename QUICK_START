@@ -30,6 +30,9 @@ SETUP:
 	Verilog.  Build a model as required for your simulator.  You may need to set flags
 	or options to allow SystemVerilog keywords as top.v include references to
 	C code that uses SystemVerilog DPI functionality.
+        If the IPs used on the AFU logic requires a longer reset, the top.v has a signal reset_ext
+        which is an active_low reset, which could be used. The delay on this reset could be adjusted 
+        using the constant EXT_RESET. It is advised not to tamper with the delay on the "reset" signal.
 
 5) Look at the Makefiles in sample_app for examples of how to build your
 	application with libocxl.  If you build with libocxl.so then you don't
