@@ -59,6 +59,21 @@ private:
     uint64_t global_configs[3];	// stores MMIO registers for global configurations
     uint8_t  tlx_afu_cmd_max_credit;
     uint8_t  tlx_afu_data_max_credit;
+    uint8_t  tlx_afu_cmd_initial_credit;
+    uint8_t  tlx_afu_resp_initial_credit;
+    uint8_t  tlx_afu_cmd_data_initial_credit;
+    uint8_t  tlx_afu_resp_data_initial_credit;
+    uint8_t  afu_tlx_vc0_initial_credit;
+    uint8_t  afu_tlx_vc1_initial_credit;
+    uint8_t  afu_tlx_vc2_initial_credit;
+    uint8_t  cfg_tlx_initial_credit;
+    uint8_t  tlx_afu_vc0_initial_credit;
+    uint8_t  tlx_afu_vc1_initial_credit;
+    uint8_t  tlx_afu_vc2_initial_credit;
+    uint8_t  tlx_afu_vc3_initial_credit;
+    uint8_t  tlx_afu_dcp0_initial_credit;
+    uint8_t  tlx_afu_dcp2_initial_credit;
+    uint8_t  tlx_afu_dcp3_initial_credit;
 
     int reset_delay;
 

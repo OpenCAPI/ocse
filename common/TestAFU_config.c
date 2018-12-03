@@ -73,7 +73,7 @@ static int _machine_base_address_index(uint16_t machine_number, int mode)
 }
 
 // Function to write config to AFU MMIO space
-int enable_machine(ocxl_afu_h afu, MachineConfig *machine, MachineConfigParam param, int mode)
+int enable_machine(ocxl_afu_h afu, ocxl_mmio_h pp_mmio_h, MachineConfig *machine, MachineConfigParam param, int mode)
 {
 	int i;
 	uint16_t machine_number;
@@ -88,7 +88,7 @@ int enable_machine(ocxl_afu_h afu, MachineConfig *machine, MachineConfigParam pa
 	for (i = 3; i >= 0; --i){
 		uint64_t data = machine->config[i];
 		printf("config[%d] = 0x%"PRIx64"\n", i, data);
-		if (ocxl_mmio_write64(afu, machine_config_base_address + (i * 8),
+		if (ocxl_mmio_write64(pp_mmio_h, machine_config_base_address + (i * 8), OCXL_MMIO_LITTLE_ENDIAN,
 		    data))
 		{
 			printf("Failed to write data config[%d]\n", i);
@@ -111,7 +111,7 @@ int clear_machine_config(ocxl_afu_h afu, MachineConfig *machine, MachineConfigPa
     machine_config_base_address = _machine_base_address_index(machine_number, mode);
     machine_config_base_address += context * 0x1000;
 
-    if(ocxl_mmio_write64(afu, machine_config_base_address, 0x0)) {
+    if(ocxl_mmio_write64(afu, machine_config_base_address, OCXL_MMIO_LITTLE_ENDIAN, 0x0)) {
 	printf("Failed to clear machine config\n");
 	return -1;
     }
@@ -126,7 +126,7 @@ int poll_machine(ocxl_afu_h afu, MachineConfig *machine, uint16_t context, int m
 
 	for (i = 0; i < 2; ++i){
 		uint64_t temp;
-		if (ocxl_mmio_read64(afu, machineConfig_baseaddress + (i * 8),
+		if (ocxl_mmio_read64(afu, machineConfig_baseaddress + (i * 8), OCXL_MMIO_LITTLE_ENDIAN,
 				    &temp))
 		{
 			printf("Failed to read data\n");
@@ -139,12 +139,12 @@ int poll_machine(ocxl_afu_h afu, MachineConfig *machine, uint16_t context, int m
 }
 
 // Function to set most commonly used elements and write to AFU MMIO space
-int config_and_enable_machine(ocxl_afu_h afu, MachineConfig *machine, 
+int config_and_enable_machine(ocxl_afu_h afu, ocxl_mmio_h pp_mmio_h, MachineConfig *machine, 
 		MachineConfigParam param, int mode)
 {
 	if (config_machine(machine, param))
 		return -1;
-	if (enable_machine(afu, machine, param, mode))
+	if (enable_machine(afu, pp_mmio_h, machine, param, mode))
 		return -1;
 	return 0;
 }
@@ -166,7 +166,7 @@ int get_response(ocxl_afu_h afu, MachineConfig *machine, uint16_t context, int m
 
 // Function to set most commonly used elements, write to AFU MMIO space and
 // wait for command completion
-int config_enable_and_run_machine(ocxl_afu_h afu, MachineConfig *machine, 
+int config_enable_and_run_machine(ocxl_afu_h afu, ocxl_mmio_h pp_mmio_h, MachineConfig *machine, 
 			MachineConfigParam param, int mode)
 {
 	int rc;
@@ -174,7 +174,7 @@ int config_enable_and_run_machine(ocxl_afu_h afu, MachineConfig *machine,
 
 //	context = param.context;
 
-	if (config_and_enable_machine(afu, machine, param, mode) < 0)
+	if (config_and_enable_machine(afu, pp_mmio_h, machine, param, mode) < 0)
 		return -1;
 
 	//rc = get_response(afu, machine, context, mode);

@@ -18,6 +18,7 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include "test.h"
 #include "TestAFU_config.h"
 #include "tlx_interface_t.h"
 //#include "../../libocxl/libocxl.h"
@@ -49,7 +50,7 @@ int main(int argc, char *argv[])
     char *status;
     ocxl_afu_h mafu_h;
     MachineConfig machine_config;
-    //MachineConfigParam config_param;
+    ocxl_mmio_h pp_mmio_h, mmio_h;
 
     static struct option long_options[] = {
 	{"cachelines", required_argument, 0	  , 'c'},
@@ -118,7 +119,7 @@ int main(int argc, char *argv[])
     
     // attach device
     printf("Attaching device ...\n");
-    rc = ocxl_afu_attach(mafu_h);
+    rc = ocxl_afu_attach(mafu_h, 0);
     if(rc != 0) {
 	perror("cxl_afu_attach:"MDEVICE);
 	return rc;
@@ -126,11 +127,11 @@ int main(int argc, char *argv[])
 
     // mapping device
     printf("Attempt mmio mapping afu registers\n");
-    if (ocxl_mmio_map(mafu_h, OCXL_MMIO_LITTLE_ENDIAN) != 0) {
+    if (ocxl_mmio_map(mafu_h, OCXL_MMIO_LITTLE_ENDIAN, pp_mmio_h) != 0) {
 	printf("FAILED: ocxl_mmio_map\n");
 	goto done;
     }
-    if(ocxl_global_mmio_map(mafu_h, OCXL_MMIO_LITTLE_ENDIAN) != 0) {
+    if(ocxl_mmio_map(mafu_h, OCXL_GLOBAL_MMIO, &mmio_h) != 0) {
 	printf("FAILED: ocxl_global_mmio_map\n");
 	goto done;
     }

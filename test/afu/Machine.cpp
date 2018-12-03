@@ -70,25 +70,25 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
     printf("Machine: memory_size = 0x%x\n", memory_size);
     switch(memory_size) {
 	case 1:
-	    afu_event->afu_tlx_cmd_pl = 0;
+	    afu_event->afu_tlx_vc3_pl = 0;
 	    break;
 	case 2:
-	    afu_event->afu_tlx_cmd_pl = 1;
+	    afu_event->afu_tlx_vc3_pl = 1;
 	    break;
 	case 4:
-	    afu_event->afu_tlx_cmd_pl = 2;
+	    afu_event->afu_tlx_vc3_pl = 2;
 	    break;
 	case 8:
-	    afu_event->afu_tlx_cmd_pl = 3;
+	    afu_event->afu_tlx_vc3_pl = 3;
 	    break;
 	case 16:
-	    afu_event->afu_tlx_cmd_pl = 4;
+	    afu_event->afu_tlx_vc3_pl = 4;
 	    break;
 	case 64:
-	    afu_event->afu_tlx_cmd_dl = 1;
+	    afu_event->afu_tlx_vc3_dl = 1;
 	    break;
 	case 128:
-	    afu_event->afu_tlx_cmd_dl = 2;
+	    afu_event->afu_tlx_vc3_dl = 2;
 	    break;
 	default:
 	    break;
@@ -106,8 +106,8 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
     switch (command_code) {
     case AFU_CMD_PR_RD_WNITC:
     case AFU_CMD_RD_WNITC:
-	printf("Machine: rd_wnitc pl = 0x%x and dl = 0x%x\n", afu_event->afu_tlx_cmd_pl,
-		afu_event->afu_tlx_cmd_dl);
+	printf("Machine: rd_wnitc pl = 0x%x and dl = 0x%x\n", afu_event->afu_tlx_vc3_pl,
+		afu_event->afu_tlx_vc3_dl);
 	command = 
 	    new LoadCommand (command_code, command_address_parity,
 			     command_code_parity, command_tag_parity,
@@ -115,8 +115,8 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
 	break;
     case AFU_CMD_DMA_PR_W:
     case AFU_CMD_DMA_W:
-	printf("Machine: dma_w: pl = 0x%x and dl = 0x%x\n", afu_event->afu_tlx_cmd_pl,
-		afu_event->afu_tlx_cmd_dl);
+	printf("Machine: dma_w: pl = 0x%x and dl = 0x%x\n", afu_event->afu_tlx_vc3_pl,
+		afu_event->afu_tlx_vc3_dl);
 	command = new StoreCommand ( command_code, command_address_parity,
 		command_code_parity, command_tag_parity, buffer_read_parity);
 	break;

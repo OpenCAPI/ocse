@@ -20,7 +20,7 @@
 #include <inttypes.h>
 #include "TestAFU_config.h"
 #include "tlx_interface_t.h"
-#include "../../libocxl/libocxl.h"
+//#include "../../libocxl/libocxl.h"
 #include <time.h>
 
 #define ProcessControl_REGISTER 0x0018
@@ -31,9 +31,27 @@
 
 #define CACHELINE 128
 #define MDEVICE "/dev/cxl/tlx0.0000:00:00.1.0"
+#define NAME    "IBM,MAFU"
+#define PHYSICAL_FUNCTION   "1234:00:00.1"
+#define WED_REGISTER 0x0000 
+#define AFU_MMIO_REG_SIZE   0x4000000
+#define AFU_CONFIGURATION_USE_PE_WED    0x8000000000000000
+
 static int verbose;
 static unsigned int buffer_cl = 64;
 static unsigned int timeout   = 1;
+
+struct work_element {
+  uint8_t  command_byte; // left to right - 7:2 cmd, 1 wrap, 0 valid
+  uint8_t  status;
+  uint16_t length;
+  uint8_t  command_extra;
+  uint8_t  UNUSED_5;
+  uint16_t UNUSED_6to7;
+  uint64_t atomic_op1;
+  uint64_t source_ea; // or atomic_op2
+  uint64_t dest_ea;
+};
 
 static void print_help(char *name)
 {
@@ -59,6 +77,9 @@ int main(int argc, char *argv[])
     MachineConfig machine_config;
     MachineConfigParam config_param;
     uint64_t irq_id;
+    uint64_t unused_flags;
+    ocxl_mmio_h pp_mmio_h, pocxl_mmio_h;
+    struct work_element *work_element_descriptor = 0;
 
     static struct option long_options[] = {
 	{"cachelines", required_argument, 0	  , 'c'},
@@ -121,7 +142,8 @@ int main(int argc, char *argv[])
     // open master device
     printf("Attempt open device for mafu\n");
     
-    rc = ocxl_afu_open_from_dev(MDEVICE, &mafu_h);
+    //rc = ocxl_afu_open_from_dev(MDEVICE, &mafu_h);
+    rc = ocxl_afu_open_specific(NAME, PHYSICAL_FUNCTION, 0, &mafu_h);
     if(rc != 0) {
 	perror("cxl_afu_open_dev: for mafu"MDEVICE);
 	return -1;
@@ -129,14 +151,14 @@ int main(int argc, char *argv[])
      
     // attach device
     printf("Attaching mafu device ...\n");
-    rc = ocxl_afu_attach(mafu_h);
+    rc = ocxl_afu_attach(mafu_h, 0);
     if(rc != 0) {
 	perror("cxl_afu_attach:"MDEVICE);
 	return rc;
     }
 
     printf("Attempt mmio mapping afu registers\n");
-    if (ocxl_mmio_map(mafu_h, OCXL_MMIO_BIG_ENDIAN) != 0) {
+    if (ocxl_mmio_map(mafu_h, OCXL_PER_PASID_MMIO, &pp_mmio_h) != 0) {
 	printf("FAILED: ocxl_mmio_map mafu\n");
 	goto done;
     }
@@ -223,25 +245,26 @@ int main(int argc, char *argv[])
     }
 
     printf("Attempt open device for safu\n");
-    rc = ocxl_afu_open_from_dev(MDEVICE, &safu_h);
+    //rc = ocxl_afu_open_from_dev(MDEVICE, &safu_h);
+    rc = ocxl_afu_open_specific(NAME, PHYSICAL_FUNCTION, 0, &safu_h);
     if(rc != 0) {
 	perror("cxl_afu_open_dev: for safu"MDEVICE);
 	return -1;
     }
     printf("Attaching safu device ....\n");
-    rc = ocxl_afu_attach(safu_h);
+    rc = ocxl_afu_attach(safu_h, 0);
     if(rc != 0) {
 	perror("cxl_afu_attach: for safu"MDEVICE);
 	return -1;
     }
     printf("Attempt mmio map safu registers\n");
-    if(ocxl_mmio_map(safu_h, OCXL_MMIO_BIG_ENDIAN) != 0) {
+    if(ocxl_mmio_map(safu_h, OCXL_PER_PASID_MMIO, &pp_mmio_h) != 0) {
 	printf("AFILED: ocxl_mmio_map safu\n");
 	goto done;
     }
 
     rc = ocxl_afu_irq_alloc(safu_h, NULL, &irq_h);
-    irq_id = ocxl_afu_irq_get_id(safu_h, irq_h);
+    irq_id = ocxl_afu_irq_get_handle(safu_h, irq_h);
 
     printf("Set irq id source ea field = 0x%016lx\n", (uint64_t)irq_id);
     printf("Attempt interrupt command\n");
@@ -276,8 +299,8 @@ int main(int argc, char *argv[])
 	printf("Error retrieving interrupt event %d\n", rc);
 	return -1;
     }
-    ocxl_mmio_write64(safu_h, ProcessControl_REGISTER, PROCESS_CONTROL_RESTART);
-    
+    //ocxl_mmio_write64(safu_h, ProcessControl_REGISTER, PROCESS_CONTROL_RESTART);
+    ocxl_mmio_write64(pp_mmio_h, WED_REGISTER, OCXL_MMIO_LITTLE_ENDIAN, (uint64_t)work_element_descriptor);
     // set test status to completion
     status[0] = 0x55;
     while(status[0] != 0x0) {

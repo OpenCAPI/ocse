@@ -18,6 +18,7 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include "test.h"
 #include "TestAFU_config.h"
 #include "tlx_interface_t.h"
 #include "../../libocxl/libocxl.h"
@@ -53,8 +54,9 @@ int main(int argc, char *argv[])
     ocxl_irq_h irq_h;
     ocxl_irq_h err_irq_h;
     ocxl_event event;
+    ocxl_mmio_h pp_mmio_h;
     uint64_t irq_id;
-
+    struct work_element *work_element_descriptor;
     MachineConfig machine_config;
     MachineConfigParam config_param;
 
@@ -117,14 +119,14 @@ int main(int argc, char *argv[])
     
     // attach device
     printf("Attaching device ...\n");
-    rc = ocxl_afu_attach(mafu_h);
+    rc = ocxl_afu_attach(mafu_h, 0);
     if(rc != 0) {
 	perror("cxl_afu_attach:"MDEVICE);
 	return rc;
     }
 
     printf("Attempt mmio mapping afu registers\n");
-    if (ocxl_mmio_map(mafu_h, OCXL_MMIO_BIG_ENDIAN) != 0) {
+    if (ocxl_mmio_map(mafu_h, OCXL_MMIO_LITTLE_ENDIAN, pp_mmio_h) != 0) {
 	printf("FAILED: ocxl_mmio_map\n");
 	goto done;
     }
@@ -142,7 +144,7 @@ int main(int argc, char *argv[])
 //    ocxl_mmio_write64( mafu_h, ProcessInterruptData_REGISTER, 0x00000000);
 
     rc = ocxl_afu_irq_alloc(mafu_h, NULL, &irq_h);
-    irq_id = ocxl_afu_irq_get_id(mafu_h, irq_h);
+    irq_id = ocxl_afu_irq_get_handle(mafu_h, irq_h);
     printf("Set irq (source) ea field = 0x%016lx\n", (uint64_t)irq_id);
 
     printf("Attempt Interrupt command\n");
@@ -181,7 +183,8 @@ int main(int argc, char *argv[])
     }
 
     // when we see the interrupt event, need to write the restart bit of the Process Control Register 0x18[0]
-    ocxl_mmio_write64(mafu_h, ProcessControl_REGISTER, PROCESS_CONTROL_RESTART);
+    ocxl_mmio_write64(mafu_h, WED_REGISTER, OCXL_MMIO_LITTLE_ENDIAN, 
+        (uint64_t)work_element_descriptor);
 
 
     while(status[0] != 0x0) {

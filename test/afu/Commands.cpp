@@ -56,23 +56,23 @@ OtherCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     uint16_t  cmd_bdf, cmd_actag, cmd_afutag;
     uint16_t cmd_pasid;
     int  rc, i;
-    uint8_t  ea_addr[9];
-    uint8_t  cdata_bus[64], cdata_bad;
+    uint8_t  cmd_os, cmd_mad, ea_addr[9];
+    uint8_t  cdata_bus[64], cdata_bdi;
 
     memcpy((void*)&ea_addr, (void*) &address, sizeof(uint64_t));
 
     //cmd_dl = 0x00;	// 1=64 bytes, 2=128 bytes, 3=256 bytes
     //cmd_pl = 0x03;	// 0=1B, 1=2B, 2=4B, 3=8B, 4=16B, 5=32B
-    cmd_dl = afu_event->afu_tlx_cmd_dl;
-    cmd_pl = afu_event->afu_tlx_cmd_pl;
-    cmd_bdf = afu_event->afu_tlx_cmd_bdf;
-    cmd_stream_id = afu_event->afu_tlx_cmd_stream_id;
-    cmd_be = afu_event->afu_tlx_cmd_be;
-    cmd_flag = afu_event->afu_tlx_cmd_flag;
-    cmd_endian = afu_event->afu_tlx_cmd_endian;
-    cmd_pasid = afu_event->afu_tlx_cmd_pasid;
-    cmd_pg_size = afu_event->afu_tlx_cmd_pg_size;
-    cmd_actag = afu_event->afu_tlx_cmd_actag;
+    cmd_dl = afu_event->afu_tlx_vc3_dl;
+    cmd_pl = afu_event->afu_tlx_vc3_pl;
+    cmd_bdf = afu_event->afu_tlx_vc3_bdf;
+    cmd_stream_id = afu_event->afu_tlx_vc3_stream_id;
+    cmd_be = afu_event->afu_tlx_vc3_be;
+    cmd_flag = afu_event->afu_tlx_vc3_cmdflag;
+    cmd_endian = afu_event->afu_tlx_vc3_endian;
+    cmd_pasid = afu_event->afu_tlx_vc3_pasid;
+    cmd_pg_size = afu_event->afu_tlx_vc3_pg_size;
+    cmd_actag = afu_event->afu_tlx_vc3_actag;
     cmd_afutag = new_tag;
     printf("OtherCommand: sending command = 0x%x\n", Command::code);
 
@@ -83,12 +83,10 @@ OtherCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
 	case AFU_CMD_WAKE_HOST_THRD:
 //    if(Command::code == AFU_CMD_INTRP_REQ) {
 	printf("Commands: AFU_CMD_INTRP_REQ or AFU_CMD_WAKE_HOST\n");
-    	rc = afu_tlx_send_cmd(afu_event, Command::code, cmd_actag, cmd_stream_id,
-	    ea_addr, cmd_afutag, cmd_dl, cmd_pl,
-#ifdef	TLX4
-	    cmd_os,
-#endif
-	    cmd_be, cmd_flag, cmd_endian, cmd_bdf, cmd_pasid, cmd_pg_size);
+    	rc = afu_tlx_send_cmd_vc3(afu_event, Command::code, cmd_actag, 
+            cmd_stream_id, ea_addr, cmd_afutag, cmd_dl, 
+            cmd_pl, cmd_os, cmd_be, cmd_flag, cmd_endian, 
+            cmd_bdf, cmd_pasid, cmd_pg_size, cmd_mad);
 //    }
 	    break;
 	case AFU_CMD_INTRP_REQ_D:
@@ -98,13 +96,10 @@ OtherCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
 	    for(i=0; i<8; i++) {
 	    	cdata_bus[i] = i;
 	    }
- 	    rc = afu_tlx_send_cmd_and_data(afu_event, Command::code, cmd_actag, cmd_stream_id,
-	    	ea_addr, cmd_afutag, cmd_dl, cmd_pl,
-#ifdef TLX4
-	    	cmd_os,
-#endif
-	    	cmd_be, cmd_flag, cmd_endian, cmd_bdf, cmd_pasid, cmd_pg_size,
-	    	cdata_bus, cdata_bad);
+ 	    rc = afu_tlx_send_cmd_vc3_and_dcp3_data(afu_event, Command::code, 
+            cmd_actag, cmd_stream_id, ea_addr, cmd_afutag, cmd_dl, 
+            cmd_pl, cmd_os, cmd_be, cmd_flag, cmd_endian, cmd_bdf, 
+            cmd_pasid, cmd_pg_size, cmd_mad, cdata_bdi, cdata_bus);
 	    break;
 	default:
 	    break;
@@ -147,7 +142,7 @@ LoadCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
                            uint64_t address, uint16_t command_size,
                            uint8_t abort, uint16_t context)
 {
-    uint8_t  cmd_stream_id;
+    uint8_t  cmd_stream_id, cmd_os, cmd_mad;
     uint8_t  cmd_dl, cmd_pl;
     uint64_t cmd_be;
     uint8_t  cmd_flag, cmd_endian, cmd_pg_size;
@@ -160,16 +155,16 @@ LoadCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
 
     //cmd_dl = 0x00;	// 1=64 bytes, 2=128 bytes, 3=256 bytes
     //cmd_pl = 0x03;	// 0=1B, 1=2B, 2=4B, 3=8B, 4=16B, 5=32B
-    cmd_dl = afu_event->afu_tlx_cmd_dl;
-    cmd_pl = afu_event->afu_tlx_cmd_pl;
-    cmd_bdf = afu_event->afu_tlx_cmd_bdf;
-    cmd_stream_id = afu_event->afu_tlx_cmd_stream_id;
-    cmd_be = afu_event->afu_tlx_cmd_be;
-    cmd_flag = afu_event->afu_tlx_cmd_flag;
-    cmd_endian = afu_event->afu_tlx_cmd_endian;
-    cmd_pasid = afu_event->afu_tlx_cmd_pasid;
-    cmd_pg_size = afu_event->afu_tlx_cmd_pg_size;
-    cmd_actag = afu_event->afu_tlx_cmd_actag;
+    cmd_dl = afu_event->afu_tlx_vc3_dl;
+    cmd_pl = afu_event->afu_tlx_vc3_pl;
+    cmd_bdf = afu_event->afu_tlx_vc3_bdf;
+    cmd_stream_id = afu_event->afu_tlx_vc3_stream_id;
+    cmd_be = afu_event->afu_tlx_vc3_be;
+    cmd_flag = afu_event->afu_tlx_vc3_cmdflag;
+    cmd_endian = afu_event->afu_tlx_vc3_endian;
+    cmd_pasid = afu_event->afu_tlx_vc3_pasid;
+    cmd_pg_size = afu_event->afu_tlx_vc3_pg_size;
+    cmd_actag = afu_event->afu_tlx_vc3_actag;
     //cmd_afutag = afu_event->afu_tlx_cmd_afutag;
     cmd_afutag = new_tag;
     printf("LoadCommand: sending command = 0x%x\n", Command::code);
@@ -181,12 +176,10 @@ LoadCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
 
     debug_msg("calling afu_tlx_send_cmd with command = 0x%x and paddress = 0x%x cmd_actag = 0x%x", Command::code, address, cmd_actag);
     debug_msg("ACTAG = 0x%x BDF = 0x%x PASID = 0x%x", cmd_actag, cmd_bdf, cmd_pasid);
-    rc = afu_tlx_send_cmd(afu_event, Command::code, cmd_actag, cmd_stream_id,
-	ea_addr, cmd_afutag, cmd_dl, cmd_pl,
-#ifdef	TLX4
-	cmd_os,
-#endif
-	cmd_be, cmd_flag, cmd_endian, cmd_bdf, cmd_pasid, cmd_pg_size);
+    rc = afu_tlx_send_cmd_vc3(afu_event, Command::code, cmd_actag, 
+        cmd_stream_id, ea_addr, cmd_afutag, cmd_dl, cmd_pl,
+	    cmd_os, cmd_be, cmd_flag, cmd_endian, cmd_bdf, cmd_pasid, 
+        cmd_pg_size, cmd_mad);
     printf("Commands: rc = 0x%x\n", rc);
    
     Command::state = WAITING_DATA;
@@ -230,8 +223,8 @@ StoreCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
                             uint64_t address, uint16_t command_size,
                             uint8_t abort, uint16_t context)
 {
-    uint8_t  cmd_stream_id;
-    uint8_t  cmd_dl, cmd_pl;
+    uint8_t  cmd_stream_id, cmd_mad, cdata_bdi;
+    uint8_t  cmd_dl, cmd_pl, cmd_os;
     uint64_t cmd_be;
     uint8_t  cmd_flag, cmd_endian, cmd_pg_size, cdata_bad;
     uint16_t  cmd_bdf, cmd_actag, cmd_afutag;
@@ -245,16 +238,16 @@ StoreCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     
     //cmd_dl = 0x01;	// 1=64 bytes, 2=128 bytes, 3=256 bytes
     //cmd_pl = 0x03;	// 0=1B, 1=2B, 2=4B, 3=8B, 4=16B, 5=32B
-    cmd_dl = afu_event->afu_tlx_cmd_dl;
-    cmd_pl = afu_event->afu_tlx_cmd_pl;
-    cmd_bdf = afu_event->afu_tlx_cmd_bdf;
-    cmd_stream_id = afu_event->afu_tlx_cmd_stream_id;
-    cmd_be = afu_event->afu_tlx_cmd_be;
-    cmd_flag = afu_event->afu_tlx_cmd_flag;
-    cmd_endian = afu_event->afu_tlx_cmd_endian;
-    cmd_pasid = afu_event->afu_tlx_cmd_pasid;
-    cmd_pg_size = afu_event->afu_tlx_cmd_pg_size;
-    cmd_actag = afu_event->afu_tlx_cmd_actag;
+    cmd_dl = afu_event->afu_tlx_vc3_dl;
+    cmd_pl = afu_event->afu_tlx_vc3_pl;
+    cmd_bdf = afu_event->afu_tlx_vc3_bdf;
+    cmd_stream_id = afu_event->afu_tlx_vc3_stream_id;
+    cmd_be = afu_event->afu_tlx_vc3_be;
+    cmd_flag = afu_event->afu_tlx_vc3_cmdflag;
+    cmd_endian = afu_event->afu_tlx_vc3_endian;
+    cmd_pasid = afu_event->afu_tlx_vc3_pasid;
+    cmd_pg_size = afu_event->afu_tlx_vc3_pg_size;
+    cmd_actag = afu_event->afu_tlx_vc3_actag;
     //cmd_afutag = afu_event->afu_tlx_cmd_afutag;
     cmd_afutag = new_tag;
     cdata_bad = 0;
@@ -265,7 +258,7 @@ StoreCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
 	printf("%02x", memory[i]);
     }
     printf("\n");
-    memcpy(afu_event->afu_tlx_cdata_bus, memory, 64);
+    memcpy(afu_event->afu_tlx_dcp3_data_bus, memory, 64);
 
 //    if (Command::state != IDLE)
 //        error_msg
@@ -274,13 +267,10 @@ StoreCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
 //    Command::completed = false;
     debug_msg("calling afu_tlx_send_cmd_and_data with command = 0x%x and paddress = 0x%x cmd_actag = 0x%x", Command::code, address, cmd_actag);
     debug_msg("ACTAG = 0x%x BDF = 0x%x PASID = 0x%x", cmd_actag, cmd_bdf, cmd_pasid);
-    rc = afu_tlx_send_cmd_and_data(afu_event, Command::code, cmd_actag, cmd_stream_id,
-	ea_addr, cmd_afutag, cmd_dl, cmd_pl,
-#ifdef	TLX4
-	cmd_os,
-#endif
-	cmd_be, cmd_flag, cmd_endian, cmd_bdf, cmd_pasid, cmd_pg_size,
-	afu_event->afu_tlx_cdata_bus, cdata_bad);
+    rc = afu_tlx_send_cmd_vc3_and_dcp3_data(afu_event, Command::code, 
+        cmd_actag, cmd_stream_id, ea_addr, cmd_afutag, cmd_dl, cmd_pl,
+	    cmd_os, cmd_be, cmd_flag, cmd_endian, cmd_bdf, cmd_pasid, 
+        cmd_pg_size, cmd_mad, cdata_bdi, afu_event->afu_tlx_dcp3_data_bus);
     printf("Commands: rc = 0x%x\n", rc);
 
     Command::state = WAITING_READ;

@@ -51,6 +51,7 @@ int main(int argc, char *argv[])
     char *rcacheline, *wcacheline;
     char *status;
     ocxl_afu_h mafu_h;
+    ocxl_mmio_h pp_mmio_h;
     MachineConfig machine_config;
     MachineConfigParam config_param;
 
@@ -124,14 +125,14 @@ int main(int argc, char *argv[])
     
     // attach device
     printf("Attaching device ...\n");
-    rc = ocxl_afu_attach(mafu_h);
+    rc = ocxl_afu_attach(mafu_h, 0);
     if(rc != 0) {
 	perror("cxl_afu_attach:"MDEVICE);
 	return rc;
     }
 
     printf("Attempt mmio mapping afu registers\n");
-    if (ocxl_mmio_map(mafu_h, OCXL_MMIO_BIG_ENDIAN) != 0) {
+    if (ocxl_mmio_map(mafu_h, OCXL_MMIO_LITTLE_ENDIAN, pp_mmio_h) != 0) {
 	printf("FAILED: ocxl_mmio_map\n");
 	goto done;
     }
