@@ -1858,7 +1858,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 	} else
 		event->cfg_tlx_resp_valid = 0;
 
-	if ((event->rbuf[0] & 0x01) != 0) {
+	if ((event->rbuf[0] & 0x80) != 0) {
 	  // debug_msg("      credit processing:");
 	        event->afu_tlx_credit_req_valid = 1;
 		//printf("JUST SET afu_tlx_credit_req_valid = 1 in tlx_get_afu_model \n");
@@ -1963,16 +1963,16 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 				return -1;
 			}
 		}
-		 //printf("tlx_get_tlx_events: read bc = 0x%04x: more bytes from rbuf\n", bc );
+		 printf("tlx_get_tlx_events: read bc = 0x%04x: more bytes from rbuf\n", bc );
 		if ( bc == 0 ) {
 		         printf("tlx_get_tlx_events: bc = 0 after trying to reading data sizes from rbuf\n" );
 			return -1;
 		}
-		 //printf("tlx_get_tlx_events: bc = 0x%04x: more bytes in rbuf\n", bc );
+		 printf("tlx_get_tlx_events: bc = 0x%04x: more bytes in rbuf\n", bc );
 
 		event->rbp += bc;
 		rbc += 5;  // account for those extra bytes
-		 //printf("tlx_get_tlx_events: updated rbp = 0x%04x, rbc = 0x%04x\n", event->rbp, rbc );
+		 printf("tlx_get_tlx_events: updated rbp = 0x%04x, rbc = 0x%04x\n", event->rbp, rbc );
 
 		if ((event->rbuf[0] & 0x20) != 0) {
 		        // printf("tlx_get_tlx_events: tlx_cfg\n" );
@@ -2014,12 +2014,12 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 	        	 //printf("tlx_get_tlx_events: tlx_afu_dcp0_data: size = 0x%x\n", resp_data_byte_cnt );
 			// printf("tlx_get_tlx_events: tlx_afu_dcp0_data: rbc is 0x%x \n", rbc);
 		}
-		if ((event->rbuf[0] & 0x01) != 0) {
+		if ((event->rbuf[0] & 0x80) != 0) {
 		        // printf("tlx_get_tlx_events: tlx_afu_credit\n" );
 			rbc += 15; //TODO for now, send all credits which are now 15 bytes
 			// printf("tlx_get_tlx_events: tlx_afu_credit: rbc is 0x%x \n", rbc);
 		}
-		//printf("rbc is 0x%x \n", rbc);
+		printf("rbc is 0x%x \n", rbc);
 		if ( ( bc = recv( event->sockfd, event->rbuf + event->rbp, rbc - event->rbp, 0 ) ) == -1 ) {
 			if (errno == EWOULDBLOCK) {
 			        printf("tlx_get_tlx_events: not %0x04x data remaining in socket\n", rbc - event->rbp );
@@ -2029,7 +2029,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 			        return -1;
 			}
 		}
-		 //printf("tlx_get_tlx_events: read bc = 0x%04x: more bytes from rbuf\n", bc );
+		 printf("tlx_get_tlx_events: read bc = 0x%04x: more bytes from rbuf\n", bc );
 		if (bc == 0) {
 		        printf( "tlx_get_tlx_events: bc = 0 after read the remainder of rbuf from socket???\n" );
 			return -1;
@@ -2215,7 +2215,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 		event->tlx_afu_dcp0_data_valid = 0;
 	}
 	//	printf("rbc is 0x%x \n", rbc);
-	if (event->rbuf[0] & 0x01) {
+	if (event->rbuf[0] & 0x80) {
 		event->tlx_afu_credit_valid = 1;
 		//printf("tlx_get_tlx_events: just set tlx_afu_credit_valid = %d \n", event->tlx_afu_credit_valid);
 		event->tlx_afu_vc0_initial_credit = event->rbuf[rbc++];
