@@ -672,7 +672,7 @@ int tlx_afu_send_cmd_vc1_and_dcp1( struct AFU_EVENT *event,
 		printf("tlx_afu_send_cmd_and_data: data = 0x" );
 		int i;
 		for ( i=0; i<size; i++ ) {
-		  printf( "%02x", event->tlx_afu_dcp1_data_bus[i] );
+		  printf( "%02x", event->tlx_afu_dcp1_data[i] );
 		}
 		printf( "\n" );
 #endif
