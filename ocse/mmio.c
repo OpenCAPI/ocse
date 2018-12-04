@@ -1121,7 +1121,7 @@ void handle_ap_resp(struct mmio *mmio)
 {
 	int rc;
 	char type[7];
-	uint8_t afu_resp_opcode, resp_dl,resp_dp, resp_data_is_valid, resp_code, rdata_bad;
+	uint8_t afu_resp_opcode, resp_dl, resp_dp, resp_data_is_valid, resp_code, rdata_bad;
 	uint16_t resp_capptag;
 	uint32_t cfg_read_data = 0;
 	unsigned char   rdata_bus[64];
@@ -1220,6 +1220,13 @@ void handle_ap_resp(struct mmio *mmio)
 		      // mmio->list = mmio->list->_next;
 		} else {
 		      // debug_msg( "MMIO size > 0" );
+		      // check resp_dL vs cmd_dL
+		      // for pr_rd_mem, cmd_dL is 0, and resp_dL *must* be 1 - so far, that is what we can check
+		      if ( mmio->list->cmd_dL == 0 ) {
+			if (resp_dl != 1) {
+			  error_msg("%s:%s PARTIAL MEMORY READ RESP: illegal dL received %d", mmio->afu_name, type, resp_dl );
+			}
+		      }
 		      mmio->list->partial_index = 0;
 		      mmio->list->state = OCSE_BUFFER;
 		}
