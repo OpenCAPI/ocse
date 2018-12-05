@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
     printf("rcacheline = 0x%p\n", rcacheline);
     printf("command = 0x%x\n", config_param.command);
     printf("mem base address = 0x%"PRIx64"\n", config_param.mem_base_address);
-    rc = config_enable_and_run_machine(mafu_h, &machine_config, config_param, DIRECTED);
+    rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
     printf("set status data = 0xff\n");
     //status[0] = 0xff;
     if( rc != -1) {
@@ -207,7 +207,7 @@ int main(int argc, char *argv[])
     printf("wcacheline = 0x%p\n", wcacheline);
     printf("command = 0x%x\n",config_param.command);
     printf("wcache address = 0x%"PRIx64"\n", config_param.mem_base_address);
-    rc = config_enable_and_run_machine(mafu_h, &machine_config, config_param, DIRECTED);
+    rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
     //status[0] = 0xff;
     if(rc != -1) {
 	printf("Response = 0x%x\n", rc);
@@ -271,7 +271,7 @@ int main(int argc, char *argv[])
     config_param.context = 1;
     config_param.command = AFU_CMD_INTRP_REQ;
     config_param.mem_base_address = (uint64_t)irq_id;
-    rc = config_enable_and_run_machine(safu_h, &machine_config, config_param, DIRECTED);
+    rc = config_enable_and_run_machine(safu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
     if(rc != -1) {
 	printf("Response = 0x%x\n", rc);
  	printf("safu config_enable_and_run_machine PASS\n");

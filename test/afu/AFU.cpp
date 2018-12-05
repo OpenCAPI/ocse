@@ -151,7 +151,7 @@ AFU::start ()
         select (afu_event.sockfd + 1, &watchset, NULL, NULL, NULL);
 
 	// check socket if there are new events from ocse to process
-	printf("getting tlx events\n");
+	printf("AFU: getting tlx events\n");
         int rc = tlx_get_tlx_events (&afu_event);
 
         //info_msg("Cycle: %d", cycle);
@@ -805,15 +805,11 @@ AFU::tlx_afu_config_read()
     resp_pl = afu_event.tlx_cfg_pl;
     vsec_offset = 0x000FFFFC & afu_event.tlx_cfg_pa;
     byte_offset = 0x0000003F & afu_event.tlx_cfg_pa;
-//    if(vsec_offset >= 0x10 && vsec_offset <= 0x24) {
-//	vsec_data = descriptor.get_vsec_reg(vsec_offset);
-//    }
-//    else {
-//    	vsec_data  = descriptor.get_vsec_reg(vsec_offset);	// get vsec data
-//    }
+
     if(vsec_offset > 0x20700) {
-	resp_opcode = 0x02;	// read failed resp
-	debug_msg("AFU: configuration read failed response offset = 0x%08x", vsec_offset);
+			resp_opcode = 0x02;	// read failed resp
+			debug_msg("AFU: configuration read failed response 
+				offset = 0x%08x", vsec_offset);
     }
     else {
     	vsec_data = descriptor.get_vsec_reg(vsec_offset);
@@ -871,12 +867,13 @@ AFU::tlx_afu_config_read()
     //byte_shift(afu_event.cfg_tlx_rdata_bus, data_size, byte_offset, RIGHT);  
     printf("rdata_bus = 0x");
     for(uint8_t i=0; i<4; i++)
-	printf("%02x", afu_event.cfg_tlx_rdata_bus[i]);
+			printf("%02x", afu_event.cfg_tlx_rdata_bus[i]);
     printf("\n");
     info_msg("AFU: vsec_offset = 0x%x vsec_data = 0x%x", vsec_offset, vsec_data);
     printf("calling ocse\n");
     rc = afu_cfg_send_resp_and_data(&afu_event, resp_opcode, resp_capptag,
-	resp_code, byte_cnt, rdata_valid, afu_event.cfg_tlx_rdata_bus, rdata_bad);
+								resp_code, byte_cnt, rdata_valid, 
+								afu_event.cfg_tlx_rdata_bus, rdata_bad);
     printf("config read rc = 0x%x\n", rc);
     if(rc != TLX_SUCCESS) {
 

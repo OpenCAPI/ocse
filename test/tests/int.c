@@ -131,18 +131,6 @@ int main(int argc, char *argv[])
 	goto done;
     }
 
-    // initialize the error interrupt vector
-//    err_irq_h = ocxl_afu_new_irq( mafu_h );
-//    if(verbose)
-//    	printf("initializing interrupt address = 0x%016lx\n", (uint64_t)err_irq_h);
-//    ocxl_mmio_write64( mafu_h, ProcessInterruptObject_REGISTER, (uint64_t)err_irq_h );
-//    if(verbose)
-//    	printf("initializing interrupt control to intrp_req\n");
-//    ocxl_mmio_write64( mafu_h, ProcessInterruptControl_REGISTER, 0x00);
-//    if(verbose)
-//    	printf("initializing interrupt data (unused by us)\n");
-//    ocxl_mmio_write64( mafu_h, ProcessInterruptData_REGISTER, 0x00000000);
-
     rc = ocxl_afu_irq_alloc(mafu_h, NULL, &irq_h);
     irq_id = ocxl_afu_irq_get_handle(mafu_h, irq_h);
     printf("Set irq (source) ea field = 0x%016lx\n", (uint64_t)irq_id);
@@ -161,7 +149,7 @@ int main(int argc, char *argv[])
     printf("mem base address = 0x%"PRIx64"\n", config_param.mem_base_address);
 
     
-    rc = config_enable_and_run_machine(mafu_h, &machine_config, config_param, DIRECTED);
+    rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
     if( rc != -1) {
 	printf("Response = 0x%x\n", rc);
 	printf("config_enable_and_run_machine PASS\n");
