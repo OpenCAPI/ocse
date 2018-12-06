@@ -75,7 +75,7 @@ static void _attach(struct ocl *ocl, struct client *client)
 	 }
 	ocl->attached_clients++;
 	ocl->state = OCSE_RUNNING;
-	info_msg( "Attached client context %d: current attached clients = %d: client type = %c\n", client->context, ocl->attached_clients, client->type );
+	info_msg( "Attached client context %d: current attached clients = %d\n", client->context, ocl->attached_clients );
 
 
  	//attach_done:

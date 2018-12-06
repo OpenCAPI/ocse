@@ -656,16 +656,11 @@ int tlx_afu_send_cmd_vc1_and_dcp1( struct AFU_EVENT *event,
 		event->tlx_afu_vc1_mad = tlx_cmd_mad;
 
 		event->tlx_afu_dcp1_data_bdi = cmd_data_bdi;
-		switch (tlx_cmd_dl) {
-			case 1: size= 64;
-				break;
-			case 2: size= 128;
-				break;
-			case 3: size= 256;
-				break;
-			default: //printf("WARNING: INVALID DL for OCAPI 4 !! SIZE=set to 0\n");
-				 size= 0;
-		  		}
+		if (tlx_cmd_dl != 0) {
+		  size = dl_to_size( tlx_cmd_dl ); // NO - TODO fix this
+		} else {
+		  size = 64;
+		}
 		memcpy(event->tlx_afu_dcp1_data, cmd_data, size);
 		event->tlx_afu_dcp1_data_byte_cnt = size;
 #ifdef DEBUG
@@ -1130,6 +1125,7 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 	}
 	// debug_msg("lgt: tlx_signal_afu_model");
 	if (event->tlx_afu_vc1_valid != 0) { //There are 29 bytes to xfer in this group (TLX4)
+		event->tbuf[0] = event->tbuf[0] | 0x01;  //signal more than just a clk
 		event->tbuf[1] = event->tbuf[1] | 0x20;
 		//printf("event->tbuf[0] is 0x%2x \n", event->tbuf[0]);
 		event->tbuf[bp++] = event->tlx_afu_vc1_opcode;
@@ -1154,7 +1150,7 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 		event->tbuf[bp++] = (event->tlx_afu_vc1_os & 0x01);
 		event->tbuf[bp++] = (event->tlx_afu_vc1_cmdflag & 0x0f);
 		event->tbuf[bp++] = (event->tlx_afu_vc1_mad & 0x01);
-		event->tlx_afu_vc0_valid = 0;
+		event->tlx_afu_vc1_valid = 0;
 	}
 	if (event->tlx_afu_dcp1_data_valid != 0) { //There are 1 + event->tlx_afu_dcp1_data_byte_cnt bytes to xfer
 		event->tbuf[1] = event->tbuf[1] | 0x02;
@@ -1170,6 +1166,7 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 		event->tlx_afu_dcp1_data_valid = 0;
 	}
 	if (event->tlx_afu_vc2_valid != 0) { //There are 19 bytes to xfer in this group (TLX4)
+		event->tbuf[0] = event->tbuf[0] | 0x01;  //signal more than just a clk
 		event->tbuf[1] = event->tbuf[1] | 0x40;
 		//printf("event->tbuf[0] is 0x%2x \n", event->tbuf[0]);
 		event->tbuf[bp++] = event->tlx_afu_vc2_opcode;
@@ -1188,9 +1185,10 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 		}
 		event->tbuf[bp++] = ((event->tlx_afu_vc2_bdf) >> 8) & 0xFF;
 		event->tbuf[bp++] = (event->tlx_afu_vc2_bdf & 0xFF);
-		event->tlx_afu_vc1_valid = 0;
+		event->tlx_afu_vc2_valid = 0;
 	}
 	if (event->tlx_afu_vc0_valid != 0) { // There are 25 bytes to transfer
+		event->tbuf[0] = event->tbuf[0] | 0x01;  //signal more than just a clk
 		event->tbuf[1] = event->tbuf[1] | 0x10;
 		event->tbuf[bp++] = event->tlx_afu_vc0_opcode;
 		event->tbuf[bp++] = ( event->tlx_afu_vc0_afutag >> 8 ) & 0xFF ;
@@ -1216,6 +1214,7 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 		event->tlx_afu_vc0_valid = 0;
 	}
 	if (event->tlx_afu_dcp0_data_valid != 0) { // There are 1 + tlx_afu_resp_data_byte_cnt bytes to xfer
+		event->tbuf[0] = event->tbuf[0] | 0x01;  //signal more than just a clk
 		event->tbuf[1] = event->tbuf[1] | 0x01;
 		//printf("event->tbuf[0] is 0x%2x \n", event->tbuf[0]);
 		event->tbuf[4] = ((event->tlx_afu_dcp0_data_byte_cnt) >> 8) & 0x0F;
@@ -1325,6 +1324,7 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 	debug_msg("txl_signal_tlx_model");
 	if (event->afu_tlx_vc1_valid != 0) { //There are 13 bytes to xfer in this group 
 		//printf("      adding afu_tlx_vc1\n");
+		event->tbuf[0] = event->tbuf[0] | 0x01;  //signal more than just a clk
 		event->tbuf[1] = event->tbuf[1] | 0x20;
 		// printf("event->tbuf[0] is 0x%2x \n", event->tbuf[0]);
 		event->tbuf[bp++] = event->afu_tlx_vc1_opcode;
@@ -1342,6 +1342,7 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 	}
 	if (event->afu_tlx_vc2_valid != 0) { //There are 7 bytes to xfer in this group 
 		//printf("      adding afu_tlx_vc2\n");
+		event->tbuf[0] = event->tbuf[0] | 0x01;  //signal more than just a clk
 		event->tbuf[1] = event->tbuf[1] | 0x40;
 		// printf("event->tbuf[0] is 0x%2x \n", event->tbuf[0]);
 		event->tbuf[bp++] = event->afu_tlx_vc2_opcode;
@@ -1357,6 +1358,7 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 	}
 	if (event->afu_tlx_dcp2_data_valid != 0) { //There are 65  bytes to xfer
 		//printf("      adding afu_tlx_dcp2_data\n");
+		event->tbuf[0] = event->tbuf[0] | 0x01;  //signal more than just a clk
 		event->tbuf[1] = event->tbuf[1] | 0x04;
 		event->tbuf[2] = 0;
 		event->tbuf[3] = 64;// IF AFU CMD data byte count ever changes, we need to use more bytes!
@@ -1371,6 +1373,7 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 	}
 	if (event->afu_tlx_vc3_valid != 0) { //There are 36 bytes to xfer in this group 
 		//printf("      adding afu_tlx_vc3\n");
+		event->tbuf[0] = event->tbuf[0] | 0x01;  //signal more than just a clk
 		event->tbuf[1] = event->tbuf[1] | 0x80;
 		// printf("event->tbuf[0] is 0x%2x \n", event->tbuf[0]);
 		event->tbuf[bp++] = event->afu_tlx_vc3_opcode;
@@ -1405,6 +1408,7 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 	}
 	if (event->afu_tlx_dcp3_data_valid != 0) { //There are 65  bytes to xfer
 		//printf("      adding afu_tlx_dcp2_data\n");
+		event->tbuf[0] = event->tbuf[0] | 0x01;  //signal more than just a clk
 		event->tbuf[1] = event->tbuf[1] | 0x08;
 		event->tbuf[2] = 0;
 		event->tbuf[3] = 64;// IF AFU CMD data byte count ever changes, we need more bytes!
@@ -1420,6 +1424,7 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 
 	if (event->afu_tlx_vc0_valid != 0) { //There are 6 bytes to xfer in this group
 		//printf("      adding afu_tlx_vc0\n");
+		event->tbuf[0] = event->tbuf[0] | 0x01;  //signal more than just a clk
 		event->tbuf[1] = event->tbuf[1] | 0x10;
 		event->tbuf[bp++] = event->afu_tlx_vc0_opcode;
 		event->tbuf[bp++] = ((event->afu_tlx_vc0_capptag) >> 8) & 0xFF;
@@ -1432,6 +1437,7 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 	}
 	if (event->afu_tlx_dcp0_data_valid != 0) { // There are 65 bytes to xfer
 		//printf("      adding afu_tlx_resp_data\n");
+		event->tbuf[0] = event->tbuf[0] | 0x01;  //signal more than just a clk
 		event->tbuf[1] = event->tbuf[1] | 0x01;
 		event->tbuf[4] = 0;
 		event->tbuf[5] = 64;// IF AFU RESP data byte count ever changes, update this
@@ -1982,16 +1988,16 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 		if ((event->rbuf[1] & 0x20) != 0) {
 		        // printf("tlx_get_tlx_events: tlx_afu_vc1\n" );
 			rbc += 29;
-			// printf("tlx_get_tlx_events: tlx_afu_vc1: rbc is 0x%x \n", rbc);
+			//printf("tlx_get_tlx_events: tlx_afu_vc1: rbc is 0x%x \n", rbc);
 		}
 		if ((event->rbuf[1] & 0x02) != 0) {
 		        // to look at bytes 2 & 3 in buffer to see what rbc will really be
 		        // printf("tlx_get_tlx_events: tlx_afu_dcp1_data\n" );
-			cmd_data_byte_cnt = event->rbuf[1];
-			cmd_data_byte_cnt = ((cmd_data_byte_cnt << 8) | event->rbuf[2]);
+			cmd_data_byte_cnt = event->rbuf[2];
+			cmd_data_byte_cnt = ((cmd_data_byte_cnt << 8) | event->rbuf[3]);
 			rbc += cmd_data_byte_cnt;
 			rbc += 1;  // add bdi byte
-			// printf("tlx_get_tlx_events: tlx_afu_dcp1_data: rbc is 0x%x \n", rbc);
+			 //printf("tlx_get_tlx_events: tlx_afu_dcp1_data: rbc is 0x%x \n", rbc);
 			//rbc += 5; //TODO for now, cmd data always 5B total
 		}
 		if ((event->rbuf[1] & 0x40) != 0) {
@@ -2007,8 +2013,8 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 		if ((event->rbuf[1] & 0x01) != 0) {
 		        // look at bytes 4 & 5 in buffer to see what rbc will really be
 		        // printf("tlx_get_tlx_events: tlx_afu_dcp0_data\n" );
-			resp_data_byte_cnt = event->rbuf[3];
-			resp_data_byte_cnt = ((resp_data_byte_cnt << 8) | event->rbuf[4]);
+			resp_data_byte_cnt = event->rbuf[4];
+			resp_data_byte_cnt = ((resp_data_byte_cnt << 8) | event->rbuf[5]);
 			rbc += resp_data_byte_cnt;
 			rbc += 1;  // add bdi byte
 	        	 //printf("tlx_get_tlx_events: tlx_afu_dcp0_data: size = 0x%x\n", resp_data_byte_cnt );
