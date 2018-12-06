@@ -1115,6 +1115,56 @@ void handle_ap_resp_data(struct mmio *mmio)
 	}
 }
 
+// check resp_dl and resp_dp versus the expected cmd_dl
+// this will include responses to config commmands, mmio requests, and lpc memory requests
+int _resp_dldp_is_legal(uint8_t cmd_dl, uint8_t resp_dl, uint8_t resp_dp)
+{
+  if ( cmd_dl == 0 ) { // partial read
+    if (resp_dl == 1) {
+      return 0;
+    }
+  } 
+  
+  if ( cmd_dl == 1 ) { // 64 byte read
+    if (resp_dl == 1) {
+      return 0;
+    }
+  } 
+
+  if ( cmd_dl == 2 ) { // 128 byte read
+    if (resp_dl == 1) { // non-matching dl, split response
+      if ( ( resp_dp == 0 ) | ( resp_dp == 1 ) ) {
+	return 0;
+      }
+    } 
+    if ( resp_dl == 2 ) { // matching dl, single response
+      if ( resp_dp == 0 ) {
+	return 0;
+      }
+    }
+  } 
+
+  if ( cmd_dl == 3 ) { // 256 byte read
+    if (resp_dl == 1) { // non-matching dl, split response
+      if ( ( resp_dp == 0 ) | ( resp_dp == 1 ) | ( resp_dp == 2 ) | ( resp_dp == 3 ) ) {
+	return 0;
+      }
+    } 
+    if ( resp_dl == 2 ) { // non-matching dl, split response
+      if ( ( resp_dp == 0 ) | ( resp_dp == 1 ) ) {
+	return 0;
+      }
+    }
+    if ( resp_dl == 3 ) { // matching dl, single response
+      if ( resp_dp == 0 ) {
+	return 0;
+      }
+    }
+  }
+  
+  return 1;
+}
+
 // Handle ap responses coming from the afu
 // this will include responses to config commmands, mmio requests, and lpc memory requests
 void handle_ap_resp(struct mmio *mmio)
@@ -1219,16 +1269,18 @@ void handle_ap_resp(struct mmio *mmio)
 		      mmio->list->state = OCSE_DONE;
 		      // mmio->list = mmio->list->_next;
 		} else {
-		      // debug_msg( "MMIO size > 0" );
-		      // check resp_dL vs cmd_dL
-		      // for pr_rd_mem, cmd_dL is 0, and resp_dL *must* be 1 - so far, that is what we can check
-		      if ( mmio->list->cmd_dL == 0 ) {
-			if (resp_dl != 1) {
-			  error_msg("%s:%s PARTIAL MEMORY READ RESP: illegal dL received %d", mmio->afu_name, type, resp_dl );
-			}
-		      }
-		      mmio->list->partial_index = 0;
-		      mmio->list->state = OCSE_BUFFER;
+		  // debug_msg( "MMIO size > 0" );
+		  if ( _resp_dldp_is_legal( mmio->list->cmd_dL, resp_dl, resp_dp ) == 1 ) {
+		    error_msg("%s:%s PARTIAL MEMORY READ RESP: cmd dL %d received illegal resp dL/dP received %d/%d", 
+			      mmio->afu_name, 
+			      type, 
+			      mmio->list->cmd_dL, 
+			      resp_dl, 
+			      resp_dp );
+		  }
+		  // should also save resp_dl and resp_dp to better handle the split response insertion into the data buffer
+		  mmio->list->partial_index = 0;
+		  mmio->list->state = OCSE_BUFFER;
 		}
 	      } else {
 		mmio->list->state = OCSE_DONE;
