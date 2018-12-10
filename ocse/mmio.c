@@ -81,6 +81,7 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 	event->rnw = rnw;
 	event->dw = dw;
 	event->size = 0;  // part of the new fields
+	event->size_received = 0;  // part of the new fields
 	event->be_valid = 0;  // part of the new fields
 	event->data = NULL;
 	event->be = 0;
@@ -178,6 +179,7 @@ static struct mmio_event *_add_mem_event(struct mmio *mmio, struct client *clien
 	event->be_valid = be_valid;
 	event->dw = 0;
 	event->size = size;  // part of the new fields
+	event->size_received = 0;  // part of the new fields
 	event->data = data;
 	event->be = be;
 	if (client == NULL)  {
@@ -1086,9 +1088,31 @@ void handle_ap_resp_data(struct mmio *mmio)
 			  } else {
 			        // size will be 64, 128 or 256
 			        length = 64;
-				memcpy( &mmio->list->data[mmio->list->partial_index], rdata_bus, length );
+				offset = 0;
+				switch (mmio->list->resp_dL) {
+				case 1:
+				  // the size of the response is 64 bytes in 1 beat
+				  // offset is a simple function of dP * length
+				  // only one beat of data comes in, so we can forget partial_index
+				  offset = mmio->list->resp_dP * length;
+				  break;
+				case 2:
+				  // the size of the response is 128 bytes in 2 beats
+				  // offset is a simple function of dP * 2 * length  plus the partial index
+				  offset = ( mmio->list->resp_dP * ( 2 * length ) ) + mmio->list->partial_index;
+				  break;
+				case 3:
+				  // the size of the response is 256 bytes in 4 beats
+				  // offset is a simple function of partial_index
+				  offset = mmio->list->partial_index;
+				  break;
+				default:
+				  error_msg("UNEXPECTED resp_dL: %d received", mmio->list->resp_dL);
+				}
+				memcpy( &mmio->list->data[offset], rdata_bus, length );
 				mmio->list->partial_index = mmio->list->partial_index + length;
-				if ( mmio->list->partial_index == mmio->list->size ) {
+				mmio->list->size_received = mmio->list->size_received + length;
+				if ( mmio->list->size_received == mmio->list->size ) {
 				      // we have all the data we expect
 				      mmio->list->state = OCSE_DONE;
 				}
@@ -1278,7 +1302,9 @@ void handle_ap_resp(struct mmio *mmio)
 			      resp_dl, 
 			      resp_dp );
 		  }
-		  // should also save resp_dl and resp_dp to better handle the split response insertion into the data buffer
+		  // save resp_dl and resp_dp to handle the split response insertion into the data buffer
+		  mmio->list->resp_dL = resp_dl;
+		  mmio->list->resp_dP = resp_dp;
 		  mmio->list->partial_index = 0;
 		  mmio->list->state = OCSE_BUFFER;
 		}
