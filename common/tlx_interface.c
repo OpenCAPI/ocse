@@ -1547,7 +1547,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 	FD_ZERO(&watchset);
 	FD_SET(event->sockfd, &watchset);
 	select(event->sockfd + 1, &watchset, NULL, NULL, NULL);
-        debug_msg("tlx_get_afu_events:");
+        //debug_msg("tlx_get_afu_events:");
 	if (event->rbp == 0) {
 		if ((bc = recv(event->sockfd, event->rbuf, 1, 0)) == -1) {
 			if (errno == EWOULDBLOCK) {
@@ -1565,7 +1565,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		if ((event->rbuf[0] & 0x10) != 0) {
 			event->clock = 0;
 			if (event->rbuf[0] == 0x10) {
-				debug_msg("tlx_get_afu_events: Just a clock event");
+			//	debug_msg("tlx_get_afu_events: Just a clock event");
 				event->rbp = 0;
 				return 1;
 			}
@@ -1812,7 +1812,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		event->afu_tlx_vc0_valid = 1;
 		// event->tlx_afu_vc0_credit = 1;  // allow ocse to process the response and return the credit
 		// event->tlx_afu_credit_valid = 1;
-		printf("in tlx_get_afu_events and NOT setting tlx_afu_credit & vc0 credits to 1 bc we got ivc0 resp \n");
+		printf("in tlx_get_afu_events and NOT setting tlx_afu_credit & vc0 credits to 1 bc we got vc0 resp \n");
 		event->afu_tlx_vc0_opcode = event->rbuf[rbc++];
 		event->afu_tlx_vc0_capptag = event->rbuf[rbc++];
 		event->afu_tlx_vc0_capptag = ((event->afu_tlx_vc0_capptag << 8) | event->rbuf[rbc++]);;
@@ -2419,7 +2419,7 @@ int afu_tlx_send_dcp0_data(struct AFU_EVENT *event,
 
 
 
-/* Call this on the AFU side to send a response and response data to ocse iva vc0 & dcp0  */
+/* Call this on the AFU side to send a response and response data to ocse via vc0 & dcp0  */
 
 int afu_tlx_send_resp_vc0_and_dcp0(struct AFU_EVENT *event,
  		 uint8_t afu_resp_opcode,
@@ -2917,7 +2917,7 @@ int tlx_afu_read_cmd_vc2(struct AFU_EVENT *event,
 		* tlx_cmd_capptag = event->tlx_afu_vc2_capptag;
 		* tlx_cmd_ea = event->tlx_afu_vc2_ea;
 		* tlx_cmd_pg_size = event->tlx_afu_vc2_pg_size;
-		* tlx_cmd_flag = event->tlx_afu_vc1_cmdflag;
+		* tlx_cmd_flag = event->tlx_afu_vc2_cmdflag;
 		* tlx_cmd_pasid = event->tlx_afu_vc2_pasid;
 		* tlx_cmd_bdf = event->tlx_afu_vc2_bdf;
 		return TLX_SUCCESS;
