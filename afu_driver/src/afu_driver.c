@@ -669,6 +669,12 @@ void tlx_bfm(
       }
       *tlx_cfg_resp_ack_top		= (event.tlx_cfg_resp_ack) & 0x1;
 
+      // remember to clear the ack in the event because a clock only cycle will not update the event structure
+      if(event.tlx_cfg_resp_ack != 0)
+	{
+	  event.tlx_cfg_resp_ack = 0;
+	}
+
       // Table 14: TLX Framer - AFU to TLX  VC0/DCP0 Interface
       invalidVal = 0;
       c_afu_tlx_vc0_valid  	         = (afu_tlx_vc0_valid_top & 0x2) ? 0 : (afu_tlx_vc0_valid_top & 0x1);
