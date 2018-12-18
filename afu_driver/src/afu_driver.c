@@ -270,6 +270,30 @@ void get_simuation_error(svLogic *simulationError)
 // ==================================================================
 // Space for the definition of method tlx_control()
 // ==================================================================
+static void tlx_control(void)
+{
+	// Wait for clock edge from OCSE
+	fd_set watchset;
+	FD_ZERO(&watchset);
+	FD_SET(event.sockfd, &watchset);
+	select(event.sockfd + 1, &watchset, NULL, NULL, NULL);
+	
+	debug_msg("tlx_control: %08lld: calling tlx_get_tlx_events...", (long long) c_sim_time);
+	int rc = tlx_get_tlx_events(&event);
+	
+	// No clock edge
+	while (!rc) {
+	  select(event.sockfd + 1, &watchset, NULL, NULL, NULL);
+	  debug_msg("tlx_control: no clock edge: %08lld: calling get tlx events again...", (long long) c_sim_time);
+	  rc = tlx_get_tlx_events(&event);
+	}
+	// Error case
+	if (rc < 0) {
+	  printf("%08lld: Socket closed: Ending Simulation.\n", (long long) c_sim_time);
+	  c_sim_error = 1;
+	}
+}
+
 // ==================================================================
 // the main bfm definition for the DPI
 // ==================================================================
@@ -947,7 +971,10 @@ void tlx_bfm(
     }
     else
     {
-    // Stuff to be done on the active high period of the clock
+      // Stuff to be done on the active high period of the clock
+      debug_msg("tlx_bfm: clock = 1" );
+      c_sim_error = 0;
+      tlx_control();
     }
   }
   else
