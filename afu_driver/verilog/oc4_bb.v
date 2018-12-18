@@ -227,7 +227,7 @@ module oc4_bb (
     assign tlx_afu_cmd_data_bdi_top             = tlx_afu_dcp1_data_bdi_top;
 
     assign afu_tlx_vc2_initial_credit_top       = 7'b1;
-    assign afu_tlx_vc2_credit_top               = 1'b1;
+    assign afu_tlx_vc2_credit_top               = 1'b0;
 
 // VC3/DCP3 is assumed to handle the OCSE'3 afu_tlx cmd interface
     assign tlx_afu_cmd_resp_initial_credit_top  = tlx_afu_vc3_initial_credit_top;
