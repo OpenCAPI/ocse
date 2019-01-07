@@ -58,13 +58,13 @@ uint8_t         c_afu_tlx_vc0_initial_credit;
 uint8_t         c_afu_tlx_vc1_initial_credit;
 uint8_t         c_afu_tlx_vc2_initial_credit;
 uint8_t         c_cfg_tlx_initial_credit;
-uint8_t         c_tlx_afu_vc0_initial_credit;
-uint8_t         c_tlx_afu_vc1_initial_credit;
-uint8_t         c_tlx_afu_vc2_initial_credit;
-uint8_t         c_tlx_afu_vc3_initial_credit;
-uint8_t         c_tlx_afu_dcp0_initial_credit;
-uint8_t         c_tlx_afu_dcp2_initial_credit;
-uint8_t         c_tlx_afu_dcp3_initial_credit;
+uint8_t         c_tlx_afu_vc0_initial_credit = 7;
+uint8_t         c_tlx_afu_vc1_initial_credit = 4;
+uint8_t         c_tlx_afu_vc2_initial_credit = 4;
+uint8_t         c_tlx_afu_vc3_initial_credit = 4;
+uint8_t         c_tlx_afu_dcp0_initial_credit = 16;
+uint8_t         c_tlx_afu_dcp2_initial_credit = 16;
+uint8_t         c_tlx_afu_dcp3_initial_credit = 16;
 
 uint8_t         c_cfg_tlx_credit_return;
 uint8_t         c_afu_tlx_vc0_credit;
@@ -986,6 +986,22 @@ void tlx_bfm(
   else
   {
   // Stuff to be done while reset is high
+  /*
+    *tlx_afu_vc0_credit_top 	        = 0;
+    *tlx_afu_dcp0_credit_top 	        = 0;
+    *tlx_afu_vc1_credit_top 	        = 0;
+    *tlx_afu_vc2_credit_top 	        = 0;
+    *tlx_afu_dcp2_credit_top 	        = 0;
+    *tlx_afu_vc3_credit_top 	        = 0;
+    *tlx_afu_dcp3_credit_top 	        = 0;
+*/
+    setDpiSignal32(tlx_afu_vc0_initial_credit_top, c_tlx_afu_vc0_initial_credit, 4);
+    setDpiSignal32(tlx_afu_dcp0_initial_credit_top, c_tlx_afu_dcp0_initial_credit, 6);
+    setDpiSignal32(tlx_afu_vc1_initial_credit_top, c_tlx_afu_vc1_initial_credit, 4);
+    setDpiSignal32(tlx_afu_vc2_initial_credit_top, c_tlx_afu_vc2_initial_credit, 4);
+    setDpiSignal32(tlx_afu_dcp2_initial_credit_top, c_tlx_afu_dcp2_initial_credit, 6);
+    setDpiSignal32(tlx_afu_vc3_initial_credit_top, c_tlx_afu_vc3_initial_credit, 4);
+    setDpiSignal32(tlx_afu_dcp3_initial_credit_top, c_tlx_afu_dcp3_initial_credit, 6);
   }
   c_reset_d4 = c_reset_d3;
   c_reset_d3 = c_reset_d2;
