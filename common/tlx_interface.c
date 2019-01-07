@@ -1024,6 +1024,7 @@ int afu_tlx_read_cmd_vc3_and_dcp3_data(struct AFU_EVENT *event,
 		*afu_cmd_opcode = event->afu_tlx_vc3_opcode;
 		*cmd_stream_id = event->afu_tlx_vc3_stream_id;
 		*cmd_afu_tag = event->afu_tlx_vc3_afutag;
+		*cmd_actag = event->afu_tlx_vc3_actag;
 		memcpy(cmd_ea_ta_or_obj, event->afu_tlx_vc3_ea_ta_or_obj, 9);
 		*cmd_dl = event->afu_tlx_vc3_dl;
 		*cmd_be = event->afu_tlx_vc3_be;
