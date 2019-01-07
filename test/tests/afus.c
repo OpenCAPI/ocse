@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
 	printf("Polling read completion status = 0x%x\n", *status);
     }
     // clear machine config
-    rc = clear_machine_config(mafu_h, &machine_config, config_param, DIRECTED);
+    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED);
     if(rc != 0) {
 	printf("Failed to clear machine config\n");
 	goto done;
@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
     }
 
     // clear machine config
-    rc = clear_machine_config(mafu_h, &machine_config, config_param, DIRECTED);
+    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED);
     if(rc != 0) {
 	printf("Failed to clear machine config\n");
 	goto done;
@@ -287,7 +287,7 @@ int main(int argc, char *argv[])
 	printf("Polling interrupt completion status\n");
     }
     // clear machine config
-    rc = clear_machine_config(safu_h, &machine_config, config_param, DIRECTED);
+    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED);
     if(rc != 0) {
 	printf("Failed to clear machine config\n");
 	goto done;

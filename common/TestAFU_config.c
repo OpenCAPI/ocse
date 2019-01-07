@@ -88,8 +88,8 @@ int enable_machine(ocxl_afu_h afu, ocxl_mmio_h pp_mmio_h, MachineConfig *machine
 	for (i = 3; i >= 0; --i){
 		uint64_t data = machine->config[i];
 		printf("config[%d] = 0x%"PRIx64"\n", i, data);
-		if (ocxl_mmio_write64(pp_mmio_h, machine_config_base_address + (i * 8), OCXL_MMIO_LITTLE_ENDIAN,
-		    data))
+		if (ocxl_mmio_write64(pp_mmio_h, machine_config_base_address + (i * 8), 
+			OCXL_MMIO_LITTLE_ENDIAN, data))
 		{
 			printf("Failed to write data config[%d]\n", i);
 			return -1;
@@ -99,7 +99,7 @@ int enable_machine(ocxl_afu_h afu, ocxl_mmio_h pp_mmio_h, MachineConfig *machine
 	return 0;
 }
 
-int clear_machine_config(ocxl_afu_h afu, MachineConfig *machine, MachineConfigParam param, int mode)
+int clear_machine_config(ocxl_mmio_h pp_mmio_h, MachineConfig *machine, MachineConfigParam param, int mode)
 {
     int i;
     uint16_t machine_number;
@@ -111,14 +111,14 @@ int clear_machine_config(ocxl_afu_h afu, MachineConfig *machine, MachineConfigPa
     machine_config_base_address = _machine_base_address_index(machine_number, mode);
     machine_config_base_address += context * 0x1000;
 
-    if(ocxl_mmio_write64(afu, machine_config_base_address, OCXL_MMIO_LITTLE_ENDIAN, 0x0)) {
+    if(ocxl_mmio_write64(pp_mmio_h, machine_config_base_address, OCXL_MMIO_LITTLE_ENDIAN, 0x0)) {
 	printf("Failed to clear machine config\n");
 	return -1;
     }
     return 0;
 }
 // Function to read config from AFU
-int poll_machine(ocxl_afu_h afu, MachineConfig *machine, uint16_t context, int mode) {
+int poll_machine(ocxl_mmio_h pp_mmio_h, MachineConfig *machine, uint16_t context, int mode) {
 	int i;
 
 	int machineConfig_baseaddress = _machine_base_address_index(context, mode);
@@ -126,7 +126,7 @@ int poll_machine(ocxl_afu_h afu, MachineConfig *machine, uint16_t context, int m
 
 	for (i = 0; i < 2; ++i){
 		uint64_t temp;
-		if (ocxl_mmio_read64(afu, machineConfig_baseaddress + (i * 8), OCXL_MMIO_LITTLE_ENDIAN,
+		if (ocxl_mmio_read64(pp_mmio_h, machineConfig_baseaddress + (i * 8), OCXL_MMIO_LITTLE_ENDIAN,
 				    &temp))
 		{
 			printf("Failed to read data\n");
@@ -150,12 +150,12 @@ int config_and_enable_machine(ocxl_afu_h afu, ocxl_mmio_h pp_mmio_h, MachineConf
 }
 
 // Wait for response from AFU machine
-int get_response(ocxl_afu_h afu, MachineConfig *machine, uint16_t context, int mode)
+int get_response(ocxl_mmio_h pp_mmio_h, MachineConfig *machine, uint16_t context, int mode)
 {
 	uint8_t response;
 
 	do {
-		if (poll_machine(afu, machine, context, mode) < 0)
+		if (poll_machine(pp_mmio_h, machine, context, mode) < 0)
 			return 0xFF;
 		get_machine_config_response_code(machine, &response);
 		printf("get_machine_config_response_code = 0x%x\n", response);

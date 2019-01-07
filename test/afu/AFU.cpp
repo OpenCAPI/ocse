@@ -212,8 +212,8 @@ AFU::start ()
 	}
 	// process tlx commands
 	if (afu_event.tlx_afu_vc1_valid || afu_event.tlx_cfg_valid) {
-	    debug_msg("AFU: Received TLX command 0x%x", afu_event.tlx_afu_vc1_opcode);
-	    debug_msg("AFU: Process TLX command");
+	    info_msg("AFU: Received TLX command 0x%x", afu_event.tlx_afu_vc1_opcode);
+	    info_msg("AFU: Process TLX command");
 	    resolve_tlx_afu_cmd();
 	    afu_event.afu_tlx_vc1_credit = 1;	// return a cmd credit to tlx
 	}
@@ -306,7 +306,7 @@ AFU::start ()
         // generate commands, initial read_resp_completed=0; write_resp_completed=0
 	// initial cmd_ready=1; next_cmd=0, other_resp_competed=0;
         else if (state == RUNNING) {
-	    if((read_resp_completed ||  write_resp_completed || other_resp_completed) &&
+	if((read_resp_completed ||  write_resp_completed || other_resp_completed) &&
 		!(next_cmd) && !(cmd_ready)) {
 		printf("AFU: writing app status\n");
 		printf("AFU: read resp = %d write resp = %d other resp = %d\n", read_resp_completed,
@@ -467,27 +467,27 @@ AFU::get_machine_context()
 	    context = (uint16_t)((data & 0x0000FFFF00000000LL) >> 32);
 	    debug_msg("AFU: context = %d", context);
 	    if(context == 0) {
-		afu_event.afu_tlx_vc3_pasid = context;
-		//afu_event.afu_tlx_cmd_bdf = 0x0001;
-		context_to_mc[context] = new MachineController(context);
+				afu_event.afu_tlx_vc3_pasid = context;
+				//afu_event.afu_tlx_cmd_bdf = 0x0001;
+				context_to_mc[context] = new MachineController(context);
 	    }
 	    else if(context == 1) {
-		printf("AFU: clear context to mc\n");
-		context_to_mc.clear();
-		printf("AFU: context = %d\n", context);
-		afu_event.afu_tlx_vc3_pasid = context;
+				printf("AFU: clear context to mc\n");
+				context_to_mc.clear();
+				printf("AFU: context = %d\n", context);
+				afu_event.afu_tlx_vc3_pasid = context;
 	    	context_to_mc[context] = new MachineController(context);
 	    }
 	    highest_priority_mc = context_to_mc.end();
 	    mc = context_to_mc[context];
 	    printf("AFU: context_to_mc = %p size = %d\n", mc, context_to_mc.size());
 	    for(i=0; i< 4; i++) {
-		descriptor.get_mmio_mem(mmio_base+i*8, (char*)&data, size);
-		if(i==1) {
-		    status_address = (uint8_t *)(data >> 32);
-		    debug_msg("AFU: get status address = %p", status_address);
-		}
-		mc->change_machine_config(i, machine_number, data);
+				descriptor.get_mmio_mem(mmio_base+i*8, (char*)&data, size);
+				if(i==1) {
+		    	status_address = (uint8_t *)(data >> 32);
+		    	debug_msg("AFU: get status address = %p", status_address);
+				}
+				mc->change_machine_config(i, machine_number, data);
 	    }
 	    return true;
 	}
@@ -533,11 +533,11 @@ AFU::resolve_tlx_afu_cmd()
     uint8_t  cmd_os, cmd_co, cmd_mad;
     uint64_t  cmd_pa;
     
-    if (tlx_afu_read_cmd_vc1(&afu_event, &cmd_opcode, &cmd_afutag,
+    if (rc = tlx_afu_read_cmd_vc1(&afu_event, &cmd_opcode, &cmd_afutag,
     	&cmd_capptag, &cmd_pa, &cmd_dl, &cmd_dp, &cmd_be, 
     	&cmd_pl, &cmd_endian, &cmd_co, &cmd_os, &cmd_flag,
 		&cmd_mad) != TLX_SUCCESS) {
-	error_msg("Failed: tlx_afu_read_cmd");
+			error_msg("Failed: tlx_afu_read_cmd_vc1 rc = %d", rc);
     }
 
     afu_event.tlx_afu_vc1_opcode = cmd_opcode;
@@ -808,8 +808,7 @@ AFU::tlx_afu_config_read()
 
     if(vsec_offset > 0x20700) {
 			resp_opcode = 0x02;	// read failed resp
-			debug_msg("AFU: configuration read failed response 
-				offset = 0x%08x", vsec_offset);
+			debug_msg("AFU: configuration read failed response offset = 0x%08x", vsec_offset);
     }
     else {
     	vsec_data = descriptor.get_vsec_reg(vsec_offset);
@@ -898,7 +897,7 @@ AFU::tlx_afu_config_write()
     cmd_pa = afu_event.tlx_cfg_pa & 0x000FFFFC;   
     //resp_dl = 1;
 
-    debug_msg("AFU: cmd_pa = 0x%x", cmd_pa);
+    info_msg("AFU: cmd_pa = 0x%x", cmd_pa);
     // get BDF during configuration
     if(afu_event.tlx_cfg_t == 0) {
     	bdf = (afu_event.tlx_cfg_pa & 0xFFFF0000) >> 16;
@@ -1174,7 +1173,7 @@ AFU::is_mmio_addr(uint64_t addr)
 {
     printf("AFU: mmio addr = 0x%016lx\n", addr);
     printf("AFU: bar addr  = 0x%016lx\n", bar);
-    addr = addr & 0xFFFFFFFFFFF10000;
+    addr = addr & 0xFFFFFBFFFFF10000;
     if(addr >= bar && addr < bar+0x10000) {
 	return 1;
     }

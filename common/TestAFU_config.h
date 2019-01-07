@@ -64,16 +64,16 @@ int config_machine(MachineConfig *machine, MachineConfigParam configparam);
 int enable_machine(ocxl_afu_h afu, ocxl_mmio_h pp_mmio_h, MachineConfig *machine, MachineConfigParam param, int mode);
 
 // Function to clear machine config
-int clear_machine_config(ocxl_afu_h afu, MachineConfig *machine, MachineConfigParam param, int mode);
+int clear_machine_config(ocxl_mmio_h pp_mmio_h, MachineConfig *machine, MachineConfigParam param, int mode);
 
 // Function to set most commonly used elements and write to AFU MMIO space
 int config_and_enable_machine(ocxl_afu_h afu, ocxl_mmio_h pp_mmio_h, MachineConfig *machine, MachineConfigParam param, int mode);
 
 // Function to read config from AFU
-int poll_machine(ocxl_afu_h afu, MachineConfig *machine, uint16_t context, int mode);
+int poll_machine(ocxl_mmio_h pp_mmio_h, MachineConfig *machine, uint16_t context, int mode);
 
 // Wait for response from AFU machine
-int get_response(ocxl_afu_h afu, MachineConfig *machine, uint16_t context, int mode);
+int get_response(ocxl_mmio_h pp_mmio_h, MachineConfig *machine, uint16_t context, int mode);
 
 // Function to set most commonly used elements, write to AFU MMIO space and
 // wait for command completion
