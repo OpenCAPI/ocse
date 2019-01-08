@@ -508,9 +508,14 @@ AFU::request_assign_actag()
     printf("AFU: afu_tag = 0x%x\n", afutag);
     printf("AFU: assign actag BDF = 0x%x PASID = 0x%x\n", afu_event.afu_tlx_vc3_bdf,
     afu_event.afu_tlx_vc3_pasid);
-    if(afu_tlx_send_cmd_vc1(&afu_event, afu_event.afu_tlx_vc3_opcode,
-    	afu_event.afu_tlx_vc3_stream_id, afu_event.afu_tlx_vc3_afutag,
-  	 	cmd_pa, afu_event.afu_tlx_vc3_dl) != TLX_SUCCESS) {
+    if(afu_tlx_send_cmd_vc3(&afu_event, afu_event.afu_tlx_vc3_opcode,
+    	afu_event.afu_tlx_vc3_actag, afu_event.afu_tlx_vc3_stream_id, 
+    	(uint8_t *)cmd_pa, afu_event.afu_tlx_vc3_afutag, afu_event.afu_tlx_vc3_dl,
+  	 	afu_event.afu_tlx_vc3_pl, afu_event.afu_tlx_vc3_os,
+  	 	afu_event.afu_tlx_vc3_be, afu_event.afu_tlx_vc3_cmdflag,
+  	 	afu_event.afu_tlx_vc3_endian, afu_event.afu_tlx_vc3_bdf,
+  	 	afu_event.afu_tlx_vc3_pasid, afu_event.afu_tlx_vc3_pg_size,
+  	 	afu_event.afu_tlx_vc3_mad) != TLX_SUCCESS) {
 	    printf("FAILED: request_assign_actag\n");
 	}
 	else {
