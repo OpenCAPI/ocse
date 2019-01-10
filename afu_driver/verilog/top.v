@@ -445,14 +445,6 @@ module top (
 // mcp3 release of 12/Jun does not have this port  reg [3:0]       afu_cfg_in_rcv_rate_capability_2_top;
 // mcp3 release of 12/Jun does not have this port  reg [3:0]       afu_cfg_in_rcv_rate_capability_3_top;
    reg       [4:0] ro_device_top;
-   reg             tlx_cfg0_in_rcv_tmpl_capability_0_top;
-   reg             tlx_cfg0_in_rcv_tmpl_capability_1_top;
-   reg             tlx_cfg0_in_rcv_tmpl_capability_2_top;
-   reg             tlx_cfg0_in_rcv_tmpl_capability_3_top;
-   reg       [3:0] tlx_cfg0_in_rcv_rate_capability_0_top;
-   reg       [3:0] tlx_cfg0_in_rcv_rate_capability_1_top;
-   reg       [3:0] tlx_cfg0_in_rcv_rate_capability_2_top;
-   reg       [3:0] tlx_cfg0_in_rcv_rate_capability_3_top;
 
    //	Table 8: TLX Receiver - Template Configuration Ports
    reg	     	  tlx_cfg_rcv_tmpl_capability_0_top;
@@ -499,27 +491,27 @@ module top (
    //	Table 15: TLX Framer - AFU to TLX  VC1 Interface
    reg   [3:0]    tlx_afu_vc1_initial_credit_top;
    reg	     	  tlx_afu_vc1_credit_top;
-   reg		  afu_tlx_vc1_valid_top;
-   reg   [7:0]	  afu_tlx_vc1_opcode_top;
-   reg   [3:0]	  afu_tlx_vc1_stream_id_top;
-   reg  [15:0]	  afu_tlx_vc1_afutag_top;
-   reg  [57:0]	  afu_tlx_vc1_pa_top;	// afu_tlx_vc1_pa[63:6]
-   reg   [1:0]	  afu_tlx_vc1_dl_top;
+   reg		  afu_tlx_vc1_valid_top = 1'b0;
+   reg   [7:0]	  afu_tlx_vc1_opcode_top = 8'b0;
+   reg   [3:0]	  afu_tlx_vc1_stream_id_top = 4'b0;
+   reg  [15:0]	  afu_tlx_vc1_afutag_top = 16'b0;
+   reg  [57:0]	  afu_tlx_vc1_pa_top = 58'b0;	// afu_tlx_vc1_pa[63:6]
+   reg   [1:0]	  afu_tlx_vc1_dl_top = 2'b0;
    
    //	Table 16: AFU to TLX  VC2/DCP2 Interface
    reg   [3:0]    tlx_afu_vc2_initial_credit_top;
    reg   [5:0]    tlx_afu_dcp2_initial_credit_top;
    reg	     	  tlx_afu_vc2_credit_top;
    reg	     	  tlx_afu_dcp2_credit_top;
-   reg		  afu_tlx_vc2_valid_top;
-   reg   [7:0]	  afu_tlx_vc2_opcode_top;
-   reg   [1:0]	  afu_tlx_vc2_dl_top;
-   reg  [23:0]	  afu_tlx_vc2_host_tag_top;
-   reg   [2:0]	  afu_tlx_vc2_cache_state_top;
-   reg   [3:0]	  afu_tlx_vc2_cmdflag_top;
-   reg            afu_tlx_dcp2_data_valid_top;
-   reg [511:0]    afu_tlx_dcp2_data_bus_top;
-   reg            afu_tlx_dcp2_data_bdi_top;
+   reg		  afu_tlx_vc2_valid_top = 1'b0;	// to ensure non-X
+   reg   [7:0]	  afu_tlx_vc2_opcode_top = 8'b0;
+   reg   [1:0]	  afu_tlx_vc2_dl_top = 2'b0;
+   reg  [23:0]	  afu_tlx_vc2_host_tag_top = 24'b0;
+   reg   [2:0]	  afu_tlx_vc2_cache_state_top = 3'b0;
+   reg   [3:0]	  afu_tlx_vc2_cmdflag_top = 4'b0;
+   reg            afu_tlx_dcp2_data_valid_top = 1'b0;
+   reg [511:0]    afu_tlx_dcp2_data_bus_top = 512'b0;
+   reg            afu_tlx_dcp2_data_bdi_top = 1'b0;
    
    //	Table 17: TLX Framer - AFU to TLX  VC3/DCP3 Interface
    reg   [3:0]    tlx_afu_vc3_initial_credit_top;
@@ -822,14 +814,14 @@ initial begin
 // mcp3 release of 12/Jun does not have this port   afu_cfg_in_rcv_rate_capability_2_top	<= 4'b0;
 // mcp3 release of 12/Jun does not have this port   afu_cfg_in_rcv_rate_capability_3_top	<= 4'b0;
     tlx_afu_ready_top			<= 1;
-    tlx_cfg0_in_rcv_tmpl_capability_0_top	<= 0;
-    tlx_cfg0_in_rcv_tmpl_capability_1_top	<= 0;
-    tlx_cfg0_in_rcv_tmpl_capability_2_top	<= 0;
-    tlx_cfg0_in_rcv_tmpl_capability_3_top	<= 0;
-    tlx_cfg0_in_rcv_rate_capability_0_top	<= 4'b0;
-    tlx_cfg0_in_rcv_rate_capability_1_top	<= 4'b0;
-    tlx_cfg0_in_rcv_rate_capability_2_top	<= 4'b0;
-    tlx_cfg0_in_rcv_rate_capability_3_top	<= 4'b0;
+    tlx_cfg_rcv_tmpl_capability_0_top	<= 0;
+    tlx_cfg_rcv_tmpl_capability_1_top	<= 0;
+    tlx_cfg_rcv_tmpl_capability_2_top	<= 0;
+    tlx_cfg_rcv_tmpl_capability_3_top	<= 0;
+    tlx_cfg_rcv_rate_capability_0_top	<= 4'b0;
+    tlx_cfg_rcv_rate_capability_1_top	<= 4'b0;
+    tlx_cfg_rcv_rate_capability_2_top	<= 4'b0;
+    tlx_cfg_rcv_rate_capability_3_top	<= 4'b0;
     tlx_cfg_valid_top				<= 0;
     tlx_cfg_opcode_top				<= 8'b0;
     tlx_cfg_pa_top				<= 64'b0;
@@ -988,14 +980,14 @@ end
 // mcp3 release of 12/Jun does not have this port   assign 	afu_cfg_in_rcv_rate_capability_3	= afu_cfg_in_rcv_rate_capability_3_top;
     assign 	tlx_afu_ready				= tlx_afu_ready_top;
     assign 	ro_device				= ro_device_top;
-    assign 	tlx_cfg0_in_rcv_tmpl_capability_0	= tlx_cfg0_in_rcv_tmpl_capability_0_top;
-    assign 	tlx_cfg0_in_rcv_tmpl_capability_1	= tlx_cfg0_in_rcv_tmpl_capability_1_top;
-    assign 	tlx_cfg0_in_rcv_tmpl_capability_2	= tlx_cfg0_in_rcv_tmpl_capability_2_top;
-    assign 	tlx_cfg0_in_rcv_tmpl_capability_3	= tlx_cfg0_in_rcv_tmpl_capability_3_top;
-    assign 	tlx_cfg0_in_rcv_rate_capability_0	= tlx_cfg0_in_rcv_rate_capability_0_top;
-    assign 	tlx_cfg0_in_rcv_rate_capability_1	= tlx_cfg0_in_rcv_rate_capability_1_top;
-    assign 	tlx_cfg0_in_rcv_rate_capability_2	= tlx_cfg0_in_rcv_rate_capability_2_top;
-    assign 	tlx_cfg0_in_rcv_rate_capability_3	= tlx_cfg0_in_rcv_rate_capability_3_top;
+    assign 	tlx_cfg0_in_rcv_tmpl_capability_0	= tlx_cfg_rcv_tmpl_capability_0_top;
+    assign 	tlx_cfg0_in_rcv_tmpl_capability_1	= tlx_cfg_rcv_tmpl_capability_1_top;
+    assign 	tlx_cfg0_in_rcv_tmpl_capability_2	= tlx_cfg_rcv_tmpl_capability_2_top;
+    assign 	tlx_cfg0_in_rcv_tmpl_capability_3	= tlx_cfg_rcv_tmpl_capability_3_top;
+    assign 	tlx_cfg0_in_rcv_rate_capability_0	= tlx_cfg_rcv_rate_capability_0_top;
+    assign 	tlx_cfg0_in_rcv_rate_capability_1	= tlx_cfg_rcv_rate_capability_1_top;
+    assign 	tlx_cfg0_in_rcv_rate_capability_2	= tlx_cfg_rcv_rate_capability_2_top;
+    assign 	tlx_cfg0_in_rcv_rate_capability_3	= tlx_cfg_rcv_rate_capability_3_top;
     assign	tlx_cfg0_valid				= tlx_cfg_valid_top;
     assign 	tlx_cfg0_opcode				= tlx_cfg_opcode_top;
     assign 	tlx_cfg0_pa				= tlx_cfg_pa_top;
@@ -1195,14 +1187,6 @@ end
 	afu_tlx_rdata_bdi_top,
 
 	tlx_afu_ready_top,
-        tlx_cfg0_in_rcv_tmpl_capability_0_top,
-        tlx_cfg0_in_rcv_tmpl_capability_1_top,
-        tlx_cfg0_in_rcv_tmpl_capability_2_top,
-        tlx_cfg0_in_rcv_tmpl_capability_3_top,
-        tlx_cfg0_in_rcv_rate_capability_0_top,
-        tlx_cfg0_in_rcv_rate_capability_1_top,
-        tlx_cfg0_in_rcv_rate_capability_2_top,
-        tlx_cfg0_in_rcv_rate_capability_3_top,
 */
 	//	Table 8: TLX Receiver - Template Configuration Ports
     	tlx_cfg_rcv_tmpl_capability_0_top,

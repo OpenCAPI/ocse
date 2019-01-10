@@ -1002,6 +1002,15 @@ void tlx_bfm(
     setDpiSignal32(tlx_afu_dcp2_initial_credit_top, c_tlx_afu_dcp2_initial_credit, 6);
     setDpiSignal32(tlx_afu_vc3_initial_credit_top, c_tlx_afu_vc3_initial_credit, 4);
     setDpiSignal32(tlx_afu_dcp3_initial_credit_top, c_tlx_afu_dcp3_initial_credit, 6);
+// To ensure that we are driving a known value at reset
+    setDpiSignal32(tlx_afu_vc2_opcode_top, 0x0, 8);
+    setDpiSignal32(tlx_afu_vc2_capptag_top, 0x0, 16);
+    setDpiSignal64(tlx_afu_vc2_ea_top, 0x0);
+    setDpiSignal32(tlx_afu_vc2_pg_size_top, 0x0, 6);
+    setDpiSignal32(tlx_afu_vc2_cmdflag_top, 0x0, 4);
+    setDpiSignal32(tlx_afu_vc2_pasid_top, 0x0, 20);
+    setDpiSignal32(tlx_afu_vc2_bdf_top, 0x0, 16);
+    *tlx_afu_vc2_valid_top = 0;
   }
   c_reset_d4 = c_reset_d3;
   c_reset_d3 = c_reset_d2;

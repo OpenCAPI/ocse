@@ -240,6 +240,7 @@ module oc4_bb (
     assign afu_tlx_vc3_actag_top                = afu_tlx_cmd_actag_top;
     assign afu_tlx_vc3_ea_ta_or_obj_top         = afu_tlx_cmd_ea_or_obj_top;
     assign afu_tlx_vc3_dl_top                   = afu_tlx_cmd_dl_top;
+    assign afu_tlx_vc3_pl_top                   = afu_tlx_cmd_pl_top;
     assign afu_tlx_vc3_be_top                   = afu_tlx_cmd_be_top;
     assign afu_tlx_vc3_os_top                   = afu_tlx_cmd_os_top;
     assign afu_tlx_vc3_endian_top               = afu_tlx_cmd_endian_top;
