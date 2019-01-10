@@ -116,6 +116,7 @@ static int32_t _find_client_by_actag(struct cmd *cmd, uint16_t cmd_actag)
   debug_msg("_find_client_by_actag: seeking client in %d potential clients with actag=0x%04x", cmd->max_clients, cmd_actag );
   for (i = 0; i < cmd->max_clients; i++) {
     if (cmd->client[i] != NULL) {
+  	  debug_msg("_find_client_by_actag:  cmd->client[i]->actag=0x%04x; i=0x%x", cmd->client[i]->actag, i );
       if ( cmd->client[i]->actag == cmd_actag ) {
   	  debug_msg("_find_client_by_actag:  client with actag=0x%04x; i=0x%x", cmd_actag, i );
 	  return i;
@@ -170,7 +171,6 @@ static int _incoming_data_expected(struct cmd *cmd)
 		}
 		event = event->_next;
 	}
-
 	if (event == NULL)  {
 		debug_msg("INCOMING_DATA_EXPECTED CHECK  and we found NO CMD WRITE in MEM_BUFFER state");
 		return 0;
@@ -241,8 +241,8 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 		head = &((*head)->_next);
 	event->_next = *head;
 	*head = event;
-	debug_msg("_add_cmd:created cmd_event @ 0x%016"PRIx64":command=0x%02x, size=0x%04x, type=0x%02x, afutag=0x%04x, state=0x%03x",
-		 event, event->command, event->size, event->type, event->afutag, event->state );
+	debug_msg("_add_cmd:created cmd_event @ 0x%016"PRIx64":command=0x%02x, size=0x%04x, type=0x%02x, afutag=0x%04x, state=0x%03x cmd_data_is_valid=0x%x",
+		 event, event->command, event->size, event->type, event->afutag, event->state, cmd_data_is_valid );
 	debug_cmd_add(cmd->dbg_fp, cmd->dbg_id, afutag, context, command);
 	// Check to see if event->cmd_data_is_valid is, and if so, set event->buffer_data
 	// TODO check to see if data is bad...if so, what???

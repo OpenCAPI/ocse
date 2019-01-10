@@ -353,6 +353,7 @@ int tlx_afu_send_initial_credits(struct AFU_EVENT *event,
 	debug_msg("      tlx_afu_dcp2_initial_credit = %d", event->tlx_afu_dcp2_initial_credit );
 	debug_msg("      tlx_afu_vc3_initial_credit = %d", event->tlx_afu_vc3_initial_credit );
 	debug_msg("      tlx_afu_dcp3_initial_credit = %d", event->tlx_afu_dcp3_initial_credit );
+
 	return TLX_SUCCESS;
 }
 
@@ -390,6 +391,11 @@ int afu_tlx_read_initial_credits(struct AFU_EVENT *event,
 	debug_msg( "      afu_tlx_vc1_credits_available = %d", event->afu_tlx_vc1_credits_available );
 	debug_msg( "      afu_tlx_vc2_credits_available = %d", event->afu_tlx_vc2_credits_available );
 
+	//Just to be sure, let's zero out rd_cnts & rd_reqs
+	event->afu_tlx_dcp0_rd_req = 0;
+	event->afu_tlx_dcp0_rd_cnt = 0;
+	event->afu_tlx_dcp1_rd_req = 0;
+	event->afu_tlx_dcp1_rd_cnt = 0;
 	return TLX_SUCCESS;
 
 
@@ -1497,6 +1503,13 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		event->afu_tlx_vc2_credit = 0;
 		event->cfg_tlx_credit_return= 0;
 		event->afu_tlx_vc0_credit = 0;
+		//TEMPORARY HACK - zero out rd_cnts & rd_reqs (afu used to do this in ocse3)
+		debug_msg("tlx_signal_tlx_model: CLEARING ALL dcp0 & dcp1 rd_req AND rd_cnt SIGNALS");
+		event->afu_tlx_dcp0_rd_req = 0;
+		event->afu_tlx_dcp0_rd_cnt = 0;
+		event->afu_tlx_dcp1_rd_req = 0;
+		event->afu_tlx_dcp1_rd_cnt = 0;
+		//end of temporary hack
 	} else {
 	        debug_msg("tlx_signal_tlx_model: no (initial) credits to send");
 	}
@@ -1880,7 +1893,11 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		event->afu_tlx_vc2_credit = event->rbuf[rbc++];
 		event->cfg_tlx_credit_return = event->rbuf[rbc++];
 		event->afu_tlx_dcp0_rd_req = event->rbuf[rbc++];
+		if (event->afu_tlx_dcp0_rd_req != 0)
+			debug_msg("TLX_GET_AFU_EVENTS afu_tlx_dcp0_rd_req = 0x%x", event->afu_tlx_dcp0_rd_req);
 		event->afu_tlx_dcp0_rd_cnt = event->rbuf[rbc++];
+		if (event->afu_tlx_dcp0_rd_cnt != 0)
+			debug_msg("TLX_GET_AFU_EVENTS afu_tlx_dcp0_rd_cnt = 0x%x", event->afu_tlx_dcp0_rd_cnt);
 		event->afu_tlx_dcp1_rd_req = event->rbuf[rbc++];
 		if (event->afu_tlx_dcp1_rd_req != 0)
 			debug_msg("TLX_GET_AFU_EVENTS afu_tlx_dcp1_rd_req = 0x%x", event->afu_tlx_dcp1_rd_req);
@@ -2844,6 +2861,7 @@ int tlx_afu_read_cmd_resp_vc0(struct AFU_EVENT *event,
 int afu_tlx_dcp0_data_read_req(struct AFU_EVENT *event,
 		 uint8_t  afu_tlx_resp_rd_req, uint8_t  afu_tlx_resp_rd_cnt)
 {
+  debug_msg("afu_tlx__dcp0_data_read_req:afu_tlx_resp_rd_req= %x afu_tlx_resp_rd_cnt= %2x",afu_tlx_resp_rd_req, afu_tlx_resp_rd_cnt );
 	event->afu_tlx_dcp0_rd_req = afu_tlx_resp_rd_req;
 	event->afu_tlx_dcp0_rd_cnt = afu_tlx_resp_rd_cnt;
 	event->afu_tlx_credit_req_valid = 1; //TODO I don't see this signal in 4.0 spec 
@@ -2913,6 +2931,7 @@ int tlx_afu_read_cmd_vc1(struct AFU_EVENT *event,
 int afu_tlx_dcp1_data_read_req(struct AFU_EVENT *event,
 		 uint8_t afu_tlx_cmd_rd_req, uint8_t afu_tlx_cmd_rd_cnt)
 {
+  debug_msg("afu_tlx_dcp1_data_read_req:afu_tlx_cmd_rd_req= %x afu_tlx_cmd_rd_cnt= %2x",afu_tlx_cmd_rd_req, afu_tlx_cmd_rd_cnt );
 	event->afu_tlx_dcp1_rd_req = afu_tlx_cmd_rd_req;
 	event->afu_tlx_dcp1_rd_cnt = afu_tlx_cmd_rd_cnt;
 	event->afu_tlx_credit_req_valid = 1; //TODO I don't see this in TLX4 spec
