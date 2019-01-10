@@ -1779,6 +1779,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 			event->afu_tlx_vc3_ea_ta_or_obj[i] = event->rbuf[rbc++];
 		}
 		event->afu_tlx_vc3_dl = event->rbuf[rbc++]; 
+		printf("vc3_dl = 0x%x\n", event->afu_tlx_vc3_dl);
 		event->afu_tlx_vc3_be = 0;
 		for (bc = 0; bc < 8; bc++) {
 			event->afu_tlx_vc3_be  =
@@ -2798,6 +2799,9 @@ int afu_tlx_send_cmd_vc3_and_dcp3_data(struct AFU_EVENT *event,
 	} else {
 		event->afu_tlx_vc3_valid = 1;
 		event->tlx_afu_vc3_credits_available -= 1;
+ 		event->afu_tlx_dcp3_data_valid = 1;
+  		event->tlx_afu_dcp3_credits_available -= 1;
+		debug_msg("afu_tlx_send_cmd_vc3_and_dcp3_data: tlx_afu_dcp3_credits available is %d", event->tlx_afu_dcp3_credits_available);
 		event->afu_tlx_vc3_opcode = afu_cmd_opcode;
 		event->afu_tlx_vc3_actag = cmd_actag;
 		event->afu_tlx_vc3_stream_id = cmd_stream_id;

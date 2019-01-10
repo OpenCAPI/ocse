@@ -263,6 +263,8 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 		  } else {
 		    event->state = MEM_RECEIVED;
 		    event->dpartial =0;
+		debug_msg("FINISHED copy first 64B of write data to buffer, add=0x%016"PRIx64" , size=0x%x , afutag= 0x%x, event->state= %d.\n",
+		 	event->addr, size, event->afutag, event->state);
 		  	}
 		}
 
@@ -965,7 +967,7 @@ void handle_afu_tlx_cmd_data_read(struct cmd *cmd)
 	// Test for client disconnect
 	if (event == NULL)
 		return;
-	debug_msg("entering HANDLE_AFU_TLX_CMD_DATA_READ");
+	//debug_msg("entering HANDLE_AFU_TLX_CMD_DATA_READ");
 	rc = afu_tlx_read_dcp3_data(cmd->afu_event, &cmd_data_is_valid, dptr,  &cdata_bad);
 	if (rc == TLX_SUCCESS) {
 		if (cmd_data_is_valid) {
