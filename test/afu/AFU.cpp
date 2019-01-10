@@ -292,6 +292,7 @@ AFU::start ()
 		printf("AFU: gBDF = %d gACTAG = %d\n", gBDF, gACTAG);
 		afu_event.afu_tlx_vc3_bdf = gBDF;
 		afu_event.afu_tlx_vc3_actag = gACTAG;
+		afu_event.afu_tlx_vc3_opcode = AFU_CMD_ASSIGN_ACTAG;
 		printf("AFU: request afu assign actag\n");
 		request_assign_actag();
 	    	printf("AFU: set state = RUNNING\n");
@@ -305,50 +306,50 @@ AFU::start ()
   	
         // generate commands, initial read_resp_completed=0; write_resp_completed=0
 	// initial cmd_ready=1; next_cmd=0, other_resp_competed=0;
-        else if (state == RUNNING) {
-	if((read_resp_completed ||  write_resp_completed || other_resp_completed) &&
-		!(next_cmd) && !(cmd_ready)) {
-		printf("AFU: writing app status\n");
-		printf("AFU: read resp = %d write resp = %d other resp = %d\n", read_resp_completed,
+  else if (state == RUNNING) {
+		if((read_resp_completed ||  write_resp_completed || other_resp_completed) &&
+			!(next_cmd) && !(cmd_ready)) {
+			printf("AFU: writing app status\n");
+			printf("AFU: read resp = %d write resp = %d other resp = %d\n", read_resp_completed,
 			write_resp_completed, other_resp_completed);
-		write_app_status(status_address, 0x0);
-		read_resp_completed = 0;
-		write_resp_completed = 0;
-		other_resp_completed = 0;
-		next_cmd = 1;
-	    }
-	    else if(next_cmd) {
-	 	if(write_status_resp) {
+			write_app_status(status_address, 0x0);
+			read_resp_completed = 0;
+			write_resp_completed = 0;
+			other_resp_completed = 0;
+			next_cmd = 1;
+	  }
+	  else if(next_cmd) {
+	 		if(write_status_resp) {
 		    debug_msg("AFU: reading app status");	
 		    read_app_status(status_address);
 		    write_status_resp = 0;
-		}
-		else if(read_status_resp) {
+			}
+			else if(read_status_resp) {
 		    if(status_data[0] == 0xff) {
-			printf("AFU: status data = 0x%x\n", status_data[0]);
+					printf("AFU: status data = 0x%x\n", status_data[0]);
 		    	debug_msg("AFU: get next cmd from app");
 		    	next_cmd = 0;
 		    	cmd_ready = 1;
-			read_status_resp = 0;
-			read_resp_completed = 0; //debug1
+					read_status_resp = 0;
+					read_resp_completed = 0; //debug1
 		    	get_machine_context();
 		    }
 		    else if(status_data[0] == 0x0) {
-			printf("AFU: status data = 0x%x\n", status_data[0]);
-			debug_msg("AFU: reading app status");
-			read_app_status(status_address);
-			printf("AFU: waiting for read resp\n");
+					printf("AFU: status data = 0x%x\n", status_data[0]);
+					debug_msg("AFU: reading app status");
+					read_app_status(status_address);
+					printf("AFU: waiting for read resp\n");
 		    }
 		    else if(status_data[0] == 0x55) {
-			printf("AFU: status data = 0x%x\n", status_data[0]);
-			printf("AFU: test is done\n");
-			printf("AFU: set AFU state to READY\n");
-			write_app_status(status_address, 0x00);
-			state = READY;
+					printf("AFU: status data = 0x%x\n", status_data[0]);
+					printf("AFU: test is done\n");
+					printf("AFU: set AFU state to READY\n");
+					write_app_status(status_address, 0x00);
+					state = READY;
 		    }
-		}
+			}
 		else {
-		    debug_msg("AFU: waiting for new cmd from app");
+		  debug_msg("AFU: waiting for new cmd from app");
 		}
 	    }
             else if(cmd_ready) {
@@ -510,7 +511,7 @@ AFU::request_assign_actag()
     afu_event.afu_tlx_vc3_pasid);
     if(afu_tlx_send_cmd_vc3(&afu_event, afu_event.afu_tlx_vc3_opcode,
     	afu_event.afu_tlx_vc3_actag, afu_event.afu_tlx_vc3_stream_id, 
-    	(uint8_t *)cmd_pa, afu_event.afu_tlx_vc3_afutag, afu_event.afu_tlx_vc3_dl,
+    	(uint8_t *)ea, afu_event.afu_tlx_vc3_afutag, afu_event.afu_tlx_vc3_dl,
   	 	afu_event.afu_tlx_vc3_pl, afu_event.afu_tlx_vc3_os,
   	 	afu_event.afu_tlx_vc3_be, afu_event.afu_tlx_vc3_cmdflag,
   	 	afu_event.afu_tlx_vc3_endian, afu_event.afu_tlx_vc3_bdf,
@@ -1226,7 +1227,7 @@ AFU::write_app_status(uint8_t *address, uint32_t data)
     printf("AFU: status address = 0x%p and data = 0x%x\n", address, data);
     printf("AFU: afutag = 0x%x\n", cmd_afutag);
     //cmd_op=0x20, dl=0x01, pl=0x02
-    memcpy(afu_event.afu_tlx_dcp2_data_bus, &data, 64);
+    memcpy(afu_event.afu_tlx_dcp3_data_bus, &data, 64);
 
     afu_tlx_send_cmd_vc3_and_dcp3_data(&afu_event,
     	0x20, //afu_event.afu_tlx_vc3_opcode,

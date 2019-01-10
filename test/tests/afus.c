@@ -176,19 +176,20 @@ int main(int argc, char *argv[])
     printf("mem base address = 0x%"PRIx64"\n", config_param.mem_base_address);
     rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
     printf("set status data = 0xff\n");
-    //status[0] = 0xff;
+    status[0] = 0xff;
     if( rc != -1) {
-	printf("Response = 0x%x\n", rc);
-	printf("config_enable_and_run_machine PASS\n");
-    }
+	   printf("Response = 0x%x\n", rc);
+	   printf("config_enable_and_run_machine PASS\n");
+    }  
     else {
-	printf("FAILED: config_enable_and_run_machine\n");
-	goto done;
+	   printf("FAILED: config_enable_and_run_machine\n");
+	   goto done;
     }
     timeout = 0;
+    printf("Waiting for read command completion status\n");
     while(status[0] != 0x0) {
-	nanosleep(&t, &t);
-	printf("Polling read completion status = 0x%x\n", *status);
+	   nanosleep(&t, &t);
+	   //printf("Polling read completion status = 0x%x\n", *status);
     }
     // clear machine config
     rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED);
