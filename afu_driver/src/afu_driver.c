@@ -138,6 +138,8 @@ uint8_t  	c_afu_tlx_dcp3_data_bus[CACHELINE_BYTES];
 
 uint32_t	c_tlx_cfg_data_del;
 uint8_t		c_tlx_cfg_data_bdi_del;
+uint8_t  	c_clearedCacheline[CACHELINE_BYTES];
+uint8_t  	cacheLineCleared = 0;
 // ==================================================================
 
 // Local Methods
@@ -995,6 +997,14 @@ void tlx_bfm(
     *tlx_afu_vc3_credit_top 	        = 0;
     *tlx_afu_dcp3_credit_top 	        = 0;
 */
+    if(cacheLineCleared == 0)
+    {
+      for(i=0; i < CACHELINE_BYTES; i++)
+      {
+        c_clearedCacheline[i] = 0;
+      }
+      cacheLineCleared = 1;
+    }
     setDpiSignal32(tlx_afu_vc0_initial_credit_top, c_tlx_afu_vc0_initial_credit, 4);
     setDpiSignal32(tlx_afu_dcp0_initial_credit_top, c_tlx_afu_dcp0_initial_credit, 6);
     setDpiSignal32(tlx_afu_vc1_initial_credit_top, c_tlx_afu_vc1_initial_credit, 4);
@@ -1003,6 +1013,34 @@ void tlx_bfm(
     setDpiSignal32(tlx_afu_vc3_initial_credit_top, c_tlx_afu_vc3_initial_credit, 4);
     setDpiSignal32(tlx_afu_dcp3_initial_credit_top, c_tlx_afu_dcp3_initial_credit, 6);
 // To ensure that we are driving a known value at reset
+    setDpiSignal32(tlx_afu_vc0_opcode_top, 0x0, 8);
+    setDpiSignal32(tlx_afu_vc0_afutag_top, 0x0, 16);
+    setDpiSignal32(tlx_afu_vc0_capptag_top, 0x0, 16);
+    setDpiSignal64(tlx_afu_vc0_pa_or_ta_top, 0x0);
+    setDpiSignal32(tlx_afu_vc0_dl_top, 0x0, 2);
+    setDpiSignal32(tlx_afu_vc0_dp_top, 0x0, 2);
+    *tlx_afu_vc0_ef_top     = 0x0;
+    *tlx_afu_vc0_w_top      = 0x0;
+    *tlx_afu_vc0_mh_top     = 0x0;
+    setDpiSignal32(tlx_afu_vc0_pg_size_top, 0x0, 6);
+    setDpiSignal32(tlx_afu_vc0_host_tag_top, 0x0, 24);
+    setDpiSignal32(tlx_afu_vc0_resp_code_top, 0x0, 4);
+    setDpiSignal32(tlx_afu_vc0_cache_state_top, 0x0, 3);
+    *tlx_afu_vc0_valid_top = 0;
+    setDpiSignal32(tlx_afu_vc1_opcode_top, 0x0, 8);
+    setDpiSignal32(tlx_afu_vc1_afutag_top, 0x0, 16);
+    setDpiSignal32(tlx_afu_vc1_capptag_top, 0x0, 16);
+    setDpiSignal64(tlx_afu_vc1_pa_top, 0x0);
+    setDpiSignal32(tlx_afu_vc1_dl_top, 0x0, 2);
+    setDpiSignal32(tlx_afu_vc1_dp_top, 0x0, 2);
+    setDpiSignal64(tlx_afu_vc1_be_top, 0x0);
+    setDpiSignal32(tlx_afu_vc1_pl_top, 0x0, 2);
+    *tlx_afu_vc1_endian_top = 0;
+    *tlx_afu_vc1_co_top     = 0;
+    *tlx_afu_vc1_os_top     = 0;
+    setDpiSignal32(tlx_afu_vc1_cmdflag_top, 0x0, 4);
+    setDpiSignal32(tlx_afu_vc1_mad_top, 0x0, 8);
+    *tlx_afu_vc1_valid_top = 0x0;
     setDpiSignal32(tlx_afu_vc2_opcode_top, 0x0, 8);
     setDpiSignal32(tlx_afu_vc2_capptag_top, 0x0, 16);
     setDpiSignal64(tlx_afu_vc2_ea_top, 0x0);
@@ -1011,6 +1049,12 @@ void tlx_bfm(
     setDpiSignal32(tlx_afu_vc2_pasid_top, 0x0, 20);
     setDpiSignal32(tlx_afu_vc2_bdf_top, 0x0, 16);
     *tlx_afu_vc2_valid_top = 0;
+    *tlx_afu_dcp0_data_valid_top = 0;
+    *tlx_afu_dcp0_data_bdi_top = 0;
+    *tlx_afu_dcp1_data_valid_top = 0;
+    *tlx_afu_dcp1_data_bdi_top = 0;
+    setMyCacheLine( tlx_afu_dcp0_data_bus_top, c_clearedCacheline );
+    setMyCacheLine( tlx_afu_dcp1_data_bus_top, c_clearedCacheline );
   }
   c_reset_d4 = c_reset_d3;
   c_reset_d3 = c_reset_d2;
