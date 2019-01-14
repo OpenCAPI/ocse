@@ -191,6 +191,7 @@ int main(int argc, char *argv[])
 	   nanosleep(&t, &t);
 	   //printf("Polling read completion status = 0x%x\n", *status);
     }
+    printf("Read command is completed\n");
     // clear machine config
     rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED);
     if(rc != 0) {
@@ -211,20 +212,21 @@ int main(int argc, char *argv[])
     rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
     //status[0] = 0xff;
     if(rc != -1) {
-	printf("Response = 0x%x\n", rc);
- 	printf("config_enable_and_run_machine PASS\n");
+	   printf("Response = 0x%x\n", rc);
+ 	  printf("config_enable_and_run_machine PASS\n");
     }
     else {
-	printf("FAILED: config_enable_and_run_machine\n");
-	goto done;
+	   printf("FAILED: config_enable_and_run_machine\n");
+	   goto done;
     }
     printf("set status data = 0xff\n");
     status[0] = 0xff;
+    printf("Waiting for write command completion status\n");
     while(status[0] != 0x00) {
-	nanosleep(&t, &t);
-	printf("Polling write completion status = 0x%x\n", *status);
+	   nanosleep(&t, &t);
+	//printf("Polling write completion status = 0x%x\n", *status);
     }
-
+    printf("Write command is completed\n");
     // clear machine config
     rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED);
     if(rc != 0) {
@@ -234,34 +236,34 @@ int main(int argc, char *argv[])
 
     printf("wcacheline = 0x");
     for(i=0; i<CACHELINE; i++) {
-	printf("%02x", (uint8_t)wcacheline[i]);
+	   printf("%02x", (uint8_t)wcacheline[i]);
     }
     printf("\n");
 
     printf("set status data = 0x55\n");
     status[0] = 0x55;	// test complete flag
+    printf("Waiting for test complete status\n");
     while(status[0] != 0x0) {
-	nanosleep(&t, &t);
-	printf("Polling mafu test completion status\n");
+	   nanosleep(&t, &t);
     }
 
     printf("Attempt open device for safu\n");
     //rc = ocxl_afu_open_from_dev(MDEVICE, &safu_h);
     rc = ocxl_afu_open_specific(NAME, PHYSICAL_FUNCTION, 0, &safu_h);
     if(rc != 0) {
-	perror("cxl_afu_open_dev: for safu"MDEVICE);
-	return -1;
+	   perror("cxl_afu_open_dev: for safu"MDEVICE);
+	   return -1;
     }
     printf("Attaching safu device ....\n");
     rc = ocxl_afu_attach(safu_h, 0);
     if(rc != 0) {
-	perror("cxl_afu_attach: for safu"MDEVICE);
-	return -1;
+	   perror("cxl_afu_attach: for safu"MDEVICE);
+	   return -1;
     }
     printf("Attempt mmio map safu registers\n");
     if(ocxl_mmio_map(safu_h, OCXL_PER_PASID_MMIO, &pp_mmio_h) != 0) {
-	printf("AFILED: ocxl_mmio_map safu\n");
-	goto done;
+	   printf("AFILED: ocxl_mmio_map safu\n");
+	   goto done;
     }
 
     rc = ocxl_afu_irq_alloc(safu_h, NULL, &irq_h);
@@ -274,8 +276,8 @@ int main(int argc, char *argv[])
     config_param.mem_base_address = (uint64_t)irq_id;
     rc = config_enable_and_run_machine(safu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
     if(rc != -1) {
-	printf("Response = 0x%x\n", rc);
- 	printf("safu config_enable_and_run_machine PASS\n");
+	   printf("Response = 0x%x\n", rc);
+       printf("safu config_enable_and_run_machine PASS\n");
     }
     else {
 	printf("FAILED: config_enable_and_run_machine\n");
@@ -284,8 +286,8 @@ int main(int argc, char *argv[])
     printf("set status data = 0xff\n");
     status[0] = 0xff;
     while(status[0] != 0x0) {
-	nanosleep(&t, &t);
-	printf("Polling interrupt completion status\n");
+	   nanosleep(&t, &t);
+	   printf("Polling interrupt completion status\n");
     }
     // clear machine config
     rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED);
@@ -297,16 +299,16 @@ int main(int argc, char *argv[])
     rc = ocxl_afu_event_check(safu_h, NULL, &event, 1);
     printf("Returned from ocxl_read_event -> there is an interrupt\n");
     if(rc == 0) {
-	printf("Error retrieving interrupt event %d\n", rc);
-	return -1;
+	   printf("Error retrieving interrupt event %d\n", rc);
+	   return -1;
     }
     //ocxl_mmio_write64(safu_h, ProcessControl_REGISTER, PROCESS_CONTROL_RESTART);
     ocxl_mmio_write64(pp_mmio_h, WED_REGISTER, OCXL_MMIO_LITTLE_ENDIAN, (uint64_t)work_element_descriptor);
     // set test status to completion
     status[0] = 0x55;
     while(status[0] != 0x0) {
-	nanosleep(&t, &t);
-	printf("Polling test completion status = 0x%x\n", status[0]);
+	   nanosleep(&t, &t);
+	   printf("Polling test completion status = 0x%x\n", status[0]);
     }
 done:
     // free device

@@ -610,19 +610,19 @@ AFU::resolve_tlx_afu_cmd()
 void
 AFU::resolve_tlx_afu_resp()
 {
-    uint8_t tlx_resp_opcode;
+    uint8_t tlx_resp_opcode, afu_resp_opcode;
     uint16_t resp_afutag;
     uint8_t  resp_code;
     uint8_t  resp_pg_size;
-    uint8_t  resp_resp_dl;
+    uint8_t  resp_dl;
     uint32_t resp_host_tag;
     uint8_t  resp_cache_state;
     uint8_t  resp_dp;
-    uint16_t resp_capp_tag;
+    uint16_t resp_capptag;
     uint8_t  cmd_rd_req, cmd_rd_cnt;
-    uint8_t  resp_data_bdi;
+    uint8_t  rdata_bdi;
     uint8_t  cdata_bad;
-    uint8_t  i;
+    uint8_t  rdata_valid, i;
     uint8_t  resp_ef, resp_w, resp_mh;
     uint64_t resp_pa_or_ta;
     uint8_t  afu_cmd_opcode, cmd_dl, cmd_cache_state;
@@ -630,7 +630,7 @@ AFU::resolve_tlx_afu_resp()
     uint32_t cmd_host_tag;
 
     tlx_resp_opcode = 0;
-    resp_data_bdi = afu_event.tlx_afu_dcp0_data_bdi;
+    rdata_bdi = afu_event.tlx_afu_dcp0_data_bdi;
 
     //if(mem_state == WAITING_FOR_DATA) {
     if(resp_state == WAITING_FOR_DATA) {
@@ -638,7 +638,7 @@ AFU::resolve_tlx_afu_resp()
 	if(status_resp_valid) {
 	    debug_msg("AFU: read_resp_data for status_resp_valid");
 	    status_resp_valid = 0;
-	    tlx_afu_read_dcp0_data(&afu_event, &resp_data_bdi, status_data);
+	    tlx_afu_read_dcp0_data(&afu_event, &rdata_bdi, status_data);
 	    printf("status data = 0x");
 	    for(i=0; i<64; i++) {
 		printf("%02x", (uint8_t)status_data[i]);
@@ -647,7 +647,7 @@ AFU::resolve_tlx_afu_resp()
 	}
 	else {
 	    debug_msg("AFU: read_resp_data for memory");
-	    tlx_afu_read_dcp0_data(&afu_event, &resp_data_bdi, memory);
+	    tlx_afu_read_dcp0_data(&afu_event, &rdata_bdi, memory);
 	    printf("memory = 0x");
 	    for(i=0; i<64; i++) {
 		printf("%02x", (uint8_t)memory[i]);
@@ -661,10 +661,10 @@ AFU::resolve_tlx_afu_resp()
     }
     else {
     	tlx_afu_read_cmd_resp_vc0(&afu_event, &tlx_resp_opcode, &resp_afutag, 
-		&resp_code, &resp_pg_size, &resp_resp_dl,
+		&resp_code, &resp_pg_size, &resp_dl,
 		&resp_host_tag, &resp_cache_state,
 		&resp_ef, &resp_w, &resp_mh, &resp_pa_or_ta,
-		&resp_dp, &resp_capp_tag);
+		&resp_dp, &resp_capptag);
  
 //	read_resp_completed = 1;	//debug1
     }
@@ -709,10 +709,9 @@ AFU::resolve_tlx_afu_resp()
 	    }
 	    printf("\n");
 	    cdata_bad = 0;
-	    afu_tlx_send_cmd_vc2_and_dcp2_data(&afu_event, afu_cmd_opcode,
-	    	cmd_dl, cmd_host_tag, cmd_cache_state, 
-	    	cmd_cmdflg,
-	    	cdata_bdi, memory);
+	    afu_tlx_send_resp_vc0_and_dcp0(&afu_event, afu_resp_opcode,
+	    	resp_dl, resp_capptag, resp_dp, resp_code, 
+	    	rdata_valid, memory, rdata_bdi);
 	    write_resp_completed = 1;
 	    printf("write status tag = 0x%x\n", write_status_tag);
 	    printf("afutag = 0x%x\n", afu_event.tlx_afu_vc0_afutag);
