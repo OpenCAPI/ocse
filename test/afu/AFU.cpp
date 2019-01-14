@@ -1226,6 +1226,7 @@ AFU::write_app_status(uint8_t *address, uint32_t data)
     memcpy((void*)&ea_addr, (void*)&address, sizeof(uint64_t));
     printf("AFU: status address = 0x%p and data = 0x%x\n", address, data);
     printf("AFU: afutag = 0x%x\n", cmd_afutag);
+    afu_event.afu_tlx_vc3_dl = 0x01;
     //cmd_op=0x20, dl=0x01, pl=0x02
     memcpy(afu_event.afu_tlx_dcp3_data_bus, &data, 64);
 
