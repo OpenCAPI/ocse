@@ -266,45 +266,44 @@ AFU::start ()
 	}
 	// enable AFU
 	if(state == IDLE) {
-	    if(afu_enable_reset) {
-	    	printf("checking afu enable bit\n");
-	    	if(afu_is_enabled()) {
-	    	    debug_msg("AFU is enabled");
-	    	    debug_msg("AFU: set state = READY");
-	    	    state = READY;
+	  if(afu_enable_reset) {
+	   	printf("checking afu enable bit\n");
+	   	if(afu_is_enabled()) {
+	      debug_msg("AFU is enabled");
+	      debug_msg("AFU: set state = READY");
+	      state = READY;
 		    afu_enable_reset = 0;
-	        }
 	    }
+	  }
 	}
 	// get machine context and create new MachineController
 	else if(state == READY) {
-	    if(get_machine_context()) {
-		if(gDUT==1) {
+	  if(get_machine_context()) {
+			if(gDUT==1) {
 		    printf("gDUT = %d\n", gDUT);
 		    gBDF = 1;
 		    gACTAG++;
-		}
-		else if(gDUT == 2) {
+			}
+			else if(gDUT == 2) {
 		    printf("gDUT = %d\n", gDUT);
 		    gBDF++;
 		    gACTAG++;
 	  	}
-		printf("AFU: gBDF = %d gACTAG = %d\n", gBDF, gACTAG);
-		afu_event.afu_tlx_vc3_bdf = gBDF;
-		afu_event.afu_tlx_vc3_actag = gACTAG;
-		afu_event.afu_tlx_vc3_opcode = AFU_CMD_ASSIGN_ACTAG;
-		printf("AFU: request afu assign actag\n");
-		request_assign_actag();
-	    	printf("AFU: set state = RUNNING\n");
-	    	state = RUNNING;
-		//debug1
-		read_resp_completed = 0;
-		write_resp_completed = 0;
-		other_resp_completed = 0;
-	    }
+			printf("AFU: gBDF = %d gACTAG = %d\n", gBDF, gACTAG);
+			afu_event.afu_tlx_vc3_bdf = gBDF;
+			afu_event.afu_tlx_vc3_actag = gACTAG;
+			afu_event.afu_tlx_vc3_opcode = AFU_CMD_ASSIGN_ACTAG;
+			printf("AFU: request afu assign actag\n");
+			request_assign_actag();
+	    printf("AFU: set state = RUNNING\n");
+	    state = RUNNING;
+			//debug1
+			read_resp_completed = 0;
+			write_resp_completed = 0;
+			other_resp_completed = 0;
+	  }
 	}
-  	
-        // generate commands, initial read_resp_completed=0; write_resp_completed=0
+  // generate commands, initial read_resp_completed=0; write_resp_completed=0
 	// initial cmd_ready=1; next_cmd=0, other_resp_competed=0;
   else if (state == RUNNING) {
 		if((read_resp_completed ||  write_resp_completed || other_resp_completed) &&
@@ -348,67 +347,66 @@ AFU::start ()
 					state = READY;
 		    }
 			}
-		else {
-		  debug_msg("AFU: waiting for new cmd from app");
-		}
-	    }
-            else if(cmd_ready) {
-		cmd_ready = 0;
-		if(context_to_mc.size () != 0) {
-			printf("AFU: context to mc size = %d\n", context_to_mc.size());
-                	std::map < uint16_t, MachineController * >::iterator prev = highest_priority_mc;
-                    do {
-                    if(highest_priority_mc == context_to_mc.end ())
-                        highest_priority_mc = context_to_mc.begin ();
-		// calling MachineController send command
-			printf("AFU: context = %d mc = 0x%x\n", highest_priority_mc->first, highest_priority_mc->second);
+			else {
+		  	debug_msg("AFU: waiting for new cmd from app");
+			}
+	  }
+    else if(cmd_ready) {
+			cmd_ready = 0;
+			if(context_to_mc.size () != 0) {
+				printf("AFU: context to mc size = %d\n", context_to_mc.size());
+          std::map < uint16_t, MachineController * >::iterator prev = highest_priority_mc;
+          do {
+              if(highest_priority_mc == context_to_mc.end ())
+                highest_priority_mc = context_to_mc.begin ();
+							// calling MachineController send command
+							printf("AFU: context = %d mc = 0x%x\n", highest_priority_mc->first, 
+								highest_priority_mc->second);
 	
-                    	if(highest_priority_mc->second->send_command(&afu_event, cycle)) {
-                        	++highest_priority_mc;
-                        	break;
-                    	    }
-                        ++highest_priority_mc;
-                	} while (++highest_priority_mc != prev);
-		}
-            }
-	    else if(retry_cmd) {
-		printf("AFU: attempt retry command\n");
-		highest_priority_mc->second->resend_command(&afu_event, cycle);
-		retry_cmd = 0;
-	    }
-        }
+              if(highest_priority_mc->second->send_command(&afu_event, cycle)) {
+                ++highest_priority_mc;
+                    break;
+              }
+              ++highest_priority_mc;
+          } while (++highest_priority_mc != prev);
+			}
+    }
+	  else if(retry_cmd) {
+			printf("AFU: attempt retry command\n");
+			highest_priority_mc->second->resend_command(&afu_event, cycle);
+			retry_cmd = 0;
+	  }
+  }
         else if (state == RESET) {
 	    debug_msg("AFU: resetting");
 	    debug_msg("AFU: set AFU state = READY");
       	    reset ();
 	    state = READY;
 	}
-        else if (state == WAITING_FOR_LAST_RESPONSES) {
-            //debug_msg("AFU: waiting for last responses");
-            bool all_machines_completed = true;
-	    uint32_t  response;
-	    uint32_t  offset;
+  else if (state == WAITING_FOR_LAST_RESPONSES) {
+    //debug_msg("AFU: waiting for last responses");
+    bool all_machines_completed = true;
+	  uint32_t  response;
+	  uint32_t  offset;
 	  
-	    response = 0x00000000;
-	    offset  = 0x1008 + 0x1000 * afu_event.afu_tlx_vc3_pasid;
-	    descriptor.set_mmio_mem(offset, (char*)&response, 4);
-            for (std::map < uint16_t, MachineController * >::iterator it =
-                        context_to_mc.begin (); it != context_to_mc.end (); ++it)
-            {
-                if (!(it->second)->all_machines_completed ())
-                    all_machines_completed = false;
-            }
-
-            if (all_machines_completed) {
-                debug_msg ("AFU: machine completed");
-
-                reset_machine_controllers ();
-              
-                state = HALT;
-		debug_msg("AFU: state = HALT");
-            }
-        }
+	  response = 0x00000000;
+	  offset  = 0x1008 + 0x1000 * afu_event.afu_tlx_vc3_pasid;
+	  descriptor.set_mmio_mem(offset, (char*)&response, 4);
+    for (std::map < uint16_t, MachineController * >::iterator it =
+      context_to_mc.begin (); it != context_to_mc.end (); ++it)
+    {
+      if (!(it->second)->all_machines_completed ())
+            all_machines_completed = false;
     }
+
+    if (all_machines_completed) {
+      debug_msg ("AFU: machine completed");
+      reset_machine_controllers ();        
+      state = HALT;
+			debug_msg("AFU: state = HALT");
+    }
+  }
+}
 }
 
 AFU::~AFU ()
@@ -715,7 +713,7 @@ AFU::resolve_tlx_afu_resp()
 	    write_resp_completed = 1;
 	    printf("write status tag = 0x%x\n", write_status_tag);
 	    printf("afutag = 0x%x\n", afu_event.tlx_afu_vc0_afutag);
-	    if(write_status_tag == afu_event.tlx_afu_vc0_afutag)
+	    //if(write_status_tag == afu_event.tlx_afu_vc0_afutag)
 	    	write_status_resp = 1;	
 	    break;
 	case TLX_RSP_WRITE_FAILED:
