@@ -1383,11 +1383,12 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		printf("      adding afu_tlx_vc3\n");
 		event->tbuf[0] = event->tbuf[0] | 0x01;  //signal more than just a clk
 		event->tbuf[1] = event->tbuf[1] | 0x80;
+		//printf(" afu_tlx_vc3_afutag= 0x%4x\n", event->afu_tlx_vc3_afutag);
 		// printf("event->tbuf[0] is 0x%2x \n", event->tbuf[0]);
 		event->tbuf[bp++] = event->afu_tlx_vc3_opcode;
 		event->tbuf[bp++] = (event->afu_tlx_vc3_stream_id & 0x0f);
 		event->tbuf[bp++] = ((event->afu_tlx_vc3_afutag) >> 8 ) & 0xFF;
-		event->tbuf[bp++] = (event->afu_tlx_vc1_afutag & 0xFF);
+		event->tbuf[bp++] = (event->afu_tlx_vc3_afutag & 0xFF);
 		event->tbuf[bp++] = ((event->afu_tlx_vc3_actag) >> 8) & 0xFF;
 		event->tbuf[bp++] = (event->afu_tlx_vc3_actag & 0xFF);
 		for (i = 0; i < 9; i++) {
@@ -2712,8 +2713,8 @@ int afu_tlx_send_cmd_vc3(struct AFU_EVENT *event,
 		return AFU_TLX_DOUBLE_COMMAND;
 	}
 
-        debug_msg( "afu_tlx_send_cmd_vc3: opcode=0x%02x actag=0x%04x bdf=0x%04x pasid=0x%08x",
-		   afu_cmd_opcode, cmd_actag, cmd_bdf, cmd_pasid );
+        debug_msg( "afu_tlx_send_cmd_vc3: opcode=0x%02x cmd_dl=0x%02x actag=0x%04x bdf=0x%04x pasid=0x%08x",
+		   afu_cmd_opcode, cmd_dl, cmd_actag, cmd_bdf, cmd_pasid );
 	event->afu_tlx_vc3_valid = 1;
 	event->tlx_afu_vc3_credits_available -= 1;
 	event->afu_tlx_vc3_opcode = afu_cmd_opcode;
