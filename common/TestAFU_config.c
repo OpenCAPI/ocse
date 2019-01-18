@@ -101,21 +101,21 @@ int enable_machine(ocxl_afu_h afu, ocxl_mmio_h pp_mmio_h, MachineConfig *machine
 
 int clear_machine_config(ocxl_mmio_h pp_mmio_h, MachineConfig *machine, MachineConfigParam param, int mode)
 {
-    int i;
-    uint16_t machine_number;
-    uint16_t context;
-    int machine_config_base_address;
+  int i;
+  uint16_t machine_number;
+  uint16_t context;
+  int machine_config_base_address;
 
-    context = param.context;
-    machine_number = param.machine_number;
-    machine_config_base_address = _machine_base_address_index(machine_number, mode);
-    machine_config_base_address += context * 0x1000;
+  context = param.context;
+  machine_number = param.machine_number;
+  machine_config_base_address = _machine_base_address_index(machine_number, mode);
+  machine_config_base_address += context * 0x1000;
 
-    if(ocxl_mmio_write64(pp_mmio_h, machine_config_base_address, OCXL_MMIO_LITTLE_ENDIAN, 0x0)) {
-	printf("Failed to clear machine config\n");
-	return -1;
-    }
-    return 0;
+  if(ocxl_mmio_write64(pp_mmio_h, machine_config_base_address, OCXL_MMIO_LITTLE_ENDIAN, 0x0)) {
+		printf("Failed to clear machine config\n");
+		return -1;
+  }
+  return 0;
 }
 // Function to read config from AFU
 int poll_machine(ocxl_mmio_h pp_mmio_h, MachineConfig *machine, uint16_t context, int mode) {

@@ -31,6 +31,7 @@
 
 #define CACHELINE 128
 #define MDEVICE "/dev/cxl/tlx0.0000:00:00.1.0"
+#define SDEVICE "/dev/cxl/tlx0,000:00:00.2.0"
 #define NAME    "IBM,MAFU"
 #define PHYSICAL_FUNCTION   "1234:00:00.1"
 #define WED_REGISTER 0x0000 
