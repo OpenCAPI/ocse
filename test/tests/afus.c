@@ -229,6 +229,7 @@ int main(int argc, char *argv[])
     }
     printf("Write command is completed\n");
     // clear machine config
+    printf("Clear Machine Config\n");
     rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED);
     if(rc != 0) {
 	printf("Failed to clear machine config\n");
@@ -247,7 +248,7 @@ int main(int argc, char *argv[])
     while(status[0] != 0x0) {
 	   nanosleep(&t, &t);
     }
-
+    printf("Test is completed\n");
     printf("Attempt open device for safu\n");
     //rc = ocxl_afu_open_from_dev(MDEVICE, &safu_h);
     rc = ocxl_afu_open_specific(NAME, PHYSICAL_FUNCTION, 0, &safu_h);

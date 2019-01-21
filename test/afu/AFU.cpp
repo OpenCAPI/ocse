@@ -219,10 +219,14 @@ AFU::start ()
 	}
 	// process tlx response
 	if (afu_event.tlx_afu_vc0_valid) {
-	    debug_msg("AFU: Received TLX response 0x%x", afu_event.tlx_afu_vc0_opcode);
-	    resolve_tlx_afu_resp();
-	    afu_event.afu_tlx_vc0_credit = 1;	// return a resp credit to tlx
-	    afu_event.tlx_afu_vc0_valid = 0;
+		if(afu_event.tlx_afu_vc0_opcode == 0x4)
+	    debug_msg("AFU: Received TLX_RESP_READ_RESP");
+	  else
+	  	debug_msg("AFU: Received TLX response 0x%x", afu_event.tlx_afu_vc0_opcode);
+
+	  resolve_tlx_afu_resp();
+	  afu_event.afu_tlx_vc0_credit = 1;	// return a resp credit to tlx
+	  afu_event.tlx_afu_vc0_valid = 0;
 	}
 	// process tlx config response
 	if (afu_event.tlx_cfg_resp_ack) {
@@ -676,7 +680,7 @@ AFU::resolve_tlx_afu_resp()
 	    break;
 		case TLX_RSP_READ_RESP:
 	    read_resp_completed = 1;	// debug1
-	    debug_msg("AFU: read_resp: calling afu_tlx_resp_data_read_req");
+	    debug_msg("AFU: received tlx_resp_read_resp: calling afu_tlx_resp_data_read_req");
 	    read_status_resp = 1;
 	    cmd_rd_req = 0x1;	
 	    cmd_rd_cnt = 0x1; 	// 0=512B, 1=64B, 2=128B
@@ -1262,14 +1266,14 @@ AFU::read_app_status(uint8_t *address)
 
     memcpy((void*)&ea_addr, (void*)&address, sizeof(uint64_t));
     printf("AFU: status address = 0x%p\n", address);
-    printf("AFU: afutag = 0x%x\n", cmd_afutag);
+    printf("AFU: pr_read afutag = 0x%x\n", cmd_afutag);
     status_resp_valid = 1;
     // cmd_opcode=0x12, dl=00, pl=03
     afu_tlx_send_cmd_vc3(&afu_event, 
     	0x12, 	// afu_cmd_opcode
     	afu_event.afu_tlx_vc3_actag,
 			afu_event.afu_tlx_vc3_stream_id, ea_addr,
-			afu_event.afu_tlx_vc3_afutag,
+			cmd_afutag,
 			afu_event.afu_tlx_vc3_dl,
 			afu_event.afu_tlx_vc3_pl,
 			afu_event.afu_tlx_vc3_os,
