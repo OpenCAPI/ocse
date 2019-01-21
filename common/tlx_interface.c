@@ -1383,7 +1383,7 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		printf("      adding afu_tlx_vc3\n");
 		event->tbuf[0] = event->tbuf[0] | 0x01;  //signal more than just a clk
 		event->tbuf[1] = event->tbuf[1] | 0x80;
-		//printf(" afu_tlx_vc3_afutag= 0x%4x\n", event->afu_tlx_vc3_afutag);
+		printf(" afu_tlx_vc3_afutag= 0x%4x\n", event->afu_tlx_vc3_afutag);
 		// printf("event->tbuf[0] is 0x%2x \n", event->tbuf[0]);
 		event->tbuf[bp++] = event->afu_tlx_vc3_opcode;
 		event->tbuf[bp++] = (event->afu_tlx_vc3_stream_id & 0x0f);
@@ -2709,7 +2709,7 @@ int afu_tlx_send_cmd_vc3(struct AFU_EVENT *event,
 	}
 
 	if (event->afu_tlx_vc3_valid) {
-		warn_msg("afu_tlx_send_cmd_vc3: double command", event->tlx_afu_vc3_credits_available);
+		warn_msg("afu_tlx_send_cmd_vc3: double command");
 		return AFU_TLX_DOUBLE_COMMAND;
 	}
 
@@ -2750,6 +2750,10 @@ int afu_tlx_send_dcp3_data( struct AFU_EVENT *event,
     warn_msg("afu_tlx_send_dcp3_data: no credits available", event->tlx_afu_dcp3_credits_available);
     return TLX_AFU_NO_CREDITS;
    }
+	if (event->afu_tlx_dcp3_data_valid) {
+		printf("afu_tlx_send_cmd_vc3: double data");
+		return AFU_TLX_DOUBLE_DATA;
+	}
 
   event->afu_tlx_dcp3_data_valid = 1;
   event->tlx_afu_dcp3_credits_available -= 1;
