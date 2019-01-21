@@ -29,6 +29,10 @@
 
 // ==================================================================
 // Constant/Variable declarations
+static struct DATA_PKT *new_vc0data_pkt;
+static struct DATA_PKT *old_vc0data_pkt;
+static struct DATA_PKT *new_vc1data_pkt;
+static struct DATA_PKT *old_vc1data_pkt;
 static struct AFU_EVENT event;
 
 #define CLOCK_EDGE_DELAY 2
@@ -461,9 +465,9 @@ void tlx_bfm(
 {
   int invalidVal = 0;
   int i = 0;
-//  int j = 0;
+  int j = 0;
   int rc= 0;
-//  int new_line_cnt;
+  int new_line_cnt;
   
   c_reset			= reset & 0x1;
   // print some values
@@ -617,6 +621,7 @@ void tlx_bfm(
       {
         c_afu_tlx_dcp0_rd_cnt	= (afu_tlx_dcp0_rd_cnt_top->aval) & 0x7;
         invalidVal		+= (afu_tlx_dcp0_rd_cnt_top->bval) & 0x7;
+	event.dcp0_data_rd_cnt = event.dcp0_data_rd_cnt + decode_rd_cnt( c_afu_tlx_dcp0_rd_cnt );
         printf("%08lld: ", (long long) c_sim_time);
         int resp_code = afu_tlx_dcp0_data_read_req(&event, 
                             c_afu_tlx_dcp0_rd_req, c_afu_tlx_dcp0_rd_cnt);
@@ -632,6 +637,7 @@ void tlx_bfm(
       {
         c_afu_tlx_dcp1_rd_cnt	= (afu_tlx_dcp1_rd_cnt_top->aval) & 0x7;
         invalidVal		+= (afu_tlx_dcp1_rd_cnt_top->bval) & 0x7;
+	event.dcp1_data_rd_cnt = event.dcp1_data_rd_cnt + decode_rd_cnt( c_afu_tlx_dcp1_rd_cnt );
         printf("%08lld: ", (long long) c_sim_time);
         int resp_code = afu_tlx_dcp1_data_read_req(&event, 
                             c_afu_tlx_dcp1_rd_req, c_afu_tlx_dcp1_rd_cnt);
@@ -854,6 +860,41 @@ void tlx_bfm(
         event.tlx_afu_vc0_valid = 0;
         printf("%08lld: ", (long long) c_sim_time);
         printf(" The TLX-AFU VC0 Response with OPCODE=0x%x \n",  event.tlx_afu_vc0_opcode);
+        if(event.tlx_afu_dcp0_data_valid){
+	  // split it into 64 B chucks an add it to the tail of a fifo
+	  // the event struct can hold the head and tail pointers, and a rd_cnt that we get later
+	  // the afu will issue afu_tlx_dcp0_rd_req later to tell us to start to pump the data out
+	  // imbed the check for tlx_afu_dcp0_data_valid in here to grab the data, if any.
+	  // event->tlx_afu_dcp0_data has all the data
+	  // use dl to create dl 64 B enties in a fifo linked list dcp0_data_head, dcp0_data_tail, dcp0_data_rd_cnt
+	  // cdata_pkt contain _next, and 64 B of cdata
+          if(event.tlx_afu_vc0_dl == 0) {
+            new_line_cnt = 1;
+          } else{
+            new_line_cnt = decode_dl(event.tlx_afu_vc0_dl);
+          }
+          for ( i = 0; i < new_line_cnt; i++ ) {
+            new_vc0data_pkt = (struct DATA_PKT *)malloc( sizeof( struct DATA_PKT ) );
+  	    new_vc0data_pkt->_next = NULL;
+  	    for ( j=0; j<64; j++ ) {
+	      new_vc0data_pkt->data[j] = event.tlx_afu_dcp0_data[(64*i)+j];
+#ifdef DEBUG
+	      printf( "%02x", event.tlx_afu_dcp0_data[(64*i)+j] );
+#endif	      
+	    }
+#ifdef DEBUG
+	    printf( "\n" );
+#endif	      
+	    // put the packet at the tail of the fifo
+	    if ( event.dcp0_data_head == NULL ) {
+	      event.dcp0_data_head = new_vc0data_pkt;
+	    } else {
+	      event.dcp0_data_tail->_next = new_vc0data_pkt;
+	    }
+	    event.dcp0_data_tail = new_vc0data_pkt;
+          }
+          event.tlx_afu_dcp0_data_valid = 0;
+        }
       }
       if (clk_afu_vc0_val) {
       	--clk_afu_vc0_val;
@@ -862,15 +903,19 @@ void tlx_bfm(
       }
 
       // Table 3: TLX to AFU DCP0 Data Interface
-      if(c_tlx_dcp0_data_pending && event.tlx_afu_dcp0_data_valid)
+      if(c_tlx_dcp0_data_pending || (event.dcp0_data_rd_cnt > 0))
       {
         c_tlx_dcp0_data_pending = 0;
         *tlx_afu_dcp0_data_bdi_top     = (event.tlx_afu_dcp0_data_bdi) & 0x1;
-        setMyCacheLine( tlx_afu_dcp0_data_bus_top, event.tlx_afu_dcp0_data );
+        setMyCacheLine( tlx_afu_dcp0_data_bus_top, event.dcp0_data_head->data );
         *tlx_afu_dcp0_data_valid_top = 1;
         clk_tlx_dcp0_data_val = CLOCK_EDGE_DELAY;
+        event.dcp0_data_rd_cnt = event.dcp0_data_rd_cnt - 1;
+	old_vc0data_pkt = event.dcp0_data_head;
+	event.dcp0_data_head = event.dcp0_data_head->_next;
+	free( old_vc0data_pkt ); // DANGER - if this is the last one, tail will point to unallocated memory
         printf("%08lld: ", (long long) c_sim_time);
-        printf(" The TLX-AFU VC0 Data at Cnt =0x%x \n",  c_afu_tlx_dcp0_rd_cnt);
+        printf(" The TLX-AFU VC0 with Data Available \n");
       }
       if (clk_tlx_dcp0_data_val) {
       	--clk_tlx_dcp0_data_val;
@@ -899,6 +944,41 @@ void tlx_bfm(
         event.tlx_afu_vc1_valid = 0;
         printf("%08lld: ", (long long) c_sim_time);
         printf(" The TLX-AFU VC1 Response with OPCODE=0x%x \n",  event.tlx_afu_vc1_opcode);
+        if(event.tlx_afu_dcp1_data_valid){
+	  // split it into 64 B chucks an add it to the tail of a fifo
+	  // the event struct can hold the head and tail pointers, and a rd_cnt that we get later
+	  // the afu will issue afu_tlx_dcp1_rd_req later to tell us to start to pump the data out
+	  // imbed the check for tlx_afu_dcp1_data_valid in here to grab the data, if any.
+	  // event->tlx_afu_dcp1_data has all the data
+	  // use dl to create dl 64 B enties in a fifo linked list dcp1_data_head, dcp1_data_tail, dcp1_data_rd_cnt
+	  // cdata_pkt contain _next, and 64 B of cdata
+          if(event.tlx_afu_vc1_dl == 0) {
+            new_line_cnt = 1;
+          } else{
+            new_line_cnt = decode_dl(event.tlx_afu_vc1_dl);
+          }
+          for ( i = 0; i < new_line_cnt; i++ ) {
+            new_vc1data_pkt = (struct DATA_PKT *)malloc( sizeof( struct DATA_PKT ) );
+  	    new_vc1data_pkt->_next = NULL;
+  	    for ( j=0; j<64; j++ ) {
+	      new_vc1data_pkt->data[j] = event.tlx_afu_dcp1_data[(64*i)+j];
+#ifdef DEBUG
+	      printf( "%02x", event.tlx_afu_dcp1_data[(64*i)+j] );
+#endif	      
+	    }
+#ifdef DEBUG
+	    printf( "\n" );
+#endif	      
+	    // put the packet at the tail of the fifo
+	    if ( event.dcp1_data_head == NULL ) {
+	      event.dcp1_data_head = new_vc1data_pkt;
+	    } else {
+	      event.dcp1_data_tail->_next = new_vc1data_pkt;
+	    }
+	    event.dcp1_data_tail = new_vc1data_pkt;
+          }
+          event.tlx_afu_dcp1_data_valid = 0;
+        }
       }
       if (clk_afu_vc1_val) {
       	--clk_afu_vc1_val;
@@ -907,13 +987,17 @@ void tlx_bfm(
       }
 
       // Table 5: TLX Receiver - TLX to AFU DCP1 Data Interface
-      if(c_tlx_dcp1_data_pending && event.tlx_afu_dcp1_data_valid)
+      if(c_tlx_dcp1_data_pending || (event.dcp1_data_rd_cnt > 0))
       {
         c_tlx_dcp1_data_pending = 0;
         *tlx_afu_dcp1_data_bdi_top     = (event.tlx_afu_dcp1_data_bdi) & 0x1;
-        setMyCacheLine( tlx_afu_dcp1_data_bus_top, event.tlx_afu_dcp1_data );
+        setMyCacheLine( tlx_afu_dcp1_data_bus_top, event.dcp1_data_head->data );
         *tlx_afu_dcp1_data_valid_top = 1;
         clk_tlx_dcp1_data_val = CLOCK_EDGE_DELAY;
+        event.dcp1_data_rd_cnt = event.dcp1_data_rd_cnt - 1;
+	old_vc1data_pkt = event.dcp1_data_head;
+	event.dcp1_data_head = event.dcp1_data_head->_next;
+	free( old_vc1data_pkt ); // DANGER - if this is the last one, tail will point to unallocated memory
         printf("%08lld: ", (long long) c_sim_time);
         printf(" The TLX-AFU VC1 Data at Cnt =0x%x \n",  c_afu_tlx_dcp1_rd_cnt);
       }
