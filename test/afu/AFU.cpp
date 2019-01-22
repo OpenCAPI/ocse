@@ -1237,7 +1237,7 @@ AFU::write_app_status(uint8_t *address, uint32_t data)
     	0x20, //afu_event.afu_tlx_vc3_opcode,
     	afu_event.afu_tlx_vc3_actag, 
 			afu_event.afu_tlx_vc3_stream_id, ea_addr, 
-			afu_event.afu_tlx_vc3_afutag,
+			cmd_afutag,
 			afu_event.afu_tlx_vc3_dl,
 			afu_event.afu_tlx_vc3_pl,
 			afu_event.afu_tlx_vc3_os,
