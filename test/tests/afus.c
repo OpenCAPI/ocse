@@ -287,9 +287,10 @@ int main(int argc, char *argv[])
     }
     printf("set status data = 0xff\n");
     status[0] = 0xff;
+    printf("Polling interrupt completion status\n");
     while(status[0] != 0x0) {
 	   nanosleep(&t, &t);
-	   printf("Polling interrupt completion status\n");
+	   //printf("Polling interrupt completion status\n");
     }
     // clear machine config
     rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED);
@@ -307,11 +308,14 @@ int main(int argc, char *argv[])
     //ocxl_mmio_write64(safu_h, ProcessControl_REGISTER, PROCESS_CONTROL_RESTART);
     ocxl_mmio_write64(pp_mmio_h, WED_REGISTER, OCXL_MMIO_LITTLE_ENDIAN, (uint64_t)work_element_descriptor);
     // set test status to completion
+    printf("send test completing status.  set status data to 0x55\n");
     status[0] = 0x55;
+    printf("Polling test completion status\n");
     while(status[0] != 0x0) {
 	   nanosleep(&t, &t);
-	   printf("Polling test completion status = 0x%x\n", status[0]);
+	   //printf("Polling test completion status = 0x%x\n", status[0]);
     }
+    printf("test is completed\n");
 done:
     // free device
     printf("Freeing safu device ... \n");

@@ -119,7 +119,7 @@ AFU::start ()
 {
 		uint32_t cycle = 0;
   	uint8_t  initial_credit_flag = 0;
-    uint16_t index=0;
+    //uint16_t index=0;
 
     // afu_status setup
     key_t		ShmKEY;
@@ -358,7 +358,7 @@ AFU::start ()
     else if(cmd_ready) {
 			cmd_ready = 0;
 			if(context_to_mc.size () != 0) {
-				printf("AFU: context to mc size = %d\n", context_to_mc.size());
+				printf("AFU: context to mc size = %d\n", (int)context_to_mc.size());
           std::map < uint16_t, MachineController * >::iterator prev = highest_priority_mc;
           do {
               if(highest_priority_mc == context_to_mc.end ())
@@ -483,7 +483,7 @@ AFU::get_machine_context()
 	    }
 	    highest_priority_mc = context_to_mc.end();
 	    mc = context_to_mc[context];
-	    printf("AFU: context_to_mc = %p size = %d\n", mc, context_to_mc.size());
+	    printf("AFU: context_to_mc = %p size = %d\n", mc, (unsigned int)context_to_mc.size());
 	    for(i=0; i< 4; i++) {
 				descriptor.get_mmio_mem(mmio_base+i*8, (char*)&data, size);
 				if(i==1) {
@@ -503,7 +503,7 @@ AFU::request_assign_actag()
 {
     uint8_t ea[12];
     uint32_t afutag;
-    uint64_t cmd_pa;
+    //uint64_t cmd_pa;
 
     TagManager::request_tag(&afutag);
     printf("afu_tlx_cmd_bdf = %d\n", afu_event.afu_tlx_vc3_bdf);
@@ -532,9 +532,9 @@ void
 AFU::resolve_tlx_afu_cmd()
 {
     uint8_t cmd_opcode;
-    uint8_t cmd_data_bus[64];
+    //uint8_t cmd_data_bus[64];
     uint16_t cmd_capptag, cmd_afutag;
-    uint8_t  cmd_dp, cmd_dl, cmd_pl, cmd_endian, cmd_t, cmd_data_bdi;
+    uint8_t  cmd_dp, cmd_dl, cmd_pl, cmd_endian;
     uint64_t cmd_be;
     int rc;
     uint8_t  cmd_flag;
@@ -624,12 +624,12 @@ AFU::resolve_tlx_afu_resp()
   uint8_t  cmd_rd_req, cmd_rd_cnt;
   uint8_t  rdata_bdi;
   uint8_t  cdata_bad;
-  uint8_t  rdata_valid, i;
+  uint8_t  i;
   uint8_t  resp_ef, resp_w, resp_mh;
   uint64_t resp_pa_or_ta;
-  uint8_t  afu_cmd_opcode, cmd_dl, cmd_cache_state;
-  uint8_t  cmd_cmdflg, cdata_bdi;
-  uint32_t cmd_host_tag;
+  //uint8_t  cmd_cache_state;
+  //uint8_t  cdata_bdi;
+  //uint32_t cmd_host_tag;
 
   tlx_resp_opcode = 0;
   rdata_bdi = afu_event.tlx_afu_dcp0_data_bdi;
