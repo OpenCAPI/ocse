@@ -173,7 +173,14 @@ LoadCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     //    ("LoadCommand: Attempting to send command before previous command is completed");
 
     //Command::completed = false;
-
+    switch(Command::code){
+        case AFU_CMD_AMO_RD:
+            cmd_pl = 2;
+            cmd_flag = 0x1100;
+            break;
+        default:
+            break;
+    }
     debug_msg("calling afu_tlx_send_cmd with command = 0x%x and paddress = 0x%x cmd_actag = 0x%x", Command::code, address, cmd_actag);
     debug_msg("ACTAG = 0x%x BDF = 0x%x PASID = 0x%x", cmd_actag, cmd_bdf, cmd_pasid);
     rc = afu_tlx_send_cmd_vc3(afu_event, Command::code, cmd_actag, 
@@ -188,7 +195,7 @@ LoadCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     for(i=0; i<9; i++)
     	printf("%02x",(uint8_t)ea_addr[i]);
     printf("\n");
-    printf("Command: exit send command\n");
+    printf("Command: exit send load command\n");
 }
 
 void

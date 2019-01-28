@@ -22,10 +22,10 @@
 #include <stdlib.h>
 #include <time.h>
 // include test_afu status
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
-#include "afu_status.h"
+//#include <sys/types.h>
+//#include <sys/ipc.h>
+//#include <sys/shm.h>
+//#include "afu_status.h"
 // end include test_afu status
 using std::string;
 using std::cout;
@@ -62,106 +62,107 @@ uint16_t gDUT = 0;
 uint16_t other_resp_completed = 0;
 
 AFU::AFU (int port, string filename, bool parity, bool jerror):
-    descriptor (filename),
-    context_to_mc ()
+  descriptor (filename),
+  context_to_mc ()
 {
 
-    // initializes AFU socket connection as server
-    if (tlx_serv_afu_event (&afu_event, port) == TLX_BAD_SOCKET)
-        error_msg ("AFU: unable to create socket");
+  // initializes AFU socket connection as server
+  if (tlx_serv_afu_event (&afu_event, port) == TLX_BAD_SOCKET)
+    error_msg ("AFU: unable to create socket");
 
-    if (jerror)
-	set_jerror_not_run = true;
-    else
-	set_jerror_not_run = false;
-    set_seed ();
+  if (jerror)
+		set_jerror_not_run = true;
+  else
+		set_jerror_not_run = false;
+  set_seed ();
 
-    state = IDLE;
-    config_state = IDLE;
-    mem_state = IDLE;
-    resp_state = IDLE;
-    debug_msg("AFU: Set AFU and CONFIG state = IDLE");
-    afu_event.afu_tlx_vc0_initial_credit = MAX_AFU_TLX_RESP_CREDITS; 
-    afu_event.afu_tlx_vc1_initial_credit = MAX_AFU_TLX_CMD_CREDITS;
-    if (afu_tlx_send_initial_credits(&afu_event, 
-    	MAX_AFU_TLX_RESP_CREDITS, MAX_AFU_TLX_CMD_CREDITS,
-			MAX_AFU_TLX_CMD_CREDITS, 10) != TLX_SUCCESS) {
-    	error_msg("AFU: unable to initialize afu_tlx initial credits");
-    }
-    debug_msg("AFU: Sending initial afu cmd and resp credits to ocse");
-    reset ();
+  state = IDLE;
+  config_state = IDLE;
+  mem_state = IDLE;
+  resp_state = IDLE;
+  debug_msg("AFU: Set AFU and CONFIG state to IDLE");
+  afu_event.afu_tlx_vc0_initial_credit = MAX_AFU_TLX_RESP_CREDITS; 
+  afu_event.afu_tlx_vc1_initial_credit = MAX_AFU_TLX_CMD_CREDITS;
+  if (afu_tlx_send_initial_credits(&afu_event, 
+    MAX_AFU_TLX_RESP_CREDITS, MAX_AFU_TLX_CMD_CREDITS,
+		MAX_AFU_TLX_CMD_CREDITS, 10) != TLX_SUCCESS) {
+    error_msg("AFU: unable to initialize afu_tlx initial credits");
+  }
+  debug_msg("AFU: Sending initial afu cmd and resp credits to ocse");
+  reset ();
 }
 
 bool 
 AFU::afu_is_enabled()
 {
-    uint32_t  enable;
-    enable = descriptor.get_vsec_reg(afu_function+0x50c);
-    if(enable & 0x01000000)
-	return true;
-    else
-	return false;	
+  uint32_t  enable;
+  enable = descriptor.get_vsec_reg(afu_function+0x50c);
+  if(enable & 0x01000000)
+		return true;
+  else
+		return false;	
 }
 
 bool
 AFU::afu_is_reset()
 {
-    uint32_t reset;
+  uint32_t reset;
  
-    reset = descriptor.get_afu_desc_reg(0x50c);
-    if(reset & 0x00800000)
-	return true;
-    else
-	return false;   
+  reset = descriptor.get_afu_desc_reg(0x50c);
+  if(reset & 0x00800000)
+		return true;
+  else
+		return false;   
 }
+
 void
 AFU::start ()
 {
-		uint32_t cycle = 0;
-  	uint8_t  initial_credit_flag = 0;
-    //uint16_t index=0;
+	uint32_t cycle = 0;
+	uint8_t  initial_credit_flag = 0;
+  //uint16_t index=0;
 
-    // afu_status setup
-    key_t		ShmKEY;
-    int 		ShmID;
-    struct  Memory 	*ShmPTR;
+  // afu_status setup
+  //key_t		ShmKEY;
+  //int 		ShmID;
+  //struct  Memory 	*ShmPTR;
 
-    //ShmKEY = ftok(".", 'x');
-    ShmKEY = 123456;
-    ShmID = shmget(ShmKEY, sizeof(struct Memory), IPC_CREAT | 0666);
-    if (ShmID < 0) {
-			printf("*** shmget error (server) ***\n");
-			exit(1);
-		}
-		printf("Server afu status shared memory is ready\n");
-		ShmPTR = (struct Memory *) shmat(ShmID, NULL, 0);
-     if ((int64_t)ShmPTR == -1) {
-          printf("*** shmat error (server) ***\n");
-          exit(1);
-     }
-     printf("Server has attached to afu status shared memory...\n");
-     ShmPTR->status = SDATA_READY;
-     printf("Server afu status data is ready\n");
+  //ShmKEY = ftok(".", 'x');
+  //ShmKEY = 123456;
+  //ShmID = shmget(ShmKEY, sizeof(struct Memory), IPC_CREAT | 0666);
+  //if (ShmID < 0) {
+	//	printf("*** shmget error (server) ***\n");
+	//	exit(1);
+	//}
+	//printf("Server afu status shared memory is ready\n");
+	//ShmPTR = (struct Memory *) shmat(ShmID, NULL, 0);
+  // if ((int64_t)ShmPTR == -1) {
+  //      printf("*** shmat error (server) ***\n");
+  //      exit(1);
+  // }
+  // printf("Server has attached to afu status shared memory...\n");
+  // ShmPTR->status = SDATA_READY;
+  // printf("Server afu status data is ready\n");
 
-    while (1) {
-        fd_set watchset;
+  while (1) {
+    fd_set watchset;
 
-        FD_ZERO (&watchset);
-        FD_SET (afu_event.sockfd, &watchset);
-        select (afu_event.sockfd + 1, &watchset, NULL, NULL, NULL);
+    FD_ZERO (&watchset);
+    FD_SET (afu_event.sockfd, &watchset);
+    select (afu_event.sockfd + 1, &watchset, NULL, NULL, NULL);
 
-	// check socket if there are new events from ocse to process
-	printf("AFU: getting tlx events\n");
-        int rc = tlx_get_tlx_events (&afu_event);
+		// check socket if there are new events from ocse to process
+		printf("AFU: getting tlx events\n");
+    int rc = tlx_get_tlx_events (&afu_event);
 
-        //info_msg("Cycle: %d", cycle);
-        ++cycle;
+    //info_msg("Cycle: %d", cycle);
+    ++cycle;
 
-	// connection dropped
-        if (rc < 0) {
-            info_msg ("AFU: connection lost");
-            break;
-        }
+		// connection dropped
+    if (rc < 0) {
+      info_msg ("AFU: connection lost");
+      break;
+    }
 
 	// get TLX initial cmd and data credits run once
 	if(initial_credit_flag == 0) {
@@ -181,8 +182,8 @@ AFU::start ()
 	}
 
 	// no new events to be processed
-        if (rc <= 0)		
-            continue;
+  if (rc <= 0)		
+    continue;
 	
 	// tlx returing a response credit to afu
 	if(afu_event.tlx_afu_vc0_credit) {

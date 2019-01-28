@@ -52,6 +52,8 @@ typedef struct MachineConfigParam
     uint64_t  	mem_dest_address;	// config[3]
     uint16_t	mem_size;		// config[1]
     uint8_t	enable_always;
+    uint8_t     oplength;
+    uint8_t     cmdflag;
 } MachineConfigParam;
 
 // Zero out all machine config registers
@@ -99,6 +101,12 @@ void set_machine_config_machine_number(MachineConfig* machine, uint16_t machine_
 
 // Status address
 void set_machine_config_status_address(MachineConfig* machine, uint32_t status_address);
+
+// amo cmd flag
+void set_machine_config_cmdflag(MachineConfig* machine, uint8_t cmdflag);
+
+// amo operand length
+void set_machine_config_oplength(MachineConfig* machine, uint8_t oplength);
 
 // Max delay field is the last 16 bits of double-word 0
 //void set_machine_config_max_delay(MachineConfig* machine, uint16_t max_delay);
@@ -189,5 +197,12 @@ void get_machine_memory_base_address(MachineConfig *machine, uint64_t* addr);
 
 // Size of the memory space the AFU machine operate in
 void get_machine_memory_size(MachineConfig *machine, uint64_t* size);
+
+// amo cmd flag
+void get_machine_config_cmdflag(MachineConfig* machine, uint8_t* cmdflag);
+
+// amo op length
+void get_machine_config_oplength(MachineConfig* machine, uint8_t* oplength);
+
 
 #endif

@@ -104,15 +104,29 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
     printf("command code = 0x%x\n", command_code);
 
     switch (command_code) {
+        case AFU_CMD_AMO_RD:
+        afu_event->afu_tlx_vc3_pl = (config[1] >> 24);
+        afu_event->afu_tlx_vc3_cmdflag = (config[1] >> 16);
+        printf("Machine: amo_rd pl=0x%x and cmdflag=0x%x\n", afu_event->afu_tlx_vc3_pl,
+            afu_event->afu_tlx_vc3_cmdflag);
+        command = new LoadCommand (command_code, command_address_parity,
+                 command_code_parity, command_tag_parity, buffer_read_parity);
+        break;
     case AFU_CMD_PR_RD_WNITC:
-    case AFU_CMD_RD_WNITC:
-	printf("Machine: rd_wnitc pl = 0x%x and dl = 0x%x\n", afu_event->afu_tlx_vc3_pl,
+        case AFU_CMD_RD_WNITC:
+	   printf("Machine: rd_wnitc pl = 0x%x and dl = 0x%x\n", afu_event->afu_tlx_vc3_pl,
 		afu_event->afu_tlx_vc3_dl);
-	command = 
-	    new LoadCommand (command_code, command_address_parity,
+	    command = 
+	       new LoadCommand (command_code, command_address_parity,
 			     command_code_parity, command_tag_parity,
 			     buffer_read_parity);
-	break;
+	   break;
+    case AFU_CMD_AMO_W:
+    printf("Machine: amo_w: pl = 0x%x and dl = 0x%x\n", afu_event->afu_tlx_vc3_pl,
+        afu_event->afu_tlx_vc3_dl);
+    command = new StoreCommand ( command_code, command_address_parity,
+        command_code_parity, command_tag_parity, buffer_read_parity);
+    break;
     case AFU_CMD_DMA_PR_W:
     case AFU_CMD_DMA_W:
 	printf("Machine: dma_w: pl = 0x%x and dl = 0x%x\n", afu_event->afu_tlx_vc3_pl,

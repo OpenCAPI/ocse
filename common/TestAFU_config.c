@@ -46,6 +46,9 @@ int config_machine(MachineConfig *machine, MachineConfigParam configparam)
 	set_machine_config_status_address(machine, configparam.status_address);
 	set_machine_memory_base_address(machine, configparam.mem_base_address);
 	set_machine_memory_size(machine, configparam.mem_size);
+	set_machine_config_cmdflag(machine, configparam.cmdflag);
+	set_machine_config_oplength(machine, configparam.oplength);
+	
 	if (configparam.enable_always){
 		set_machine_config_enable_always(machine); 
 	}
@@ -223,11 +226,30 @@ void set_machine_config_machine_number(MachineConfig* machine, uint16_t machine_
 	machine->config[0] |= ((uint64_t)machine_number << 16);
 }
 
+// Size of the memory space the AFU machine operate in
+void set_machine_memory_size(MachineConfig * machine, uint16_t size) {
+  machine->config[1] &= ~0x000000000000FFFF;
+	machine->config[1] |= size;
+}
+
+// amo cmd_flag
+void set_machine_config_cmdflag(MachineConfig* machine, uint8_t cmdflag) {
+	machine->config[1] &= ~0x0000000000FF0000LL;
+	machine->config[1] |= ((uint64_t)cmdflag << 16);
+}
+
+// amo operand length by pLength
+void set_machine_config_oplength(MachineConfig* machine, uint8_t oplength) {
+	machine->config[1] &= ~0x00000000FF000000LL;
+	machine->config[1] |= ((uint64_t)oplength << 24);
+}
+
 // Machine status address
 void set_machine_config_status_address(MachineConfig* machine, uint32_t status_address) {
 	machine->config[1] &= ~0xFFFFFFFF00000000LL;
 	machine->config[1] |= ((uint64_t)status_address << 32);
 }
+
 
 // Max delay field is the last 16 bits of double-word 0
 //void set_machine_config_max_delay(MachineConfig* machine, uint16_t max_delay) {
@@ -281,11 +303,7 @@ void set_machine_memory_dest_address(MachineConfig *machine, uint64_t addr) {
     machine->config[3] = addr;
 }
 
-// Size of the memory space the AFU machine operate in
-void set_machine_memory_size(MachineConfig * machine, uint16_t size) {
-    machine->config[1] &= ~0x000000000000FFFF;
-	machine->config[1] |= size;
-}
+
 
 //////////////////////////////////
 // Get machine config functions //
@@ -379,6 +397,14 @@ void get_machine_config_command_status(MachineConfig *machine, uint8_t* command_
 // Command timestamp field is bit[49:63] of double-word 1
 void get_machine_config_command_timestamp(MachineConfig *machine, uint16_t* command_timestamp) {
 	*command_timestamp = (uint16_t)((machine->config[1]) & 0x0000000000007FFFLL);
+}
+
+void get_machine_config_oplength(MachineConfig *machine, uint8_t* oplength) {
+	*oplength = (uint8_t)((machine->config[1]) & 0x00000000FF000000LL);
+}
+
+void get_machine_config_cmdflag(MachineConfig *machine, uint8_t* cmdflag) {
+	*cmdflag = (uint8_t)((machine->config[1] & 0x0000000000FF0000LL));
 }
 
 // Base address of the memory space the AFU machine operate in
