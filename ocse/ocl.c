@@ -243,6 +243,13 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 		case OCSE_LPC_READ:
 		  mmio = handle_mem(ocl->mmio, client, 1, region, 0);
 			break;
+		case OCSE_AFU_AMO_RD:
+		case OCSE_AFU_AMO_RW:
+		  mmio = handle_afu_amo(ocl->mmio, client, 1, region, buffer[0]);
+			break;
+		case OCSE_AFU_AMO_WR:
+		  mmio = handle_afu_amo(ocl->mmio, client, 0, region, buffer[0]);
+			break;
 		default:
 		  error_msg("Unexpected 0x%02x from client on socket 0x%02x", buffer[0], client->fd);
 		}

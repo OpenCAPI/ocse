@@ -76,9 +76,12 @@
 #define OCSE_LPC_WRITE_BE          	0x2d
 #define OCSE_LPC_ACK            	0x2e
 #define OCSE_LPC_FAIL            	0x2f
-#define OCSE_FIND                       0x30
-#define OCSE_FIND_NTH                   0x31
-#define OCSE_FIND_ACK                   0x32
+#define OCSE_AFU_AMO_RD                 0x30
+#define OCSE_AFU_AMO_RW                 0x38
+#define OCSE_AFU_AMO_WR                 0x40
+#define OCSE_FIND                       0x50
+#define OCSE_FIND_NTH                   0x51
+#define OCSE_FIND_ACK                   0x52
 
 #define OCSE_FAILED                     0xff
 

@@ -28,7 +28,7 @@
  *  send_mmio() which will drive the oldest pending MMIO command event to the AFU.
  *  That event is put in PENDING state which blocks the OCL from sending any
  *  further MMIO until this MMIO event completes.  When the ocl code detects
- *  the MMIO response it will call handle_mmio_ack().  This function moves
+ *  the MMIO response it will call handle_ap_resp().  This function moves
  *  the list head to the next event so that the next MMIO request can be sent.
  *  However, the event still lives and the client will still point to it.  When
  *  the ocl code next calls handle_mmio_done for that client it will return the
@@ -717,6 +717,7 @@ int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 // modify to check command and use size, dl dp and stuff...
 // Send pending MMIO event to AFU; use config_read or config_write for descriptor
 // for MMIO use cmd_pr_rd_mem or cmd_pr_wr_mem
+// also supports amo_rd, amo_rw and amo_wr TODO HP MAKE SURE this will work for amo_rd, etc and the new fields cmd_glf, endian, etc
 void send_mmio(struct mmio *mmio)
 {
 	struct mmio_event *event;
@@ -725,9 +726,6 @@ void send_mmio(struct mmio *mmio)
 	unsigned char null_buff[256] = {0};
 	unsigned char tdata_bus[256];
 	char data[17];
-#ifdef TLX4
-	uint8_t cmd_os;
-#endif
 	uint16_t  cmd_byte_cnt;
 	uint64_t offset;
 
@@ -977,7 +975,7 @@ void send_mmio(struct mmio *mmio)
 }
 
 // Handle ap response data beats coming from the afu
-// this will include responses to mmio requests, and lpc memory requests
+// this will include responses to mmio requests, amo cmds and lpc memory requests
 void handle_ap_resp_data(struct mmio *mmio)
 {
 	int rc;
@@ -1114,7 +1112,7 @@ void handle_ap_resp_data(struct mmio *mmio)
 }
 
 // Handle ap responses coming from the afu
-// this will include responses to config commmands, mmio requests, and lpc memory requests
+// this will include responses to config commmands, mmio requests, amo cmds and lpc memory requests
 void handle_ap_resp(struct mmio *mmio)
 {
 	int rc;
@@ -1229,7 +1227,7 @@ void handle_ap_resp(struct mmio *mmio)
 }
 
 // Handle MMIO ack if returned by AFU
-void handle_mmio_ack(struct mmio *mmio)
+/*void handle_mmio_ack(struct mmio *mmio)
 {
 	int rc;
 	char type[7];
@@ -1398,7 +1396,7 @@ void handle_mmio_ack(struct mmio *mmio)
 	      mmio->list = mmio->list->_next;
 	}
 
-}
+} */
 
 // Handle MMIO map request from client
 void handle_mmio_map(struct mmio *mmio, struct client *client)
@@ -1740,4 +1738,183 @@ struct mmio_event *handle_mem(struct mmio *mmio, struct client *client,
 	else
 	        return _handle_mem_write(mmio, client, region, be_valid);
 }
+
+// create a new _add_afu_amo_event function that will use size instead of dw.
+// Add new mmio event for sending amo cmds to afu
+static struct mmio_event *_add_afu_amo_event(struct mmio *mmio, struct client *client,
+				    uint32_t rnw, uint32_t size, int region, uint64_t addr,
+				   uint8_t pL, uint8_t cmd_flg, uint8_t cmd, uint8_t *data, uint8_t endian)
+{
+	struct mmio_event *event;
+	struct mmio_event **list;
+	uint8_t fcn; 
+	uint8_t afuid;
+	uint16_t context;
+
+	// Add new event in IDLE state
+	event = (struct mmio_event *)malloc(sizeof(struct mmio_event));
+	if (!event)
+		return event;
+	event->cfg = 0;
+	event->rnw = rnw;
+	event->cmd_pL = pL;
+	event->dw = 0;
+	event->size = size;  // part of the new fields
+	event->data = data;
+	event->cmd_flg = cmd_flg;
+	event->cmd_endian = endian;
+	event->cmd_opcode = cmd;
+	if (client == NULL)  {
+	  // TODO this should be an error exit or at least return an error
+	  error_msg("WE SHOULD NOT BE HERE in add_afu_amo_cmd with client==NULL");
+	  //event->cmd_PA = addr;
+	} else {
+	  // for OpenCAPI, the memory space is split into LPC, global and per pasid
+	  // the region parm controls how we adjust the offset prior to adding the event
+	  // technically, all of these should be adjusted by the BAR specified in the configuration... ocse assumes a BA of 0
+	  //   region = 0 means we are LPC memory and offset is unadjusted
+	  //   region = 1 means we adjust offset based on the global mmio offset from the configuration
+	  //   region = 2 means we want to send the offset adjusted by the per pasid mmio offset, per pasid mmio stride, and client index
+	  //   for now, we are assuming the client index (context) maps directly to a pasid.  
+	  //        we could be more creative and relocate the pasid base and pasid length supported to 
+	  //        provide more verification coverage
+	  fcn = client->fcn;
+	  afuid = client->afuid;
+
+	  if (region == 0) {
+	    // lpc area
+	    event->cmd_PA = addr;
+	  } else if (region == 1) {
+	    // global mmio offset + offset
+	    event->cmd_PA = mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_offset + addr;
+	  } else {
+	    // per pasid mmio offset + (client context * stride) + offset
+	    event->cmd_PA = 
+	      mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_offset + 
+	      ( mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_stride * client->context) + 
+	      addr;
+	  }
+	}
+	event->state = OCSE_IDLE;
+	event->_next = NULL;
+
+	debug_msg("_add_afu_amo_event: rnw=%d, access word=0x%016lx (0x%016lx)", event->rnw, event->cmd_PA, addr);
+#ifdef DEBUG
+	printf("_add_afu_amo_event: data = 0x" );
+	int i;
+	for ( i=0; i<size; i++ ) {
+	  printf( "%02x", event->data[i] );
+	}
+	printf( "\n" );
+#endif
+
+	// Add to end of list
+	list = &(mmio->list);
+	while (*list != NULL)
+		list = &((*list)->_next);
+	*list = event;
+	if (event->cfg)
+		context = -1;
+	else
+		context = client->context;
+	debug_mmio_add(mmio->dbg_fp, mmio->dbg_id, context, rnw, size, addr);
+
+	return event;
+}
+
+
+// Handle amo_rw, amo_rw or amo_wr request from client
+struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
+			      int rnw, int region, int cmd)
+{
+	struct mmio_event *event;
+	uint64_t PA;
+	uint32_t offset;
+	uint8_t size;
+	uint8_t pL;
+	uint8_t cmd_flg;
+	uint8_t *data;
+	uint8_t endian;
+	int fd = client->fd;
+
+		uint8_t ack;
+
+	debug_msg( "handle_afu_amo: rnw=%d", rnw );
+
+	// Only allow mem access when client is valid
+	if (client->state != CLIENT_VALID) {
+	        debug_msg( "_handle_afu_amo: invalid client" );
+		ack = OCSE_LPC_FAIL;
+		if (put_bytes(client->fd, 1, &ack, mmio->dbg_fp, mmio->dbg_id,
+			      client->context) < 0) {
+			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		}
+		return NULL;
+	}
+
+
+
+	if (get_bytes_silent(fd, 8, (uint8_t *) &PA, mmio->timeout, &(client->abort)) < 0) {
+		goto read_fail;
+	}
+	//offset = ntohl(offset);
+
+	if (get_bytes_silent(fd, 1, (uint8_t *) &pL, mmio->timeout, &(client->abort)) < 0) {
+		goto read_fail;
+	}
+	if (get_bytes_silent(fd, 1, (uint8_t *) &cmd_flg, mmio->timeout, &(client->abort)) < 0) {
+		goto read_fail;
+	}
+	if (get_bytes_silent(fd, 1, (uint8_t *) &endian, mmio->timeout, &(client->abort)) < 0) {
+		goto read_fail;
+	}
+	switch(pL) {
+		case 0x2:
+			size = 4;
+			break;
+		case 0x3:
+			size = 8;
+			break;
+		case 0x6:
+			if (cmd == OCSE_AFU_AMO_RW)
+				size = 4;
+			else
+				info_msg("invalid pL= %d received for cmd= %x ; setting data size = 8 just because... ", pL, cmd);
+			// TODO probably want to fail this cmd bc of invalid pL
+				size = 8;
+			break;
+		case 0x7:
+			if (cmd == OCSE_AFU_AMO_RW)
+				size = 8;
+			else
+				info_msg("invalid pL= %d received for cmd= %x ; setting data size = 8 just because... ", pL, cmd);
+			// TODO probably want to fail this cmd bc of invalid pL
+				size = 8;
+			break;
+		default:
+			info_msg("invalid pL= %d received for cmd= %x ; setting data size = 8 just because... ", pL, cmd);
+			// TODO probably want to fail this cmd bc of invalid pL
+				size = 8;
+			break;
+	}
+	//size = ntohl(size);
+
+	// allocate a buffer for the data coming back
+	data = (uint8_t *)malloc( size );
+
+	if (rnw)
+		event = _add_afu_amo_event( mmio, client, 1, size, region, PA, pL, cmd_flg, cmd, data, endian);
+	else
+		event = _add_afu_amo_event( mmio, client, 0, size, region, PA, pL, cmd_flg, cmd, data, endian);
+
+	return event;
+
+ read_fail:
+	// Socket connection is dead
+	debug_msg("%s:_handle_afu_amo failed context=%d",
+		  mmio->afu_name, client->context);
+	client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	return NULL;
+}
+
 
