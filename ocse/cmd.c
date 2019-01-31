@@ -147,7 +147,7 @@ static struct client *_get_client(struct cmd *cmd, struct cmd_event *event)
 {
 	// Make sure cmd and client are still valid
 	if ((cmd == NULL) || (cmd->client == NULL) ||
-	    (event->context >= cmd->max_clients))
+	    (event->context >= cmd->max_clients)) 
 		return NULL;
 
 	// Abort if client disconnected
@@ -1126,7 +1126,8 @@ void handle_write_be_or_amo(struct cmd *cmd)
 		    ((*head)->state == MEM_RECEIVED))
 			break;
 		if (((*head)->type == CMD_AMO_RD)  &&
-		   ((*head)->state == MEM_RECEIVED))  // TODO change this later, we did get data but it's not used
+		   (((*head)->state == MEM_IDLE) || ((*head)->state == MEM_RECEIVED)))  // TODO  testafu isn't sending data??
+	//	   ((*head)->state == MEM_RECEIVED))  // TODO change this later, we did get data but it's not used
 			break;
 
 		head = &((*head)->_next);
@@ -1134,8 +1135,8 @@ void handle_write_be_or_amo(struct cmd *cmd)
 	event = *head;
 
 	// Test for client disconnect or nothing to do....
-	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
-		return;
+	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL)) 
+		return; 
 	// Check that memory request can be driven to client
 	if (client->mem_access != NULL) {
 		debug_msg("handle_write_be_or_amo: Can't send to client bc client->mem_access not NULL...retry later");
