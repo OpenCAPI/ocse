@@ -70,6 +70,7 @@ struct ocxl_waitasec {
 struct mem_req {
 	volatile enum libocxl_req_state state;
 	volatile uint8_t type;
+	volatile uint8_t cmd;
 	volatile uint64_t addr;
 	volatile uint64_t size;
 	volatile uint64_t be;

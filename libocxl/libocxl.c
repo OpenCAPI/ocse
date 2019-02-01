@@ -1409,6 +1409,60 @@ static void _mem_write_be(struct ocxl_afu *afu)
 	afu->mem.state = LIBOCXL_REQ_PENDING;
 }
 
+static void _amo_read(struct ocxl_afu *afu)
+{
+	uint8_t *buffer;
+	int buffer_length;
+	int buffer_offset;
+
+	uint32_t offset;
+	uint32_t size;
+
+	debug_msg("_amo_read:");
+
+	if (!afu)
+		fatal_msg("NULL afu passed to libocxl.c:_amo_read");
+
+	// buffer length = 1 byte for type, buffer remainder?, 4 bytes for offset, 4 bytes for size, 1 byte for cmd_flag, 1 byte for endian
+	buffer_length = 1 + sizeof(offset) + sizeof(size) + 1 + 1 ;
+	debug_msg("_amo_read: buffer length %d", buffer_length);
+	buffer = (uint8_t *)malloc( buffer_length );
+
+	debug_msg("_amo_read: buffer[0]");
+	buffer[0] = afu->mem.type;
+
+	buffer_offset = 1;
+	debug_msg( "_amo_read: buffer[%d]", buffer_offset );
+	offset = htonl(afu->mem.addr);
+	memcpy( (char *)&(buffer[buffer_offset]), (char *)&offset, sizeof(offset));
+	buffer_offset += sizeof(offset);
+
+	debug_msg( "_amo_read: buffer[%d]", buffer_offset );
+	size = htonl(afu->mem.size);
+	memcpy((char *)&(buffer[buffer_offset]), (char *)&size, sizeof(size));
+	buffer_offset += sizeof(size);
+
+	debug_msg( "_amo_read: buffer[%d]", buffer_offset );
+	buffer[buffer_offset] = afu->mem.cmd;
+	buffer_offset += 1;
+
+	debug_msg( "_amo_read: buffer[%d]", buffer_offset );
+        buffer[buffer_offset] = 0; // constant endianness for now
+	buffer_offset += 1;
+
+	if (put_bytes_silent(afu->fd, buffer_length, buffer) != buffer_length) {
+		free(buffer);
+		close_socket(&(afu->fd));
+		afu->opened = 0;
+		afu->attached = 0;
+		afu->mem.state = LIBOCXL_REQ_IDLE;
+		return;
+	}
+
+	free(buffer);
+	afu->mem.state = LIBOCXL_REQ_PENDING;
+}
+
 static void _handle_mem_ack(struct ocxl_afu *afu)
 {
 	uint8_t resp_code;
@@ -1502,6 +1556,9 @@ static void *_psl_loop(void *ptr)
 				break;
 			case OCSE_LPC_READ:
 				_mem_read(afu);
+				break;
+			case OCSE_AMO_RD:
+				_amo_read(afu);
 				break;
 			default:
 				break;

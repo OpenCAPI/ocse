@@ -363,3 +363,65 @@ ocxl_err ocxl_lpc_read(ocxl_afu_h afu, uint64_t offset, uint8_t *out, uint64_t s
 	return -1;
 }
 
+// read size bytes from offset in afu to *data
+//    cmd = the amo read subcommand that should be performed
+//    size = 4 or 8 bytes
+//    offset is byte aligned
+//    *out is byte aligned - but is likely 16 Byte aligned due to host OS behavior
+ocxl_err ocxl_lpc_amo_read(ocxl_afu_h afu, uint8_t cmd, uint64_t offset, uint8_t *out, uint64_t size )
+{
+
+        struct ocxl_afu *my_afu;
+	my_afu = (struct ocxl_afu *)afu;
+
+        debug_msg("ocxl_lpc_amo_read: 0x%1x cmdflag %d bytes from lpc offset 0x%016lx", cmd, size, offset);
+
+        if (!my_afu) {
+	      warn_msg("NULL afu passed to ocxl_lpc_amo_read");
+	      goto read_fail;
+	}
+
+        if (!my_afu->lpc_mapped) {
+	      warn_msg("afu lpc space is not mapped");
+	      goto read_fail;
+	}
+
+        // check size legality - 4 or 8 is legal
+        if ((size != 4) & (size != 8)) {
+	      warn_msg("Illegal size passed to ocxl_lpc_amo_read");
+	      goto read_fail;
+	}
+
+        // check address alignment against size - could do something here...
+
+	my_afu->mem.type = OCSE_AMO_RD;
+	my_afu->mem.be = 0;
+
+	  // Send a legally aligned and sized memory read to OCSE
+	  // and wait for the ack.
+	  my_afu->mem.addr = offset;
+	  my_afu->mem.size = size;
+	  my_afu->mem.state = LIBOCXL_REQ_REQUEST;
+	  while (my_afu->mem.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+	    _delay_1ms();
+	  
+	  // copy the data by copying the pointer
+	  if (my_afu->mem.data == NULL) {
+	    warn_msg("afu lpc memory not returned");
+	    goto read_fail;
+	  }
+
+	  // we expect mem.data to be a full length buffer of the data we are reading
+	  // that is, the length of mem.data should match mem.size
+	  memcpy( out, my_afu->mem.data, my_afu->mem.size );
+	  free( my_afu->mem.data );
+
+	  if (!my_afu->opened)
+	    goto read_fail;
+
+	return 0;
+
+ read_fail:
+	errno = ENODEV;
+	return -1;
+}

@@ -1854,53 +1854,48 @@ struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
 
 
 
-	if (get_bytes_silent(fd, 8, (uint8_t *) &PA, mmio->timeout, &(client->abort)) < 0) {
+	if (get_bytes_silent(fd, 8, (uint8_t *) &offset, mmio->timeout, &(client->abort)) < 0) {
 		goto read_fail;
 	}
-	//offset = ntohl(offset);
+	PA = ntohl(offset);
 
-	if (get_bytes_silent(fd, 1, (uint8_t *) &pL, mmio->timeout, &(client->abort)) < 0) {
+	if (get_bytes_silent(fd, 1, (uint8_t *) &size, mmio->timeout, &(client->abort)) < 0) {
 		goto read_fail;
 	}
+	size = ntohl(size);
+
 	if (get_bytes_silent(fd, 1, (uint8_t *) &cmd_flg, mmio->timeout, &(client->abort)) < 0) {
 		goto read_fail;
 	}
+
 	if (get_bytes_silent(fd, 1, (uint8_t *) &endian, mmio->timeout, &(client->abort)) < 0) {
 		goto read_fail;
 	}
-	switch(pL) {
-		case 0x2:
-			size = 4;
+
+	switch(size) {
+		case 0x4:
+		        if (( cmd_flg >= 8 ) & ( cmd_flg <= 10 )) {
+			    pL = 0x6;
+			} else {
+			    pL = 0x2;
+			}
 			break;
-		case 0x3:
-			size = 8;
-			break;
-		case 0x6:
-			if (cmd == OCSE_AFU_AMO_RW)
-				size = 4;
-			else
-				info_msg("invalid pL= %d received for cmd= %x ; setting data size = 8 just because... ", pL, cmd);
-			// TODO probably want to fail this cmd bc of invalid pL
-				size = 8;
-			break;
-		case 0x7:
-			if (cmd == OCSE_AFU_AMO_RW)
-				size = 8;
-			else
-				info_msg("invalid pL= %d received for cmd= %x ; setting data size = 8 just because... ", pL, cmd);
-			// TODO probably want to fail this cmd bc of invalid pL
-				size = 8;
+		case 0x8:
+		        if (( cmd_flg >= 8 ) & ( cmd_flg <= 10 )) {
+			    pL = 0x7;
+			} else {
+			    pL = 0x3;
+			}
 			break;
 		default:
-			info_msg("invalid pL= %d received for cmd= %x ; setting data size = 8 just because... ", pL, cmd);
+			info_msg("invalid size = %d received for cmd= %x ; setting data size = 8 just because... ", size, cmd);
 			// TODO probably want to fail this cmd bc of invalid pL
-				size = 8;
+			pL = 0x3;
 			break;
 	}
-	//size = ntohl(size);
 
-	// allocate a buffer for the data coming back
-	data = (uint8_t *)malloc( size );
+	// allocate a buffer for the data coming back, but only for a "read"
+	if (rnw) data = (uint8_t *)malloc( size );
 
 	if (rnw)
 		event = _add_afu_amo_event( mmio, client, 1, size, region, PA, pL, cmd_flg, cmd, data, endian);
