@@ -42,6 +42,11 @@ static int verbose;
 static unsigned int buffer_cl = 64;
 static unsigned int timeout   = 1;
 
+union amo_data_s {
+    unsigned char byte[8];
+    uint64_t lword;
+} amo_data;
+
 struct work_element {
   uint8_t  command_byte; // left to right - 7:2 cmd, 1 wrap, 0 valid
   uint8_t  status;
@@ -69,7 +74,7 @@ int main(int argc, char *argv[])
     struct timespec t;
     int opt, option_index, i;
     int rc;
-    char adata[16];
+    //char adata[16];
     char *rcacheline, *wcacheline;
     char *status;
     ocxl_afu_h mafu_h, safu_h;
@@ -140,10 +145,15 @@ int main(int argc, char *argv[])
     //}
     printf("\n");
     printf("Prep data for Fetch and incremented bounded test\n");
-    memcpy(adata,"a0a0b1b1c2c2", 12);
-    rcacheline = adata + 4;
-    printf("%s\n", rcacheline);
-    //status[0]=0xff;
+    //memcpy(adata,"a0a1b0b1c0c1", 12);
+    amo_data.lword = 0x0102030411121314;
+    memcpy(rcacheline, amo_data.byte, 8);
+    //rcacheline = adata + 4;
+    printf("rcacheline = 0x");
+    for(i=0; i<8; i++){
+        printf("%02x", rcacheline[i]);
+    }
+    printf("\n");
     // open master device
     printf("Attempt open device for mafu\n");
     
@@ -175,10 +185,10 @@ int main(int argc, char *argv[])
     config_param.mem_base_address = (uint64_t)rcacheline;
     config_param.machine_number = 0;
     config_param.status_address = (uint32_t)status;
-    config_param.cmdflag = 0x0c;
+    config_param.cmdflag = 0x0d;
     config_param.oplength = 0x02;
     printf("status address = 0x%p\n", status);
-    printf("rcacheline = 0x%p\n", rcacheline);
+    printf("rcacheline address = 0x%p\n", rcacheline);
     printf("command = 0x%x\n", config_param.command);
     printf("mem base address = 0x%"PRIx64"\n", config_param.mem_base_address);
     rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
@@ -198,13 +208,19 @@ int main(int argc, char *argv[])
 	   nanosleep(&t, &t);
 	   //printf("Polling read completion status = 0x%x\n", *status);
     }
-    printf("Read command is completed\n");
+    printf("AMO Read command is completed\n");
     // clear machine config
     rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED);
     if(rc != 0) {
 	printf("Failed to clear machine config\n");
 	goto done;
     }
+    printf("Verify AMO Read command\n");
+    printf("rcacheline = 0x");
+    for(i=0; i<8; i++) {
+        printf("%02x", rcacheline[i]);
+    }
+    printf("\n");
     // Attemp write command
     printf("Attempt Write command\n");
     //status[0] = 0xff;

@@ -413,6 +413,6 @@ void get_machine_memory_base_address(MachineConfig *machine, uint64_t* addr) {
 }
 
 // Size of the memory space the AFU machine operate in
-void get_machine_memory_size(MachineConfig *machine, uint64_t* size) {
+void get_machine_memory_dest_address(MachineConfig *machine, uint64_t* size) {
 	*size = machine->config[3];
 }

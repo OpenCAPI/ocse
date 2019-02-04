@@ -196,7 +196,7 @@ void get_machine_config_command_timestamp(MachineConfig *machine, uint16_t* comm
 void get_machine_memory_base_address(MachineConfig *machine, uint64_t* addr);
 
 // Size of the memory space the AFU machine operate in
-void get_machine_memory_size(MachineConfig *machine, uint64_t* size);
+void get_machine_memory_dest_address(MachineConfig *machine, uint64_t* size);
 
 // amo cmd flag
 void get_machine_config_cmdflag(MachineConfig* machine, uint8_t* cmdflag);
