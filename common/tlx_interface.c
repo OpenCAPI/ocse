@@ -1,5 +1,5 @@
 /*
- * Copyright 2014,2018 International Business Machines
+ * Copyright 2014,2019 International Business Machines
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -2713,8 +2713,8 @@ int afu_tlx_send_cmd_vc3(struct AFU_EVENT *event,
 		return AFU_TLX_DOUBLE_COMMAND;
 	}
 
-        debug_msg( "afu_tlx_send_cmd_vc3: opcode=0x%02x cmd_dl=0x%02x actag=0x%04x bdf=0x%04x pasid=0x%08x",
-		   afu_cmd_opcode, cmd_dl, cmd_actag, cmd_bdf, cmd_pasid );
+        debug_msg( "afu_tlx_send_cmd_vc3: opcode=0x%02x cmd_dl=0x%02x actag=0x%04x bdf=0x%04x pasid=0x%08x cmd_flag=0x%02x",
+		   afu_cmd_opcode, cmd_dl, cmd_actag, cmd_bdf, cmd_pasid, cmd_flag );
 	event->afu_tlx_vc3_valid = 1;
 	event->tlx_afu_vc3_credits_available -= 1;
 	event->afu_tlx_vc3_opcode = afu_cmd_opcode;
@@ -2802,6 +2802,8 @@ int afu_tlx_send_cmd_vc3_and_dcp3_data(struct AFU_EVENT *event,
 	if ((event->afu_tlx_vc3_valid == 1) || (event->afu_tlx_dcp3_data_valid == 1)) {
 		return AFU_TLX_DOUBLE_CMD_AND_DATA;
 	} else {
+        debug_msg( "afu_tlx_send_cmd_vc3_and_dcp3_data: opcode=0x%02x cmd_dl=0x%02x actag=0x%04x bdf=0x%04x pasid=0x%08x cmd_flag=0x%02x",
+		   afu_cmd_opcode, cmd_dl, cmd_actag, cmd_bdf, cmd_pasid, cmd_flag );
 		event->afu_tlx_vc3_valid = 1;
 		event->tlx_afu_vc3_credits_available -= 1;
  		event->afu_tlx_dcp3_data_valid = 1;
