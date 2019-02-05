@@ -1855,21 +1855,21 @@ struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
 
 
 	if (get_bytes_silent(fd, 8, (uint8_t *) &offset, mmio->timeout, &(client->abort)) < 0) {
-		goto read_fail;
+		goto amo_fail;
 	}
 	PA = ntohl(offset);
 
 	if (get_bytes_silent(fd, 1, (uint8_t *) &size, mmio->timeout, &(client->abort)) < 0) {
-		goto read_fail;
+		goto amo_fail;
 	}
 	size = ntohl(size);
 
 	if (get_bytes_silent(fd, 1, (uint8_t *) &cmd_flg, mmio->timeout, &(client->abort)) < 0) {
-		goto read_fail;
+		goto amo_fail;
 	}
 
 	if (get_bytes_silent(fd, 1, (uint8_t *) &endian, mmio->timeout, &(client->abort)) < 0) {
-		goto read_fail;
+		goto amo_fail;
 	}
 
 	switch(size) {
@@ -1894,17 +1894,24 @@ struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
 			break;
 	}
 
-	// allocate a buffer for the data coming back, but only for a "read"
-	if (rnw) data = (uint8_t *)malloc( size );
+	// allocate a buffer for the data
+	data = (uint8_t *)malloc( size );
 
-	if (rnw)
-		event = _add_afu_amo_event( mmio, client, 1, size, region, PA, pL, cmd_flg, cmd, data, endian);
-	else
-		event = _add_afu_amo_event( mmio, client, 0, size, region, PA, pL, cmd_flg, cmd, data, endian);
+	if (rnw) {
+	  // pass the empty data buffer to capture the read data coming back
+	  event = _add_afu_amo_event( mmio, client, 1, size, region, PA, pL, cmd_flg, cmd, data, endian);
+	} else {
+	  // fill the data buffer with write data and send it
+	  // get size bytes of data from socket
+	  if ( get_bytes_silent( fd, size, data, mmio->timeout, &(client->abort) ) < 0 ) {
+	    goto amo_fail;
+	  }
+	  event = _add_afu_amo_event( mmio, client, 0, size, region, PA, pL, cmd_flg, cmd, data, endian);
+	}
 
 	return event;
 
- read_fail:
+ amo_fail:
 	// Socket connection is dead
 	debug_msg("%s:_handle_afu_amo failed context=%d",
 		  mmio->afu_name, client->context);
