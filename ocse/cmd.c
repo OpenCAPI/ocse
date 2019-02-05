@@ -1,5 +1,5 @@
 /*
- * Copyright 2014,2018 International Business Machines
+ * Copyright 2014,2019 International Business Machines
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -477,8 +477,13 @@ static void _add_amo(struct cmd *cmd, uint16_t actag, uint16_t afutag,
     			size = -1;
     			break;
   		}
+	if (cmd_opcode == AFU_CMD_AMO_RD) {
+		if ((cmd_flag < 0xc) || (cmd_flag > 0xe)) {
+			size = -1;
+			resp_opcode = TLX_RSP_READ_FAILED;}
+		}
 	if ( size == -1) {
-	debug_msg("AMO CMD FAILED SIZE CHECKS cmd_pl= 0x%x, cmd_flag=0x%x !!! ", cmd_pl, cmd_flag);
+	debug_msg("AMO CMD FAILED SIZE or CMD_FLAG CHECKS cmd_opcode= 0x%x, cmd_pl= 0x%x, cmd_flag=0x%x !!! ", cmd_opcode, cmd_pl, cmd_flag);
 	  _add_fail(cmd, actag, afutag, cmd_opcode,  0x09,resp_opcode );
 		return;
 	}
