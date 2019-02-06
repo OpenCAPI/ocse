@@ -170,8 +170,7 @@ module oc4_bb (
 				input	[5:0]	  afu_tlx_cmd_pg_size_top,
 				input	[511:0]	  afu_tlx_cdata_bus_top,
 				input		  afu_tlx_cdata_bdi_top,
-				input		  afu_tlx_cdata_valid_top,
-				output		  cfg_tlx_resync_credits_top
+				input		  afu_tlx_cdata_valid_top
 );
 // VC0/DCP0 is assumed to handle the OCSE'3 resp interface
     assign afu_tlx_vc0_initial_credit_top       = afu_tlx_resp_initial_credit_top;
@@ -185,8 +184,9 @@ module oc4_bb (
     assign tlx_afu_resp_dp_top                  = tlx_afu_vc0_dp_top;
     assign tlx_afu_resp_host_tag_top            = tlx_afu_vc0_host_tag_top;
     assign tlx_afu_resp_addr_tag_top            = 18'b0;
-    assign tlx_afu_resp_cache_state_top         = tlx_afu_vc0_cache_state_top;
-    assign tlx_afu_data_initial_credit_top      = tlx_afu_vc0_initial_credit_top;
+    assign tlx_afu_resp_cache_state_top         = {1'b0, tlx_afu_vc0_cache_state_top};
+//    assign tlx_afu_data_initial_credit_top      = tlx_afu_vc0_initial_credit_top;	// OC3: using local variable
+    assign tlx_afu_data_initial_credit_top      = 4'b0111;	// OC3: using local variable
     assign tlx_afu_resp_credit_top              = tlx_afu_vc0_credit_top;
     assign afu_tlx_vc0_valid_top                = afu_tlx_resp_valid_top;
     assign afu_tlx_vc0_opcode_top               = afu_tlx_resp_opcode_top;
@@ -203,7 +203,8 @@ module oc4_bb (
     assign tlx_afu_resp_data_valid_top          = tlx_afu_dcp0_data_valid_top;
     assign tlx_afu_resp_data_bus_top            = tlx_afu_dcp0_data_bus_top;
     assign tlx_afu_resp_data_bdi_top            = tlx_afu_dcp0_data_bdi_top;
-    assign tlx_afu_resp_data_initial_credit_top = tlx_afu_dcp0_initial_credit_top;
+//    assign tlx_afu_resp_data_initial_credit_top = tlx_afu_dcp0_initial_credit_top;	// OC3 using local variable
+    assign tlx_afu_resp_data_initial_credit_top = 6'b100000;	// OC3 using local variable
     assign tlx_afu_resp_data_credit_top         = tlx_afu_dcp0_credit_top;
 
 // VC1/DCP1 is assumed to handle the OCSE'3 tlx_afu cmd interface
@@ -230,8 +231,10 @@ module oc4_bb (
     assign afu_tlx_vc2_credit_top               = 1'b0;
 
 // VC3/DCP3 is assumed to handle the OCSE'3 afu_tlx cmd interface
-    assign tlx_afu_cmd_resp_initial_credit_top  = tlx_afu_vc3_initial_credit_top;
-    assign tlx_afu_cmd_data_initial_credit_top  = tlx_afu_dcp3_initial_credit_top;
+//    assign tlx_afu_cmd_resp_initial_credit_top  = tlx_afu_vc3_initial_credit_top;	// OC3 using local variable
+//    assign tlx_afu_cmd_data_initial_credit_top  = tlx_afu_dcp3_initial_credit_top;	// OC3: using local variable
+    assign tlx_afu_cmd_resp_initial_credit_top  = 4'b1000;	// OC3 using local variable
+    assign tlx_afu_cmd_data_initial_credit_top  = 6'b100000;	// OC3: using local variable
 
     assign afu_tlx_vc3_valid_top                = afu_tlx_cmd_valid_top;
     assign afu_tlx_vc3_opcode_top               = afu_tlx_cmd_opcode_top;
@@ -256,7 +259,6 @@ module oc4_bb (
     assign tlx_afu_cmd_credit_top               = tlx_afu_vc3_credit_top;
     assign tlx_afu_cmd_data_credit_top          = tlx_afu_dcp3_credit_top;
 
-    assign cfg_tlx_resync_credits_top           = 1'b0;
 
 /*
   always  begin
