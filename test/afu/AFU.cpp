@@ -36,6 +36,7 @@ using std::vector;
 #define CONTEXT_SIZE 0x400
 #define CONTEXT_MASK (CONTEXT_SIZE - 1)
 
+//MachineController *mc = NULL;
 uint8_t memory[256];
 uint8_t next_cmd = 0;
 uint8_t retry_cmd = 0;
@@ -627,7 +628,7 @@ AFU::resolve_tlx_afu_resp()
   uint8_t  cdata_bad;
   uint8_t  i;
   uint8_t  resp_ef, resp_w, resp_mh;
-  uint64_t resp_pa_or_ta;
+  uint64_t resp_pa_or_ta, data64;
   //uint8_t  cmd_cache_state;
   //uint8_t  cdata_bdi;
   //uint32_t cmd_host_tag;
@@ -654,6 +655,14 @@ AFU::resolve_tlx_afu_resp()
     	printf("memory = 0x");
     	for(i=0; i<64; i++) {
 				printf("%02x", (uint8_t)memory[i]);
+			}
+			printf("\n");
+			if(afu_event.afu_tlx_vc3_opcode == AFU_CMD_AMO_RD) {
+				printf("move amo respond data to config3\n");
+				memcpy((char*)&data64, memory, 8);
+				//index=3 machine_number=0
+				//mc->change_machine_config(3, 0, data64);
+
 			}
 	  	printf("\n");
 		}
@@ -691,8 +700,8 @@ AFU::resolve_tlx_afu_resp()
 	    else {
 			//debug_msg("AFU: set mem_state = WAITING_FOR_DATA");
 			//mem_state = WAITING_FOR_DATA;
-			debug_msg("AFU: set resp_state = WAITING_FOR_DATA");
-			resp_state = WAITING_FOR_DATA;
+				debug_msg("AFU: set resp_state = WAITING_FOR_DATA");
+				resp_state = WAITING_FOR_DATA;
 	    }
 
 	    break;
