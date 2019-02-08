@@ -717,7 +717,7 @@ int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 // modify to check command and use size, dl dp and stuff...
 // Send pending MMIO event to AFU; use config_read or config_write for descriptor
 // for MMIO use cmd_pr_rd_mem or cmd_pr_wr_mem
-// also supports amo_rd, amo_rw and amo_wr TODO HP MAKE SURE this will work for amo_rd, etc and the new fields cmd_glf, endian, etc
+// also supports amo_rd, amo_rw and amo_wr TODO HP MAKE SURE this will work for amo_rd, etc and the new fields cmd_flg, endian, etc
 void send_mmio(struct mmio *mmio)
 {
 	struct mmio_event *event;
@@ -725,6 +725,7 @@ void send_mmio(struct mmio *mmio)
 	//unsigned char ddata[17];
 	unsigned char null_buff[256] = {0};
 	unsigned char tdata_bus[256];
+	uint8_t *dptr = tdata_bus;
 	char data[17];
 	uint16_t  cmd_byte_cnt;
 	uint64_t offset;
@@ -753,8 +754,8 @@ void send_mmio(struct mmio *mmio)
 		// Attempt to send config_rd or config_wr to AFU
 		if (event->rnw) { //for config reads, no data to send
 			if ( tlx_afu_send_cfg_cmd_and_data(mmio->afu_event,
-			TLX_CMD_CONFIG_READ, 0xdead, 2, 0, event->cmd_PA,
-			0,0) == TLX_SUCCESS) {
+							   TLX_CMD_CONFIG_READ, 0xdead, 2, 0, event->cmd_PA,
+							   0,0) == TLX_SUCCESS) {
 				debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type,
 			  	 	event->dw ? 64 : 32, event->cmd_PA);
 				debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
@@ -765,181 +766,227 @@ void send_mmio(struct mmio *mmio)
 			// restricted by spec to pL of 1, 2, or 4 bytes HOWEVER
 			// We now have to offset the data into a 32B buffer and send it
 			memcpy(tdata_bus, null_buff, 32); //not sure if we always have to do this, but better safe than...
-			uint8_t * dptr = tdata_bus;;
-			 offset = event->cmd_PA & 0x0000000000000003 ;
-			memcpy(dptr +offset, &(event->cmd_data), 4);
-			if ( tlx_afu_send_cfg_cmd_and_data(mmio->afu_event,
-				TLX_CMD_CONFIG_WRITE, 0xbeef, 2, 0, event->cmd_PA,
-				0,dptr) == TLX_SUCCESS) {
-						sprintf(data, "%08" PRIx32, (uint32_t) event->cmd_data);
+			offset = event->cmd_PA & 0x0000000000000003 ;
+			memcpy(dptr + offset, &(event->cmd_data), 4);
+			if ( tlx_afu_send_cfg_cmd_and_data( mmio->afu_event,
+							    TLX_CMD_CONFIG_WRITE, 0xbeef, 2, 0, event->cmd_PA,
+							    0,dptr) == TLX_SUCCESS) {
+			                sprintf(data, "%08" PRIx32, (uint32_t) event->cmd_data);
 					debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s offset=0x%x",
-						mmio->afu_name, type,  32,
-			  			event->cmd_PA, data, offset);
+						  mmio->afu_name, type,  32,
+						  event->cmd_PA, data, offset);
 					debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
-						event->rnw, event->dw, event->cmd_PA);
+							event->rnw, event->dw, event->cmd_PA);
 					event->state = OCSE_PENDING;
-				}
 			}
-
-       	}  else   {  // if not a CONFIG, then must be memory access MMIO rd/wr
-	        if ( event->size == 0 ) {
-                      // we have the old mmio style
-		      // debug_msg( "ocse:send_mmio:mmio to mmio space" );
-		      sprintf(type, "MMIO");
-
-		      event->cmd_dL = 0;
-		      event->cmd_dP = 0;
-
-		      // calculate event->pL from event->dw
-		      // calculate cmd_byte_cnt from event->dw
-		      if (event->dw == 1) {
-			// pl = 3 ::= 8 bytes
-			event->cmd_pL = 3;
-			cmd_byte_cnt = 8;
-		      } else {
-			// pl = 2 ::= 4 bytes
-			event->cmd_pL = 2;
-			cmd_byte_cnt = 4;
-		      }
-
-		      // fix the data pointer for the write command later
-		      // ???
-		      event->data = (uint8_t *)&(event->cmd_data);
-
-		} else {
-		      // we have the new general memory style
-		      // debug_msg( "ocse:send_mmio:mmio to LPC space" );
-		      sprintf(type, "MEM");
-		      event->ack = OCSE_LPC_ACK;
-
-		      // calculate event->pL, dL, and dP from event->dw
-		      // calculate cmd_byte_cnt from event->size
-		      cmd_byte_cnt = event->size;
-		      event->cmd_pL = 0;
-		      event->cmd_dL = 0;
-		      event->cmd_dP = 0;
-		      switch (event->size) {
-		      case 1:
-			break;
-		      case 2:
-			event->cmd_pL = 1;
-			break;
-		      case 4:
-			event->cmd_pL = 2;
-			break;
-		      case 8:
-			event->cmd_pL = 3;
-			break;
-		      case 16:
-			event->cmd_pL = 4;
-			break;
-		      case 32:
-			event->cmd_pL = 5;
-			break;
-		      case 64:
-			event->cmd_dL= 1;
-			break;
-		      case 128:
-			event->cmd_dL= 2;
-			break;
-		      case 256:
-			event->cmd_dL= 3;
-			break;
-		      default:
-			warn_msg( "send_mmio: Invalid size given %d", event->size );
-		      }
-		      
 		}
+		return;
+       	}  
+
+	// if not a CONFIG, then must be memory access MMIO rd/wr
+	if ( event->size == 0 ) {
+	      // we have the old mmio style
+	      // debug_msg( "ocse:send_mmio:mmio to mmio space" );
+	      sprintf(type, "MMIO");
+	      
+	      event->cmd_dL = 0;
+	      event->cmd_dP = 0;
+
+	      // calculate event->pL from event->dw
+	      // calculate cmd_byte_cnt from event->dw
+	      if (event->dw == 1) {
+		     // pl = 3 ::= 8 bytes
+		     event->cmd_pL = 3;
+		     cmd_byte_cnt = 8;
+	      } else {
+		     // pl = 2 ::= 4 bytes
+		     event->cmd_pL = 2;
+		     cmd_byte_cnt = 4;
+	      }
+
+	      // fix the data pointer for the write command later
+	      // ???
+	      event->data = (uint8_t *)&(event->cmd_data);
+
+	} else {
+	      // we have the new general memory style
+	      // debug_msg( "ocse:send_mmio:mmio to LPC space" );
+	      sprintf(type, "MEM");
+	      event->ack = OCSE_LPC_ACK;
+	      
+	      // calculate event->pL, dL, and dP from event->dw
+	      // calculate cmd_byte_cnt from event->size
+	      cmd_byte_cnt = event->size;
+	      event->cmd_pL = 0;
+	      event->cmd_dL = 0;
+	      event->cmd_dP = 0;
+	      switch (event->size) {
+	      case 1:
+		    break;
+	      case 2:
+		    event->cmd_pL = 1;
+		    break;
+	      case 4:
+		    if (( event->cmd_flg >= 8 ) & ( event->cmd_flg <= 10 )) {
+		      event->cmd_pL = 0x6;
+		    } else {
+		      event->cmd_pL = 0x2;
+		    }
+		    break;
+	      case 8:
+		    if (( event->cmd_flg >= 8 ) & ( event->cmd_flg <= 10 )) {
+		      event->cmd_pL = 0x7;
+		    } else {
+		      event->cmd_pL = 0x3;
+		    }
+		    break;
+	      case 16:
+		    event->cmd_pL = 4;
+		    break;
+	      case 32:
+		    event->cmd_pL = 5;
+		    break;
+	      case 64:
+		    event->cmd_dL= 1;
+		    break;
+	      case 128:
+		    event->cmd_dL= 2;
+		    break;
+	      case 256:
+		    event->cmd_dL= 3;
+		    break;
+	      default:
+		    warn_msg( "send_mmio: Invalid size given %d", event->size );
+	      }
+		      
+	}
 		
-		if (event->rnw) { // read
-		  if (cmd_byte_cnt < 64) { // partial
-		//TODO update event struct with new cmd fields if needed
-		    if (tlx_afu_send_cmd_vc1(mmio->afu_event,
-					 TLX_CMD_PR_RD_MEM, 0, 0xcafe, event->cmd_PA, event->cmd_dL, 0,0 ,event->cmd_pL, 0, 0, 0,0,0) == TLX_SUCCESS) {
-		      debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type, event->dw ? 64 : 32, event->cmd_PA);
-		      debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw,event->cmd_PA );
-		      event->state = OCSE_PENDING;
-		    }
-		  } else { // full
-		//TODO update event struct with new cmd fields if needed
-		    if (tlx_afu_send_cmd_vc1(mmio->afu_event,
-					 TLX_CMD_RD_MEM, 0, 0xefac, event->cmd_PA, event->cmd_dL, 0, 0 ,event->cmd_pL, 0, 0, 0,0,0) == TLX_SUCCESS) {
-		      debug_msg("%s:%s READ size=%d offset=0x%05x", mmio->afu_name, type, cmd_byte_cnt, event->cmd_PA);
-		      debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw, event->cmd_PA);
-		      event->state = OCSE_PENDING;
-		    }
-		  }
-		  debug_msg("send_mmio: sent read command, now wait for resp from AFU \n"); 
-		} else { // write - 2 part operation
-		  // this part (part 2) was moved to be handled by the afu_driver code linked into the event simulator
-		  /* if (event->state == OCSE_RD_RQ_PENDING) { // part 2 - send the data */
-		  /*   // we can send 1, 2, 4, 8, 16, 32, 64, 128, or 256 bytes of data */
-		  /*   // sizes less that 64 are embedded in a 64 byte value at the offset implied by cmd_PA */
-		  /*   // sizes greater than 64 are not yet supported, but the idea is they would either be sent in a number of 64 byte */
-		  /*   // packets or as a total packet to be dispursed by tlx_interface somehow... */
-		  /*   // init a 64 byte space */
-		  /*   memcpy(tdata_bus, null_buff, 64); //not sure if we always have to do this, but better safe than... */
-		  /*   uint8_t * dptr = tdata_bus; */
-		  /*   uint8_t BDI = 0; */
-
-		  /*   offset = event->cmd_PA & 0x000000000000003F ;  // this works for addresses >= 64 too */
-		  /*   memcpy( dptr+offset, event->data, cmd_byte_cnt);  // copy the data to the tdata buffer */
-	  	  /*   // TODO finish this bid_resp_err code in sprinti */
-		  /*   //if ( allow_bdi_resp_err(event->cmd->parms)) { */
-		  /*   //		debug_msg("send_mmio: we've decided to BDI the cmd data  \n"); */
-		  /*   //		BDI = 1; */
-		  /*   //} else */
-		  /* 	BDI = 0; */
-
-
-		  /*   if (tlx_afu_send_cmd_data(mmio->afu_event, 64, BDI, dptr) == TLX_SUCCESS) { */
-		  /*     /\* if (event->dw) *\/ */
-		  /*     /\* 	sprintf(data, "%016" PRIx64, event->cmd_data); *\/ */
-		  /*     /\* else *\/ */
-		  /*     /\* 	sprintf(data, "%08" PRIx32, (uint32_t) event->cmd_data); *\/ */
-		  /*     /\* debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s offset=0x%x", *\/ */
-		  /*     /\* 		mmio->afu_name, type, event->dw ? 64 : 32, *\/ */
-		  /*     /\* 		event->cmd_PA, data, offset); *\/ */
-		  /*     debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, */
-		  /* 		      event->rnw, event->dw, event->cmd_PA); */
-		  /*     event->state = OCSE_PENDING; */
-		  /*     debug_msg("send_mmio: got rd_req and sent data, now wait for cmd resp from AFU");  */
-		  /*   } */
-		  /* } else { // part 1 - send the command */
-		    if (cmd_byte_cnt < 64) { // partial
-		      uint8_t * dptr = tdata_bus;
-		      offset = event->cmd_PA & 0x000000000000003F ;  // this works for addresses >= 64 too */
-		      memcpy(tdata_bus, null_buff, 64); // clear tdata_bus
-		      memcpy( dptr+offset, event->data, cmd_byte_cnt);  // copy the data to the proper offset in tdata buffer */
+	// need to be a little more clever here.  an amo_rw comes over as a read, but also has to send data
+	// we should perhaps do this section based on event->opcode (which is the OCSE cmd form)
+	switch ( event->cmd_opcode ) {
+	case OCSE_AMO_RD:
+	      // we know size < 64
+	      if ( tlx_afu_send_cmd_vc1( mmio->afu_event,
+					 TLX_CMD_AMO_RD, 
+					 0, 0xcafe, event->cmd_PA, 0, 0, 0, 
+					 event->cmd_pL, 0, 0, 0, event->cmd_flg, 0 ) == TLX_SUCCESS ) {
+  		    debug_msg("%s:%s AMO_RD %d word=0x%05x", mmio->afu_name, type, event->dw ? 64 : 32, event->cmd_PA);
+		    debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw,event->cmd_PA );
+		    event->state = OCSE_PENDING;
+	      }
+	      break;
+	case OCSE_AMO_WR:
+	      // we know size < 64
+	      offset = event->cmd_PA & 0x000000000000003F ;  // this works for addresses >= 64 too */
+	      memcpy(tdata_bus, null_buff, 64); // clear tdata_bus
+	      memcpy( dptr+offset, event->data, cmd_byte_cnt);  // copy the data to the proper offset in tdata buffer */
 #ifdef DEBUG
-		      printf("send_mmio: data = 0x" );
-		      for ( i=0; i<cmd_byte_cnt; i++ ) {
-			printf( "%02x", tdata_bus[i] );
-		      }
-		      printf( "\n" );
+	      printf("send_mmio: data = 0x" );
+	      for ( i=0; i<cmd_byte_cnt; i++ ) {
+		printf( "%02x", tdata_bus[i] );
+	      }
+	      printf( "\n" );
 #endif
-		      if (tlx_afu_send_cmd_vc1_and_dcp1( mmio->afu_event,
-						     TLX_CMD_PR_WR_MEM, 0,
-						     0xbead, 
-						     event->cmd_PA,
-						     event->cmd_dL,0,0, 
-						     event->cmd_pL, 
-						     0, 0,0,0,0,
-						     0, // always good data for now
-						     tdata_bus ) == TLX_SUCCESS) {
-			event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
-		      }
-		    } else { // full
-		      memcpy( tdata_bus, event->data, cmd_byte_cnt);  // copy the data to the proper offset in tdata buffer */
+	      if (tlx_afu_send_cmd_vc1_and_dcp1( mmio->afu_event,
+						 TLX_CMD_AMO_W, 0,
+						 0xbead, 
+						 event->cmd_PA,
+						 event->cmd_dL,0,0, 
+						 event->cmd_pL, 
+						 0, 0,0,0,0,
+						 0, // always good data for now
+						 tdata_bus ) == TLX_SUCCESS) {
+		    event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
+	      }
+	case OCSE_AMO_RW:
+	      // we know size < 64
+	      offset = event->cmd_PA & 0x000000000000003F ;  // this works for addresses >= 64 too */
+	      memcpy( tdata_bus, null_buff, 64); // clear tdata_bus
+	      memcpy( dptr + offset, event->data, cmd_byte_cnt);  // copy the data to the proper offset in tdata buffer */
+	      // need to add the dataw to the proper offset into the 64 byte tdata_bus...
+	      offset = event->cmd_PA & 0x000000000000000F ;
+	      offset = offset + 8 ; // add 8
+	      offset = offset & 0x000000000000000F ; // clear the carry if any
+	      offset = ( event->cmd_PA & 0x0000000000000030 ) | offset; 
+	      memcpy( dptr + offset, event->dataw, cmd_byte_cnt);  // copy the dataw to the proper offset in tdata buffer */
 #ifdef DEBUG
-		      printf("send_mmio: data = 0x" );
-		      for ( i=0; i<cmd_byte_cnt; i++ ) {
-			printf( "%02x", tdata_bus[i] );
-		      }
-		      printf( "\n" );
+	      printf("send_mmio: data = 0x" );
+	      for ( i=0; i<cmd_byte_cnt; i++ ) {
+		printf( "%02x", tdata_bus[i] );
+	      }
+	      printf( "\n" );
 #endif
-		      if (event->be_valid == 0) {
-			if (tlx_afu_send_cmd_vc1_and_dcp1( mmio->afu_event,
+	      if (tlx_afu_send_cmd_vc1_and_dcp1( mmio->afu_event,
+						 TLX_CMD_AMO_RW, 0,
+						 0xbead, 
+						 event->cmd_PA,
+						 event->cmd_dL, 0, 0, 
+						 event->cmd_pL, 
+						 0, 0, 0, 0, 0,
+						 0, // always good data for now
+						 tdata_bus ) == TLX_SUCCESS) {
+		    event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
+	      }
+	      break;
+	case OCSE_LPC_READ:
+	      if (cmd_byte_cnt < 64) { // partial
+		    //TODO update event struct with new cmd fields if needed
+		    if ( tlx_afu_send_cmd_vc1( mmio->afu_event,
+					       TLX_CMD_PR_RD_MEM, 
+					       0, 0xcafe, event->cmd_PA, 0, 0, 0, 
+					       event->cmd_pL, 0, 0, 0, 0, 0 ) == TLX_SUCCESS ) {
+		          debug_msg("%s:%s READ size=%d word=0x%05x", mmio->afu_name, type, event->dw ? 64 : 32, event->cmd_PA);
+			  debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw,event->cmd_PA );
+			  event->state = OCSE_PENDING;
+		    }
+	      } else { // full
+		    //TODO update event struct with new cmd fields if needed
+		    if ( tlx_afu_send_cmd_vc1( mmio->afu_event,
+					       TLX_CMD_RD_MEM, 
+					       0, 0xefac, event->cmd_PA, event->cmd_dL, 0, 0, 
+					       event->cmd_pL, 0, 0, 0, 0, 0 ) == TLX_SUCCESS ) {
+		          debug_msg("%s:%s READ size=%d offset=0x%05x", mmio->afu_name, type, cmd_byte_cnt, event->cmd_PA);
+			  debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw, event->cmd_PA);
+			  event->state = OCSE_PENDING;
+		    }
+	      }
+	      debug_msg("send_mmio: sent read command, now wait for resp from AFU \n"); 
+	      break;
+	case OCSE_LPC_WRITE:
+	      if (cmd_byte_cnt < 64) { 
+		    // partial
+		    offset = event->cmd_PA & 0x000000000000003F ;  // this works for addresses >= 64 too */
+		    memcpy(tdata_bus, null_buff, 64); // clear tdata_bus
+		    memcpy( dptr+offset, event->data, cmd_byte_cnt);  // copy the data to the proper offset in tdata buffer */
+#ifdef DEBUG
+		    printf("send_mmio: data = 0x" );
+		    for ( i=0; i<cmd_byte_cnt; i++ ) {
+		      printf( "%02x", tdata_bus[i] );
+		    }
+		    printf( "\n" );
+#endif
+		    if (tlx_afu_send_cmd_vc1_and_dcp1( mmio->afu_event,
+						       TLX_CMD_PR_WR_MEM, 0,
+						       0xbead, 
+						       event->cmd_PA,
+						       event->cmd_dL,0,0, 
+						       event->cmd_pL, 
+						       0, 0,0,0,0,
+						       0, // always good data for now
+						       tdata_bus ) == TLX_SUCCESS) {
+		          event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
+		    }
+	      } else { 
+		    // full
+		    memcpy( tdata_bus, event->data, cmd_byte_cnt);  // copy the data to the proper offset in tdata buffer */
+#ifdef DEBUG
+		    printf("send_mmio: data = 0x" );
+		    for ( i=0; i<cmd_byte_cnt; i++ ) {
+		      printf( "%02x", tdata_bus[i] );
+		    }
+		    printf( "\n" );
+#endif
+		    if (tlx_afu_send_cmd_vc1_and_dcp1( mmio->afu_event,
 						       TLX_CMD_WRITE_MEM, 0, // opcode and afutag
 						       0xdaeb,            // capp tag
 						       event->cmd_PA,
@@ -948,30 +995,32 @@ void send_mmio(struct mmio *mmio)
 						       0, 0, 0, 0, 0,     // endian, co , os, cmdflag, mad
 						       0, // always good data for now
 						       tdata_bus ) == TLX_SUCCESS) {
-			  event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
-			}
-		      } else {
-			if (tlx_afu_send_cmd_vc1_and_dcp1( mmio->afu_event,
-						       TLX_CMD_WRITE_MEM_BE, 0,
-						       0xbebe, 
-						       event->cmd_PA,
-						       event->cmd_dL,0,
-						       event->be, 
-						       event->cmd_pL, 
-						       0, 0, 0, 0, 0, 
-						       0, // always good data for now
-						       tdata_bus ) == TLX_SUCCESS) {
-			  event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
-			}
-		      }
+		          event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
 		    }
-		    debug_msg("send_mmio: sent write command, now wait for resp from AFU \n"); 
-		  /* } */
-		}
-		// Attempt to send mmio to AFU
-		if (!event->rnw) { // MMIO write - two part operation
-		}
+	      }
+	      debug_msg("send_mmio: sent write command, now wait for resp from AFU \n"); 
+	      break;
+	case OCSE_LPC_WRITE_BE:
+	      if (tlx_afu_send_cmd_vc1_and_dcp1( mmio->afu_event,
+						 TLX_CMD_WRITE_MEM_BE, 0,
+						 0xbebe, 
+						 event->cmd_PA,
+						 event->cmd_dL,0,
+						 event->be, 
+						 event->cmd_pL, 
+						 0, 0, 0, 0, 0, 
+						 0, // always good data for now
+						 tdata_bus ) == TLX_SUCCESS) {
+		    event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
+	      }
+	      debug_msg("send_mmio: sent write be command, now wait for resp from AFU \n"); 
+	      break;
+	default:
+	      break;
 	}
+	
+	
+	return;
 }
 
 // Handle ap response data beats coming from the afu
@@ -1743,7 +1792,7 @@ struct mmio_event *handle_mem(struct mmio *mmio, struct client *client,
 // Add new mmio event for sending amo cmds to afu
 static struct mmio_event *_add_afu_amo_event(struct mmio *mmio, struct client *client,
 				    uint32_t rnw, uint32_t size, int region, uint64_t addr,
-				   uint8_t pL, uint8_t cmd_flg, uint8_t cmd, uint8_t *data, uint8_t endian)
+				   uint8_t cmd_flg, uint8_t cmd, uint8_t *data, uint8_t *dataw, uint8_t endian)
 {
 	struct mmio_event *event;
 	struct mmio_event **list;
@@ -1757,10 +1806,10 @@ static struct mmio_event *_add_afu_amo_event(struct mmio *mmio, struct client *c
 		return event;
 	event->cfg = 0;
 	event->rnw = rnw;
-	event->cmd_pL = pL;
 	event->dw = 0;
 	event->size = size;  // part of the new fields
 	event->data = data;
+	event->dataw = dataw;
 	event->cmd_flg = cmd_flg;
 	event->cmd_endian = endian;
 	event->cmd_opcode = cmd;
@@ -1831,13 +1880,13 @@ struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
 	uint64_t PA;
 	uint32_t offset;
 	uint8_t size;
-	uint8_t pL;
 	uint8_t cmd_flg;
-	uint8_t *data;
+	uint8_t *datav;
+	uint8_t *dataw;
 	uint8_t endian;
 	int fd = client->fd;
 
-		uint8_t ack;
+	uint8_t ack;
 
 	debug_msg( "handle_afu_amo: rnw=%d", rnw );
 
@@ -1872,41 +1921,45 @@ struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
 		goto amo_fail;
 	}
 
-	switch(size) {
-		case 0x4:
-		        if (( cmd_flg >= 8 ) & ( cmd_flg <= 10 )) {
-			    pL = 0x6;
-			} else {
-			    pL = 0x2;
-			}
-			break;
-		case 0x8:
-		        if (( cmd_flg >= 8 ) & ( cmd_flg <= 10 )) {
-			    pL = 0x7;
-			} else {
-			    pL = 0x3;
-			}
-			break;
-		default:
-			info_msg("invalid size = %d received for cmd= %x ; setting data size = 8 just because... ", size, cmd);
-			// TODO probably want to fail this cmd bc of invalid pL
-			pL = 0x3;
-			break;
-	}
+	// data
+	// for an amo_r, just allocate a buffer (datav)
+	// for an amo_w, allocate a buffer and fill it. (datav)
+	// for an amo_rw, it gets tricky. allocate 2 buffers, datav and dataw. v will double as the return buffer
 
-	// allocate a buffer for the data
-	data = (uint8_t *)malloc( size );
-
-	if (rnw) {
-	  // pass the empty data buffer to capture the read data coming back
-	  event = _add_afu_amo_event( mmio, client, 1, size, region, PA, pL, cmd_flg, cmd, data, endian);
-	} else {
-	  // fill the data buffer with write data and send it
-	  // get size bytes of data from socket
-	  if ( get_bytes_silent( fd, size, data, mmio->timeout, &(client->abort) ) < 0 ) {
-	    goto amo_fail;
+	if ( cmd != OCSE_AMO_RW ) {
+	  // normal
+	  if (rnw) {
+	    // if a read, allocate the return buffer and build the event
+	    datav = (uint8_t *)malloc( size );
+	    event = _add_afu_amo_event( mmio, client, 1, size, region, PA, cmd_flg, cmd, datav, NULL, endian);
+	  } else {
+	    // if a write, allocate a data buffer, fill it from the socket and build the event
+	    datav = (uint8_t *)malloc( size );
+	    if ( get_bytes_silent( fd, size, datav, mmio->timeout, &(client->abort) ) < 0 ) {
+	      goto amo_fail;
+	    }
+	    event = _add_afu_amo_event( mmio, client, 0, size, region, PA, cmd_flg, cmd, datav, NULL, endian);
 	  }
-	  event = _add_afu_amo_event( mmio, client, 0, size, region, PA, pL, cmd_flg, cmd, data, endian);
+	} else {
+	  // special
+	  // cmd_flag 0-7, 9-10 have a datav
+	  // always allocate datav, fill it in most cases.  always used for return data.
+	  datav = (uint8_t *)malloc( size );
+	  if ( ( (cmd_flg >= 0) && (cmd_flg <= 7)  ) || 
+	       ( (cmd_flg >= 9) && (cmd_flg <= 10) ) ) {
+	    if ( get_bytes_silent( fd, size, datav, mmio->timeout, &(client->abort) ) < 0 ) {
+	      goto amo_fail;
+	    }
+	  }
+	  // cmd_flag 8-10 have a dataw
+	  dataw = NULL;
+	  if ( (cmd_flg >= 8) && (cmd_flg <= 10)  ) {
+	    dataw = (uint8_t *)malloc( size );
+	    if ( get_bytes_silent( fd, size, dataw, mmio->timeout, &(client->abort) ) < 0 ) {
+	      goto amo_fail;
+	    }
+	  }
+	  event = _add_afu_amo_event( mmio, client, 0, size, region, PA, cmd_flg, cmd, datav, dataw, endian);
 	}
 
 	return event;

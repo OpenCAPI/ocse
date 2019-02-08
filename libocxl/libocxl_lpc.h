@@ -64,7 +64,7 @@ ocxl_err ocxl_lpc_amo_read(ocxl_afu_h afu, uint8_t cmd, uint64_t offset, uint8_t
 // perform an atomic write "cmd" of "size" bytes of data starting at "val" to memory starting at "offset" in lpc memory known to "afu" and save them starting at "out"
 ocxl_err ocxl_lpc_amo_write(ocxl_afu_h afu, uint8_t cmd, uint64_t offset, uint8_t *val, uint64_t size );
 // perform an atomic read/write "cmd" of "size" bytes of data starting at "val" to memory starting at "offset" in lpc memory known to "afu" and save the output starting at "out"
-ocxl_err ocxl_lpc_amo_readwrite(ocxl_afu_h afu, uint8_t cmd, uint64_t offset, uint8_t *val, uint8_t *out, uint64_t size );
+ocxl_err ocxl_lpc_amo_readwrite(ocxl_afu_h afu, uint8_t cmd, uint64_t offset, uint8_t *valv,  uint8_t *valw, uint8_t *out, uint64_t size );
 
 
 #ifdef __cplusplus

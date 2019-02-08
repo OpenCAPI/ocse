@@ -62,6 +62,7 @@ struct mmio_event {
         uint8_t be_valid;  // use this to let us know whether or not to use the byte enable
         uint32_t size;  // if size = 0, we use dw to imply size
         uint8_t *data;  // if size = 0, we use cmd_data as the data field
+        uint8_t *dataw;  // used for capp amo_rw commands only
         uint64_t be;  // if be_valid, use this as the byte enable in the command
 	enum ocse_state state;
 	struct mmio_event *_next;

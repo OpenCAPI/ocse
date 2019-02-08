@@ -75,6 +75,7 @@ struct mem_req {
 	volatile uint64_t size;
 	volatile uint64_t be;
 	uint8_t *data;
+	uint8_t *datab;
 };
 
 typedef struct ocxl_afu ocxl_afu;

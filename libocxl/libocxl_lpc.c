@@ -392,6 +392,12 @@ ocxl_err ocxl_lpc_amo_read(ocxl_afu_h afu, uint8_t cmd, uint64_t offset, uint8_t
 	      goto read_fail;
 	}
 
+        // check cmd legality - 0xC to 0xE are legal
+        if ( !( (cmd >= 0xC) && (cmd <= 0xE) ) ) {
+	      warn_msg("Illegal cmd flag passed to ocxl_lpc_amo_read");
+	      goto read_fail;
+	}
+
         // check address alignment against size - could do something here...
 
 	my_afu->mem.type = OCSE_AMO_RD;
@@ -455,6 +461,14 @@ ocxl_err ocxl_lpc_amo_write(ocxl_afu_h afu, uint8_t cmd, uint64_t offset, uint8_
 	      goto write_fail;
 	}
 
+        // check cmd legality - 0x0 to 0x7 and 0xC are legal
+        if ( !( ( (cmd >= 0x0) && 
+		  (cmd <= 0x7) ) ||
+		( cmd == 0xC ) ) ) {
+	      warn_msg("Illegal cmd flag passed to ocxl_lpc_amo_write");
+	      goto write_fail;
+	}
+
         // check address alignment against size - could do something here...
 
 	my_afu->mem.type = OCSE_AMO_WR;
@@ -483,9 +497,10 @@ ocxl_err ocxl_lpc_amo_write(ocxl_afu_h afu, uint8_t cmd, uint64_t offset, uint8_
 //    cmd = the amo read/write subcommand that should be performed
 //    size = 4 or 8 bytes
 //    offset is byte aligned
-//    *val is byte aligned - but is likely 16 Byte aligned due to host OS behavior
+//    *valv is byte aligned - but is likely 16 Byte aligned due to host OS behavior, null depending on cmd
+//    *valw is byte aligned - for a subset of the cmd's, but is likely 16 Byte aligned due to host OS behavior, null depending on cmd
 //    *out is byte aligned - but is likely 16 Byte aligned due to host OS behavior
-ocxl_err ocxl_lpc_amo_readwrite(ocxl_afu_h afu, uint8_t cmd, uint64_t offset, uint8_t *val, uint8_t *out, uint64_t size )
+ocxl_err ocxl_lpc_amo_readwrite(ocxl_afu_h afu, uint8_t cmd, uint64_t offset, uint8_t *valv, uint8_t *valw, uint8_t *out, uint64_t size )
 {
 
         struct ocxl_afu *my_afu;
@@ -495,18 +510,25 @@ ocxl_err ocxl_lpc_amo_readwrite(ocxl_afu_h afu, uint8_t cmd, uint64_t offset, ui
 
         if (!my_afu) {
 	      warn_msg("NULL afu passed to ocxl_lpc_amo_readwrite");
-	      goto read_fail;
+	      goto readwrite_fail;
 	}
 
         if (!my_afu->lpc_mapped) {
 	      warn_msg("afu lpc space is not mapped");
-	      goto read_fail;
+	      goto readwrite_fail;
 	}
 
         // check size legality - 4 or 8 is legal
         if ((size != 4) & (size != 8)) {
 	      warn_msg("Illegal size passed to ocxl_lpc_amo_readwrite");
-	      goto read_fail;
+	      goto readwrite_fail;
+	}
+
+        // check cmd legality - 0x0 to 0xA are legal
+        if ( !( (cmd >= 0x0) & 
+		(cmd <= 0xA) ) ) {
+	      warn_msg("Illegal cmd flag passed to ocxl_lpc_amo_write");
+	      goto readwrite_fail;
 	}
 
         // check address alignment against size - could do something here...
@@ -518,7 +540,8 @@ ocxl_err ocxl_lpc_amo_readwrite(ocxl_afu_h afu, uint8_t cmd, uint64_t offset, ui
 	  // and wait for the ack.
 	  my_afu->mem.addr = offset;
 	  my_afu->mem.size = size;
-	  my_afu->mem.data = val;
+	  my_afu->mem.data = valv; // if cmd is 8, v could be null, so pass "DEADDEAD"?
+	  my_afu->mem.datab = valw; // may be null for some commands, so pass "BEEFBEEF"?
 	  my_afu->mem.state = LIBOCXL_REQ_REQUEST;
 	  while (my_afu->mem.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 	    _delay_1ms();
@@ -526,7 +549,7 @@ ocxl_err ocxl_lpc_amo_readwrite(ocxl_afu_h afu, uint8_t cmd, uint64_t offset, ui
 	  // copy the data by copying the pointer
 	  if (my_afu->mem.data == NULL) {
 	    warn_msg("afu lpc memory not returned");
-	    goto read_fail;
+	    goto readwrite_fail;
 	  }
 
 	  // we expect mem.data to be a full length buffer of the data we are reading
@@ -535,11 +558,11 @@ ocxl_err ocxl_lpc_amo_readwrite(ocxl_afu_h afu, uint8_t cmd, uint64_t offset, ui
 	  free( my_afu->mem.data );
 
 	  if (!my_afu->opened)
-	    goto read_fail;
+	    goto readwrite_fail;
 
 	return 0;
 
- read_fail:
+ readwrite_fail:
 	errno = ENODEV;
 	return -1;
 }
