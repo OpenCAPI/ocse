@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
     ocxl_event event;
     MachineConfig machine_config;
     MachineConfigParam config_param;
-    uint64_t irq_id;
+    uint64_t irq_id, result;
     struct work_element *work_element_descriptor = 0;
 
     static struct option long_options[] = {
@@ -173,7 +173,7 @@ int main(int argc, char *argv[])
 	printf("Polling read completion status = 0x%x\n", *status);
     }
     // clear machine config
-    rc = clear_machine_config(afu1_h, &machine_config, config_param, DIRECTED);
+    rc = clear_machine_config(afu1_h, &machine_config, config_param, DIRECTED, &result);
     if(rc != 0) {
 	printf("Failed to clear machine config afu1\n");
 	goto done;
@@ -205,7 +205,7 @@ int main(int argc, char *argv[])
     }
 
     // clear machine config
-    rc = clear_machine_config(afu1_h, &machine_config, config_param, DIRECTED);
+    rc = clear_machine_config(afu1_h, &machine_config, config_param, DIRECTED, &result);
     if(rc != 0) {
 	printf("Failed to clear machine config afu1\n");
 	goto done;
@@ -265,7 +265,7 @@ int main(int argc, char *argv[])
 	printf("Polling interrupt completion status = 0x%x\n", *status);
     }
 
-    rc = clear_machine_config(afu2_h, &machine_config, config_param, DIRECTED);
+    rc = clear_machine_config(afu2_h, &machine_config, config_param, DIRECTED, &result);
     if(rc != 0) {
 	printf("Failed to clear machine config afu2\n");
 	goto done;

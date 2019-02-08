@@ -36,7 +36,9 @@ using std::vector;
 #define CONTEXT_SIZE 0x400
 #define CONTEXT_MASK (CONTEXT_SIZE - 1)
 
-//MachineController *mc = NULL;
+//variables change for return data to app
+uint32_t mmio_base;
+MachineController *mc = NULL;
 uint8_t memory[256];
 uint8_t next_cmd = 0;
 uint8_t retry_cmd = 0;
@@ -456,11 +458,11 @@ AFU::reset_machine_controllers ()
 bool 
 AFU::get_machine_context()
 {
-    MachineController *mc = NULL;
+    //MachineController *mc = NULL;
     uint64_t  data;
     uint8_t  size = 8;
     uint16_t  context, machine_number, i;
-    uint32_t  mmio_base;
+//    uint32_t  mmio_base;
 
     debug_msg("AFU: get machine context");
     machine_number = 0;
@@ -658,10 +660,10 @@ AFU::resolve_tlx_afu_resp()
 			}
 			printf("\n");
 			if(afu_event.afu_tlx_vc3_opcode == AFU_CMD_AMO_RD) {
-				printf("move amo respond data to config3\n");
+				printf("move amo respond data to config[3]\n");
 				memcpy((char*)&data64, memory, 8);
 				//index=3 machine_number=0
-				//mc->change_machine_config(3, 0, data64);
+				descriptor.set_mmio_mem(3*8, (char*)memory, 8);
 
 			}
 	  	printf("\n");

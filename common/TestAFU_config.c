@@ -102,7 +102,8 @@ int enable_machine(ocxl_afu_h afu, ocxl_mmio_h pp_mmio_h, MachineConfig *machine
 	return 0;
 }
 
-int clear_machine_config(ocxl_mmio_h pp_mmio_h, MachineConfig *machine, MachineConfigParam param, int mode)
+int clear_machine_config(ocxl_mmio_h pp_mmio_h, MachineConfig *machine, 
+	MachineConfigParam param, int mode, uint64_t *result)
 {
   int i;
   uint16_t machine_number;
@@ -113,11 +114,22 @@ int clear_machine_config(ocxl_mmio_h pp_mmio_h, MachineConfig *machine, MachineC
   machine_number = param.machine_number;
   machine_config_base_address = _machine_base_address_index(machine_number, mode);
   machine_config_base_address += context * 0x1000;
-
-  if(ocxl_mmio_write64(pp_mmio_h, machine_config_base_address, OCXL_MMIO_LITTLE_ENDIAN, 0x0)) {
+  
+  for(i=0; i<4; i++) {
+  	if (ocxl_mmio_read64(pp_mmio_h, machine_config_base_address +(i*8), 
+  		OCXL_MMIO_LITTLE_ENDIAN, result))
+  	{
+  		printf("Failed to read mmio data\n");
+  		return -1;
+  	}
+  	printf("mmio read config[%d] = 0x%"PRIx64"\n", i, *result);
+  }
+  
+	if(ocxl_mmio_write64(pp_mmio_h, machine_config_base_address, OCXL_MMIO_LITTLE_ENDIAN, 0x0)) {
 		printf("Failed to clear machine config\n");
 		return -1;
-  }
+	}
+	
   return 0;
 }
 // Function to read config from AFU

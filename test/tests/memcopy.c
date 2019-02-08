@@ -50,6 +50,7 @@ int main(int argc, char *argv[])
     int rc;
     char *rcacheline, *wcacheline;
     char *status;
+    uint64_t result;
     ocxl_afu_h mafu_h;
     ocxl_mmio_h pp_mmio_h;
     MachineConfig machine_config;
@@ -166,7 +167,7 @@ int main(int argc, char *argv[])
 	printf("Polling read completion status = 0x%x\n", *status);
     }
     // clear machine config
-    rc = clear_machine_config(mafu_h, &machine_config, config_param, DIRECTED);
+    rc = clear_machine_config(mafu_h, &machine_config, config_param, DIRECTED, &result);
     if(rc != 0) {
 	printf("Failed to clear machine config for read command\n");
 	goto done;
@@ -195,7 +196,7 @@ int main(int argc, char *argv[])
 	nanosleep(&t, &t);
 	printf("Polling write completion status = 0x%x\n", *status);
     }
-    rc = clear_machine_config(mafu_h, &machine_config, config_param, DIRECTED);
+    rc = clear_machine_config(mafu_h, &machine_config, config_param, DIRECTED, &result);
     if(rc != 0) {
 	printf("Failed clear machine config for write command\n");
     	goto done;

@@ -66,7 +66,8 @@ int config_machine(MachineConfig *machine, MachineConfigParam configparam);
 int enable_machine(ocxl_afu_h afu, ocxl_mmio_h pp_mmio_h, MachineConfig *machine, MachineConfigParam param, int mode);
 
 // Function to clear machine config
-int clear_machine_config(ocxl_mmio_h pp_mmio_h, MachineConfig *machine, MachineConfigParam param, int mode);
+int clear_machine_config(ocxl_mmio_h pp_mmio_h, MachineConfig *machine, 
+    MachineConfigParam param, int mode, uint64_t *result);
 
 // Function to set most commonly used elements and write to AFU MMIO space
 int config_and_enable_machine(ocxl_afu_h afu, ocxl_mmio_h pp_mmio_h, MachineConfig *machine, MachineConfigParam param, int mode);

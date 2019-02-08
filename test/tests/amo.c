@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
     MachineConfig machine_config;
     MachineConfigParam config_param;
     uint64_t irq_id;
-    uint64_t unused_flags;
+    uint64_t unused_flags, amo_result;
     ocxl_mmio_h pp_mmio_h, pocxl_mmio_h;
     struct work_element *work_element_descriptor = 0;
 
@@ -209,12 +209,17 @@ int main(int argc, char *argv[])
 	   //printf("Polling read completion status = 0x%x\n", *status);
     }
     printf("AMO Read command is completed\n");
+    printf("Get amo result\n");
+    //get_machine_memory_dest_address(&machine_config, &amo_result);
+    
     // clear machine config
-    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED);
+    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, 
+        DIRECTED, &amo_result);
     if(rc != 0) {
 	printf("Failed to clear machine config\n");
 	goto done;
     }
+    printf("Expected = 0x80 Actual = 0x%x\n", amo_result);
     printf("Verify AMO Read command\n");
     printf("rcacheline = 0x");
     for(i=0; i<8; i++) {
@@ -252,7 +257,8 @@ int main(int argc, char *argv[])
     printf("Write command is completed\n");
     // clear machine config
     printf("Clear Machine Config\n");
-    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED);
+    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, 
+        DIRECTED, &amo_result);
     if(rc != 0) {
 	printf("Failed to clear machine config\n");
 	goto done;
@@ -315,7 +321,8 @@ int main(int argc, char *argv[])
 	   //printf("Polling interrupt completion status\n");
     }
     // clear machine config
-    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED);
+    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, 
+        DIRECTED, &amo_result);
     if(rc != 0) {
 	printf("Failed to clear machine config\n");
 	goto done;
