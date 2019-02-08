@@ -187,8 +187,8 @@ int main(int argc, char *argv[])
     config_param.status_address = (uint32_t)status;
     config_param.cmdflag = 0x0d;
     config_param.oplength = 0x02;
-    printf("status address = 0x%p\n", status);
-    printf("rcacheline address = 0x%p\n", rcacheline);
+    printf("status address = %p\n", status);
+    printf("rcacheline address = %p\n", rcacheline);
     printf("command = 0x%x\n", config_param.command);
     printf("mem base address = 0x%"PRIx64"\n", config_param.mem_base_address);
     rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
