@@ -701,24 +701,37 @@ void tlx_bfm(
         invalidVal		        += (afu_tlx_vc0_dp_top->bval) & 0x3;
         c_afu_tlx_vc0_resp_code	         = (afu_tlx_vc0_resp_code_top->aval) & 0xF;
         invalidVal		        += (afu_tlx_vc0_resp_code_top->bval) & 0xF;
-        printf("%08lld: ", (long long) c_sim_time);
-        int resp_code = afu_tlx_send_resp_vc0(&event, 
- 		 c_afu_tlx_vc0_opcode, c_afu_tlx_vc0_dl, c_afu_tlx_vc0_capptag,
- 		 c_afu_tlx_vc0_dp, c_afu_tlx_vc0_resp_code);
-        printf(" The AFU to TLX  VC0 response, with opcode: 0x%x, and the method resp code being 0x%02x\n",  c_afu_tlx_vc0_opcode, resp_code);
       }
       if(c_afu_tlx_dcp0_data_valid)
       {
         c_afu_tlx_dcp0_data_bdi  	 = (afu_tlx_dcp0_data_bdi_top & 0x2) ? 0 : (afu_tlx_dcp0_data_bdi_top & 0x1);
         invalidVal	         	+= afu_tlx_dcp0_data_bdi_top & 0x2;
         invalidVal		        += getMyCacheLine(afu_tlx_dcp0_data_bus_top, c_afu_tlx_dcp0_data_bus);
+      }
+      if(c_afu_tlx_vc0_valid & (c_afu_tlx_dcp0_data_valid == 0))
+      {
         printf("%08lld: ", (long long) c_sim_time);
-        int resp_code = afu_tlx_send_resp_vc0_and_dcp0(&event, 
+        int resp_code = afu_tlx_send_resp_vc0(&event, 
  		 c_afu_tlx_vc0_opcode, c_afu_tlx_vc0_dl, c_afu_tlx_vc0_capptag,
- 		 c_afu_tlx_vc0_dp, c_afu_tlx_vc0_resp_code,
-  		 c_afu_tlx_dcp0_data_valid, c_afu_tlx_dcp0_data_bus,
- 		 c_afu_tlx_dcp0_data_bdi);
-        printf(" The AFU to TLX  VC0 response, with opcode: 0x%x, and the method resp code being 0x%02x\n",  c_afu_tlx_vc0_opcode, resp_code);
+ 		 c_afu_tlx_vc0_dp, c_afu_tlx_vc0_resp_code);
+        printf(" The AFU to TLX  VC0 response, with opcode: 0x%x, (No Data) and the method resp code being 0x%02x\n",  c_afu_tlx_vc0_opcode, resp_code);
+      }
+      else if((c_afu_tlx_vc0_valid == 0) & c_afu_tlx_dcp0_data_valid)
+      {
+        printf("%08lld: ", (long long) c_sim_time);
+	int resp_code = afu_tlx_send_dcp0_data(&event, c_afu_tlx_vc0_resp_code, c_afu_tlx_dcp0_data_bdi, 
+ 		 c_afu_tlx_vc0_dp, c_afu_tlx_vc0_dl,
+  		 c_afu_tlx_dcp0_data_bus);
+        printf(" The AFU to TLX  VC0 response, with opcode: 0x%x, (Data Only) and the method resp code being 0x%02x\n",  c_afu_tlx_vc0_opcode, resp_code);
+      }
+      else if(c_afu_tlx_vc0_valid & c_afu_tlx_dcp0_data_valid)
+      {
+        printf("%08lld: ", (long long) c_sim_time);
+	int resp_code = afu_tlx_send_resp_vc0_and_dcp0(&event, 
+ 		 c_afu_tlx_vc0_opcode, c_afu_tlx_vc0_dl, c_afu_tlx_vc0_capptag,
+ 		 c_afu_tlx_vc0_dp, c_afu_tlx_vc0_resp_code, 
+		 c_afu_tlx_dcp0_data_valid, c_afu_tlx_dcp0_data_bus, c_afu_tlx_dcp0_data_bdi);
+        printf(" The AFU to TLX  VC0 response, with opcode: 0x%x, (OpCode & Data) and the method resp code being 0x%02x\n",  c_afu_tlx_vc0_opcode, resp_code);
       }
 
       // Table 15: TLX Framer - AFU to TLX  VC1 Interface
@@ -761,23 +774,36 @@ void tlx_bfm(
         invalidVal		        += (afu_tlx_vc2_cache_state_top->bval) & 0x7;
         c_afu_tlx_vc2_cmdflag            = (afu_tlx_vc2_cmdflag_top->aval) & 0x7;
         invalidVal		        += (afu_tlx_vc2_cmdflag_top->bval) & 0x7;
-        printf("%08lld: ", (long long) c_sim_time);
-        int resp_code = afu_tlx_send_cmd_vc2(&event,
- 		 c_afu_tlx_vc2_opcode, c_afu_tlx_vc2_dl, c_afu_tlx_vc2_host_tag,
- 		 c_afu_tlx_vc2_cache_state, c_afu_tlx_vc2_cmdflag);
-        printf(" The AFU to TLX  VC2 response, with opcode: 0x%x, and the method resp code being 0x%02x\n",  c_afu_tlx_vc2_opcode, resp_code);
       }
       if(c_afu_tlx_dcp2_data_valid)
       {
         c_afu_tlx_dcp2_data_bdi  	 = (afu_tlx_dcp2_data_bdi_top & 0x2) ? 0 : (afu_tlx_dcp2_data_bdi_top & 0x1);
         invalidVal	         	+= afu_tlx_dcp2_data_bdi_top & 0x2;
         invalidVal		        += getMyCacheLine(afu_tlx_dcp2_data_bus_top, c_afu_tlx_dcp2_data_bus);
+      }
+      if(c_afu_tlx_vc2_valid & (c_afu_tlx_dcp2_data_valid == 0))
+      {
         printf("%08lld: ", (long long) c_sim_time);
-        int resp_code = afu_tlx_send_cmd_vc2_and_dcp2_data(&event, 
+        int resp_code = afu_tlx_send_cmd_vc2(&event,
+ 		 c_afu_tlx_vc2_opcode, c_afu_tlx_vc2_dl, c_afu_tlx_vc2_host_tag,
+ 		 c_afu_tlx_vc2_cache_state, c_afu_tlx_vc2_cmdflag);
+        printf(" The AFU to TLX  VC2 response, with opcode: 0x%x, (No Data) and the method resp code being 0x%02x\n",  c_afu_tlx_vc2_opcode, resp_code);
+      }
+      else if((c_afu_tlx_vc2_valid == 0) & c_afu_tlx_dcp2_data_valid )
+      {
+        printf("%08lld: ", (long long) c_sim_time);
+        int resp_code = afu_tlx_send_dcp2_data(&event,
+  		 c_afu_tlx_dcp2_data_bdi, c_afu_tlx_dcp2_data_bus);
+        printf(" The AFU to TLX  VC2 response, with opcode: 0x%x, (Only Data) and the method resp code being 0x%02x\n",  c_afu_tlx_vc2_opcode, resp_code);
+      }
+      else if(c_afu_tlx_vc2_valid & c_afu_tlx_dcp2_data_valid )
+      {
+        printf("%08lld: ", (long long) c_sim_time);
+	int resp_code = afu_tlx_send_cmd_vc2_and_dcp2_data(&event, 
  		 c_afu_tlx_vc2_opcode, c_afu_tlx_vc2_dl, c_afu_tlx_vc2_host_tag,
  		 c_afu_tlx_vc2_cache_state, c_afu_tlx_vc2_cmdflag,
   		 c_afu_tlx_dcp2_data_bdi, c_afu_tlx_dcp2_data_bus);
-        printf(" The AFU to TLX  VC2 response, with opcode: 0x%x, and the method resp code being 0x%02x\n",  c_afu_tlx_vc2_opcode, resp_code);
+        printf(" The AFU to TLX  VC2 response, with opcode: 0x%x, (Opcode & Data) and the method resp code being 0x%02x\n",  c_afu_tlx_vc2_opcode, resp_code);
       }
 
       // Table 17: TLX Framer - AFU to TLX  VC3/DCP3 Interface
