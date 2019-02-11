@@ -248,6 +248,7 @@ StoreCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     //cmd_pl = 0x03;	// 0=1B, 1=2B, 2=4B, 3=8B, 4=16B, 5=32B
     cmd_dl = afu_event->afu_tlx_vc3_dl;
     cmd_pl = afu_event->afu_tlx_vc3_pl;
+    cmd_flag = afu_event->afu_tlx_vc3_cmdflag;
     cmd_bdf = afu_event->afu_tlx_vc3_bdf;
     cmd_stream_id = afu_event->afu_tlx_vc3_stream_id;
     cmd_be = afu_event->afu_tlx_vc3_be;

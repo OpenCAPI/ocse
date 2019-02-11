@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
     MachineConfig machine_config;
     MachineConfigParam config_param;
     uint64_t irq_id;
-    uint64_t unused_flags;
+    uint64_t unused_flags, result;
     ocxl_mmio_h pp_mmio_h, pocxl_mmio_h;
     struct work_element *work_element_descriptor = 0;
 
@@ -194,7 +194,7 @@ int main(int argc, char *argv[])
     }
     printf("Read command is completed\n");
     // clear machine config
-    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED);
+    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED, &result);
     if(rc != 0) {
 	printf("Failed to clear machine config\n");
 	goto done;
@@ -230,7 +230,7 @@ int main(int argc, char *argv[])
     printf("Write command is completed\n");
     // clear machine config
     printf("Clear Machine Config\n");
-    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED);
+    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED, &result);
     if(rc != 0) {
 	printf("Failed to clear machine config\n");
 	goto done;
@@ -293,7 +293,7 @@ int main(int argc, char *argv[])
 	   //printf("Polling interrupt completion status\n");
     }
     // clear machine config
-    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED);
+    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED, &result);
     if(rc != 0) {
 	printf("Failed to clear machine config\n");
 	goto done;
