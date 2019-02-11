@@ -3329,7 +3329,7 @@ ocxl_err ocxl_mmio_write64( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, 
 		goto write64_fail;
 	}
 
-	//debug_msg("ocxl_mmio_write64: passed parameter checks");
+	debug_msg("ocxl_mmio_write64: passed parameter checks");
 
 	/* if ( offset >= my_afu->mmio_length ) { */
 	/* 	warn_msg("ocxl_mmio_write64: offset out of bounds!"); */
@@ -3348,12 +3348,12 @@ ocxl_err ocxl_mmio_write64( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, 
 	mmio->afu->mmio.data = value;
 	mmio->afu->mmio.state = LIBOCXL_REQ_REQUEST;
 
-	//debug_msg("ocxl_mmio_write64: waiting for idle");
+	debug_msg("ocxl_mmio_write64: waiting for idle");
 
 	while (mmio->afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
 
-	//debug_msg("ocxl_mmio_write64: mmio acked");
+	debug_msg("ocxl_mmio_write64: mmio acked");
 
 	if (!mmio->afu->opened) {
 	  err = OCXL_NO_DEV;
