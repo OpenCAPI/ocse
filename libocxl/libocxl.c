@@ -1702,6 +1702,7 @@ static void *_psl_loop(void *ptr)
 			case OCSE_LPC_READ:
 				_mem_read(afu);
 				break;
+			// when the amo operation appears here, it represents a CAPP amo command
 			case OCSE_AMO_RD:
 				_amo_read(afu);
 				break;
@@ -1949,7 +1950,8 @@ static void *_psl_loop(void *ptr)
 			}
 			_handle_write_be(afu, addr, size, buffer, wr_be);
 			break;
-
+			
+		// When amo operations appear here, they represent AP amo commands
 		case OCSE_AMO_WR:
 		case OCSE_AMO_RW:
 			amo_op = buffer[0];
