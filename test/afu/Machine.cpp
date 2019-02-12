@@ -67,6 +67,7 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
 
     memory_base_address = config[2];
     memory_size = (uint16_t)config[1];
+    printf("Machine: memory base address = 0x%x\n", memory_base_address);
     printf("Machine: memory_size = 0x%x\n", memory_size);
     switch(memory_size) {
 	case 1:
@@ -102,11 +103,13 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
     if (command)
         delete command;
     printf("command code = 0x%x\n", command_code);
+    afu_event->afu_tlx_vc3_pl = (config[1] >> 24);
+    afu_event->afu_tlx_vc3_cmdflag = (config[1] >> 16);
 
     switch (command_code) {
         case AFU_CMD_AMO_RD:
-        afu_event->afu_tlx_vc3_pl = (config[1] >> 24);
-        afu_event->afu_tlx_vc3_cmdflag = (config[1] >> 16);
+        //afu_event->afu_tlx_vc3_pl = (config[1] >> 24);
+        //afu_event->afu_tlx_vc3_cmdflag = (config[1] >> 16);
         printf("Machine: amo_rd pl=0x%x and cmdflag=0x%x\n", afu_event->afu_tlx_vc3_pl,
             afu_event->afu_tlx_vc3_cmdflag);
         command = new LoadCommand (command_code, command_address_parity,

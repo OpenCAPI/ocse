@@ -232,6 +232,7 @@ int main(int argc, char *argv[])
     config_param.context = 0;
     config_param.enable_always = 1;
     config_param.command = AFU_CMD_AMO_W;
+    config_param.cmdflag = 0x00;
     config_param.mem_size = 64;
     config_param.mem_base_address = (uint64_t)wcacheline;
     printf("wcacheline = 0x%p\n", wcacheline);
@@ -249,12 +250,12 @@ int main(int argc, char *argv[])
     }
     printf("set status data = 0xff\n");
     status[0] = 0xff;
-    printf("Waiting for write command completion status\n");
+    printf("Waiting for amo write command completion status\n");
     while(status[0] != 0x00) {
 	   nanosleep(&t, &t);
 	//printf("Polling write completion status = 0x%x\n", *status);
     }
-    printf("Write command is completed\n");
+    printf("AMO Write command is completed\n");
     // clear machine config
     printf("Clear Machine Config\n");
     rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, 
