@@ -16,7 +16,7 @@
 
 `timescale 1ns / 1ns
 
-module top (
+module top_lpc (
   output          breakpoint
 );
 
@@ -1352,8 +1352,6 @@ end
       $finish;
   end
 
-//  mcp3_top a0 (		- UMA 30/Mar/2017 - the top instance name on
-//  mcp changed
   lpc_device a0 (
 //    .clock_tlx(tlx_clock),
 //    .clock_afu(afu_clock),
