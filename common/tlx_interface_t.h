@@ -52,7 +52,7 @@
 
 
 /* Select the initial value for credits??  */
-/* TODO DO we need this anymore? AFU is setting initial values; what are our "queue" sizes? */
+/* TODO Test_afu still needs these MAX credits.. AFU is setting initial values; what are our "queue" sizes? */
 #define MAX_AFU_TLX_CMD_CREDITS 5
 #define MAX_AFU_TLX_RESP_CREDITS 10
 #define MAX_TLX_AFU_CMD_CREDITS 8

@@ -213,12 +213,6 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 		event->resp_dl = size_to_dl(size);
 	event->resp_dp = 0;
 
-	// Temporary hack for now, as we don't touch/look @ TLX_SPAP reg <-- not part of OC, remove this!
-	//if (event->resp == TLX_RESPONSE_CONTEXT)
-	//	event->resp_extra = 1;
-	//else
-	//	event->resp_extra = 0;
-
 	event->unlock = unlock;
 
 	// make sure data buffer is big enough to hold 256B (MAX memory transfer for OpenCAPI 3.0)
@@ -226,9 +220,6 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	memset(event->data, 0xFF, CACHELINE_BYTES * 4);
 
 	event->resp_bytes_sent = 0;  //init this to 0 (used for split responses)
-	// lgt may not need parity
-	//event->parity = (uint8_t *) malloc(DWORDS_PER_CACHELINE / 8);
-	//memset(event->parity, 0xFF, DWORDS_PER_CACHELINE / 8);
 
 	// Test for client disconnect
 	if (_get_client(cmd, event) == NULL) {
@@ -315,6 +306,7 @@ static void _add_fail(struct cmd *cmd, uint16_t actag, uint32_t afutag,
 		debug_msg("_add_fail: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
 		return;
 	   }
+	debug_msg("add_fail: cmd= 0x%x , resp_opcode= 0x%02x ", cmd_opcode, resp_opcode);
 	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_FAILED, 0, 0, MEM_DONE,
 		 resp, 0, 0, 0, 0, 0, resp_opcode);
 }
@@ -325,12 +317,12 @@ static int _aligned(uint64_t addr, uint32_t size)
 	// Check valid size
         // that is, size must be a power of 2
 	if ((size == 0) || (size & (size - 1))) {
-		warn_msg("AFU issued command with invalid size %d", size);
+		info_msg("AFU issued command with invalid size %d", size);
 		return 2;
 	}
 	// Check aligned address
 	if (addr & (size - 1)) {
-		warn_msg("AFU issued command with unaligned address %016"
+		info_msg("AFU issued command with unaligned address %016"
 			 PRIx64, addr);
 		return 3;
 	}
@@ -348,6 +340,8 @@ static int _aligned(uint64_t addr, uint32_t size)
         // convert 68 bit ea/obj to 64 bit addr
         // for ap write commands, ea_or_obj is a 64 bit thing...
         memcpy( (void *)&addr, (void *)&(cmd_ea_ta_or_obj[0]), sizeof(int64_t));
+		debug_msg("AFU issued command with  address %016"
+			 PRIx64, addr);
  	// Check command size and address */
  	if (_aligned(addr, size) == BAD_OPERAND_SIZE) {
  		_add_fail(cmd, actag, afutag, cmd_opcode, 0x09, TLX_RSP_TOUCH_RESP);
@@ -355,6 +349,14 @@ static int _aligned(uint64_t addr, uint32_t size)
  	}
 	else if (_aligned(addr, size) == BAD_ADDR_OFFSET) { //invalid address alignment
  		_add_fail(cmd, actag, afutag, cmd_opcode,  0x0b, TLX_RSP_TOUCH_RESP);
+ 		return;
+ 	}
+	//Check for invalid cmd_flag and command form combinations (per OpenCAPI4.0 TL spec)
+	if ((cmd_flag == 0x01)  && (cmd_opcode == AFU_CMD_XLATE_TOUCH_N)) 
+		info_msg("INVALID cmd_flag/opcode combination - XLATE_TOUCH will ignore N attribute");
+	else if ((cmd_flag & 0x01) == 0x01)  {
+		info_msg("INVALID cmd_flag=0x %x for XLATE_TOUCH - cmd will FAIL w/resp_code = 0xe", cmd_flag);
+ 		_add_fail(cmd, actag, afutag, cmd_opcode,  0x0e, TLX_RSP_TOUCH_RESP);
  		return;
  	}
 	// In future, check to see if cmd_pg_size is a supported value? Send it
@@ -365,11 +367,11 @@ static int _aligned(uint64_t addr, uint32_t size)
 		debug_msg("_add_xlate_touch: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
 		return;
 	   }
-	// TODO actually do something. For now, we always send back success for touch_resp (0x00)
-	// We could send request to libocxl for processing, especially for OpenCAPI 4
+	// We send request to libocxl for processing, especially for OpenCAPI 4
 	// when a translation address is expected as return
-	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_TOUCH, addr, 0, MEM_DONE,
-		 0x00, 0, 0, 0, 0, 0, TLX_RSP_TOUCH_RESP);
+		debug_msg("_add_xlate_touch:  actag received= 0x%x", actag);
+	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_TOUCH, addr, 0, MEM_IDLE,
+		 0x00, 0, 0, 0, cmd_flag, 0, TLX_RSP_TOUCH_RESP);
  }
 
 
@@ -1351,7 +1353,7 @@ void handle_touch(struct cmd *cmd)
 	// Randomly select a pending touch (or none)
 	event = cmd->list;
 	while (event != NULL) {
-		if (((event->type == AFU_CMD_XLATE_TOUCH) || (event->type == AFU_CMD_XLATE_TOUCH_N))
+		if (((event->command == AFU_CMD_XLATE_TOUCH) || (event->command == AFU_CMD_XLATE_TOUCH_N))
 		    && (event->state == MEM_IDLE)
 		    && ((event->client_state != CLIENT_VALID)
 			|| !allow_reorder(cmd->parms))) {
@@ -1523,116 +1525,7 @@ void handle_interrupt(struct cmd *cmd)
 	event->state = MEM_DONE;
 }
 
-//void handle_buffer_data(struct cmd *cmd)
-/*{
-	uint8_t *parity_check;
-	int rc = 0;
-	struct cmd_event *event;
-	int quadrant, byte;
 
-	// debug_msg( "ocse:handle_buffer_data:" );
-	// Has struct been initialized?
-	if ((cmd == NULL) || (cmd->buffer_read == NULL))
-		return;
-
-	// Check if buffer read data has returned from AFU
-	event = cmd->buffer_read;
-	if (rc == TLX_SUCCESS) {
-		debug_msg("%s:BUFFER READ afutag=0x%02x", cmd->afu_name,
-			  event->afutag);
-		for (quadrant = 0; quadrant < 4; quadrant++) {
-			DPRINTF("DEBUG: Q%d 0x", quadrant);
-			for (byte = 0; byte < CACHELINE_BYTES / 4; byte++) {
-				DPRINTF("%02x", event->data[byte]);
-			}
-			DPRINTF("\n");
-		}
-	debug_msg("handle_buffer_data parity_enable is 0x%x ", parity_enable);
-		if (parity_enable) {
-			parity_check =
-			    (uint8_t *) malloc(DWORDS_PER_CACHELINE / 8);
-			generate_cl_parity(event->data, parity_check);
-			if (strncmp((char *)event->parity,
-				    (char *)parity_check,
-				    DWORDS_PER_CACHELINE / 8)) {
-				error_msg("Buffer read parity error afutag=0x%02x",
-					  event->afutag);
-			}
-			free(parity_check);
-		}
-		// Free buffer interface for another event
-		cmd->buffer_read = NULL;
-		// Randomly decide to not send data to client yet
-		if (!event->buffer_activity && allow_buffer(cmd->parms)) {
-			event->state = MEM_TOUCHED;
-			event->buffer_activity = 1;
-			return;
-		}
-
-		event->state = MEM_RECEIVED;
-	}
-
-} */
-
-// TODO Do we even need this anymore? It isn't called from ocl.c
-/*void handle_mem_write(struct cmd *cmd)
-{
-	struct cmd_event **head;
-	struct cmd_event *event;
-	struct client *client;
-	uint64_t *addr;
-	uint16_t *size;
-	uint8_t *buffer;
-	uint64_t offset;
-
-	// debug_msg( "ocse:handle_mem_write:" );
-	// Make sure cmd structure is valid
-	if (cmd == NULL)
-		return;
-
-	// Send any ready write data to client immediately
-	head = &cmd->list;
-	while (*head != NULL) {
-		if (((*head)->type == CMD_WRITE) &&
-		    ((*head)->state == MEM_RECEIVED))
-			break;
-		head = &((*head)->_next);
-	}
-	event = *head;
-
-	// Test for client disconnect
-	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
-		return;
-
-	// Check that memory request can be driven to client
-	if (client->mem_access != NULL)
-		return;
-
-	// Send data to client and clear event to allow
-	// the next buffer read to occur.  The request will now await
-	// confirmation from the client that the memory write was
-	// successful before generating a response.  The client
-	// response will cause a call to either handle_aerror() or
-	// handle_mem_return().
-	buffer = (uint8_t *) malloc(event->size + 11);
-	offset = event->addr & ~CACHELINE_MASK;
-	buffer[0] = (uint8_t) OCSE_MEMORY_WRITE;
-	size = (uint16_t *)&(buffer[1]);
-	*size = htons(event->size);
-	addr = (uint64_t *) & (buffer[3]);
-	*addr = htonll(event->addr);
-	memcpy(&(buffer[10]), &(event->data[offset]), event->size);
-	event->abort = &(client->abort);
-	debug_msg("%s:MEMORY WRITE afutag=0x%04x size=%d addr=0x%016"PRIx64,
-		  cmd->afu_name, event->afutag, event->size, event->addr);
-	if (put_bytes(client->fd, event->size + 10, buffer, cmd->dbg_fp,
-		      cmd->dbg_id, client->context) < 0) {
-		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
-	}
-	debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context);
-	client->mem_access = (void *)event;
-	debug_msg("Setting client->mem_access in handle_mem_write");
-} */
 
 // Handle data returning from client for memory read
 static void _handle_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
@@ -1804,10 +1697,12 @@ void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd)
 			event->size = 3;
 		  }
 
-	else if (event->type == CMD_TOUCH)
-		event->state = MEM_DONE;
-	else if (event->state == MEM_TOUCH)	// Touch before write
-		event->state = MEM_TOUCHED;
+	else if (event->type == CMD_TOUCH) {
+		debug_msg(" handle_mem_return: CMD_TOUCH return and event->cmd_flag= %x", event->cmd_flag);
+		event->state = MEM_DONE; }
+	// Add code to copy TA back to event struct? make this separate _handle_mem_touch?
+	//else if (event->state == MEM_TOUCH)	// Touch before write - can this be deleted too?
+	//	event->state = MEM_TOUCHED;
 	else			// Write after touch
 		event->state = MEM_DONE;
 	debug_cmd_return(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context);
