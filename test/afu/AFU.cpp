@@ -1277,7 +1277,8 @@ AFU::read_app_status(uint8_t *address)
     TagManager::request_tag(&cmd_afutag);
 
     memcpy((void*)&ea_addr, (void*)&address, sizeof(uint64_t));
-    printf("AFU: status address = 0x%p\n", address);
+
+    printf("AFU: status address = 0x%p\n", ea_addr);
     printf("AFU: pr_read afutag = 0x%x\n", cmd_afutag);
     status_resp_valid = 1;
     // cmd_opcode=0x12, dl=00, pl=03

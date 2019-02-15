@@ -240,6 +240,7 @@ StoreCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     int  rc;
 //    uint32_t afutag;
     uint8_t  ea_addr[9], i;
+    uint64_t amo_data_w;
 
     
     memcpy((void*)&ea_addr, (void*) &address, sizeof(uint64_t));
@@ -263,8 +264,9 @@ StoreCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
 
     printf("StoreCommand: sending command = 0x%x\n", Command::code);
     printf("memory = 0x");
-    for(i=0; i<9; i++) {
-	printf("%02x", memory[i]);
+    for(i=0; i<17; i++) {
+        memory[i] = i;
+	   printf("%02x", memory[i]);
     }
     printf("\n");
     memcpy(afu_event->afu_tlx_dcp3_data_bus, memory, 64);
