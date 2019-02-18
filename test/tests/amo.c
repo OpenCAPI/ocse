@@ -47,6 +47,16 @@ union amo_data_s {
     uint64_t lword;
 } amo_data;
 
+struct AMO_W_S {
+    char name[20];
+    int  cmd_flag;
+};
+
+enum AMO_W_FLAGS {
+    ADD=0x0, XOR, OR, AND, MAX_UNSIGNED, MAX_SIGNED,
+    MIN_UNSIGNED, MIN_SIGNED, COMPARE=0xC
+}amo_w_cmdflag;
+
 struct work_element {
   uint8_t  command_byte; // left to right - 7:2 cmd, 1 wrap, 0 valid
   uint8_t  status;
@@ -72,7 +82,7 @@ static void print_help(char *name)
 int main(int argc, char *argv[])
 {
     struct timespec t;
-    int opt, option_index, i;
+    int opt, option_index, i, j;
     int rc;
     //char adata[16];
     char *rcacheline, *wcacheline;
@@ -87,6 +97,9 @@ int main(int argc, char *argv[])
     uint64_t unused_flags, amo_result;
     ocxl_mmio_h pp_mmio_h, pocxl_mmio_h;
     struct work_element *work_element_descriptor = 0;
+    struct AMO_W_S amo_w[] = {{"ADD", 0x0}, {"XOR", 0x1}, {"OR", 0x2},
+        {"AND", 0x3}, {"MAX_UNSIGNED", 0x4}, {"MAX_SIGNED", 0x5},
+        {"MIN_UNSIGNED", 0x6}, {"MIN_SIGNED", 0x7}, {"COMPARE", 0xC}};
 
     static struct option long_options[] = {
 	{"cachelines", required_argument, 0	  , 'c'},
@@ -227,118 +240,54 @@ int main(int argc, char *argv[])
     }
     printf("\n");
     // Attemp write command
-    printf("Attempt Write command\n");
-    //status[0] = 0xff;
-    config_param.context = 0;
-    config_param.enable_always = 1;
-    config_param.command = AFU_CMD_AMO_W;
-    config_param.cmdflag = 0x00;
-    config_param.mem_size = 64;
-    config_param.mem_base_address = (uint64_t)wcacheline;
-    config_param.status_address = (uint32_t)status;
-    printf("status address = %p\n", status);
-    printf("wcacheline = 0x%p\n", wcacheline);
-    printf("command = 0x%x\n",config_param.command);
-    printf("wcache address = 0x%"PRIx64"\n", config_param.mem_base_address);
-    rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
-    //status[0] = 0xff;
-    if(rc != -1) {
-	   printf("Response = 0x%x\n", rc);
- 	  printf("config_enable_and_run_machine PASS\n");
-    }
-    else {
-	   printf("FAILED: config_enable_and_run_machine\n");
-	   goto done;
-    }
-    printf("set status data = 0xff\n");
-    status[0] = 0xff;
-    printf("Waiting for amo write command completion status\n");
-    while(status[0] != 0x00) {
-	   nanosleep(&t, &t);
-	//printf("Polling write completion status = 0x%x\n", *status);
-    }
-    printf("AMO Write command is completed\n");
-    // clear machine config
-    printf("Clear Machine Config\n");
-    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, 
-        DIRECTED, &amo_result);
-    if(rc != 0) {
-	printf("Failed to clear machine config\n");
-	goto done;
-    }
+    printf("Attempt AMO Write command\n");
+    for(j=0; j<9; j++) {
+        printf("AMO Store and %s\n", amo_w[j].name);
+        config_param.context = 0;
+        config_param.enable_always = 1;
+        config_param.command = AFU_CMD_AMO_W;
+        config_param.cmdflag = amo_w[j].cmd_flag;
+        config_param.mem_size = 64;
+        config_param.mem_base_address = (uint64_t)wcacheline;
+        config_param.status_address = (uint32_t)status;
+        printf("status address = %p\n", status);
+        printf("wcacheline = %p\n", wcacheline);
+        printf("command = 0x%x and cmdflag = 0x%x\n",config_param.command, amo_w[j].cmd_flag);
+        printf("wcache address = 0x%"PRIx64"\n", config_param.mem_base_address);
+        rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
+        //status[0] = 0xff;
+        if(rc != -1) {
+    	   printf("Response = 0x%x\n", rc);
+     	  printf("config_enable_and_run_machine PASS\n");
+        }
+        else {
+    	   printf("FAILED: config_enable_and_run_machine\n");
+    	   goto done;
+        }
+        printf("set status data = 0xff\n");
+        status[0] = 0xff;
+        printf("Waiting for AMO Store and %s completion status\n",amo_w[j].name);
+        while(status[0] != 0x00) {
+    	   nanosleep(&t, &t);
+    	//printf("Polling write completion status = 0x%x\n", *status);
+        }
+        printf("AMO Store and %s command is completed\n", amo_w[j].name);
+        // clear machine config
+        printf("Clear Machine Config\n");
+        rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, 
+            DIRECTED, &amo_result);
+        if(rc != 0) {
+    	printf("Failed to clear machine config\n");
+    	goto done;
+        }
 
-    printf("wcacheline = 0x");
-    for(i=0; i<CACHELINE; i++) {
-	   printf("%02x", (uint8_t)wcacheline[i]);
-    }
-    printf("\n");
-
-    printf("set status data = 0x55\n");
-    status[0] = 0x55;	// test complete flag
-    printf("Waiting for test complete status\n");
-    while(status[0] != 0x0) {
-	   nanosleep(&t, &t);
-    }
-    printf("Test is completed\n");
-    printf("Attempt open device for safu\n");
-    //rc = ocxl_afu_open_from_dev(MDEVICE, &safu_h);
-    rc = ocxl_afu_open_specific(NAME, PHYSICAL_FUNCTION, 0, &safu_h);
-    if(rc != 0) {
-	   perror("cxl_afu_open_dev: for safu"MDEVICE);
-	   return -1;
-    }
-    printf("Attaching safu device ....\n");
-    rc = ocxl_afu_attach(safu_h, 0);
-    if(rc != 0) {
-	   perror("cxl_afu_attach: for safu"MDEVICE);
-	   return -1;
-    }
-    printf("Attempt mmio map safu registers\n");
-    if(ocxl_mmio_map(safu_h, OCXL_PER_PASID_MMIO, &pp_mmio_h) != 0) {
-	   printf("AFILED: ocxl_mmio_map safu\n");
-	   goto done;
-    }
-
-    rc = ocxl_afu_irq_alloc(safu_h, NULL, &irq_h);
-    irq_id = ocxl_afu_irq_get_handle(safu_h, irq_h);
-
-    printf("Set irq id source ea field = 0x%016lx\n", (uint64_t)irq_id);
-    printf("Attempt interrupt command\n");
-    config_param.context = 1;
-    config_param.command = AFU_CMD_INTRP_REQ;
-    config_param.mem_base_address = (uint64_t)irq_id;
-    rc = config_enable_and_run_machine(safu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
-    if(rc != -1) {
-	   printf("Response = 0x%x\n", rc);
-       printf("safu config_enable_and_run_machine PASS\n");
-    }
-    else {
-	printf("FAILED: config_enable_and_run_machine\n");
-	goto done;
-    }
-    printf("set status data = 0xff\n");
-    status[0] = 0xff;
-    printf("Polling interrupt completion status\n");
-    while(status[0] != 0x0) {
-	   nanosleep(&t, &t);
-	   //printf("Polling interrupt completion status\n");
-    }
-    // clear machine config
-    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, 
-        DIRECTED, &amo_result);
-    if(rc != 0) {
-	printf("Failed to clear machine config\n");
-	goto done;
-    }
-
-    rc = ocxl_afu_event_check(safu_h, NULL, &event, 1);
-    printf("Returned from ocxl_read_event -> there is an interrupt\n");
-    if(rc == 0) {
-	   printf("Error retrieving interrupt event %d\n", rc);
-	   return -1;
-    }
-    //ocxl_mmio_write64(safu_h, ProcessControl_REGISTER, PROCESS_CONTROL_RESTART);
-    ocxl_mmio_write64(pp_mmio_h, WED_REGISTER, OCXL_MMIO_LITTLE_ENDIAN, (uint64_t)work_element_descriptor);
+        printf("wcacheline = 0x");
+        for(i=0; i<CACHELINE; i++) {
+    	   printf("%02x", (uint8_t)wcacheline[i]);
+        }
+        printf("\n");
+    }    
+    
     // set test status to completion
     printf("send test completing status.  set status data to 0x55\n");
     status[0] = 0x55;
@@ -350,8 +299,8 @@ int main(int argc, char *argv[])
     printf("test is completed\n");
 done:
     // free device
-    printf("Freeing safu device ... \n");
-    ocxl_afu_close(safu_h);
+    //printf("Freeing safu device ... \n");
+    //ocxl_afu_close(safu_h);
     printf("Freeing mafu device ...\n");
     ocxl_afu_close(mafu_h);
 
