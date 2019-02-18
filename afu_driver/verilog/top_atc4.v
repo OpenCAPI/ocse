@@ -16,7 +16,7 @@
 
 `timescale 1ns / 1ns
 
-module top_lpc4 (
+module top_atc4 (
   output          breakpoint
 );
 
@@ -1148,11 +1148,18 @@ end
       $finish;
   end
 
-  lpc40_device a0 (
-//    .clock_tlx(tlx_clock),
-//    .clock_afu(afu_clock),
-    .clock				(tlx_clock),
+  atc4_device a0 (
+  // -- Clocks
+    .clock_tlx				(tlx_clock),
+    .clock_afu				(afu_clock),
+  // -- Reset
     .reset_n				(reset_n),
+  // -- Freeze
+    .xxx_atc_freeze			(1'b0),
+    .atc_xxx_freeze			(),
+  // -- Simulation Idle
+    .sim_idle_device			(),
+  // -- Device/Function/Port
     .ro_device				(ro_device),
     .ro_dlx0_version                    (ro_dlx0_version),	// Connect to DLX output at next level, or tie off to all 0s
     .tlx0_cfg_oc4_tlx_version           (tlx0_cfg_oc4_tlx_version),	// (was ro_tlx0_version[31:0])
@@ -1279,8 +1286,8 @@ end
     .afu_tlx_vc3_pasid               	(afu_tlx_vc3_pasid),
     .afu_tlx_vc3_bdf               	(afu_tlx_vc3_bdf),
     .afu_tlx_vc3_mad               	(afu_tlx_vc3_mad),
-
-
+    .afu_tlx_vc3_capptag               	(),	// o/p left open since afu_driver is not looking for this yet
+    .afu_tlx_vc3_resp_code              (),	// o/p left open since afu_driver is not looking for this yet
         // --- DCP3 interface from AFU [AP Command Data from AFU to Host - original cmds]
     .tlx_afu_dcp3_initial_credit        (tlx_afu_dcp3_initial_credit),
     .tlx_afu_dcp3_credit               	(tlx_afu_dcp3_credit),
@@ -1334,7 +1341,7 @@ end
     // ------------------------------------
     // Configuration Space to TLX and AFU 
     // ------------------------------------
-    .cfg_f1_octrl00_resync_credits      (cfg_f1_octrl00_resync_credits),
+    
     // ------------------------------------
     // Configuration Space to VPD Interface
     // ------------------------------------
