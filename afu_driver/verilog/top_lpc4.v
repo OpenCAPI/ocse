@@ -422,9 +422,6 @@ module top_lpc4 (
    wire       [3:0] tlx_cfg0_in_rcv_rate_capability_1;
    wire       [3:0] tlx_cfg0_in_rcv_rate_capability_2;
    wire       [3:0] tlx_cfg0_in_rcv_rate_capability_3;
-   wire       [3:0] cfg0_tlx_rdata_offset;
-   wire      [31:0] cfg0_tlx_rdata_bus	;
-   wire		    cfg0_tlx_rdata_bdi	;
 
    wire      [4:0]  ro_device;
    wire     [31:0] ro_dlx0_version ;                     // -- Connect to DLX output at next level, or tie off to all 0s
@@ -777,9 +774,9 @@ end
    cfg_tlx_resp_opcode_top              <= cfg0_tlx_resp_opcode;
    cfg_tlx_resp_capptag_top             <= cfg0_tlx_resp_capptag;
    cfg_tlx_resp_code_top                <= cfg0_tlx_resp_code;
-   cfg_tlx_rdata_offset_top             <= cfg0_tlx_rdata_offset;
-   cfg_tlx_rdata_bus_top                <= cfg0_tlx_rdata_bus;
-   cfg_tlx_rdata_bdi_top                <= cfg0_tlx_rdata_bdi;
+   cfg_tlx_rdata_offset_top             <= cfg0_tlx_data_offset;
+   cfg_tlx_rdata_bus_top                <= cfg0_tlx_data_bus;
+   cfg_tlx_rdata_bdi_top                <= cfg0_tlx_data_bdi;
 
    afu_tlx_vc0_initial_credit_top 	<= afu_tlx_vc0_initial_credit;
    afu_tlx_vc0_credit_top		<= afu_tlx_vc0_credit;
