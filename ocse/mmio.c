@@ -1890,7 +1890,7 @@ struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
 	struct mmio_event *event;
 	uint64_t PA;
 	uint32_t offset;
-	uint8_t size;
+	uint32_t size;
 	uint8_t cmd_flg;
 	uint8_t *datav;
 	uint8_t *dataw;
@@ -1914,12 +1914,12 @@ struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
 
 
 
-	if (get_bytes_silent(fd, 8, (uint8_t *) &offset, mmio->timeout, &(client->abort)) < 0) {
+	if (get_bytes_silent(fd, 4, (uint8_t *) &offset, mmio->timeout, &(client->abort)) < 0) {
 		goto amo_fail;
 	}
 	PA = ntohl(offset);
 
-	if (get_bytes_silent(fd, 1, (uint8_t *) &size, mmio->timeout, &(client->abort)) < 0) {
+	if (get_bytes_silent(fd, 4, (uint8_t *) &size, mmio->timeout, &(client->abort)) < 0) {
 		goto amo_fail;
 	}
 	size = ntohl(size);
@@ -1937,7 +1937,7 @@ struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
 	// for an amo_w, allocate a buffer and fill it. (datav)
 	// for an amo_rw, it gets tricky. allocate 2 buffers, datav and dataw. v will double as the return buffer
 
-	if ( cmd != OCSE_AMO_RW ) {
+	if ( cmd != OCSE_AFU_AMO_RW ) {
 	  // normal
 	  if (rnw) {
 	    // if a read, allocate the return buffer and build the event

@@ -1418,6 +1418,7 @@ static void _amo_read(struct ocxl_afu *afu)
 	uint32_t offset;
 	uint32_t size;
 
+	size = afu->mem.size;
 	debug_msg("_amo_read:");
 
 	if (!afu)
@@ -1470,7 +1471,7 @@ static void _amo_write(struct ocxl_afu *afu)
 	int buffer_offset;
 
 	uint32_t offset;
-	uint32_t size;
+	uint32_t size, hsize;
 
 	debug_msg("_amo_read:");
 
@@ -1483,7 +1484,11 @@ static void _amo_write(struct ocxl_afu *afu)
 	//                 1 byte for cmd_flag, 
 	//                 1 byte for endian, 
 	//                 size bytes for val
+	size = afu->mem.size;
+	hsize = afu->mem.size;
 
+
+	debug_msg( "_amo_write: size=%d", size );
 	buffer_length = 1 + sizeof(offset) + sizeof(size) + 1 + 1 + size ;
 	debug_msg("_amo_write: buffer length %d", buffer_length);
 	buffer = (uint8_t *)malloc( buffer_length );
@@ -1499,8 +1504,9 @@ static void _amo_write(struct ocxl_afu *afu)
 
 	debug_msg( "_amo_write: buffer[%d]", buffer_offset );
 	size = htonl(afu->mem.size);
-	memcpy((char *)&(buffer[buffer_offset]), (char *)&size, sizeof(size));
-	buffer_offset += sizeof(size);
+	memcpy((char *)&(buffer[buffer_offset]), (char *)&size, sizeof(hsize));
+	buffer_offset += sizeof(hsize);
+	debug_msg( "_amo_write: size=%d", hsize );
 
 	debug_msg( "_amo_write: buffer[%d]", buffer_offset );
 	buffer[buffer_offset] = afu->mem.cmd;
@@ -1513,7 +1519,8 @@ static void _amo_write(struct ocxl_afu *afu)
 	// data = htonll(afu->mmio.data);
 	debug_msg( "_amo_write: buffer[%d]", buffer_offset );
 	memcpy( (char *)&(buffer[buffer_offset]), afu->mem.data, afu->mem.size );
-	buffer_offset += size;
+	buffer_offset += hsize;
+	debug_msg( "_amo_write: buffer[%d]", buffer_offset );
 
 	if (put_bytes_silent(afu->fd, buffer_length, buffer) != buffer_length) {
 		free(buffer);
@@ -1535,8 +1542,10 @@ static void _amo_readwrite(struct ocxl_afu *afu)
 	int buffer_offset;
 
 	uint32_t offset;
-	uint32_t size;
+	uint32_t size, hsize;
 
+	size = afu->mem.size;
+	hsize = afu->mem.size;
 	debug_msg("_amo_readwrite:");
 
 	if (!afu)
@@ -1566,8 +1575,8 @@ static void _amo_readwrite(struct ocxl_afu *afu)
 
 	debug_msg( "_amo_readwrite: buffer[%d]", buffer_offset );
 	size = htonl(afu->mem.size);
-	memcpy((char *)&(buffer[buffer_offset]), (char *)&size, sizeof(size));
-	buffer_offset += sizeof(size);
+	memcpy((char *)&(buffer[buffer_offset]), (char *)&size, sizeof(hsize));
+	buffer_offset += sizeof(hsize);
 
 	debug_msg( "_amo_readwrite: buffer[%d]", buffer_offset );
 	buffer[buffer_offset] = afu->mem.cmd;
@@ -1576,13 +1585,14 @@ static void _amo_readwrite(struct ocxl_afu *afu)
 	debug_msg( "_amo_readwrite: buffer[%d]", buffer_offset );
         buffer[buffer_offset] = 0; // constant endianness for now
 	buffer_offset += 1;
+	debug_msg( "_amo_readwrite: size=%d", size );
 
 	// if mem.cmd is 0-7, 9, or 10
 	// data = htonll(afu->mmio.data);
 	if ( afu->mem.data != NULL ) {
 	  debug_msg( "_amo_readwrite: buffer[%d]", buffer_offset );
 	  memcpy( (char *)&(buffer[buffer_offset]), afu->mem.data, afu->mem.size );
-	  buffer_offset += size;
+	  buffer_offset += hsize;
 	}
 
 	// if mem.cmd is 8, 9, or 10
@@ -1590,7 +1600,7 @@ static void _amo_readwrite(struct ocxl_afu *afu)
 	if ( afu->mem.datab != NULL ) {
 	  debug_msg( "_amo_readwrite: buffer[%d]", buffer_offset );
 	  memcpy( (char *)&(buffer[buffer_offset]), afu->mem.datab, afu->mem.size );
-	  buffer_offset += size;
+	  buffer_offset += hsize;
 	}
 
 	if (put_bytes_silent(afu->fd, buffer_offset, buffer) != buffer_offset) {
@@ -1622,8 +1632,8 @@ static void _handle_mem_ack(struct ocxl_afu *afu)
 	if (resp_code !=0) // TODO update this to handle resp code retry requests
 		error_msg ("handle_mem_ack: AFU sent RD or WR FAILED response code = 0x%d ", resp_code);
 	if ( ( afu->mem.type == OCSE_LPC_READ ) || 
-	     ( afu->mem.type == OCSE_AMO_RD ) || 
-	     ( afu->mem.type == OCSE_AMO_RW ) ) {
+	     ( afu->mem.type == OCSE_AFU_AMO_RD ) || 
+	     ( afu->mem.type == OCSE_AFU_AMO_RW ) ) {
 	        // assuming it all worked, we already know the size in afu->mem.size
 	        debug_msg( "_handle_mem_ack: getting %d bytes from socket", afu->mem.size );
 		afu->mem.data = (uint8_t *)malloc( afu->mem.size );
@@ -1703,13 +1713,13 @@ static void *_psl_loop(void *ptr)
 				_mem_read(afu);
 				break;
 			// when the amo operation appears here, it represents a CAPP amo command
-			case OCSE_AMO_RD:
+			case OCSE_AFU_AMO_RD:
 				_amo_read(afu);
 				break;
-			case OCSE_AMO_WR:
+			case OCSE_AFU_AMO_WR:
 				_amo_write(afu);
 				break;
-			case OCSE_AMO_RW:
+			case OCSE_AFU_AMO_RW:
 				_amo_readwrite(afu);
 				break;
 			default:

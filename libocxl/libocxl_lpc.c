@@ -400,7 +400,7 @@ ocxl_err ocxl_lpc_amo_read(ocxl_afu_h afu, uint8_t cmd, uint64_t offset, uint8_t
 
         // check address alignment against size - could do something here...
 
-	my_afu->mem.type = OCSE_AMO_RD;
+	my_afu->mem.type = OCSE_AFU_AMO_RD;
 	my_afu->mem.be = 0;
 
 	  // Send a legally aligned and sized memory read to OCSE
@@ -471,7 +471,7 @@ ocxl_err ocxl_lpc_amo_write(ocxl_afu_h afu, uint8_t cmd, uint64_t offset, uint8_
 
         // check address alignment against size - could do something here...
 
-	my_afu->mem.type = OCSE_AMO_WR;
+	my_afu->mem.type = OCSE_AFU_AMO_WR;
 	my_afu->mem.be = 0;
 
 	  // Send a legally aligned and sized memory read to OCSE
@@ -533,7 +533,7 @@ ocxl_err ocxl_lpc_amo_readwrite(ocxl_afu_h afu, uint8_t cmd, uint64_t offset, ui
 
         // check address alignment against size - could do something here...
 
-	my_afu->mem.type = OCSE_AMO_RW;
+	my_afu->mem.type = OCSE_AFU_AMO_RW;
 	my_afu->mem.be = 0;
 
 	  // Send a legally aligned and sized atomic memory readwrite to OCSE
