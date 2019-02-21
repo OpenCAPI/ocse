@@ -26,6 +26,8 @@
 
 #define CACHELINE 128
 #define MDEVICE "/dev/cxl/tlx0.0000:00:00.1.0"
+#define NAME "IBM,MAFU"
+#define PHYSICAL_FUNCTION "1234:00:00.1"
 
 static int verbose;
 static unsigned int buffer_cl = 64;
@@ -47,6 +49,7 @@ int main(int argc, char *argv[])
     int opt, option_index, i;
     int rc;
     uint8_t *rcacheline, *wcacheline;
+    char amo_r[8], amo_w[8];
     char *status;
     ocxl_afu_h mafu_h;
     MachineConfig machine_config;
@@ -109,43 +112,38 @@ int main(int argc, char *argv[])
     
     //status[0]=0xff;
     // open master device
-    printf("Calling ocxl_afu_open_dev\n");
+    printf("Attempt open device for mafu\n");
     
-    rc = ocxl_afu_open_from_dev(MDEVICE, &mafu_h);
+    //rc = ocxl_afu_open_from_dev(MDEVICE, &mafu_h);
+    rc = ocxl_afu_open_specific(NAME, PHYSICAL_FUNCTION, 0, &mafu_h);
     if(rc != 0) {
-	perror("cxl_afu_open_dev: "MDEVICE);
-	return -1;
+	   perror("cxl_afu_open_dev: "MDEVICE);
+	   return -1;
     }
     
     // attach device
     printf("Attaching device ...\n");
     rc = ocxl_afu_attach(mafu_h, 0);
     if(rc != 0) {
-	perror("cxl_afu_attach:"MDEVICE);
-	return rc;
+	   perror("cxl_afu_attach:"MDEVICE);
+	   return rc;
     }
 
     // mapping device
     printf("Attempt mmio mapping afu registers\n");
-    if (ocxl_mmio_map(mafu_h, OCXL_MMIO_LITTLE_ENDIAN, pp_mmio_h) != 0) {
-	printf("FAILED: ocxl_mmio_map\n");
-	goto done;
+    if (ocxl_mmio_map(mafu_h, OCXL_PER_PASID_MMIO, &pp_mmio_h) != 0) {
+	   printf("FAILED: ocxl_mmio_map\n");
+	   goto done;
     }
     if(ocxl_mmio_map(mafu_h, OCXL_GLOBAL_MMIO, &mmio_h) != 0) {
-	printf("FAILED: ocxl_global_mmio_map\n");
-	goto done;
+	   printf("FAILED: ocxl_global_mmio_map\n");
+	   goto done;
     }
-
-    //printf("Calling ocxl_get_cr_device and vendor\n");
-    //ocxl_get_cr_device(mafu_h, 0, &cr_device);
-    //ocxl_get_cr_vendor(mafu_h, 0, &cr_vendor);
-    //printf("device = 0x%x\n", cr_device);
-    //printf("vendor = 0x%x\n", cr_vendor);
 
     printf("Attempt lpc memory mapping\n");
     if(ocxl_lpc_map(mafu_h, OCXL_MMIO_LITTLE_ENDIAN) != 0) {
-	printf("FAILED: ocxl_lpc_map\n");
-	goto done;
+	   printf("FAILED: ocxl_lpc_map\n");
+	   goto done;
     }
 
     // lpc write
@@ -157,7 +155,20 @@ int main(int argc, char *argv[])
     ocxl_lpc_read(mafu_h, (uint64_t)rcacheline, rcacheline, 64);
     printf("rcacheline = 0x");
     for(i=0; i<CACHELINE; i++)
-	printf("%02x", (uint8_t)rcacheline[i]);
+	   printf("%02x", (uint8_t)rcacheline[i]);
+    printf("\n");
+    // lpc amo read
+    printf("Attempting lpc amo write\n");
+    for(i=0; i< 8; i++) {
+        amo_w[i] = i;
+    }
+    ocxl_lpc_amo_write(mafu_h, 0, 0, amo_w, 4 );
+    ocxl_lpc_amo_read(mafu_h, 0xc, 0, amo_r, 4);
+    printf("amo_r = 0x");
+    for(i=0; i<4; i++) {
+        printf("%02x", amo_r[i]);
+    }    
+
 done:
     // free device
     printf("Freeing device ... \n");

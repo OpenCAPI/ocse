@@ -47,6 +47,16 @@ union amo_data_s {
     uint64_t lword;
 } amo_data;
 
+struct AMO_W_S {
+    char name[20];
+    int  cmd_flag;
+};
+
+enum AMO_W_FLAGS {
+    ADD=0x0, XOR, OR, AND, MAX_UNSIGNED, MAX_SIGNED,
+    MIN_UNSIGNED, MIN_SIGNED, COMPARE=0xC
+}amo_w_cmdflag;
+
 struct work_element {
   uint8_t  command_byte; // left to right - 7:2 cmd, 1 wrap, 0 valid
   uint8_t  status;
@@ -72,7 +82,7 @@ static void print_help(char *name)
 int main(int argc, char *argv[])
 {
     struct timespec t;
-    int opt, option_index, i;
+    int opt, option_index, i, j;
     int rc;
     //char adata[16];
     char *rcacheline, *wcacheline;
@@ -87,6 +97,9 @@ int main(int argc, char *argv[])
     uint64_t unused_flags, amo_result;
     ocxl_mmio_h pp_mmio_h, pocxl_mmio_h;
     struct work_element *work_element_descriptor = 0;
+    struct AMO_W_S amo_w[] = {{"ADD", 0x0}, {"XOR", 0x1}, {"OR", 0x2},
+        {"AND", 0x3}, {"MAX_UNSIGNED", 0x4}, {"MAX_SIGNED", 0x5},
+        {"MIN_UNSIGNED", 0x6}, {"MIN_SIGNED", 0x7}, {"COMPARE", 0xC}};
 
     static struct option long_options[] = {
 	{"cachelines", required_argument, 0	  , 'c'},
@@ -228,48 +241,50 @@ int main(int argc, char *argv[])
     printf("\n");
     // Attemp write command
     printf("Attempt Write command\n");
-    config_param.context = 0;
-    config_param.enable_always = 1;
-    config_param.command = AFU_CMD_AMO_W;
-    config_param.cmdflag = 6;
-    config_param.mem_size = 64;
-    config_param.mem_base_address = (uint64_t)wcacheline;
-    printf("wcacheline = 0x%p\n", wcacheline);
-    printf("command = 0x%x cmdflag = 0x%x\n",
-        config_param.command, config_param.cmdflag);
-    printf("wcache address = 0x%"PRIx64"\n", config_param.mem_base_address);
-    rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
-    if(rc != -1) {
-	   printf("Response = 0x%x\n", rc);
- 	  printf("config_enable_and_run_machine PASS\n");
-    }
-    else {
-	   printf("FAILED: config_enable_and_run_machine\n");
-	   goto done;
-    }
-    printf("set status data = 0xff\n");
-    status[0] = 0xff;
-    printf("Waiting for write command completion status\n");
-    while(status[0] != 0x00) {
-	   nanosleep(&t, &t);
+    for(j=3; j<5; j++) {
+        config_param.context = 0;
+        config_param.enable_always = 1;
+        config_param.command = AFU_CMD_AMO_W;
+        config_param.cmdflag = amo_w[j].cmd_flag;
+        config_param.mem_size = 64;
+        config_param.mem_base_address = (uint64_t)wcacheline;
+        printf("wcacheline = 0x%p\n", wcacheline);
+        printf("command = 0x%x cmdflag = 0x%x\n",
+            config_param.command, config_param.cmdflag);
+        printf("wcache address = 0x%"PRIx64"\n", config_param.mem_base_address);
+        rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, 
+            config_param, DIRECTED);
+        if(rc != -1) {
+	       printf("Response = 0x%x\n", rc);
+ 	      printf("config_enable_and_run_machine PASS\n");
+        }
+        else {
+	       printf("FAILED: config_enable_and_run_machine\n");
+	       goto done;
+        }
+        printf("set status data = 0xff\n");
+        status[0] = 0xff;
+        printf("Waiting for write command completion status\n");
+        while(status[0] != 0x00) {
+	       nanosleep(&t, &t);
 	//printf("Polling write completion status = 0x%x\n", *status);
-    }
-    printf("Write command is completed\n");
+        }
+        printf("AMO Write and %s command is completed\n", amo_w[j].name);
     // clear machine config
-    printf("Clear Machine Config\n");
-    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, 
-        DIRECTED, &amo_result);
-    if(rc != 0) {
-	printf("Failed to clear machine config\n");
-	goto done;
-    }
+        printf("Clear Machine Config\n");
+        rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, 
+            DIRECTED, &amo_result);
+        if(rc != 0) {
+	       printf("Failed to clear machine config\n");
+	       goto done;
+        }
 
-    printf("wcacheline = 0x");
-    for(i=0; i<CACHELINE; i++) {
-	   printf("%02x", (uint8_t)wcacheline[i]);
+        printf("wcacheline = 0x");
+        for(i=0; i<CACHELINE; i++) {
+	       printf("%02x", (uint8_t)wcacheline[i]);
+        }
+        printf("\n");
     }
-    printf("\n");
-
     printf("set status data = 0x55\n");
     status[0] = 0x55;	// test complete flag
     printf("Waiting for test complete status\n");
