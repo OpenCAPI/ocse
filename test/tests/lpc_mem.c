@@ -46,6 +46,8 @@ static void print_help(char *name)
 int main(int argc, char *argv[])
 {
     //int cr_device, cr_vendor;
+    struct timespec t;
+    uint64_t result;
     int opt, option_index, i;
     int rc;
     uint8_t *rcacheline, *wcacheline;
@@ -53,6 +55,7 @@ int main(int argc, char *argv[])
     char *status;
     ocxl_afu_h mafu_h;
     MachineConfig machine_config;
+    MachineConfigParam config_param;
     ocxl_mmio_h pp_mmio_h, mmio_h;
 
     static struct option long_options[] = {
@@ -140,6 +143,41 @@ int main(int argc, char *argv[])
 	   goto done;
     }
 
+    printf("Attempt Read command\n");
+    config_param.context = 0;
+    config_param.enable_always = 1;
+    config_param.mem_size = CACHELINE;
+    config_param.command = AFU_CMD_RD_WNITC;
+    config_param.mem_base_address = (uint64_t)rcacheline;
+    config_param.machine_number = 0;
+    config_param.status_address = (uint32_t)status;
+    printf("status address = 0x%p\n", status);
+    printf("rcacheline = 0x%p\n", rcacheline);
+    printf("command = 0x%x\n", config_param.command);
+    printf("mem base address = 0x%"PRIx64"\n", config_param.mem_base_address);
+    rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
+    printf("set status data = 0xff\n");
+    status[0] = 0xff;
+    if( rc != -1) {
+        printf("Response = 0x%x\n", rc);
+        printf("config_enable_and_run_machine PASS\n");
+    }
+    else {
+        printf("FAILED: config_enable_and_run_machine\n");
+        goto done;
+    }
+    timeout = 0;
+    printf("Polling read completion status\n");
+    while(status[0] != 0x0) {
+        nanosleep(&t, &t);
+    }
+    // clear machine config
+    printf("Clearing machine config\n");
+    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED, &result);
+    if(rc != 0) {
+        printf("Failed to clear machine config\n");
+        goto done;
+    }
     printf("Attempt lpc memory mapping\n");
     if(ocxl_lpc_map(mafu_h, OCXL_MMIO_LITTLE_ENDIAN) != 0) {
 	   printf("FAILED: ocxl_lpc_map\n");
@@ -168,7 +206,7 @@ int main(int argc, char *argv[])
     for(i=0; i<4; i++) {
         printf("%02x", amo_r[i]);
     }    
-
+    printf("\n");
 done:
     // free device
     printf("Freeing device ... \n");
