@@ -414,15 +414,6 @@ module top_lpc4 (
    wire [5:0]       tlx_afu_cmd_data_initial_credit;
    wire [5:0]       tlx_afu_resp_data_initial_credit;
 
-   wire             tlx_cfg0_in_rcv_tmpl_capability_0;
-   wire             tlx_cfg0_in_rcv_tmpl_capability_1;
-   wire             tlx_cfg0_in_rcv_tmpl_capability_2;
-   wire             tlx_cfg0_in_rcv_tmpl_capability_3;
-   wire       [3:0] tlx_cfg0_in_rcv_rate_capability_0;
-   wire       [3:0] tlx_cfg0_in_rcv_rate_capability_1;
-   wire       [3:0] tlx_cfg0_in_rcv_rate_capability_2;
-   wire       [3:0] tlx_cfg0_in_rcv_rate_capability_3;
-
    wire      [4:0]  ro_device;
    wire     [31:0] ro_dlx0_version ;                     // -- Connect to DLX output at next level, or tie off to all 0s
    wire     [31:0] tlx0_cfg_oc4_tlx_version ;                     // -- (was ro_tlx0_version[31:0])
@@ -610,8 +601,8 @@ module top_lpc4 (
    wire        cfg_vpd_wren         ; // Set to 1 to write a location, hold at 1 until see vpd_done = 1 then clear to 0
    wire [31:0] cfg_vpd_wdata        ; // Contains data to write to VPD register (valid while wren=1)
    wire        cfg_vpd_rden         ; // Set to 1 to read  a location, hold at 1 until see vpd_done = 1 then clear to 0
-   wire [31:0] vpd_cfg_rdata        ; // Contains data read back from VPD register (valid when rden=1 and vpd_done=1)
-   wire        vpd_cfg_done         ; // VPD pulses to 1 for 1 cycle when write is complete, or when rdata contains valid results
+   reg  [31:0] vpd_cfg_rdata        ; // Contains data read back from VPD register (valid when rden=1 and vpd_done=1)
+   reg         vpd_cfg_done         ; // VPD pulses to 1 for 1 cycle when write is complete, or when rdata contains valid results
    wire         vpd_err_unimplemented_addr;  // When 1, VPD detected an invalid address
     // ------------------------------------
     // Configuration Space to FLASH Interface
@@ -735,7 +726,9 @@ initial begin
     tlx_cfg_pl_top		<= 3'b0;
     tlx_cfg_t_top		<= 1'b0;
     tlx_cfg_data_bus_top	<= 32'b0;
-    tlx_cfg_data_bdi_top		<= 1'b0;
+    tlx_cfg_data_bdi_top	<= 1'b0;
+    vpd_cfg_rdata		<= 32'b0;
+    vpd_cfg_done		<= 1'b0;
 end
 
   // Clock generation
@@ -932,14 +925,14 @@ end
 
     assign 	tlx_afu_ready				= tlx_afu_ready_top;
     assign 	ro_device				= ro_device_top;
-    assign 	tlx_cfg0_in_rcv_tmpl_capability_0	= tlx_cfg_rcv_tmpl_capability_0_top;
-    assign 	tlx_cfg0_in_rcv_tmpl_capability_1	= tlx_cfg_rcv_tmpl_capability_1_top;
-    assign 	tlx_cfg0_in_rcv_tmpl_capability_2	= tlx_cfg_rcv_tmpl_capability_2_top;
-    assign 	tlx_cfg0_in_rcv_tmpl_capability_3	= tlx_cfg_rcv_tmpl_capability_3_top;
-    assign 	tlx_cfg0_in_rcv_rate_capability_0	= tlx_cfg_rcv_rate_capability_0_top;
-    assign 	tlx_cfg0_in_rcv_rate_capability_1	= tlx_cfg_rcv_rate_capability_1_top;
-    assign 	tlx_cfg0_in_rcv_rate_capability_2	= tlx_cfg_rcv_rate_capability_2_top;
-    assign 	tlx_cfg0_in_rcv_rate_capability_3	= tlx_cfg_rcv_rate_capability_3_top;
+    assign 	tlx_cfg0_rcv_tmpl_capability_0		= tlx_cfg_rcv_tmpl_capability_0_top;
+    assign 	tlx_cfg0_rcv_tmpl_capability_1		= tlx_cfg_rcv_tmpl_capability_1_top;
+    assign 	tlx_cfg0_rcv_tmpl_capability_2		= tlx_cfg_rcv_tmpl_capability_2_top;
+    assign 	tlx_cfg0_rcv_tmpl_capability_3		= tlx_cfg_rcv_tmpl_capability_3_top;
+    assign 	tlx_cfg0_rcv_rate_capability_0		= tlx_cfg_rcv_rate_capability_0_top;
+    assign 	tlx_cfg0_rcv_rate_capability_1		= tlx_cfg_rcv_rate_capability_1_top;
+    assign 	tlx_cfg0_rcv_rate_capability_2		= tlx_cfg_rcv_rate_capability_2_top;
+    assign 	tlx_cfg0_rcv_rate_capability_3		= tlx_cfg_rcv_rate_capability_3_top;
     assign	tlx_cfg0_valid				= tlx_cfg_valid_top;
     assign 	tlx_cfg0_opcode				= tlx_cfg_opcode_top;
     assign 	tlx_cfg0_pa				= tlx_cfg_pa_top;
