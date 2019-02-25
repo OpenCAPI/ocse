@@ -174,6 +174,7 @@ static struct mmio_event *_add_mem_event(struct mmio *mmio, struct client *clien
 	if (!event)
 		return event;
 	event->cfg = 0;
+	event->cmd_opcode = 0; // don't get this confused with amo cmds!
 	event->rnw = rnw;
 	event->be_valid = be_valid;
 	event->dw = 0;
@@ -865,6 +866,7 @@ void send_mmio(struct mmio *mmio)
 	// we should perhaps do this section based on event->opcode (which is the OCSE cmd form)
 	// amo needs special handling, we can tell these from cmd_opcode
 	// but other lpc commands did not send along the cmd_opcode.  
+	
 	switch ( event->cmd_opcode ) {
 	case OCSE_AFU_AMO_RD:
 	      // we know size < 64
@@ -902,6 +904,7 @@ void send_mmio(struct mmio *mmio)
 						 tdata_bus ) == TLX_SUCCESS) {
 		    event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
 	      }
+	      break;
 	case OCSE_AFU_AMO_RW:
 	      // we know size < 64
 	      debug_msg("%s:%s AMO_RW %d word=0x%05x", mmio->afu_name, type, event->dw ? 64 : 32, event->cmd_PA);
