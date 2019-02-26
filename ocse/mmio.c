@@ -912,18 +912,20 @@ void send_mmio(struct mmio *mmio)
 	      memcpy( tdata_bus, null_buff, 64); // clear tdata_bus
 	      memcpy( dptr + offset, event->data, cmd_byte_cnt);  // copy the data to the proper offset in tdata buffer */
 	      // need to add the dataw to the proper offset into the 64 byte tdata_bus...
+	      if (event->cmd_flg > 7) {
 	      offset = event->cmd_PA & 0x000000000000000F ;
 	      offset = offset + 8 ; // add 8
 	      offset = offset & 0x000000000000000F ; // clear the carry if any
 	      offset = ( event->cmd_PA & 0x0000000000000030 ) | offset; 
 	      memcpy( dptr + offset, event->dataw, cmd_byte_cnt);  // copy the dataw to the proper offset in tdata buffer */
-#ifdef DEBU
+#ifdef DEBUG
 	      printf("send_mmio: data = 0x" );
 	      for ( i=0; i<cmd_byte_cnt; i++ ) {
 		printf( "%02x", tdata_bus[i] );
 	      }
 	      printf( "\n" );
 #endif
+	      }
 	      if (tlx_afu_send_cmd_vc1_and_dcp1( mmio->afu_event,
 						 TLX_CMD_AMO_RW, 0,
 						 0xbead, 
@@ -1635,11 +1637,11 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 	return NULL;
 	}
 
-	if (event->rnw) {
+	if ((event->rnw) || (event->cmd_opcode == OCSE_AFU_AMO_RW)) {
 	      // Return acknowledge with read data
 	      if ( event->size !=0 ) {
    		    // this is an lpc mem request coming back
-		    debug_msg("handle_mmio_done:sending OCSE_LPC_ACK for a READ to client!!!!");
+		    debug_msg("handle_mmio_done:sending OCSE_LPC_ACK for a AMO_R, AMO_RW, or READ to client!!!!");
 		    buffer = (uint8_t *) malloc(event->size + 2);
 		    buffer[0] = event->ack;
 		    buffer[1] = event->resp_code;
@@ -1670,6 +1672,7 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 		    }
 	      }
 	} else {
+
 		// Return acknowledge for write
 		debug_msg("READY TO SEND OCSE_*_ACK for a WRITE to client!!!!");
 		buffer = (uint8_t *) malloc(2);
@@ -1959,8 +1962,9 @@ struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
 	  // cmd_flag 0-7, 9-10 have a datav
 	  // always allocate datav, fill it in most cases.  always used for return data.
 	  datav = (uint8_t *)malloc( size );
-	  if ( ( (cmd_flg >= 0) && (cmd_flg <= 7)  ) || 
-	       ( (cmd_flg >= 9) && (cmd_flg <= 10) ) ) {
+	  if ( cmd_flg != 8  ) { 
+	  //if ( ( (cmd_flg >= 0) && (cmd_flg <= 7)  ) || 
+	  //      (cmd_flg == 9) || (cmd_flg == 10)  ) {
 	    if ( get_bytes_silent( fd, size, datav, mmio->timeout, &(client->abort) ) < 0 ) {
 	      goto amo_fail;
 	    }
