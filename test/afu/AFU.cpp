@@ -578,8 +578,14 @@ AFU::resolve_tlx_afu_cmd()
 	    tlx_pr_rd_mem();
 	    break;
 	case TLX_CMD_AMO_RD:
+		debug_msg("AFU: TLX AMO read cmd:");
+		tlx_pr_rd_mem();
+		break;
 	case TLX_CMD_AMO_RW:
 	case TLX_CMD_AMO_W:
+		debug_msg("AFU: tlx amo w");
+		tlx_pr_wr_mem();
+		break;
 	case TLX_CMD_WRITE_MEM:
 	    debug_msg("AFU: wr_mem cmd");
 	    tlx_pr_wr_mem();

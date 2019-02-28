@@ -113,6 +113,13 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
         command = new LoadCommand (command_code, command_address_parity,
                  command_code_parity, command_tag_parity, buffer_read_parity);
         break;
+        case AFU_CMD_AMO_RW:
+        afu_event->afu_tlx_vc3_pl = (config[1] >> 24);
+        printf("Machine: amo_rw pl=0x%x and cmdflag=0x%x\n", afu_event->afu_tlx_vc3_pl,
+            afu_event->afu_tlx_vc3_cmdflag);
+        command = new StoreCommand (command_code, command_address_parity,
+                 command_code_parity, command_tag_parity, buffer_read_parity);
+        break;
     case AFU_CMD_PR_RD_WNITC:
         case AFU_CMD_RD_WNITC:
 	   printf("Machine: rd_wnitc pl = 0x%x and dl = 0x%x\n", afu_event->afu_tlx_vc3_pl,

@@ -142,7 +142,7 @@ LoadCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
                            uint64_t address, uint16_t command_size,
                            uint8_t abort, uint16_t context)
 {
-    uint8_t  cmd_stream_id, cmd_os, cmd_mad;
+    uint8_t  cmd_stream_id, cmd_os, cmd_mad, cdata_bdi;
     uint8_t  cmd_dl, cmd_pl;
     uint64_t cmd_be;
     uint8_t  cmd_flag, cmd_endian, cmd_pg_size;
@@ -172,24 +172,24 @@ LoadCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     //    error_msg
     //    ("LoadCommand: Attempting to send command before previous command is completed");
 
-    //Command::completed = false;
-    //switch(Command::code){
-    //    case AFU_CMD_AMO_RD:
-    //        cmd_pl = 2;
-    //        cmd_flag = 0x1100;
-    //        break;
-    //    default:
-    //        break;
-    //}
     debug_msg("calling afu_tlx_send_cmd with command = 0x%x and paddress = 0x%x cmd_actag = 0x%x", Command::code, address, cmd_actag);
     debug_msg("ACTAG = 0x%x BDF = 0x%x PASID = 0x%x", cmd_actag, cmd_bdf, cmd_pasid);
     printf("cmd_flag = 0x%x, cmd_pl = 0x%x\n", cmd_flag, cmd_pl);
-    rc = afu_tlx_send_cmd_vc3(afu_event, Command::code, cmd_actag, 
-        cmd_stream_id, ea_addr, cmd_afutag, cmd_dl, cmd_pl,
-	    cmd_os, cmd_be, cmd_flag, cmd_endian, cmd_bdf, cmd_pasid, 
-        cmd_pg_size, cmd_mad);
-    printf("Commands: rc = 0x%x\n", rc);
-   
+    //if(Command::code == 0x40) { // amo_rw
+    //    printf("Commands: send amo_rw\n");
+    //    rc = afu_tlx_send_cmd_vc3_and_dcp3_data(afu_event, Command::code, cmd_actag,
+    //        cmd_stream_id, ea_addr, cmd_afutag, cmd_dl, cmd_pl, cmd_os, cmd_be,
+    //        cmd_flag, cmd_endian, cmd_bdf, cmd_pasid, cmd_pg_size, cmd_mad, 
+    //        cdata_bdi, cdata_bus);
+    //    printf("Commands: rc = 0x%x\n", rc);
+    //}
+    //else {
+        rc = afu_tlx_send_cmd_vc3(afu_event, Command::code, cmd_actag, 
+            cmd_stream_id, ea_addr, cmd_afutag, cmd_dl, cmd_pl,
+	       cmd_os, cmd_be, cmd_flag, cmd_endian, cmd_bdf, cmd_pasid, 
+            cmd_pg_size, cmd_mad);
+        printf("Commands: rc = 0x%x\n", rc);
+    //}
     Command::state = WAITING_DATA;
     Command::tag = new_tag;
     printf("data = 0x");

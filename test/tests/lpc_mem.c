@@ -195,13 +195,15 @@ int main(int argc, char *argv[])
     for(i=0; i<CACHELINE; i++)
 	   printf("%02x", (uint8_t)rcacheline[i]);
     printf("\n");
-    // lpc amo read
+    // lpc amo write
     printf("Attempting lpc amo write\n");
     for(i=0; i< 8; i++) {
         amo_w[i] = i;
     }
-    ocxl_lpc_amo_write(mafu_h, 0, 0, amo_w, 4 );
-    ocxl_lpc_amo_read(mafu_h, 0xc, 0, amo_r, 4);
+    ocxl_lpc_amo_write(mafu_h, 0, 0x00f8b080, amo_w, 4 );
+    printf("Attempting lpc amo read\n");
+    printf("amo_r address = 0x%p\n", amo_r);
+    ocxl_lpc_amo_read(mafu_h, 0xc, 0x00f8b080, amo_r, 4);
     printf("amo_r = 0x");
     for(i=0; i<4; i++) {
         printf("%02x", amo_r[i]);
