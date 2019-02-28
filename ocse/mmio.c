@@ -1466,27 +1466,6 @@ void handle_mmio_map(struct mmio *mmio, struct client *client)
 	uint8_t ack = OCSE_MMIO_ACK;
 	int fd = client->fd;
 
-	// flag data is no longer passed for the mmio map request
-	// Check for errors
-	/* if (get_bytes_silent(fd, 4, (uint8_t *) & flags, mmio->timeout, */
-	/* 		     &(client->abort)) < 0) { */
-	/*         debug_msg("%s:handle_mmio_map failed context=%d", */
-	/* 		  mmio->afu_name, client->context); */
-	/* 	client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE); */
-	/* 	warn_msg("Socket failure with client context %d", */
-	/* 		 client->context); */
-	/* 	ack = OCSE_MMIO_FAIL; */
-	/* 	goto map_done; */
-	/* } */
-	// Check flags value and set
-	// For now, we assume that the global and per pasid areas have the same endianness
-	/* if (!mmio->flags) { */
-	/* 	mmio->flags = ntohl(flags); */
-	/* } else if (mmio->flags != ntohl(flags)) { */
-	/* 	warn_msg("Set conflicting mmio endianess for AFU"); */
-	/* 	ack = OCSE_MMIO_FAIL; */
-	/* } */
-
 	if (ack == OCSE_MMIO_ACK) {
 		debug_mmio_map(mmio->dbg_fp, mmio->dbg_id, client->context);
 	}

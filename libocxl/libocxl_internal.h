@@ -80,11 +80,17 @@ struct mem_req {
 
 typedef struct ocxl_afu ocxl_afu;
 
+// ocxl_mmio_area contains information for all memory regions of the afu
+//   global mmio
+//   per pasid mmio
+//   lpc system memory
+//   lpc special purpose memory
 typedef struct ocxl_mmio_area {
-	char *start; /**< The first addressable byte of the area */
-	size_t length; /**< The size of the area in bytes */
-	ocxl_mmio_type type; /**< The type of the area */
-	ocxl_afu *afu; /**< The AFU this MMIO area belongs to */
+        char *start;         // The first addressable byte of the area
+        size_t length;       // The size of the area in bytes
+        ocxl_mmio_type type; // The type of the area
+         void *ocxl_lpc_ea;  // the address of the area that we malloc to imitate lpc space 
+        ocxl_afu *afu;       // The AFU this MMIO area belongs to
 } ocxl_mmio_area;
 
 // struct ocxl_afu_h {
@@ -102,16 +108,11 @@ struct ocxl_afu {
 	uint16_t vendor_id;
         uint8_t afu_version_major;
         uint8_t afu_version_minor;
-  // uint64_t global_mmio_offset;  // moves to global_mmio.start?
-  // uint32_t global_mmio_size;    // moves to global_mmio.length?
-  // uint64_t pp_mmio_offset;  // moves to per_pasid_mmio.start?
-  // uint32_t pp_mmio_stride;  // moves to per_pasid_mmio.length?
 	ocxl_mmio_area global_mmio;
 	ocxl_mmio_area per_pasid_mmio;
-  // need to save pointers to "mapped" global and per pasid mmio areas
         uint32_t mmio_count;
         uint32_t mmio_max;
-        ocxl_mmio_area mmios[2];
+        ocxl_mmio_area mmios[4];
         uint64_t mem_base_address;
         uint8_t mem_size;
 	uint16_t context;
@@ -123,6 +124,7 @@ struct ocxl_afu {
 	int mapped;
 	int global_mapped;
 	int lpc_mapped;
+	int lpc_special_mapped;
 	int pipe[2];
         int irq_count;
 	struct int_req int_req;

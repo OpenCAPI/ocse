@@ -45,7 +45,9 @@ typedef enum {
 
 typedef enum {
   OCXL_GLOBAL_MMIO,
-  OCXL_PER_PASID_MMIO 
+  OCXL_PER_PASID_MMIO,
+  OCXL_LPC_SYSTEM_MEM,
+  OCXL_LPC_SPECIAL_PURPOSE_MEM
 } ocxl_mmio_type;
 
 #define AFU_NAME_MAX 24

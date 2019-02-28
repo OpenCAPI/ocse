@@ -523,17 +523,30 @@ static void _handle_ack(struct ocxl_afu *afu)
 	if (resp_code !=0) // TODO update this to handle resp code retry requests
 		error_msg ("handle_ack: AFU sent RD or WR FAILED response code = 0x%d ", resp_code);
 
-	if ((afu->mmio.type == OCSE_MMIO_MAP) | (afu->mmio.type == OCSE_GLOBAL_MMIO_MAP) ) {
-	  afu->mmios[afu->mmio_count].afu = afu;
-	  if (afu->mmio.type == OCSE_GLOBAL_MMIO_MAP) {
-	    afu->mmios[afu->mmio_count].type = OCXL_GLOBAL_MMIO;
-	    afu->mmios[afu->mmio_count].start = afu->global_mmio.start;
-	    afu->mmios[afu->mmio_count].length = afu->global_mmio.length;
-	  } else {
-	  afu->mmios[afu->mmio_count].type = OCXL_PER_PASID_MMIO;
-	    afu->mmios[afu->mmio_count].start = afu->per_pasid_mmio.start;
-	    afu->mmios[afu->mmio_count].length = afu->per_pasid_mmio.length;
-	  }
+	if ( ( afu->mmio.type == OCSE_MMIO_MAP ) | 
+	     ( afu->mmio.type == OCSE_GLOBAL_MMIO_MAP ) | 
+	     ( afu->mmio.type == OCSE_LPC_SYSTEM_MAP ) ) {
+	        afu->mmios[afu->mmio_count].afu = afu;
+
+		switch (afu->mem.type) {
+		case OCSE_MMIO_MAP:
+		        afu->mmios[afu->mmio_count].type = OCXL_PER_PASID_MMIO;
+			afu->mmios[afu->mmio_count].start = afu->per_pasid_mmio.start;
+			afu->mmios[afu->mmio_count].length = afu->per_pasid_mmio.length;
+			break;
+		case OCSE_GLOBAL_MMIO_MAP:
+		        afu->mmios[afu->mmio_count].type = OCXL_GLOBAL_MMIO;
+			afu->mmios[afu->mmio_count].start = afu->global_mmio.start;
+			afu->mmios[afu->mmio_count].length = afu->global_mmio.length;
+			break;
+		case OCSE_LPC_SYSTEM_MAP:
+		        afu->mmios[afu->mmio_count].type = OCXL_LPC_SYSTEM_MEM;
+			afu->mmios[afu->mmio_count].start = (char *)afu->mem_base_address;
+			afu->mmios[afu->mmio_count].length = afu->mem_size;
+			break;
+		default:
+		        break;
+		}
 	}
 
 	if ((afu->mmio.type == OCSE_MMIO_READ64) | (afu->mmio.type == OCSE_GLOBAL_MMIO_READ64) ) {
@@ -559,7 +572,9 @@ static void _handle_ack(struct ocxl_afu *afu)
 			debug_msg("KEM:0x%08x", afu->mmio.data);
 		}
 	}
+
 	afu->mmio.state = LIBOCXL_REQ_IDLE;
+
 }
 
 
@@ -1668,6 +1683,8 @@ static void *_psl_loop(void *ptr)
 			switch (afu->mmio.type) {
 			case OCSE_MMIO_MAP:
 			case OCSE_GLOBAL_MMIO_MAP:
+			case OCSE_LPC_SYSTEM_MAP:
+			case OCSE_LPC_SPECIAL_PURPOSE_MAP:
 				_mmio_map(afu);
 				break;
 			case OCSE_MMIO_WRITE64:
@@ -1690,7 +1707,7 @@ static void *_psl_loop(void *ptr)
 		}
 		if (afu->mem.state == LIBOCXL_REQ_REQUEST) {
 			switch (afu->mem.type) {
-			case OCSE_LPC_MAP:
+			case OCSE_LPC_SYSTEM_MAP:
 				_mem_map(afu);
 				break;
 			case OCSE_LPC_WRITE:
@@ -1834,12 +1851,16 @@ static void *_psl_loop(void *ptr)
 			afu->per_pasid_mmio.length = lvalue;
 			offset += sizeof(uint32_t);
 
-			// we will only allow 2 mmio areas per attach.  one for global and the second for per pasid.
+			// we will only allow 4 mmio(memory) areas per attach.  
+			//     global mmio registers
+			//     per pasid mmio registers 
+			//     lpc system memory
+			//     lpc special purpose memory.
 			// we will only allow 1 per pasid area per attach and it must be the full area for this pasid,
 			// that is, the full stride.  and the offset is 0 from this pasid's (context) area
 
 			afu->mmio_count = 0;
-			afu->mmio_max = 2;
+			afu->mmio_max = 4;
 			
                         memcpy((char *)&llvalue, (char *)&(buffer[offset]), 8); // mem_base_address
 			afu->mem_base_address = llvalue;
@@ -3224,7 +3245,7 @@ ocxl_err ocxl_mmio_map( ocxl_afu_h afu, ocxl_mmio_type type, ocxl_mmio_h *mmio )
 {
 	ocxl_err err;
 
-	debug_msg( "MMIO MAP" );
+	debug_msg( "MMIO (and lpc memory) MAP" );
 	if (afu == NULL) {
 		warn_msg("ocxl_mmio_map: NULL afu!");
 		err = OCXL_NO_CONTEXT;
@@ -3251,16 +3272,47 @@ ocxl_err ocxl_mmio_map( ocxl_afu_h afu, ocxl_mmio_type type, ocxl_mmio_h *mmio )
 
 	switch (type) {
 	case OCXL_GLOBAL_MMIO:
-	  // Send MMIO map to OCSE
+	  // Send GLOBAL MMIO map to OCSE
 	  afu->mmio.type = OCSE_GLOBAL_MMIO_MAP;
-	  // my_afu->mmio.data = (uint64_t) endian;
-	  afu->mmio.state = LIBOCXL_REQ_REQUEST;
 	  break;
 	case OCXL_PER_PASID_MMIO:
-	  // Send MMIO map to OCSE
+	  // Send PER PASID MMIO map to OCSE
 	  afu->mmio.type = OCSE_MMIO_MAP;
-	  // my_afu->mmio.data = (uint64_t) endian;
-	  afu->mmio.state = LIBOCXL_REQ_REQUEST;
+	  break;
+	case OCXL_LPC_SYSTEM_MEM:
+	  // Send LPC SYSTEM MEMORY map to OCSE
+	  afu->mmio.type = OCSE_LPC_SYSTEM_MAP;
+	  // warn_msg("ocxl_mmio_map: lpc system memory map not yet supported!");
+	  break;
+	case OCXL_LPC_SPECIAL_PURPOSE_MEM:
+	  // Send LPC SPECIAL PURPOSE MEMORY map to OCSE
+	  // check template major/minor for legality of this
+	  // afu->mmio.type = OCSE_LPC_SPECIAL_PURPOSE_MAP;
+	  warn_msg("ocxl_mmio_map: lpc special purpose memory map not yet supported!");
+	default:
+	  err = OCXL_INVALID_ARGS;
+	  goto map_fail;
+	  break;
+	}
+
+	afu->mmio.state = LIBOCXL_REQ_REQUEST;
+
+	// wait for _pls_loop to see and process mmio libocxl_req_request and set to libocxl_req_idle
+	while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
+		_delay_1ms();
+
+	switch (type) {
+	case OCXL_GLOBAL_MMIO:
+	  afu->global_mapped = 1;
+	  break;
+	case OCXL_PER_PASID_MMIO:
+	  afu->mapped = 1;
+	  break;
+	case OCXL_LPC_SYSTEM_MEM:
+	  afu->lpc_mapped = 1;
+	  break;
+	case OCXL_LPC_SPECIAL_PURPOSE_MEM:
+	  afu->lpc_special_mapped = 1;
 	  break;
 	default:
 	  err = OCXL_INVALID_ARGS;
@@ -3268,13 +3320,6 @@ ocxl_err ocxl_mmio_map( ocxl_afu_h afu, ocxl_mmio_type type, ocxl_mmio_h *mmio )
 	  break;
 	}
 
-	while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
-		_delay_1ms();
-
-	if (type == OCXL_GLOBAL_MMIO)
-	  afu->global_mapped = 1;
-	else
-	  afu->mapped = 1;
 	
 	*mmio = (ocxl_mmio_h)&(afu->mmios[afu->mmio_count]);
 	afu->mmio_count++;

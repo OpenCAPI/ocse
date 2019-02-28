@@ -101,7 +101,7 @@ ocxl_err ocxl_lpc_map(ocxl_afu_h afu, uint32_t flags)
 	}
 
 	// Send mem map to OCSE
-	my_afu->mem.type = OCSE_LPC_MAP;
+	my_afu->mem.type = OCSE_LPC_SYSTEM_MAP;
 	my_afu->mem.data = (uint8_t *)&(flags);
 	my_afu->mem.state = LIBOCXL_REQ_REQUEST;
 	while (my_afu->mem.state != LIBOCXL_REQ_IDLE)	/*infinite loop */

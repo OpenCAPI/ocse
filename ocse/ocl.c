@@ -200,6 +200,7 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 			break;
 		case OCSE_MMIO_MAP:
 		case OCSE_GLOBAL_MMIO_MAP:
+		case OCSE_LPC_SYSTEM_MAP:
 			handle_mmio_map(ocl->mmio, client);
 			break;
 		case OCSE_GLOBAL_MMIO_WRITE64:
