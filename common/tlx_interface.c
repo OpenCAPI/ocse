@@ -1564,7 +1564,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 	FD_ZERO(&watchset);
 	FD_SET(event->sockfd, &watchset);
 	select(event->sockfd + 1, &watchset, NULL, NULL, NULL);
-        //debug_msg("tlx_get_afu_events:");
+        //debug_msg("tlx_get_afu_events: entered");
 	if (event->rbp == 0) {
 		if ((bc = recv(event->sockfd, event->rbuf, 1, 0)) == -1) {
 			if (errno == EWOULDBLOCK) {
@@ -1574,15 +1574,17 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 				return -1;
 			}
 		}
-	if (bc == 0)
-		return -1;
-		event->rbp += bc;
+	        event->rbp += bc;
 	}
+
+	if (bc == 0)
+	        return -1;
+
 	if (event->rbp != 0) {
 		if ((event->rbuf[0] & 0x10) != 0) {
 			event->clock = 0;
 			if (event->rbuf[0] == 0x10) {
-			//	debug_msg("tlx_get_afu_events: Just a clock event");
+			        //debug_msg("tlx_get_afu_events: Just a clock event");
 				event->rbp = 0;
 				return 1;
 			}

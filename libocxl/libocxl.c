@@ -528,7 +528,7 @@ static void _handle_ack(struct ocxl_afu *afu)
 	     ( afu->mmio.type == OCSE_LPC_SYSTEM_MAP ) ) {
 	        afu->mmios[afu->mmio_count].afu = afu;
 
-		switch (afu->mem.type) {
+		switch (afu->mmio.type) {
 		case OCSE_MMIO_MAP:
 		        afu->mmios[afu->mmio_count].type = OCXL_PER_PASID_MMIO;
 			afu->mmios[afu->mmio_count].start = afu->per_pasid_mmio.start;
