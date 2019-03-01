@@ -80,57 +80,57 @@ static int _delay_1ms()
 // are found in libocxl.c
 
 // routines that are called by user applications.
-ocxl_err ocxl_lpc_map(ocxl_afu_h afu, uint32_t flags)
-{
-        struct ocxl_afu *my_afu;
-	my_afu = (struct ocxl_afu *)afu;
-	debug_msg("ocxl_lpc_map: entered");
-	if (!my_afu->opened) {
-		warn_msg("ocxl_lpc_map: Must open first!");
-		goto lpcmap_fail;
-	}
+/* ocxl_err ocxl_lpc_map(ocxl_afu_h afu, uint32_t flags) */
+/* { */
+/*         struct ocxl_afu *my_afu; */
+/* 	my_afu = (struct ocxl_afu *)afu; */
+/* 	debug_msg("ocxl_lpc_map: entered"); */
+/* 	if (!my_afu->opened) { */
+/* 		warn_msg("ocxl_lpc_map: Must open first!"); */
+/* 		goto lpcmap_fail; */
+/* 	} */
 
-	if (!my_afu->attached) {
-		warn_msg("ocxl_lpc_map: Must attach first!");
-		goto lpcmap_fail;
-	}
+/* 	if (!my_afu->attached) { */
+/* 		warn_msg("ocxl_lpc_map: Must attach first!"); */
+/* 		goto lpcmap_fail; */
+/* 	} */
 
-	if (flags & ~(OCXL_LPC_FLAGS)) {
-		warn_msg("ocxl_lpc_map: Invalid flags!");
-		goto lpcmap_fail;
-	}
+/* 	if (flags & ~(OCXL_LPC_FLAGS)) { */
+/* 		warn_msg("ocxl_lpc_map: Invalid flags!"); */
+/* 		goto lpcmap_fail; */
+/* 	} */
 
-	// Send mem map to OCSE
-	my_afu->mem.type = OCSE_LPC_SYSTEM_MAP;
-	my_afu->mem.data = (uint8_t *)&(flags);
-	my_afu->mem.state = LIBOCXL_REQ_REQUEST;
-	while (my_afu->mem.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
-		_delay_1ms();
-	my_afu->lpc_mapped = 1;
+/* 	// Send mem map to OCSE */
+/* 	my_afu->mem.type = OCSE_LPC_SYSTEM_MAP; */
+/* 	my_afu->mem.data = (uint8_t *)&(flags); */
+/* 	my_afu->mem.state = LIBOCXL_REQ_REQUEST; */
+/* 	while (my_afu->mem.state != LIBOCXL_REQ_IDLE)	/\*infinite loop *\/ */
+/* 		_delay_1ms(); */
+/* 	my_afu->lpc_mapped = 1; */
 
-	return 0;
- lpcmap_fail:
-	errno = ENODEV;
-	return -1;
-}
+/* 	return 0; */
+/*  lpcmap_fail: */
+/* 	errno = ENODEV; */
+/* 	return -1; */
+/* } */
 
-ocxl_err ocxl_lpc_unmap(ocxl_afu_h afu)
-{
-        struct ocxl_afu *my_afu;
-	my_afu = (struct ocxl_afu *)afu;
-	my_afu->lpc_mapped = 0;
-	return 0;
-}
+/* ocxl_err ocxl_lpc_unmap(ocxl_afu_h afu) */
+/* { */
+/*         struct ocxl_afu *my_afu; */
+/* 	my_afu = (struct ocxl_afu *)afu; */
+/* 	my_afu->lpc_mapped = 0; */
+/* 	return 0; */
+/* } */
 
 // write size bytes from *data to offset in afu
 //    size = arbitrary
 //    offset is byte aligned
 //    *data is byte aligned - but is likely 16 Byte aligned due to host OS behavior
-ocxl_err ocxl_lpc_write(ocxl_afu_h afu, uint64_t offset, uint8_t *val, uint64_t size )
+ocxl_err ocxl_lpc_write(ocxl_mmio_h lpc, uint64_t offset, uint8_t *val, uint64_t size )
 {
 
         struct ocxl_afu *my_afu;
-	my_afu = (struct ocxl_afu *)afu;
+	my_afu = lpc->afu;
 
         debug_msg("ocxl_lpc_write: %d bytes to lpc offset 0x%016lx", size, offset);
 
@@ -217,11 +217,11 @@ ocxl_err ocxl_lpc_write(ocxl_afu_h afu, uint64_t offset, uint8_t *val, uint64_t 
 //    offset is size aligned
 //    *data is size aligned
 //    byte_enable
-ocxl_err ocxl_lpc_write_be(ocxl_afu_h afu, uint64_t offset, uint8_t *val, uint64_t byte_enable )
+ocxl_err ocxl_lpc_write_be(ocxl_mmio_h lpc, uint64_t offset, uint8_t *val, uint64_t byte_enable )
 {
 
         struct ocxl_afu *my_afu;
-	my_afu = (struct ocxl_afu *)afu;
+	my_afu = lpc->afu;
 
 	debug_msg("ocxl_lpc_write_be: to lpc offset 0x%016lx, with enable 0x%016lx", offset, byte_enable);
 
@@ -266,11 +266,11 @@ ocxl_err ocxl_lpc_write_be(ocxl_afu_h afu, uint64_t offset, uint8_t *val, uint64
 //    size = arbitrary
 //    offset is byte aligned
 //    *data is byte aligned - but is likely 16 Byte aligned due to host OS behavior
-ocxl_err ocxl_lpc_read(ocxl_afu_h afu, uint64_t offset, uint8_t *out, uint64_t size )
+ocxl_err ocxl_lpc_read(ocxl_mmio_h lpc, uint64_t offset, uint8_t *out, uint64_t size )
 {
 
         struct ocxl_afu *my_afu;
-	my_afu = (struct ocxl_afu *)afu;
+	my_afu = lpc->afu;
 
         debug_msg("ocxl_lpc_read: %d bytes from lpc offset 0x%016lx", size, offset);
 
@@ -368,11 +368,11 @@ ocxl_err ocxl_lpc_read(ocxl_afu_h afu, uint64_t offset, uint8_t *out, uint64_t s
 //    size = 4 or 8 bytes
 //    offset is byte aligned
 //    *out is byte aligned - but is likely 16 Byte aligned due to host OS behavior
-ocxl_err ocxl_lpc_amo_read(ocxl_afu_h afu, uint8_t cmd, uint64_t offset, uint8_t *out, uint64_t size )
+ocxl_err ocxl_lpc_amo_read(ocxl_mmio_h lpc, uint8_t cmd, uint64_t offset, uint8_t *out, uint64_t size )
 {
 
         struct ocxl_afu *my_afu;
-	my_afu = (struct ocxl_afu *)afu;
+	my_afu = lpc->afu;
 
         debug_msg("ocxl_lpc_amo_read: 0x%1x cmdflag %d bytes from lpc offset 0x%016lx", cmd, size, offset);
 
@@ -438,11 +438,11 @@ ocxl_err ocxl_lpc_amo_read(ocxl_afu_h afu, uint8_t cmd, uint64_t offset, uint8_t
 //    size = 4 or 8 bytes
 //    offset is byte aligned
 //    *val is byte aligned - but is likely 16 Byte aligned due to host OS behavior
-ocxl_err ocxl_lpc_amo_write(ocxl_afu_h afu, uint8_t cmd, uint64_t offset, uint8_t *val, uint64_t size )
+ocxl_err ocxl_lpc_amo_write(ocxl_mmio_h lpc, uint8_t cmd, uint64_t offset, uint8_t *val, uint64_t size )
 {
 
         struct ocxl_afu *my_afu;
-	my_afu = (struct ocxl_afu *)afu;
+	my_afu = lpc->afu;
 
         debug_msg("ocxl_lpc_amo_write: 0x%1x cmdflag %d bytes from lpc offset 0x%016lx", cmd, size, offset);
 
@@ -502,11 +502,11 @@ ocxl_err ocxl_lpc_amo_write(ocxl_afu_h afu, uint8_t cmd, uint64_t offset, uint8_
 //    *valv is byte aligned - but is likely 16 Byte aligned due to host OS behavior, null depending on cmd
 //    *valw is byte aligned - for a subset of the cmd's, but is likely 16 Byte aligned due to host OS behavior, null depending on cmd
 //    *out is byte aligned - but is likely 16 Byte aligned due to host OS behavior
-ocxl_err ocxl_lpc_amo_readwrite(ocxl_afu_h afu, uint8_t cmd, uint64_t offset, uint8_t *valv, uint8_t *valw, uint8_t *out, uint64_t size )
+ocxl_err ocxl_lpc_amo_readwrite(ocxl_mmio_h lpc, uint8_t cmd, uint64_t offset, uint8_t *valv, uint8_t *valw, uint8_t *out, uint64_t size )
 {
 
         struct ocxl_afu *my_afu;
-	my_afu = (struct ocxl_afu *)afu;
+	my_afu = lpc->afu;
 
         debug_msg("ocxl_lpc_amo_readwrite: 0x%1x cmdflag %d bytes from lpc offset 0x%016lx", cmd, size, offset);
 
