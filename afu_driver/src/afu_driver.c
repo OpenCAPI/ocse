@@ -608,13 +608,13 @@ void tlx_bfm(
       c_cfg_tlx_resync_credits  	= (cfg_tlx_resync_credits_top & 0x2) ? 0 : (cfg_tlx_resync_credits_top & 0x1);
       invalidVal  			= (cfg_tlx_resync_credits_top & 0x2);
       // lgt: added resets to tlx_afu_*_credit fields because these are not reset on clock only events
-      event.tlx_afu_vc3_credit = 0;
-      event.tlx_afu_vc2_credit = 0;
-      event.tlx_afu_vc1_credit = 0;
-      event.tlx_afu_vc0_credit = 0;
-      event.tlx_afu_dcp3_credit = 0;
-      event.tlx_afu_dcp2_credit = 0;
-      event.tlx_afu_dcp0_credit = 0;
+      //event.tlx_afu_vc3_credit = 0;
+      //event.tlx_afu_vc2_credit = 0;
+      //event.tlx_afu_vc1_credit = 0;
+      //event.tlx_afu_vc0_credit = 0;
+      //event.tlx_afu_dcp3_credit = 0;
+      //event.tlx_afu_dcp2_credit = 0;
+      //event.tlx_afu_dcp0_credit = 0;
       // credit managment - completed
 
       *tlx_afu_ready_top			= 1;	// TODO: need to check this
