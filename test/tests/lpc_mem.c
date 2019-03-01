@@ -22,7 +22,7 @@
 #include "TestAFU_config.h"
 #include "tlx_interface_t.h"
 //#include "../../libocxl/libocxl.h"
-#include "../../libocxl/libocxl_lpc.h"
+//#include "../../libocxl/libocxl_lpc.h"
 
 #define CACHELINE 128
 #define MDEVICE "/dev/cxl/tlx0.0000:00:00.1.0"

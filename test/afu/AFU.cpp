@@ -191,12 +191,12 @@ AFU::start ()
 	// tlx returing a response credit to afu
 	if(afu_event.tlx_afu_vc0_credit) {
 	    TagManager::release_tlx_credit(RESP_CREDIT);
-	    //afu_event.tlx_afu_resp_credit = 0;
+	    afu_event.afu_tlx_vc0_credit = 1;
 	}
 	// tlx returning a response data credit to afu
 	if(afu_event.tlx_afu_dcp0_credit) {
 	    TagManager::release_tlx_credit(RESP_DATA_CREDIT);
-	    //afu_event.tlx_afu_resp_data_credit = 0;
+	    //afu_event.afu_tlx_dcp0_credit = 1;
 	}
 	// tlx returning a command credit to afu
 	if(afu_event.tlx_afu_vc1_credit) {
