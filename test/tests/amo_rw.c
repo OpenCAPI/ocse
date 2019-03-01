@@ -52,11 +52,10 @@ struct AMO_S {
     int  cmd_flag;
 };
 
-enum AMO_W_FLAGS {
+enum AMO_RW_FLAGS {
     ADD=0x0, XOR, OR, AND, MAX_UNSIGNED, MAX_SIGNED,
-    MIN_UNSIGNED, MIN_SIGNED, COMPARE=0xC
-}amo_w_cmdflag;
-
+    MIN_UNSIGNED, MIN_SIGNED, SWAP, SWAP_EQUAL, SWAP_NEQUAL 
+} amo_rw_cmdflag;
 
 struct work_element {
   uint8_t  command_byte; // left to right - 7:2 cmd, 1 wrap, 0 valid
@@ -98,9 +97,11 @@ int main(int argc, char *argv[])
     uint64_t unused_flags, amo_result;
     ocxl_mmio_h pp_mmio_h, pocxl_mmio_h;
     struct work_element *work_element_descriptor = 0;
-    struct AMO_S amo_w[] = {{"ADD", 0x0}, {"XOR", 0x1}, {"OR", 0x2},
-        {"AND", 0x3}, {"MAX_UNSIGNED", 0x4}, {"MAX_SIGNED", 0x5},
-        {"MIN_UNSIGNED", 0x6}, {"MIN_SIGNED", 0x7}, {"COMPARE", 0xC}};
+
+    struct AMO_S amo_rw[] = {{"ADD",0x0}, {"XOR", 0x1}, {"OR", 0x2},
+        {"AND",0x3},{"MAX_UNSIGNED", 0x4},{"MAX_SIGNED",0x5},
+        {"MIN_UNSIGNED",0x6},{"MIN_SIGNED",0x7},{"SWAP", 0x8},
+        {"SWAP_EQUAL",0x9},{"SWAP_NEQUAL",0xA}};
 
     static struct option long_options[] = {
 	{"cachelines", required_argument, 0	  , 'c'},
@@ -191,106 +192,57 @@ int main(int argc, char *argv[])
 	printf("FAILED: ocxl_mmio_map mafu\n");
 	goto done;
     }
-        printf("Attempt AMO Read command\n");
-    config_param.context = 0;
-    config_param.enable_always = 1;
-    config_param.mem_size = CACHELINE;
-    config_param.command = AFU_CMD_AMO_RD;
-    config_param.mem_base_address = (uint64_t)rcacheline;
-    config_param.machine_number = 0;
-    config_param.status_address = (uint32_t)status;
-    config_param.cmdflag = 0x0d;
-    config_param.oplength = 0x02;
-    printf("status address = %p\n", status);
-    printf("rcacheline address = %p\n", rcacheline);
-    printf("command = 0x%x\n", config_param.command);
-    printf("mem base address = 0x%"PRIx64"\n", config_param.mem_base_address);
-    rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
-    printf("set status data = 0xff\n");
-    status[0] = 0xff;
-    if( rc != -1) {
-	   printf("Response = 0x%x\n", rc);
-	   printf("config_enable_and_run_machine PASS\n");
-    }  
-    else {
-	   printf("FAILED: config_enable_and_run_machine\n");
-	   goto done;
-    }
-    timeout = 0;
-    printf("Waiting for read command completion status\n");
-    while(status[0] != 0x0) {
-	   nanosleep(&t, &t);
-	   //printf("Polling read completion status = 0x%x\n", *status);
-    }
-    printf("AMO Read command is completed\n");
-    printf("Get amo result\n");
-    //get_machine_memory_dest_address(&machine_config, &amo_result);
-    
-    // clear machine config
-    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, 
-        DIRECTED, &amo_result);
-    if(rc != 0) {
-	printf("Failed to clear machine config\n");
-	goto done;
-    }
-    printf("Expected = 0x80 Actual = 0x%x\n", amo_result);
-    printf("Verify AMO Read command\n");
-    printf("rcacheline = 0x");
-    for(i=0; i<8; i++) {
-        printf("%02x", rcacheline[i]);
-    }
-    printf("\n");
-    // Attemp write command
-    printf("Attempt Write command\n");
-    for(j=3; j<5; j++) {
+    //printf("Attempt AMO RW command\n");
+    for(j=0; j<11; j++) {
+        printf("Attempt AMO RW and %s\n", amo_rw[j].name);
         config_param.context = 0;
         config_param.enable_always = 1;
-        config_param.command = AFU_CMD_AMO_W;
-        config_param.cmdflag = amo_w[j].cmd_flag;
-        config_param.mem_size = 64;
-        config_param.mem_base_address = (uint64_t)wcacheline;
-        printf("wcacheline = 0x%p\n", wcacheline);
-        printf("command = 0x%x cmdflag = 0x%x\n",
-            config_param.command, config_param.cmdflag);
-        printf("wcache address = 0x%"PRIx64"\n", config_param.mem_base_address);
+        config_param.mem_size = CACHELINE;
+        config_param.command = AFU_CMD_AMO_RW;
+        config_param.mem_base_address = (uint64_t)rcacheline;
+        config_param.machine_number = 0;
+        config_param.status_address = (uint32_t)status;
+        config_param.cmdflag = amo_rw[j].cmd_flag;
+        config_param.oplength = 0x02;
+        printf("status address = %p\n", status);
+        printf("rcacheline address = %p\n", rcacheline);
+        printf("command = 0x%x\n", config_param.command);
+        printf("mem base address = 0x%"PRIx64"\n", config_param.mem_base_address);
         rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, 
             config_param, DIRECTED);
-        if(rc != -1) {
+        printf("set status data = 0xff\n");
+        status[0] = 0xff;
+        if( rc != -1) {
 	       printf("Response = 0x%x\n", rc);
- 	      printf("config_enable_and_run_machine PASS\n");
-        }
+	       printf("config_enable_and_run_machine PASS\n");
+        }  
         else {
 	       printf("FAILED: config_enable_and_run_machine\n");
 	       goto done;
         }
-        printf("set status data = 0xff\n");
-        status[0] = 0xff;
-        printf("Waiting for write command completion status\n");
-        while(status[0] != 0x00) {
+        timeout = 0;
+        printf("Waiting for read command completion status\n");
+        while(status[0] != 0x0) {
 	       nanosleep(&t, &t);
-	//printf("Polling write completion status = 0x%x\n", *status);
+	   //printf("Polling read completion status = 0x%x\n", *status);
         }
-        printf("AMO Write and %s command is completed\n", amo_w[j].name);
+        printf("AMO RW and %s command is completed\n", amo_rw[j].name);
+        printf("Get amo result\n");
+    //get_machine_memory_dest_address(&machine_config, &amo_result);
+    
     // clear machine config
-        printf("Clear Machine Config\n");
         rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, 
             DIRECTED, &amo_result);
         if(rc != 0) {
-	       printf("Failed to clear machine config\n");
-	       goto done;
+	   printf("Failed to clear machine config\n");
+	   goto done;
         }
-
-        printf("wcacheline = 0x");
-        for(i=0; i<CACHELINE; i++) {
-	       printf("%02x", (uint8_t)wcacheline[i]);
+        printf("Verify AMO RW command\n");
+        printf("rcacheline = 0x");
+        for(i=0; i<8; i++) {
+            printf("%02x", rcacheline[i]);
         }
         printf("\n");
-    }
-    printf("set status data = 0x55\n");
-    status[0] = 0x55;	// test complete flag
-    printf("Waiting for test complete status\n");
-    while(status[0] != 0x0) {
-	   nanosleep(&t, &t);
     }
     printf("Test is completed\n");
     

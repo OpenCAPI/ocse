@@ -109,7 +109,7 @@
 #define TLX_CMD_RD_PF	  	0x22	// VC1      OMI only
 #define TLX_CMD_PR_RD_MEM  	0x28	// VC1
 #define TLX_CMD_AMO_RD     	0x30	// VC1      TLX4
-#define TLX_CMD_AMO_RW     	0x31	// VC1 DCP1 TLX4
+#define TLX_CMD_AMO_RW     	0x38	// VC1 DCP1 TLX4
 #define TLX_CMD_AMO_W      	0x40	// VC1 DCP1 TLX4
 #define TLX_CMD_PAD_MEM  	0x80	// VC1      OMI only
 #define TLX_CMD_WRITE_MEM  	0x81	// VC1 DCP1

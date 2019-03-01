@@ -5,6 +5,9 @@ LIBOCXL_LPC_1 {
 		ocxl_lpc_write;
 		ocxl_lpc_write_be;
 		ocxl_lpc_read;
+		ocxl_lpc_amo_read;
+		ocxl_lpc_amo_write;
+		ocxl_lpc_amo_readwrite;
 		
 	local:
 		*;
