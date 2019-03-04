@@ -22,7 +22,7 @@
 #include "TestAFU_config.h"
 #include "tlx_interface_t.h"
 //#include "../../libocxl/libocxl.h"
-#include "../../libocxl/libocxl_lpc.h"
+//#include "../../libocxl/libocxl_lpc.h"
 
 #define CACHELINE 128
 #define MDEVICE "/dev/cxl/tlx0.0000:00:00.1.0"
@@ -178,11 +178,11 @@ int main(int argc, char *argv[])
         printf("Failed to clear machine config\n");
         goto done;
     }
-    printf("Attempt lpc memory mapping\n");
-    if(ocxl_lpc_map(mafu_h, OCXL_MMIO_LITTLE_ENDIAN) != 0) {
-	   printf("FAILED: ocxl_lpc_map\n");
-	   goto done;
-    }
+    //printf("Attempt lpc memory mapping\n");
+    //if(ocxl_lpc_map(mafu_h, OCXL_MMIO_LITTLE_ENDIAN) != 0) {
+	//   printf("FAILED: ocxl_lpc_map\n");
+	//   goto done;
+    //}
 
     // lpc write
     printf("Attempting lpc write\n");
