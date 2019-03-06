@@ -34,6 +34,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <limits.h>
+#include "sys/mman.h"
 
 #include "libocxl_internal.h"
 #include "libocxl.h"
@@ -540,9 +541,12 @@ static void _handle_ack(struct ocxl_afu *afu)
 			afu->mmios[afu->mmio_count].length = afu->global_mmio.length;
 			break;
 		case OCSE_LPC_SYSTEM_MAP:
+		        // convert mem_size to length 
 		        afu->mmios[afu->mmio_count].type = OCXL_LPC_SYSTEM_MEM;
 			afu->mmios[afu->mmio_count].start = (char *)afu->mem_base_address;
-			afu->mmios[afu->mmio_count].length = afu->mem_size;
+			debug_msg("_handle_ack: converting mem_size %d to length", afu->mem_size );
+			afu->mmios[afu->mmio_count].length = afu->mem_size!=0 ? (uint64_t)0x1 << (afu->mem_size-1) : 0x0 ;
+			debug_msg("_handle_ack: converted mem_size 0x%x to length 0x%016lx", afu->mem_size, afu->mmios[afu->mmio_count].length );
 			break;
 		default:
 		        break;
@@ -3050,6 +3054,7 @@ ocxl_err ocxl_afu_close( ocxl_afu_h afu )
 {
         struct ocxl_afu *my_afu;
 	struct ocxl_irq *irq;
+	int i;
 
 	my_afu = (struct ocxl_afu *)afu;
 
@@ -3062,9 +3067,10 @@ ocxl_err ocxl_afu_close( ocxl_afu_h afu )
 	}
 
 	// mmio unmap
-	my_afu->global_mapped = 0;
-	my_afu->mapped = 0;
-  
+	for (i=0; i < my_afu->mmio_count; i++ ) {
+	  ocxl_mmio_unmap( &(my_afu->mmios[i]) );
+	}
+
 	_afu_free( afu );
 
 	return OCXL_OK;
@@ -3251,54 +3257,92 @@ ocxl_err ocxl_afu_get_p9_thread_id(ocxl_afu_h afu, uint16_t *thread_id)
   return 0;
 }
 
-ocxl_err ocxl_mmio_map( ocxl_afu_h afu, ocxl_mmio_type type, ocxl_mmio_h *mmio )
+ocxl_err ocxl_mmio_map_advanced( ocxl_afu_h afu, ocxl_mmio_type type, size_t size, int prot, uint64_t flags, off_t offset, ocxl_mmio_h *region )
 {
-	ocxl_err err;
+        ocxl_err err = OCXL_INVALID_ARGS;
 
 	debug_msg( "MMIO (and lpc memory) MAP" );
 	if (afu == NULL) {
-		warn_msg("ocxl_mmio_map: NULL afu!");
+		warn_msg("ocxl_mmio_map_advanced: NULL afu!");
 		err = OCXL_NO_CONTEXT;
 		goto map_fail;
 	}
 
 	if (!afu->opened) {
-		warn_msg("ocxl_mmio_map: Must open afu first!");
+		warn_msg("ocxl_mmio_map_advanced: Must open afu first!");
 		err = OCXL_NO_CONTEXT;
 		goto map_fail;
 	}
 
 	if (!afu->attached) {
-		warn_msg("ocxl_mmio_map: Must attach afu first!");
+		warn_msg("ocxl_mmio_map_advanced: Must attach afu first!");
 		err = OCXL_NO_CONTEXT;
 		goto map_fail;
 	}
 
 	if (afu->mmio_count == afu->mmio_max) {
-		warn_msg("ocxl_mmio_map: insufficient memory to map the new mmio area!");
+		warn_msg("ocxl_mmio_map_advanced: insufficient memory to map the new mmio area!");
 		err = OCXL_NO_MEM;
 		goto map_fail;
 	}
 
+	if ( size == 0 ) {
+	  switch (type) {
+	  case OCXL_GLOBAL_MMIO:
+	    size = afu->global_mmio.length;
+	    break;
+	  case OCXL_PER_PASID_MMIO:
+	    size = afu->per_pasid_mmio.length;
+	    break;
+	  case OCXL_LPC_SYSTEM_MEM:
+	    // if mem_size == 0, there is no mem
+	    // otherwise size is 2**mem_size
+	    if ( afu->mem_size == 0 ) {
+	      warn_msg("ocxl_mmio_map_advanced: no lpc system memory available!");
+	      err = OCXL_NO_MEM;
+	      goto map_fail;
+	    }
+	    size = (size_t)0x1 << (afu->mem_size - 1);
+	    break;
+	  case OCXL_LPC_SPECIAL_PURPOSE_MEM:
+	    // Send LPC SPECIAL PURPOSE MEMORY map to OCSE
+	    // check template major/minor for legality of this
+	    // afu->mmio.type = OCSE_LPC_SPECIAL_PURPOSE_MAP;
+	    warn_msg("ocxl_mmio_map_advanced: lpc special purpose memory map not yet supported!");
+	    goto map_fail;
+	  default:
+	    err = OCXL_INVALID_ARGS;
+	    goto map_fail;
+	    break;
+	  }
+	}
+
 	switch (type) {
 	case OCXL_GLOBAL_MMIO:
-	  // Send GLOBAL MMIO map to OCSE
+	  if ( size + offset > afu->global_mmio.length ) {
+	    warn_msg("ocxl_mmio_map_advanced: insufficient global mmio memory available!");
+	    err = OCXL_NO_MEM;
+	    goto map_fail;
+	  }
 	  afu->mmio.type = OCSE_GLOBAL_MMIO_MAP;
 	  break;
 	case OCXL_PER_PASID_MMIO:
-	  // Send PER PASID MMIO map to OCSE
+	  if ( size + offset > afu->per_pasid_mmio.length ) {
+	    warn_msg("ocxl_mmio_map_advanced: insufficient per pasid mmio memory available!");
+	    err = OCXL_NO_MEM;
+	    goto map_fail;
+	  }
 	  afu->mmio.type = OCSE_MMIO_MAP;
 	  break;
 	case OCXL_LPC_SYSTEM_MEM:
-	  // Send LPC SYSTEM MEMORY map to OCSE
+	  if ( ( size + offset ) > ( (uint64_t)0x1 << (afu->mem_size - 1) ) ) {
+	    warn_msg("ocxl_mmio_map_advanced: insufficient lpc system memory available!");
+	    err = OCXL_NO_MEM;
+	    goto map_fail;
+	  }
 	  afu->mmio.type = OCSE_LPC_SYSTEM_MAP;
-	  // warn_msg("ocxl_mmio_map: lpc system memory map not yet supported!");
 	  break;
 	case OCXL_LPC_SPECIAL_PURPOSE_MEM:
-	  // Send LPC SPECIAL PURPOSE MEMORY map to OCSE
-	  // check template major/minor for legality of this
-	  // afu->mmio.type = OCSE_LPC_SPECIAL_PURPOSE_MAP;
-	  warn_msg("ocxl_mmio_map: lpc special purpose memory map not yet supported!");
 	default:
 	  err = OCXL_INVALID_ARGS;
 	  goto map_fail;
@@ -3331,25 +3375,68 @@ ocxl_err ocxl_mmio_map( ocxl_afu_h afu, ocxl_mmio_type type, ocxl_mmio_h *mmio )
 	}
 
 	
-	*mmio = (ocxl_mmio_h)&(afu->mmios[afu->mmio_count]);
+	*region = (ocxl_mmio_h)&(afu->mmios[afu->mmio_count]);
 	afu->mmio_count++;
 	  
 	return OCXL_OK;
+
  map_fail:
 	return err;
+}
+
+ocxl_err ocxl_mmio_map( ocxl_afu_h afu, ocxl_mmio_type type, ocxl_mmio_h *region )
+{
+	return ocxl_mmio_map_advanced( afu, type, 0, PROT_READ | PROT_WRITE, 0, 0, region );
+}
+
+ocxl_err ocxl_mmio_get_info( ocxl_mmio_h region, void **address, size_t *size )
+{
+  // malloc the mmio area (but it is not to be used by the application software directly
+  // return the size of the area and the virtual address (EA) of the area
+  // the application is permitted to send the EA, or a derivative of it, to the accelerator
+  // the accelerator may access "LPC memory" via that EA.
+  // Can we do this for the global and per pasid mmio regions?  We don't have to, 
+  // but it would be a consistant approach.  The question may be the shear size
+  // of the various memory areas.
+  // if the accelerator is going to use a direct access to accelerator memory, the use
+  // this routine is not required.  the helper function (ocxl_mmio_* and ocxl_lpc_*)
+  // handle the memory via the connection to the afu handle
+  region->ocxl_ea = malloc( region->length );
+  if (region->ocxl_ea == NULL) {
+    // unsuccessful malloc
+    warn_msg( "ocxl_mmio_get_info: unable to malloc requested size 0x%016llx", (uint64_t)region->length );
+    return OCXL_NO_MEM;
+  }
+
+  *address = region->ocxl_ea;
+  *size = region->length;
+  return OCXL_OK;
 }
 
 ocxl_err ocxl_mmio_unmap( ocxl_mmio_h region )
 {
 // since we've created a static array for the areas, this is tricky...
-	if (region->type == OCXL_GLOBAL_MMIO)
-	  region->afu->global_mapped = 0;
-	else
-	  region->afu->mapped = 0;
+  if ( region->ocxl_ea != NULL ) {
+    free( region->ocxl_ea );
+  }
 
-// but what about mmio_count?
+  switch ( region->type ) {
+  case OCXL_GLOBAL_MMIO:
+    region->afu->global_mapped = 0;
+    break;
+  case OCXL_PER_PASID_MMIO:
+    region->afu->mapped = 0;
+    break;
+  case OCXL_LPC_SYSTEM_MEM:
+    region->afu->lpc_mapped = 0;
+    break;
+  default:
+    break;
+  }
 
-	return OCXL_OK;
+  // but what about mmio_count?
+  
+  return OCXL_OK;
 }
 
 ocxl_err ocxl_mmio_write64( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, uint64_t value )
@@ -3597,62 +3684,6 @@ ocxl_err ocxl_mmio_read32( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, u
 	errno = ENODEV;
 	return err;
 }
-
-/* ocxl_err ocxl_global_mmio_map( ocxl_afu_h afu, ocxl_endian endian) */
-/* { */
-/*         struct ocxl_afu *my_afu; */
-
-/* 	my_afu = (struct ocxl_afu *)afu; */
-
-/* 	debug_msg( "GLOBAL MMIO MAP" ); */
-/* 	if (my_afu == NULL) { */
-/* 		warn_msg("ocxl_global_mmio_map: NULL afu!"); */
-/* 		goto map_fail; */
-/* 	} */
-
-/* 	if (!my_afu->opened) { */
-/* 		printf("ocxl_global_mmio_map: Must open afu first!\n"); */
-/* 		goto map_fail; */
-/* 	} */
-
-/* 	if (!my_afu->attached) { */
-/* 		printf("ocxl_global_mmio_map: Must attach first!\n"); */
-/* 		goto map_fail; */
-/* 	} */
-
-/* 	if (endian & ~(OCXL_MMIO_FLAGS)) { */
-/* 		printf("ocxl_global_mmio_map: Invalid flags!\n"); */
-/* 		goto map_fail; */
-/* 	} */
-/* 	// Send MMIO map to OCSE */
-/* 	my_afu->mmio.type = OCSE_GLOBAL_MMIO_MAP; */
-/* 	my_afu->mmio.data = (uint64_t) endian; */
-/* 	my_afu->mmio.state = LIBOCXL_REQ_REQUEST; */
-/* 	while (my_afu->mmio.state != LIBOCXL_REQ_IDLE)	/\*infinite loop *\/ */
-/* 		_delay_1ms(); */
-/* 	my_afu->global_mapped = 1; */
-
-/* 	return OCXL_OK; */
-/*  map_fail: */
-/* 	errno = ENODEV; */
-/* 	return OCXL_NO_DEV; */
-/* } */
-
-/* ocxl_err ocxl_global_mmio_unmap( ocxl_afu_h afu ) */
-/* { */
-/*         struct ocxl_afu *my_afu; */
-
-/* 	my_afu = (struct ocxl_afu *)afu; */
-
-/* 	if (my_afu == NULL) { */
-/* 		warn_msg("ocxl_global_mmio_map: NULL afu!"); */
-/* 		return OCXL_NO_DEV; */
-/* 	} */
-
-/* 	my_afu->global_mapped = 0; */
-	
-/* 	return OCXL_OK; */
-/* } */
 
 ocxl_err ocxl_global_mmio_write64( ocxl_afu_h afu, uint64_t offset, uint64_t val)
 {

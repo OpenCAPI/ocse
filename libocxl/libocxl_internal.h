@@ -89,7 +89,7 @@ typedef struct ocxl_mmio_area {
         char *start;         // The first addressable byte of the area
         size_t length;       // The size of the area in bytes
         ocxl_mmio_type type; // The type of the area
-         void *ocxl_lpc_ea;  // the address of the area that we malloc to imitate lpc space 
+         void *ocxl_ea;  // the address of the area that we malloc to imitate lpc space 
         ocxl_afu *afu;       // The AFU this MMIO area belongs to
 } ocxl_mmio_area;
 
