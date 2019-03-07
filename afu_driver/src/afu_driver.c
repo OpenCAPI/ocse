@@ -967,7 +967,7 @@ void tlx_bfm(
         setDpiSignal32(tlx_afu_vc1_dl_top, event.tlx_afu_vc1_dl, 2);
         setDpiSignal32(tlx_afu_vc1_dp_top, event.tlx_afu_vc1_dp, 2);
         setDpiSignal64(tlx_afu_vc1_be_top, event.tlx_afu_vc1_be);
-        setDpiSignal32(tlx_afu_vc1_pl_top, event.tlx_afu_vc1_pl, 2);
+        setDpiSignal32(tlx_afu_vc1_pl_top, event.tlx_afu_vc1_pl, 3);
         *tlx_afu_vc1_endian_top     = (event.tlx_afu_vc1_endian) & 0x1;
         *tlx_afu_vc1_co_top     = (event.tlx_afu_vc1_co) & 0x1;
         *tlx_afu_vc1_os_top     = (event.tlx_afu_vc1_os) & 0x1;
@@ -1152,7 +1152,7 @@ void tlx_bfm(
     setDpiSignal32(tlx_afu_vc1_dl_top, 0x0, 2);
     setDpiSignal32(tlx_afu_vc1_dp_top, 0x0, 2);
     setDpiSignal64(tlx_afu_vc1_be_top, 0x0);
-    setDpiSignal32(tlx_afu_vc1_pl_top, 0x0, 2);
+    setDpiSignal32(tlx_afu_vc1_pl_top, 0x0, 3);
     *tlx_afu_vc1_endian_top = 0;
     *tlx_afu_vc1_co_top     = 0;
     *tlx_afu_vc1_os_top     = 0;
