@@ -93,6 +93,20 @@ typedef struct ocxl_mmio_area {
         ocxl_afu *afu;       // The AFU this MMIO area belongs to
 } ocxl_mmio_area;
 
+// ocxl_ea_area contains translation information for translated addresses requested by the afu
+//   EA
+//   TA (which are modeled by reflecting back the EA
+//   MH - memory hit hint (not supported until OpenCAPI 5.0)
+//   Page size
+typedef struct ocxl_ea_area {
+        uint64_t ea;        // the effective address for which we want the translation
+        uint64_t ta;        // the translated address for the given ea
+        uint64_t pa;        // the physical address in LPC memory - not supported
+        uint8_t mh;         // memory hit - not supported
+        uint8_t pg_size;    // not supported
+        struct ocxl_ea_area *_next;
+} ocxl_ea_area;
+
 // struct ocxl_afu_h {
 struct ocxl_afu {
 	pthread_t thread;
@@ -133,9 +147,7 @@ struct ocxl_afu {
 	struct mmio_req mmio;
 	struct mem_req mem;
 	struct ocxl_irq *irq;
-  //struct ocxl_afu *_head;
-  //struct ocxl_afu *_next;
-  //struct ocxl_afu *_next_adapter; // ???
+        ocxl_ea_area *eas;
 };
 
 #endif

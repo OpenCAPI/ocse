@@ -1351,10 +1351,10 @@ void handle_touch(struct cmd *cmd)
 	// Randomly select a pending touch (or none)
 	event = cmd->list;
 	while (event != NULL) {
-		if (((event->type == AFU_CMD_XLATE_TOUCH) || (event->type == AFU_CMD_XLATE_TOUCH_N))
-		    && (event->state == MEM_IDLE)
-		    && ((event->client_state != CLIENT_VALID)
-			|| !allow_reorder(cmd->parms))) {
+	  //if (((event->type == AFU_CMD_XLATE_TOUCH) || (event->type == AFU_CMD_XLATE_TOUCH_N))
+	        if ( ( event->type == CMD_TOUCH ) && 
+		     ( event->state == MEM_IDLE ) && 
+		     ( ( event->client_state != CLIENT_VALID ) || !allow_reorder(cmd->parms) ) ) {
 			break;
 		}
 
@@ -1868,7 +1868,7 @@ void handle_response(struct cmd *cmd)
 	}
 
 
- //`drive_resp:
+	//`drive_resp:
 	// debug - dump the event we picked...
 	debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", command=0x%x, afutag=0x%08x, type=0x%02x, state=0x%02x, resp=0x%x",
 		   cmd->afu_name,

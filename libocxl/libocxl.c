@@ -482,8 +482,16 @@ static void _handle_write(struct ocxl_afu *afu, uint64_t addr, uint16_t size,
 
 static void _handle_touch(struct ocxl_afu *afu, uint64_t addr, uint8_t function_code, uint8_t cmd_pg_size)
 {
-	uint8_t buffer;
-// TODO check pg size; decide if to fail cmd for various other reasons and send back a fail resp code
+        uint64_t ta;
+        uint64_t pa = 0x0;
+	uint8_t buffer[18];
+	uint8_t size;
+	struct ocxl_ea_area *this;
+
+	// TODO check pg size; decide if to fail cmd for various other reasons and send back a fail resp code
+	// this is the routine that now has to look at the function_code (cmd_flag) and do some extra processing
+	// if the touch is requesting a TA, we have to build a translation table entry and return a "TA"
+	// add data to the OCSE_MEM_SUCCESS message
 	if (!afu)
 		fatal_msg("NULL afu passed to libocxl.c:_handle_touch");
 	if (!_testmemaddr((uint8_t *) addr)) {
@@ -492,15 +500,57 @@ static void _handle_touch(struct ocxl_afu *afu, uint64_t addr, uint8_t function_
 			return;
 		}
 		DPRINTF("TOUCH of invalid addr @ 0x%016" PRIx64 "\n", addr);
-		buffer = (uint8_t) OCSE_MEM_FAILURE;
-		if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
+		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
+		if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
 			afu->opened = 0;
 			afu->attached = 0;
 		}
 		return;
 	}
-	buffer = OCSE_MEM_SUCCESS;
-	if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
+	
+	size = 0;
+	buffer[size] = OCSE_MEM_SUCCESS;
+	size++;
+	
+	// if function code is request a ta, 
+	if ( (function_code & 0x08 ) == 0x08 ) {
+	        // create a translation table entry
+	        // translation table entry contains ea, ta (= ea), pa=0, mem_hit=0
+	        // scan list for an matching EA (addr) entry
+	        // if we find it, break and use it
+	        // else add list entry to front and use it
+	        this = afu->eas;
+	        while (this != NULL) {
+		  if ( this->ea == addr ) break; // found matching ea, use values
+		  this = this->_next;
+		}
+		
+		if (this == NULL ) {
+		  // add entry to head of list
+		  this = (struct ocxl_ea_area *)malloc( sizeof( struct ocxl_ea_area ) );
+		  this->ea = addr;
+		  this->ta = addr;
+		  this->pa = 0x0;
+		  this->mh = 0;
+		  this->pg_size = 0;
+		  this->_next = afu->eas;
+		  afu->eas = this;
+		}
+
+	        // and add ta, pa, and mem_hit to ocse_mem_success message
+	        ta = htonll(this->ta);
+		memcpy( (char *)&(buffer[size]), (char *)&ta, sizeof( ta ) );
+		size = size + sizeof( ta );
+		
+	        pa = htonll(this->pa);
+		memcpy( (char *)&(buffer[size]), (char *)&pa, sizeof( pa ) );
+		size = size + sizeof( pa );
+		
+		buffer[size] = this->mh;
+		size++;
+	}
+
+	if (put_bytes_silent(afu->fd, size, buffer) != 1) {
 		afu->opened = 0;
 		afu->attached = 0;
 	}
@@ -3054,6 +3104,7 @@ ocxl_err ocxl_afu_close( ocxl_afu_h afu )
 {
         struct ocxl_afu *my_afu;
 	struct ocxl_irq *irq;
+	struct ocxl_ea_area *this_ea;
 	int i;
 
 	my_afu = (struct ocxl_afu *)afu;
@@ -3069,6 +3120,13 @@ ocxl_err ocxl_afu_close( ocxl_afu_h afu )
 	// mmio unmap
 	for (i=0; i < my_afu->mmio_count; i++ ) {
 	  ocxl_mmio_unmap( &(my_afu->mmios[i]) );
+	}
+	
+	// free eas
+	while (afu->eas != NULL) {
+	  this_ea = afu->eas;
+	  afu->eas = this_ea->_next;
+	  free( this_ea );
 	}
 
 	_afu_free( afu );
