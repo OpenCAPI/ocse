@@ -1938,12 +1938,14 @@ struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
 	  }
 	} else {
 	  // special
-	  // cmd_flag 0-7, 9-10 have a datav
+	  // cmd_flag 0-10 have a datav
 	  // always allocate datav, fill it in most cases.  always used for return data.
 	  datav = (uint8_t *)malloc( size );
-	  if ( cmd_flg != 8  ) { 
-	  //if ( ( (cmd_flg >= 0) && (cmd_flg <= 7)  ) || 
-	  //      (cmd_flg == 9) || (cmd_flg == 10)  ) {
+	  //the if statement below means that clients sending amo_rw cmds with cmd_flg = 0x8 must ALWAYS send NULL ptr for datav 
+	  //otherwise, libocxl will send over datav data on socket, we'll not read it, and ocse will HANG/fail on next socket
+	  //transaction after this one
+	  if ( ( (cmd_flg >= 0) && (cmd_flg <= 7)  ) || 
+	        (cmd_flg == 9) || (cmd_flg == 10)  ) {
 	    if ( get_bytes_silent( fd, size, datav, mmio->timeout, &(client->abort) ) < 0 ) {
 	      goto amo_fail;
 	    }
@@ -1951,6 +1953,7 @@ struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
 	  // cmd_flag 8-10 have a dataw
 	  dataw = NULL;
 	  if ( (cmd_flg >= 8) && (cmd_flg <= 10)  ) {
+	  debug_msg(" cmd has a dataw, getting it now size=%d cmd_flag=%d", size, cmd_flg);
 	    dataw = (uint8_t *)malloc( size );
 	    if ( get_bytes_silent( fd, size, dataw, mmio->timeout, &(client->abort) ) < 0 ) {
 	      goto amo_fail;

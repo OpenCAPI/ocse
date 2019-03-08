@@ -1613,6 +1613,7 @@ static void _amo_readwrite(struct ocxl_afu *afu)
 	uint32_t offset;
 	uint32_t size, hsize;
 
+	//size will be adjusted later in mmio.c for cmd_flag > 7
 	size = afu->mem.size;
 	hsize = afu->mem.size;
 	debug_msg("_amo_readwrite:");
@@ -1654,12 +1655,13 @@ static void _amo_readwrite(struct ocxl_afu *afu)
 	debug_msg( "_amo_readwrite: buffer[%d]", buffer_offset );
         buffer[buffer_offset] = 0; // constant endianness for now
 	buffer_offset += 1;
-	debug_msg( "_amo_readwrite: size=%d", size );
+	debug_msg( "_amo_readwrite: size=%d", hsize );
 
 	// if mem.cmd is 0-7, 9, or 10
 	// data = htonll(afu->mmio.data);
+	// CLIENTS MUST SEND NULL PTR for datav when cmd_flg= 0x8!
 	if ( afu->mem.data != NULL ) {
-	  debug_msg( "_amo_readwrite: buffer[%d]", buffer_offset );
+	  debug_msg( "_amo_readwrite: buffer data[%d]", buffer_offset );
 	  memcpy( (char *)&(buffer[buffer_offset]), afu->mem.data, afu->mem.size );
 	  buffer_offset += hsize;
 	}
@@ -1667,7 +1669,7 @@ static void _amo_readwrite(struct ocxl_afu *afu)
 	// if mem.cmd is 8, 9, or 10
 	// data = htonll(afu->mmio.datab);
 	if ( afu->mem.datab != NULL ) {
-	  debug_msg( "_amo_readwrite: buffer[%d]", buffer_offset );
+	  debug_msg( "_amo_readwrite: buffer datab[%d]", buffer_offset );
 	  memcpy( (char *)&(buffer[buffer_offset]), afu->mem.datab, afu->mem.size );
 	  buffer_offset += hsize;
 	}

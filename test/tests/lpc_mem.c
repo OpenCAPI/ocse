@@ -47,16 +47,20 @@ int main(int argc, char *argv[])
 {
     //int cr_device, cr_vendor;
     struct timespec t;
-    uint64_t result;
+    uint64_t offset, result;
     int opt, option_index, i;
     int rc;
+    int size;
     uint8_t *rcacheline, *wcacheline;
+    uint8_t *from, *to;
+    uint64_t to_i;
+
     char amo_r[8], amo_w[8];
     char *status;
     ocxl_afu_h mafu_h;
     MachineConfig machine_config;
     MachineConfigParam config_param;
-    ocxl_mmio_h pp_mmio_h, mmio_h;
+    ocxl_mmio_h mmio_h, pp_mmio_h, lpc_mmio_h;
 
     static struct option long_options[] = {
 	{"cachelines", required_argument, 0	  , 'c'},
@@ -103,6 +107,20 @@ int main(int argc, char *argv[])
 	perror("FAILED: posix_memalign for status");
 	goto done;
     }
+    if (posix_memalign((void**)&(from), CACHELINE, CACHELINE) != 0) {
+    perror("FAILED: posix_memalign for from");
+    goto done;
+    }
+    if (posix_memalign((void**)&(to), CACHELINE, CACHELINE) != 0) {
+    perror("FAILED: posix_memalign for to");
+    goto done;
+    }
+    printf("from = 0x");
+    for(i=0; i<CACHELINE; i++) {
+        from[i] = rand();
+        printf("%02x", (uint8_t)from[i]);
+    }
+    printf("\n");
 
     printf("wcacheline = 0x");
     for(i=0; i<CACHELINE; i++) {
@@ -134,11 +152,15 @@ int main(int argc, char *argv[])
 
     // mapping device
     printf("Attempt mmio mapping afu registers\n");
-    if (ocxl_mmio_map(mafu_h, OCXL_PER_PASID_MMIO, &pp_mmio_h) != 0) {
+    if (ocxl_mmio_map(mafu_h, OCXL_LPC_SYSTEM_MEM, &lpc_mmio_h) != 0) {
 	   printf("FAILED: ocxl_mmio_map\n");
 	   goto done;
     }
     if(ocxl_mmio_map(mafu_h, OCXL_GLOBAL_MMIO, &mmio_h) != 0) {
+       printf("FAILED: ocxl_global_mmio_map\n");
+       goto done;
+    }
+    if(ocxl_mmio_map(mafu_h, OCXL_PER_PASID_MMIO, &pp_mmio_h) != 0) {
 	   printf("FAILED: ocxl_global_mmio_map\n");
 	   goto done;
     }
@@ -185,25 +207,30 @@ int main(int argc, char *argv[])
     //}
 
     // lpc write
+    to_i = (uint64_t)to + 4;
+    to_i = to_i & 0xFFFFFFFFFFFFFFF4;
+    printf("to_i = 0x%x\n", to_i);
+    size = 4;
+
     printf("Attempting lpc write\n");
-    ocxl_lpc_write(mafu_h, (uint64_t)rcacheline, wcacheline, 64);
+    ocxl_lpc_write(lpc_mmio_h, to_i, from, size);
 
     // lpc read
     printf("Attempting lpc read\n");
-    ocxl_lpc_read(mafu_h, (uint64_t)rcacheline, rcacheline, 64);
-    printf("rcacheline = 0x");
-    for(i=0; i<CACHELINE; i++)
-	   printf("%02x", (uint8_t)rcacheline[i]);
+    ocxl_lpc_read(lpc_mmio_h, to_i, to, size);
+    printf("to = 0x");
+    for(i=0; i<4; i++)
+	   printf("%02x", (uint8_t)to[i]);
     printf("\n");
     // lpc amo write
     printf("Attempting lpc amo write\n");
     for(i=0; i< 8; i++) {
         amo_w[i] = i;
     }
-    ocxl_lpc_amo_write(mafu_h, 0, 0x00f8b080, amo_w, 4 );
+    //ocxl_lpc_amo_write(lpc_mmio_h, 0, 0x10, amo_w, 4 );
     printf("Attempting lpc amo read\n");
     printf("amo_r address = 0x%p\n", amo_r);
-    ocxl_lpc_amo_read(mafu_h, 0xc, 0x00f8b080, amo_r, 4);
+    //ocxl_lpc_amo_read(lpc_mmio_h, 0xc, 0x10, amo_r, 4);
     printf("amo_r = 0x");
     for(i=0; i<4; i++) {
         printf("%02x", amo_r[i]);
