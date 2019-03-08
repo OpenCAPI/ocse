@@ -579,6 +579,7 @@ AFU::resolve_tlx_afu_cmd()
 	    break;
 	case TLX_CMD_AMO_RD:
 		debug_msg("AFU: TLX AMO read cmd:");
+		afu_event.tlx_afu_vc1_pl = cmd_pl;
 		tlx_pr_rd_mem();
 		break;
 	case TLX_CMD_AMO_RW:
@@ -1052,6 +1053,13 @@ AFU::tlx_pr_rd_mem()
     	else if(afu_event.tlx_afu_vc1_pl == 2)
 				data_size = 4;
 	    break;
+	  case TLX_CMD_AMO_RD:	//0x30
+	  	printf("AFU: TLX_CMD_AMO_RD 0x30\n");
+	  	if(afu_event.tlx_afu_vc1_pl == 3)
+				data_size = 8;
+    	else if(afu_event.tlx_afu_vc1_pl == 2)
+				data_size = 4;
+	    break;
 		default:
 	    break;
   }
@@ -1136,21 +1144,22 @@ AFU::tlx_pr_wr_mem()
 	    }
 	switch (afu_event.tlx_afu_vc1_opcode) {
 	    case TLX_CMD_WRITE_MEM:
-		if(afu_event.tlx_afu_vc1_dl == 1)
-		    data_size = 64;
-		else if(afu_event.tlx_afu_vc1_dl == 2)
-		    data_size = 128;
-		else if(afu_event.tlx_afu_vc1_dl == 3)
-		    data_size = 256;
-		break;
-	    case TLX_CMD_PR_WR_MEM:
-		if(afu_event.tlx_afu_vc1_pl == 3)
+				if(afu_event.tlx_afu_vc1_dl == 1)
+		    	data_size = 64;
+				else if(afu_event.tlx_afu_vc1_dl == 2)
+		    	data_size = 128;
+				else if(afu_event.tlx_afu_vc1_dl == 3)
+		    	data_size = 256;
+			break;
+	  	case TLX_CMD_PR_WR_MEM:
+	  	case TLX_CMD_AMO_W:
+				if(afu_event.tlx_afu_vc1_pl == 3)
 	    	    data_size = 8;
-		else if(afu_event.tlx_afu_vc1_pl == 2)
+				else if(afu_event.tlx_afu_vc1_pl == 2)
 	    	    data_size = 4;
-		break;
+				break;
 	    default:
-		break;
+				break;
 	}
 	printf("wr cmd data bus = 0x");
 	for(int i=0; i<64; i++)

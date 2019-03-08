@@ -61,9 +61,10 @@ Lpc::read_lpc_mem(uint64_t addr, uint16_t size, uint8_t *data) {
     uint32_t i;
     printf("Lpc: read memory at addr = 0x%lx\n", addr);
     printf("Lpc: offset = 0x%x\n", addr & 0x00000FC0);
+    printf("Lpc: size = 0x%x\n", size);
     if(lpc_addr_exist(addr)) {
 	   addr = addr & 0x0000000000000FC0;
-       printf("data = 0x");
+    printf("data = 0x");
 	for(i=0; i< size; i++) {
 	    data[i] = lpc_memory[addr+i];
         printf("%02x", data[i]);
