@@ -205,27 +205,36 @@ int main(int argc, char *argv[])
     to_i = (uint64_t)to + 4;
     to_i = to_i & 0xFFFFFFFFFFFFFF00;
     printf("to_i = 0x%x\n", to_i);
-    size = 4;
+    size = 8;
 
     printf("Attempting lpc write\n");
+    printf("from = 0x%");
+    for(i=0; i<size; i++) {
+        printf("%02x", from[i]);
+    }
+    printf("\n");
     ocxl_lpc_write(lpc_mmio_h, to_i, from, size);
 
     // lpc read
     printf("Attempting lpc read\n");
     ocxl_lpc_read(lpc_mmio_h, to_i, to, size);
     printf("to = 0x");
-    for(i=0; i<4; i++)
+    for(i=0; i<size; i++)
 	   printf("%02x", (uint8_t)to[i]);
     printf("\n");
     // lpc amo write
     printf("Attempting lpc amo write\n");
-    for(i=0; i< 8; i++) {
+    printf("from = 0x");
+    for(i=0; i< size; i++) {
         from[i] = i;
+        printf("%02x", from[i]);
     }
-    ocxl_lpc_amo_write(lpc_mmio_h, 0x0, to_i, from, size );
+    printf("\n");
+    ocxl_lpc_amo_write(lpc_mmio_h, 0x2, to_i, from, size );
     printf("Attempting lpc amo read\n");
-    printf("from address = 0x%p\n", from);
-    ocxl_lpc_amo_read(lpc_mmio_h, 0xc, to_i, to, size);
+    printf("from address = %p\n", from);
+    size = 4;
+    ocxl_lpc_amo_read(lpc_mmio_h, 0xd, to_i, to, size);
     printf("to = 0x");
     for(i=0; i<4; i++) {
         printf("%02x", to[i]);
