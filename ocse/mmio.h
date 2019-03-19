@@ -53,12 +53,15 @@ struct mmio_event {
   // uint8_t cmd_TorR;  //may not need this
   // uint8_t cmd_rd_cnt;
   // parallel records for general capp commands
-        uint16_t partial_index;
+        uint16_t partial_index;  // this keeps track of where we are if multiple beats of data are coming with this response
         uint8_t ack;    // use this to hold the ack value for the message back to libocxl
+        uint8_t resp_dL;     // the encoded length of the data in this part of the response 
+        uint8_t resp_dP;     // the encoded offset of the location of this portion of the response
         uint8_t resp_code;    // use this to hold the resp value for the message back to libocxl
         uint8_t resp_opcode;    // use this to hold the resp opcode for the message back to libocxl
         uint8_t be_valid;  // use this to let us know whether or not to use the byte enable
         uint32_t size;  // if size = 0, we use dw to imply size
+        uint32_t size_received;  // keep track of the total amount of data we have received from the afu response
         uint8_t *data;  // if size = 0, we use cmd_data as the data field
         uint64_t be;  // if be_valid, use this as the byte enable in the command
         uint8_t cmd_dL;     // dL, dP, and pL are encoded from either size or dw in send_mmio
