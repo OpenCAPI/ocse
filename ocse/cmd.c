@@ -1309,10 +1309,14 @@ void handle_xlate_intrp_pending_sent(struct cmd *cmd)
 		return;
 	} else
 		event->resp = 0x0;  // send completed resp code in the xlate_done cmd
-	if ((event->command == AFU_CMD_XLATE_TOUCH) || (event->command == AFU_CMD_XLATE_TOUCH_N))
-		cmd_to_send = TLX_CMD_XLATE_DONE;
-	else
+
+	// test for "interrupt" commands to return intrp_rdy, otherwise return xlate_done
+	// this range includes: intrp_req, intrp_req_s, intrp_req_d, intrp_req_d_s, wake_host_thread, and wake_host_thread_s
+	if ((event->command >= AFU_CMD_INTRP_REQ) && (event->command <= AFU_CMD_WAKE_HOST_THRD_S))
 		cmd_to_send = TLX_CMD_INTRP_RDY;
+	else
+		cmd_to_send = TLX_CMD_XLATE_DONE;
+
 	if (tlx_afu_send_posted_cmd(cmd->afu_event,
 			cmd_to_send, event->afutag, event->resp) == TLX_SUCCESS){
 			debug_msg("%s:XLATE_INTRP_DONE CMD event @ 0x%016" PRIx64 ", sent tag=0x%02x code=0x%x cmd=0x%x", cmd->afu_name,
