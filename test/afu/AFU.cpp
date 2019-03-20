@@ -579,6 +579,7 @@ AFU::resolve_tlx_afu_cmd()
 	    break;
 	case TLX_CMD_AMO_RD:
 		debug_msg("AFU: TLX AMO read cmd:");
+		afu_event.tlx_afu_vc1_pl = cmd_pl;
 		tlx_pr_rd_mem();
 		break;
 	case TLX_CMD_AMO_RW:
@@ -1033,6 +1034,11 @@ AFU::tlx_pr_rd_mem()
   afu_tlx_rdata_valid = 0x0;
   afu_tlx_resp_capptag = afu_event.tlx_afu_vc0_capptag;
 
+  // amo operands
+  uint64_t t;
+  uint64_t A;
+  uint64_t A2;
+
   debug_msg("AFU: tlx_pr_rd_mem");
   // calculate data size
   switch(afu_event.tlx_afu_vc1_opcode) {
@@ -1048,6 +1054,13 @@ AFU::tlx_pr_rd_mem()
 		case TLX_CMD_PR_RD_MEM:	// 0x28
 	    printf("AFU: TLX_CMD_PR_RD_MEM 0x28\n");
     	if(afu_event.tlx_afu_vc1_pl == 3)
+				data_size = 8;
+    	else if(afu_event.tlx_afu_vc1_pl == 2)
+				data_size = 4;
+	    break;
+	  case TLX_CMD_AMO_RD:	//0x30
+	  	printf("AFU: TLX_CMD_AMO_RD 0x30\n");
+	  	if(afu_event.tlx_afu_vc1_pl == 3)
 				data_size = 8;
     	else if(afu_event.tlx_afu_vc1_pl == 2)
 				data_size = 4;
@@ -1081,6 +1094,57 @@ AFU::tlx_pr_rd_mem()
   else {	// lpc memory space
 		printf("AFU: lpc addr = 0x%lx \n",afu_event.tlx_afu_vc1_pa );
 		lpc.read_lpc_mem(afu_event.tlx_afu_vc1_pa, data_size, afu_event.afu_tlx_dcp0_data_bus);
+		if(afu_event.tlx_afu_vc1_opcode == TLX_CMD_AMO_RD) {
+			memcpy((uint8_t*)&A, &afu_event.afu_tlx_dcp0_data_bus, data_size);
+			t = A;
+			lpc.read_lpc_mem(afu_event.tlx_afu_vc1_pa + data_size,
+						data_size, (uint8_t*)&A2);
+			switch(afu_event.tlx_afu_vc1_cmdflag) {
+				case 12:
+					printf("Fetch and Increment bounded\n");
+					if(A != A2) {
+						A = A+1;
+						
+					}
+					else {	// return min signed int
+						if(A > A2) {
+							memcpy(afu_event.afu_tlx_dcp0_data_bus, (uint8_t*)&A2, data_size);
+						}
+					}
+					printf("A = 0x%x t = 0x%x\n", A, t);
+					printf("A2 = 0x%x\n", A2 );
+					break;
+				case 13:
+					printf("Fetch and Increment equal\n");
+					if(A == A2) {
+						A = A + 1;
+					}
+					else {
+						if( A > A2) {
+							memcpy(afu_event.afu_tlx_dcp0_data_bus, (uint8_t*)&A2, data_size);
+						}
+					}
+					break;
+				case 14:
+					printf("Fetch and Decrement bounded\n");
+					if(A != A2) {
+						A = A - 1;
+					}
+					else {
+						if(A < A2) {
+							memcpy(afu_event.afu_tlx_dcp0_data_bus, (uint8_t*)&A2, data_size);
+						}
+					}
+					break;
+				default:
+					printf("AMO RD cmd flag is not supported\n");
+					break;
+			}
+		}
+		printf("A = 0x%x\n", A);
+		printf("A2 = 0x%x\n", A2);
+		// Write A to lpc mem
+		lpc.write_lpc_mem(afu_event.tlx_afu_vc1_pa, data_size, (uint8_t*)&A);
 		if(TagManager::request_tlx_credit(RESP_CREDIT)) {
 	    if(afu_tlx_send_resp_vc0_and_dcp0(&afu_event, afu_tlx_resp_opcode,
 	    	afu_tlx_resp_dl, afu_event.afu_tlx_vc0_capptag, 
@@ -1099,67 +1163,71 @@ AFU::tlx_pr_rd_mem()
 void
 AFU::tlx_pr_wr_mem()
 {
-    uint8_t  afu_tlx_cmd_rd_req;
-    uint8_t  afu_tlx_cmd_rd_cnt;
-    uint8_t  cmd_data_bdi;
-    uint32_t cmd_pa;
-    uint64_t mem_data;
-    uint8_t  afu_resp_opcode;
-    uint8_t  resp_dl = 0;
-    uint16_t resp_capptag;
-    uint32_t resp_host_tag;
-    uint8_t  resp_dp = 0;
-    uint8_t  resp_code = 0;
-    uint8_t  byte_offset;
-    uint16_t  data_size;		
+  uint8_t  afu_tlx_cmd_rd_req;
+  uint8_t  afu_tlx_cmd_rd_cnt;
+  uint8_t  cmd_data_bdi;
+  uint32_t cmd_pa;
+  uint64_t mem_data;
+  uint8_t  afu_resp_opcode;
+  uint8_t  resp_dl = 0;
+  uint16_t resp_capptag;
+  uint32_t resp_host_tag;
+  uint8_t  resp_dp = 0;
+  uint8_t  resp_code = 0;
+  uint8_t  byte_offset;
+  uint16_t  data_size;		
+  // atomic operands
+  uint64_t	A;
+  uint64_t	V;
 
-    debug_msg("AFU:tlx_pr_wr_mem");
+  debug_msg("AFU:tlx_pr_wr_mem");
 
-    cmd_pa = afu_event.tlx_afu_vc1_pa & 0x0000FFFC;
-    resp_capptag = afu_event.tlx_afu_vc1_capptag;
-    byte_offset = 0x0000003F & afu_event.tlx_afu_vc1_pa;
+  cmd_pa = afu_event.tlx_afu_vc1_pa & 0x0000FFFC;
+  resp_capptag = afu_event.tlx_afu_vc1_capptag;
+  byte_offset = 0x0000003F & afu_event.tlx_afu_vc1_pa;
 
-    if(mem_state == IDLE) {
-	afu_tlx_cmd_rd_req = 0x1;
-	afu_tlx_cmd_rd_cnt = 0x1;
-	    if(afu_tlx_dcp1_data_read_req(&afu_event, afu_tlx_cmd_rd_req, 
-	    	afu_tlx_cmd_rd_cnt) != TLX_SUCCESS) {
-	    	printf("AFU: Failed afu_tlx_resp_data_read_req\n");
-	    }
-	debug_msg("AFU: set mem_state = READY");
-	mem_state = READY;
-    }
-    else if(mem_state == READY) {
-	    if(tlx_afu_read_dcp1_data(&afu_event, &cmd_data_bdi, 
-	    	afu_event.tlx_afu_dcp1_data) != TLX_SUCCESS) {
-		printf("AFU: Failed tlx_afu_read_cmd_data\n");
-	    }
-	switch (afu_event.tlx_afu_vc1_opcode) {
+  if(mem_state == IDLE) {
+		afu_tlx_cmd_rd_req = 0x1;
+		afu_tlx_cmd_rd_cnt = 0x1;
+	  if(afu_tlx_dcp1_data_read_req(&afu_event, afu_tlx_cmd_rd_req, 
+	    afu_tlx_cmd_rd_cnt) != TLX_SUCCESS) {
+	    printf("AFU: Failed afu_tlx_resp_data_read_req\n");
+	  }
+		debug_msg("AFU: set mem_state = READY");
+		mem_state = READY;
+  }
+  else if(mem_state == READY) {
+	  if(tlx_afu_read_dcp1_data(&afu_event, &cmd_data_bdi, 
+	    afu_event.tlx_afu_dcp1_data) != TLX_SUCCESS) {
+			printf("AFU: Failed tlx_afu_read_cmd_data\n");
+	  }
+		switch (afu_event.tlx_afu_vc1_opcode) {
 	    case TLX_CMD_WRITE_MEM:
-		if(afu_event.tlx_afu_vc1_dl == 1)
-		    data_size = 64;
-		else if(afu_event.tlx_afu_vc1_dl == 2)
-		    data_size = 128;
-		else if(afu_event.tlx_afu_vc1_dl == 3)
-		    data_size = 256;
-		break;
-	    case TLX_CMD_PR_WR_MEM:
-		if(afu_event.tlx_afu_vc1_pl == 3)
+				if(afu_event.tlx_afu_vc1_dl == 1)
+		    	data_size = 64;
+				else if(afu_event.tlx_afu_vc1_dl == 2)
+		    	data_size = 128;
+				else if(afu_event.tlx_afu_vc1_dl == 3)
+		    	data_size = 256;
+			break;
+	  	case TLX_CMD_PR_WR_MEM:
+	  	case TLX_CMD_AMO_W:
+				if(afu_event.tlx_afu_vc1_pl == 3)
 	    	    data_size = 8;
-		else if(afu_event.tlx_afu_vc1_pl == 2)
+				else if(afu_event.tlx_afu_vc1_pl == 2)
 	    	    data_size = 4;
-		break;
+				break;
 	    default:
-		break;
-	}
-	printf("wr cmd data bus = 0x");
-	for(int i=0; i<64; i++)
+				break;
+		}
+		printf("wr cmd data bus = 0x");
+		for(int i=0; i<64; i++)
 	    printf("%02x", afu_event.tlx_afu_dcp1_data[i]);
-	printf("\n");
+		printf("\n");
 	//byte_shift(afu_event.tlx_afu_cmd_data_bus, data_size, byte_offset, LEFT);
 	//memcpy(&mem_data, afu_event.tlx_afu_cmd_data_bus, data_size);
 	//debug_msg("mem_data offset = 0x%x mem_data = 0x%016llx", cmd_pa, mem_data);
-	if(is_mmio_addr(afu_event.tlx_afu_vc1_pa)) {	// mmio address space
+		if(is_mmio_addr(afu_event.tlx_afu_vc1_pa)) {	// mmio address space
 	    byte_shift(afu_event.tlx_afu_dcp1_data, data_size, byte_offset, LEFT);
 	    memcpy(&mem_data, afu_event.tlx_afu_dcp1_data, data_size);
 	    // mmio write
@@ -1179,21 +1247,77 @@ AFU::tlx_pr_wr_mem()
 	    }
 	    debug_msg("set mem_state = IDLE");
 	    mem_state = IDLE;
-	}
-	else { 	// lpc memory address space
+		}
+		else { 	// lpc memory address space
 	    printf("AFU: lpc addr = 0x%lx\n", afu_event.tlx_afu_vc1_pa);
 	    printf("AFU: cmd data bus addr = 0x%lx\n", afu_event.tlx_afu_dcp1_data);
+	    if(afu_event.tlx_afu_vc1_opcode == TLX_CMD_AMO_W) {
+	    	printf("AFU: amo w cmd flag = %x\n", afu_event.tlx_afu_vc1_cmdflag);
+	    	memcpy((uint8_t*)&V, afu_event.tlx_afu_dcp1_data, data_size);
+	    	lpc.read_lpc_mem(afu_event.tlx_afu_vc1_pa, data_size, (uint8_t*) &A);
+	    	printf("A = 0x%x\n", A);
+	    	printf("V = 0x%x\n", V);
+	    	switch (afu_event.tlx_afu_vc1_cmdflag) {
+	    		case 0:
+	    			printf("Store and Add\n");
+	    			A = A + V;
+	    			break;
+	    		case 1:
+	    			printf("Store and XOR\n");
+	    			A = A ^ V;
+	    			break;
+	    		case 2:
+	    			printf("Store and OR\n");
+	    			A = A | V;
+	    			break;
+	    		case 3:
+	    			printf("Store and AND\n");
+	    			A = A & V;
+	    			break;
+	    		case 4:
+	    			printf("Store and MAX unsigned\n");
+	    			if(A < V) {
+	    				A = V;
+	    			}
+	    			break;
+	    		case 5:
+	    			printf("Store and MAX signed\n");
+	    			if(A < V) {
+	    				A = V;
+	    			}
+	    			break;
+	    		case 6:
+	    			printf("Store and MIN unsigned\n");
+	    			if(A > V) {
+	    				A = V;
+	    			}
+	    			break;
+	    		case 7:
+	    			printf("Store and MIN signed\n");
+	    			if (A > V) {
+	    				A = V;
+	    			}
+	    			break;
+	    		case 12:
+	    			printf("Store and COMPARE twin\n");
+	    			break;
+	    		default:
+	    			printf("AMO W cmd flag not recognized\n");
+	    			break;
+	    	}
+	    }
+	    memcpy(afu_event.tlx_afu_dcp1_data, (uint8_t*)&A, data_size);
 	    lpc.write_lpc_mem(afu_event.tlx_afu_vc1_pa, data_size, afu_event.tlx_afu_dcp1_data);
 	    if(TagManager::request_tlx_credit(RESP_CREDIT)) {
-		if(afu_tlx_send_resp_vc0(&afu_event, afu_resp_opcode, 
-			resp_dl, resp_capptag, resp_dp, resp_code) != TLX_SUCCESS) {
-		    printf("AFU: Failed afu_tlx_send_resp\n");
-		}
+				if(afu_tlx_send_resp_vc0(&afu_event, afu_resp_opcode, 
+					resp_dl, resp_capptag, resp_dp, resp_code) != TLX_SUCCESS) {
+		    	printf("AFU: Failed afu_tlx_send_resp\n");
+				}
 	    }
 	    debug_msg("set mem_state = IDLE");
 	    mem_state = IDLE;
-	}
-    }
+		}
+  }
 }
 uint32_t
 AFU::is_mmio_addr(uint64_t addr)

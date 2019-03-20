@@ -124,10 +124,10 @@ int main(int argc, char *argv[])
 
     printf("wcacheline = 0x");
     for(i=0; i<CACHELINE; i++) {
-	wcacheline[i] = rand();
-	rcacheline[i] = 0x0;
-	status[i] = 0x0;
-	printf("%02x", (uint8_t)wcacheline[i]);
+	   wcacheline[i] = rand();
+	   rcacheline[i] = 0x0;
+	   status[i] = 0x0;
+	   printf("%02x", (uint8_t)wcacheline[i]);
     }
     printf("\n");
     
@@ -152,16 +152,16 @@ int main(int argc, char *argv[])
 
     // mapping device
     printf("Attempt mmio mapping afu registers\n");
-    if (ocxl_mmio_map(mafu_h, OCXL_LPC_SYSTEM_MEM, &lpc_mmio_h) != 0) {
-	   printf("FAILED: ocxl_mmio_map\n");
+    if (ocxl_mmio_map(mafu_h, OCXL_PER_PASID_MMIO, &pp_mmio_h) != 0) {
+	   printf("FAILED: ocxl_per_pasid_mmio_map\n");
 	   goto done;
     }
     if(ocxl_mmio_map(mafu_h, OCXL_GLOBAL_MMIO, &mmio_h) != 0) {
        printf("FAILED: ocxl_global_mmio_map\n");
        goto done;
     }
-    if(ocxl_mmio_map(mafu_h, OCXL_PER_PASID_MMIO, &pp_mmio_h) != 0) {
-	   printf("FAILED: ocxl_global_mmio_map\n");
+    if(ocxl_mmio_map(mafu_h, OCXL_LPC_SYSTEM_MEM, &lpc_mmio_h) != 0) {
+	   printf("FAILED: ocxl_lpc_system_mmio_map\n");
 	   goto done;
     }
 
@@ -200,40 +200,44 @@ int main(int argc, char *argv[])
         printf("Failed to clear machine config\n");
         goto done;
     }
-    //printf("Attempt lpc memory mapping\n");
-    //if(ocxl_lpc_map(mafu_h, OCXL_MMIO_LITTLE_ENDIAN) != 0) {
-	//   printf("FAILED: ocxl_lpc_map\n");
-	//   goto done;
-    //}
 
     // lpc write
     to_i = (uint64_t)to + 4;
-    to_i = to_i & 0xFFFFFFFFFFFFFFF4;
+    to_i = to_i & 0xFFFFFFFFFFFFFF00;
     printf("to_i = 0x%x\n", to_i);
-    size = 4;
+    size = 8;
 
     printf("Attempting lpc write\n");
+    printf("from = 0x%");
+    for(i=0; i<size; i++) {
+        printf("%02x", from[i]);
+    }
+    printf("\n");
     ocxl_lpc_write(lpc_mmio_h, to_i, from, size);
 
     // lpc read
     printf("Attempting lpc read\n");
     ocxl_lpc_read(lpc_mmio_h, to_i, to, size);
     printf("to = 0x");
-    for(i=0; i<4; i++)
+    for(i=0; i<size; i++)
 	   printf("%02x", (uint8_t)to[i]);
     printf("\n");
     // lpc amo write
     printf("Attempting lpc amo write\n");
-    for(i=0; i< 8; i++) {
-        amo_w[i] = i;
+    printf("from = 0x");
+    for(i=0; i< size; i++) {
+        from[i] = i;
+        printf("%02x", from[i]);
     }
-    //ocxl_lpc_amo_write(lpc_mmio_h, 0, 0x10, amo_w, 4 );
+    printf("\n");
+    ocxl_lpc_amo_write(lpc_mmio_h, 0x2, to_i, from, size );
     printf("Attempting lpc amo read\n");
-    printf("amo_r address = 0x%p\n", amo_r);
-    //ocxl_lpc_amo_read(lpc_mmio_h, 0xc, 0x10, amo_r, 4);
-    printf("amo_r = 0x");
+    printf("from address = %p\n", from);
+    size = 4;
+    ocxl_lpc_amo_read(lpc_mmio_h, 0xd, to_i, to, size);
+    printf("to = 0x");
     for(i=0; i<4; i++) {
-        printf("%02x", amo_r[i]);
+        printf("%02x", to[i]);
     }    
     printf("\n");
 done:

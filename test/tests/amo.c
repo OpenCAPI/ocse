@@ -242,7 +242,7 @@ int main(int argc, char *argv[])
     printf("\n");
     // Attemp write command
     printf("Attempt Write command\n");
-    for(j=3; j<5; j++) {
+    for(j=0; j<9; j++) {
         config_param.context = 0;
         config_param.enable_always = 1;
         config_param.command = AFU_CMD_AMO_W;
