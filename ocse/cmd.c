@@ -1653,6 +1653,9 @@ static void _handle_mem_touch(struct cmd *cmd, struct cmd_event *event, int fd)
 	// this is a translate touch with ta_req
 	// pull ta and pg size from the socket adding them to the resp fields as we go
 	// and set the resp opcode to touch resp t
+
+	event->resp_opcode = TLX_RSP_TOUCH_RESP_T;
+
 	if (get_bytes_silent(fd, sizeof( ta ), (uint8_t *)&ta, cmd->parms->timeout, event->abort) < 0) {
 	        	debug_msg("%s:_handle_mem_touch failed afutag=0x%04x size=%d addr=0x%016"PRIx64,
 				  cmd->afu_name, event->afutag, event->size, event->addr);
