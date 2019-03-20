@@ -1038,6 +1038,9 @@ AFU::tlx_pr_rd_mem()
   uint64_t t;
   uint64_t A;
   uint64_t A2;
+  uint64_t W;
+  uint64_t V;
+  uint8_t w_offset;
 
   debug_msg("AFU: tlx_pr_rd_mem");
   // calculate data size
@@ -1065,6 +1068,13 @@ AFU::tlx_pr_rd_mem()
     	else if(afu_event.tlx_afu_vc1_pl == 2)
 				data_size = 4;
 	    break;
+	   case TLX_CMD_AMO_RW:	// 0x38
+	   	printf("AFU: TLX_CMD_AMO_RW 0x38\n");
+	   	if(afu_event.tlx_afu_vc1_pl == 3)
+	   		data_size = 8;
+	   	else if(afu_event.tlx_afu_vc1_pl == 2)
+	   		data_size = 4;
+	   	break;
 		default:
 	    break;
   }
@@ -1094,12 +1104,83 @@ AFU::tlx_pr_rd_mem()
   else {	// lpc memory space
 		printf("AFU: lpc addr = 0x%lx \n",afu_event.tlx_afu_vc1_pa );
 		lpc.read_lpc_mem(afu_event.tlx_afu_vc1_pa, data_size, afu_event.afu_tlx_dcp0_data_bus);
-		if(afu_event.tlx_afu_vc1_opcode == TLX_CMD_AMO_RD) {
-			memcpy((uint8_t*)&A, &afu_event.afu_tlx_dcp0_data_bus, data_size);
+		if((afu_event.tlx_afu_vc1_opcode == TLX_CMD_AMO_RD) ||
+			(afu_event.tlx_afu_vc1_opcode == TLX_CMD_AMO_RW)) {
+			// get operand A
+			lpc.read_lpc_mem(afu_event.tlx_afu_vc1_pa, data_size, (uint8_t*)&A);
+			//get operand V
+			memcpy((uint8_t*)&V, &afu_event.afu_tlx_dcp0_data_bus, data_size);
 			t = A;
 			lpc.read_lpc_mem(afu_event.tlx_afu_vc1_pa + data_size,
 						data_size, (uint8_t*)&A2);
 			switch(afu_event.tlx_afu_vc1_cmdflag) {
+				case 0:
+					// t <-- A; A <-- A+V; return t
+					printf("Fetch and ADD\n");
+					A = A + V;
+					break;
+					// t <-- A; A <-- V xor A; return t
+				case 1: 	
+					printf("Fetch and XOR\n");
+					A = A ^ V;
+					break;
+					// t <-- A; A <-- V or A; return t
+				case 2:
+					printf("Fetch and OR\n");
+					A = A | V;
+					break;
+					// t <-- A; A <-- V and A; return t
+				case 3:
+					printf("Fetch and AND\n");
+					A = A & V;
+					break;
+					// t <-- A; A <-- max(V,A); return t
+				case 4:
+					printf("Fetch and MAX Unsigned\n");
+					if(V > A){
+						A = V;
+					}
+					break;
+					// t <-- A; A <-- max(V,A); return t
+				case 5:
+					printf("Fetch MAX Signed\n");
+					if(V > A) {
+						A = V;
+					}
+					break;
+					// t <-- A; A <-- min(V,A); return t
+				case 6:
+					printf("Fetch MIN Unsigned\n");
+					if(V < A) {
+						A = V;
+					}
+					break;
+					// t <-- A; A <-- main(V,A); return t
+				case 7:
+					printf("Fetch MIN Signed\n");
+					if(V < A) {
+						A = V;
+					}
+					break;
+					// t <-- A; A <-- W; return t
+				case 8:
+					printf("Fetch and SWAP\n");
+					break;
+					// t <-- A; when V=A, then A <--W; return t
+				case 9:
+					printf("Fetch and SWAP EQUAL\n");
+					w_offset = (uint8_t)(afu_event.tlx_afu_vc1_pa & 0x0F) + 0x08;
+					memcpy((uint8_t*)&W, &afu_event.afu_tlx_dcp0_data_bus + w_offset, 
+						data_size);
+					break;
+					// t <-- A; when V != A, then A <-- W; return t
+				case 10:
+					printf("Fetch and SWAP not EQUAL\n");
+					w_offset = (uint8_t)(afu_event.tlx_afu_vc1_pa & 0x0F) + 0x08;
+					memcpy((uint8_t*)&W, &afu_event.afu_tlx_dcp0_data_bus + w_offset, 
+						data_size);
+					break;
+					// t <-- A; if A !=A2, then A <-- A+1; return t
 				case 12:
 					printf("Fetch and Increment bounded\n");
 					if(A != A2) {
@@ -1114,6 +1195,7 @@ AFU::tlx_pr_rd_mem()
 					printf("A = 0x%x t = 0x%x\n", A, t);
 					printf("A2 = 0x%x\n", A2 );
 					break;
+					// t <-- A; if A =A2, then A <-- A+1; return t	
 				case 13:
 					printf("Fetch and Increment equal\n");
 					if(A == A2) {
@@ -1125,6 +1207,7 @@ AFU::tlx_pr_rd_mem()
 						}
 					}
 					break;
+				// t <-- A; if A !=A2, then A <-- A-1; return t
 				case 14:
 					printf("Fetch and Decrement bounded\n");
 					if(A != A2) {
