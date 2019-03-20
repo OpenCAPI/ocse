@@ -88,6 +88,14 @@ struct cmd_event {
 	uint32_t resp_dl;
 	uint32_t resp_dp;
 	uint32_t resp_opcode;
+        uint64_t resp_ta;
+        uint32_t resp_host_tag;
+        uint8_t resp_cache_state;
+        uint8_t resp_ef;
+        uint8_t resp_w;
+        uint8_t resp_mh;
+        uint8_t  resp_pg_size;
+        uint16_t resp_capptag;  //???
 	uint32_t dpartial;
 	uint64_t wr_be;
 	uint16_t resp_bytes_sent;

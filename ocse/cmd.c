@@ -1634,6 +1634,53 @@ void handle_interrupt(struct cmd *cmd)
 	debug_msg("Setting client->mem_access in handle_mem_write");
 } */
 
+// Handle additional data (if any) returning from translate touch commands
+static void _handle_mem_touch(struct cmd *cmd, struct cmd_event *event, int fd)
+{
+  // we know the event type is CMD_TOUCH
+  // if the event cmd_flag indicated a translate request, pull additional info from socke
+  // and change the response type to touch_resp_t
+        uint64_t ta;
+        uint8_t pg_size;
+	
+        if ( ( event->cmd_flag & 0x08 ) == 0x00 ) {
+	  // this is not a translate touch with ta_req
+	  // we can set mem_done and return
+	  event->state = MEM_DONE;
+	  return;
+        }
+
+	// this is a translate touch with ta_req
+	// pull ta and pg size from the socket adding them to the resp fields as we go
+	// and set the resp opcode to touch resp t
+	if (get_bytes_silent(fd, sizeof( ta ), (uint8_t *)&ta, cmd->parms->timeout, event->abort) < 0) {
+	        	debug_msg("%s:_handle_mem_touch failed afutag=0x%04x size=%d addr=0x%016"PRIx64,
+				  cmd->afu_name, event->afutag, event->size, event->addr);
+			event->state = MEM_DONE;
+			event->type = CMD_FAILED;
+			event->resp = 0x0e;
+			debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->afutag,
+				 event->context, event->resp);
+			return;
+	}
+	event->resp_ta = ntohll( ta );
+
+	if (get_bytes_silent(fd, sizeof( pg_size ), &pg_size, cmd->parms->timeout, event->abort) < 0) {
+	        	debug_msg("%s:_handle_mem_touch failed afutag=0x%04x size=%d addr=0x%016"PRIx64,
+				  cmd->afu_name, event->afutag, event->size, event->addr);
+			event->state = MEM_DONE;
+			event->type = CMD_FAILED;
+			event->resp = 0x0e;
+			debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->afutag,
+				 event->context, event->resp);
+			return;
+	}
+	event->resp_pg_size = pg_size;
+	
+	event->resp_w = 1;  // always writeable for now
+	event->resp_mh = 0; // mem hit is a 5.0 feature
+}
+
 // Handle data returning from client for memory read
 static void _handle_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
 {
@@ -1802,10 +1849,10 @@ void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd)
 			event->size = 2;
 		else
 			event->size = 3;
-		  }
-
-	else if (event->type == CMD_TOUCH)
-		event->state = MEM_DONE;
+	}
+	else if (event->type == CMD_TOUCH) {
+	        _handle_mem_touch( cmd, event, fd );
+	}
 	else if (event->state == MEM_TOUCH)	// Touch before write
 		event->state = MEM_TOUCHED;
 	else			// Write after touch
@@ -1881,18 +1928,31 @@ void handle_response(struct cmd *cmd)
 
 
 
-	if (event->type == CMD_FAILED)   //send a failed response; add_cmd set resp_dl & dp; function that FAILED cmd set event->resp_opcode appropriately
-		rc = tlx_afu_send_resp_cmd_vc0( cmd->afu_event, event->resp_opcode, event->afutag, event->resp,0,event->resp_dl,0,0,0,0,0,0,event->resp_dp,0);
-
-
-	else if ( (event->command == AFU_CMD_PR_RD_WNITC) || (event->command == AFU_CMD_PR_RD_WNITC_N) ||
+	if (event->type == CMD_FAILED) {
+	        //send a failed response; add_cmd set resp_dl & dp; function that FAILED cmd set event->resp_opcode appropriately
+		rc = tlx_afu_send_resp_cmd_vc0( cmd->afu_event, 
+						event->resp_opcode, 
+						event->afutag, 
+						event->resp,
+						0,
+						event->resp_dl,
+						0,
+						0,
+						0,
+						0,
+						0,
+						0,
+						event->resp_dp,
+						0);
+	} else if ( (event->command == AFU_CMD_PR_RD_WNITC) || (event->command == AFU_CMD_PR_RD_WNITC_N) ||
 		    (event->command == AFU_CMD_AMO_RD) || (event->command == AFU_CMD_AMO_RD_N) ||
 		    (event->command == AFU_CMD_AMO_RW) || (event->command == AFU_CMD_AMO_RW_N) ||
 		    (event->command == AFU_CMD_RD_WNITC) || (event->command == AFU_CMD_RD_WNITC_N) ){
 		// if not AMO or PR_RD, check to see if split response is warranted
 		// For this initial implementation, there is a parm called HOST_CL_SIZE that is used to determine max resp length
 		// This could alternatively be thought of as an internal bus transfer restriction. Valid sizes are 64, 128 and 256.
-		// Default is 128. Right now this value is fixed. This could change in the future to be a randomized selection of 64, 128 or 256.
+		// Default is 128. Right now this value is fixed. This could change in the future to be a randomized selection of 64, 
+	        // 128 or 256.
 		if  ((event->command == AFU_CMD_RD_WNITC) || (event->command == AFU_CMD_RD_WNITC_N) ){
 			if (event->size > cmd->HOST_CL_SIZE)  { // a split resp
 				if (event->resp_bytes_sent != 0) { //continue a split resp
@@ -1909,56 +1969,71 @@ void handle_response(struct cmd *cmd)
 				event->resp_bytes_sent += cmd->HOST_CL_SIZE;
 			}
 		}
-	    // we can just send the 64 bytes of data back
-	    // and complete the event
-			if ( allow_bdi_resp_err(cmd->parms)) {
-				debug_msg("handle_response: Set BDI=1 in the resp data for afutag=0x%x \n",
-				 event->afutag);
-				 //TODO update event struct with new resp elements for TLX4
-		    		 rc = tlx_afu_send_resp_vc0_and_dcp0( cmd->afu_event, event->resp_opcode,
-					     event->afutag, 0, 0, event->resp_dl, 0,0,0,0,0,0,event->resp_dp, 0, 1, event->data ) ;
-			 } else {
-				 //TODO update event struct with new resp elements for TLX4
-		    		rc = tlx_afu_send_resp_vc0_and_dcp0( cmd->afu_event,
-					     event->resp_opcode,
-					     event->afutag,
-					     0, // resp_code - not really used for a good response
-					     0, // resp_pg_size - not used by response,
-					     event->resp_dl, // for partials, dl is 1 (64 B)
-					     0, // resp_host_tag, - 
-					     0, // resp_cache_state, -
-					     0, // resp_ef, -
-					     0, // resp_w, -
-					     0, // resp_mh, -
-					     0, // resp_pa_or_ta, -
-					     event->resp_dp, // for partials, dp is 0 (the 0th part)
-					     0, // resp_capp_tag, -
-					     0, // -resp_data_bdi now used by response
-					     event->data ) ; // data in this case is already at the proper offset in the 64 B data packet
-			}
-	    
-		} else  { //have to send just a response
-			// Check to see if, for  a dma_wr, a partial response is warranted
-			if  ((event->command == AFU_CMD_DMA_W) || (event->command == AFU_CMD_DMA_W_N) ){
-				if (event->size > cmd->HOST_CL_SIZE)  { // a split resp
-					if (event->resp_bytes_sent != 0) { //continue a split resp
-						debug_msg("handle_response: continue a split write response \n");
-						// should event->resp_dp be & 0x3 ?
-						// if HOST_CL_SIZE = 128, resp_dp will be 0x2
-						// if HOST_CL_SIZE = 64, resp_dp will be 0x1, 0x2, 0x3 
-						if (cmd->HOST_CL_SIZE == 128)
-					    		event->resp_dp = 0x2;
-						else
-					    		event->resp_dp += 1;
-					}  
-					event->resp_dl =  size_to_dl (cmd->HOST_CL_SIZE);
-					event->resp_bytes_sent += cmd->HOST_CL_SIZE;
-				}
-			}
-			 //TODO update event struct with new resp elements for TLX4
-			rc = tlx_afu_send_resp_cmd_vc0( cmd->afu_event, event->resp_opcode, event->afutag, event->resp,0,event->resp_dl,0,0,0,0,0,0,event->resp_dp,0);
-
+		// we can just send the 64 bytes of data back
+		// and complete the event
+		if ( allow_bdi_resp_err(cmd->parms)) {
+		     debug_msg("handle_response: Set BDI=1 in the resp data for afutag=0x%x \n",
+			       event->afutag);
+		     //TODO update event struct with new resp elements for TLX4
+		     rc = tlx_afu_send_resp_vc0_and_dcp0( cmd->afu_event, event->resp_opcode,
+							  event->afutag, 0, 0, event->resp_dl, 0,0,0,0,0,0,
+							  event->resp_dp, 0, 1, event->data ) ;
+		} else {
+		     //TODO update event struct with new resp elements for TLX4
+		     rc = tlx_afu_send_resp_vc0_and_dcp0( cmd->afu_event,
+							  event->resp_opcode,
+							  event->afutag,
+							  0, // resp_code - not really used for a good response
+							  0, // resp_pg_size - not used by response,
+							  event->resp_dl, // for partials, dl is 1 (64 B)
+							  0, // resp_host_tag, - 
+							  0, // resp_cache_state, -
+							  0, // resp_ef, -
+							  0, // resp_w, -
+							  0, // resp_mh, -
+							  0, // resp_pa_or_ta, -
+							  event->resp_dp, // for partials, dp is 0 (the 0th part)
+							  0, // resp_capp_tag, -
+							  0, // -resp_data_bdi now used by response
+							  event->data ) ; // data in this case is already at the proper offset in the 64 B data packet
 		}
+		
+	} else { 
+	        //have to send just a response
+	        // Check to see if, for  a dma_wr, a partial response is warranted
+	        if  ((event->command == AFU_CMD_DMA_W) || (event->command == AFU_CMD_DMA_W_N) ){
+		        if (event->size > cmd->HOST_CL_SIZE)  { // a split resp
+			        if (event->resp_bytes_sent != 0) { //continue a split resp
+				        debug_msg("handle_response: continue a split write response \n");
+					// should event->resp_dp be & 0x3 ?
+					// if HOST_CL_SIZE = 128, resp_dp will be 0x2
+					// if HOST_CL_SIZE = 64, resp_dp will be 0x1, 0x2, 0x3 
+					if (cmd->HOST_CL_SIZE == 128)
+					        event->resp_dp = 0x2;
+					else
+					        event->resp_dp += 1;
+				}  
+				event->resp_dl =  size_to_dl (cmd->HOST_CL_SIZE);
+				event->resp_bytes_sent += cmd->HOST_CL_SIZE;
+			}
+		}
+		//TODO update event struct with new resp elements for TLX4
+		rc = tlx_afu_send_resp_cmd_vc0( cmd->afu_event, 
+						event->resp_opcode, 
+						event->afutag, 
+						event->resp,
+						event->resp_pg_size,
+						event->resp_dl,
+						0,
+						0,
+						0,
+						event->resp_w,
+					        event->resp_mh,
+						event->resp_ta,
+						event->resp_dp,
+						event->resp_capptag );
+		
+	}
 
 	if (rc == TLX_SUCCESS) {
 		//if we sent a failed resp=0x4 (xlate_pending or int_pending) we need to schedule to send a xlate_done cmd
@@ -1971,26 +2046,26 @@ void handle_response(struct cmd *cmd)
 		// ALSO, can't free if this is not last part of a split response
 		if ((event->resp_bytes_sent > 0 ) && (event->resp_bytes_sent != event->size))
 			return;
-		//else {
-			debug_msg("%s:RESPONSE event @ 0x%016" PRIx64 ", sent afutag=0x%02x code=0x%x", cmd->afu_name,
-			    event, event->afutag, event->resp);
-			debug_cmd_response(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->resp_opcode, event->resp);
-		            debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", free event",
-			    cmd->afu_name, event );
-			*head = event->_next;
-		 	free(event->data);
-		 	//free(event->parity);
-		 	free(event);
-	//	}
+
+		debug_msg("%s:RESPONSE event @ 0x%016" PRIx64 ", sent afutag=0x%02x code=0x%x", cmd->afu_name,
+			  event, event->afutag, event->resp);
+		debug_cmd_response(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->resp_opcode, event->resp);
+		debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", free event",
+			   cmd->afu_name, event );
+		*head = event->_next;
+		free(event->data);
+		//free(event->parity);
+		free(event);
+
 	} else {
-		 if (rc == AFU_TLX_NO_CREDITS)
-				debug_msg ("NO AFU_TLX_RESP_CREDITS TO SEND RESP for AFUTAG 0x%x so will try LATER ", event->afutag);
-		 else
-			 debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", _response() failed for AFUTAG 0x%x so will try LATER",
-			     cmd->afu_name, event, event->afutag );
+	        if (rc == AFU_TLX_NO_CREDITS)
+		        debug_msg ("NO AFU_TLX_RESP_CREDITS TO SEND RESP for AFUTAG 0x%x so will try LATER ", event->afutag);
+		else
+		        debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", _response() failed for AFUTAG 0x%x so will try LATER",
+				   cmd->afu_name, event, event->afutag );
 		if (event->resp_bytes_sent != 0)
 			event->resp_bytes_sent -= cmd->HOST_CL_SIZE;  // back up byte count if we really didn't send the split response......
-		 return;
+		return;
 	}
 }
 

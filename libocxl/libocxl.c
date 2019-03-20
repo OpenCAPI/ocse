@@ -483,8 +483,7 @@ static void _handle_write(struct ocxl_afu *afu, uint64_t addr, uint16_t size,
 static void _handle_touch(struct ocxl_afu *afu, uint64_t addr, uint8_t function_code, uint8_t cmd_pg_size)
 {
         uint64_t ta;
-        uint64_t pa = 0x0;
-	uint8_t buffer[18];
+	uint8_t buffer[10];
 	uint8_t size;
 	struct ocxl_ea_area *this;
 
@@ -532,21 +531,17 @@ static void _handle_touch(struct ocxl_afu *afu, uint64_t addr, uint8_t function_
 		  this->ta = addr;
 		  this->pa = 0x0;
 		  this->mh = 0;
-		  this->pg_size = 0;
+		  this->pg_size = 0x12; // 4k pages
 		  this->_next = afu->eas;
 		  afu->eas = this;
 		}
 
-	        // and add ta, pa, and mem_hit to ocse_mem_success message
+	        // and add ta, pa to ocse_mem_success message
 	        ta = htonll(this->ta);
 		memcpy( (char *)&(buffer[size]), (char *)&ta, sizeof( ta ) );
 		size = size + sizeof( ta );
 		
-	        pa = htonll(this->pa);
-		memcpy( (char *)&(buffer[size]), (char *)&pa, sizeof( pa ) );
-		size = size + sizeof( pa );
-		
-		buffer[size] = this->mh;
+		buffer[size] = this->pg_size;
 		size++;
 	}
 
