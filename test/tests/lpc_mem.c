@@ -245,6 +245,18 @@ int main(int argc, char *argv[])
     w = 0x4;
     printf("Attempting lpc amo readwrite\n");
     ocxl_lpc_amo_readwrite(lpc_mmio_h, 0x1, to_i, from, &w, to, size);
+    printf("to = 0x");
+    for(i=0; i<4; i++) {
+        printf("%02x", to[i]);
+    }
+    printf("\n");
+    printf("Set status data to 0x55\n");
+    status[0] = 0x55;
+    while(status[0] != 0x0) {
+        nanosleep(&t, &t);
+    }
+    printf("Test is completed\n");
+
 done:
     // free device
     printf("Freeing device ... \n");
