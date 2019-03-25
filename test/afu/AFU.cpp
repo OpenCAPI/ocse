@@ -1103,14 +1103,18 @@ AFU::tlx_pr_rd_mem()
   }
   else {	// lpc memory space
 		printf("AFU: lpc addr = 0x%lx \n",afu_event.tlx_afu_vc1_pa );
-		lpc.read_lpc_mem(afu_event.tlx_afu_vc1_pa, data_size, afu_event.afu_tlx_dcp0_data_bus);
+		//lpc.read_lpc_mem(afu_event.tlx_afu_vc1_pa, data_size, afu_event.afu_tlx_dcp0_data_bus);
+		// get operand A
+		lpc.read_lpc_mem(afu_event.tlx_afu_vc1_pa, data_size, (uint8_t*) &A);
+		t = A;
 		if((afu_event.tlx_afu_vc1_opcode == TLX_CMD_AMO_RD) ||
 			(afu_event.tlx_afu_vc1_opcode == TLX_CMD_AMO_RW)) {
 			// get operand A
-			lpc.read_lpc_mem(afu_event.tlx_afu_vc1_pa, data_size, (uint8_t*)&A);
+			//lpc.read_lpc_mem(afu_event.tlx_afu_vc1_pa, data_size, (uint8_t*)&A);
 			//get operand V
 			memcpy((uint8_t*)&V, &afu_event.afu_tlx_dcp0_data_bus, data_size);
-			t = A;
+			//t = A;
+			// get operand A2
 			lpc.read_lpc_mem(afu_event.tlx_afu_vc1_pa + data_size,
 						data_size, (uint8_t*)&A2);
 			switch(afu_event.tlx_afu_vc1_cmdflag) {
@@ -1229,10 +1233,11 @@ AFU::tlx_pr_rd_mem()
 		// Write A to lpc mem
 		lpc.write_lpc_mem(afu_event.tlx_afu_vc1_pa, data_size, (uint8_t*)&A);
 		if(TagManager::request_tlx_credit(RESP_CREDIT)) {
+			// return t
 	    if(afu_tlx_send_resp_vc0_and_dcp0(&afu_event, afu_tlx_resp_opcode,
 	    	afu_tlx_resp_dl, afu_event.afu_tlx_vc0_capptag, 
 	      afu_event.afu_tlx_vc0_dp, afu_tlx_resp_code,
-	      afu_tlx_rdata_valid, afu_event.afu_tlx_dcp0_data_bus,
+	      afu_tlx_rdata_valid, (uint8_t*)&t, //afu_event.afu_tlx_dcp0_data_bus,
 				afu_event.afu_tlx_dcp0_data_bdi) != TLX_SUCCESS) {
 					error_msg("AFU: Failed afu_tlx_send_resp_vc0_and_dcp0");
 	    }
