@@ -79,6 +79,7 @@
 #define OCSE_AFU_AMO_RD                 0x30
 #define OCSE_AFU_AMO_RW                 0x38
 #define OCSE_AFU_AMO_WR                 0x40
+#define OCSE_XLATE_RELEASE              0x41
 #define OCSE_FIND                       0x50
 #define OCSE_FIND_NTH                   0x51
 #define OCSE_FIND_ACK                   0x52
