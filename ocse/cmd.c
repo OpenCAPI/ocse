@@ -797,7 +797,7 @@ void handle_buffer_write(struct cmd *cmd)
 	debug_msg( "handle_buffer_write: we've picked a non-NULL event and the client is still there" );
 
 	if ((event->state == MEM_IDLE) && (client->mem_access == NULL)) {
-	// Check to see if this cmd gets selected for a RETRY or FAILED or PENDING or DERROR read_failed response
+	        // Check to see if this cmd gets selected for a RETRY or FAILED or PENDING or DERROR read_failed response
 		if ( allow_retry(cmd->parms)) {
 			event->state = MEM_DONE;
 			event->type = CMD_FAILED;
@@ -822,16 +822,16 @@ void handle_buffer_write(struct cmd *cmd)
 			debug_msg("handle_buffer_write: DERROR this cmd =0x%x \n", event->command);
 			return;
 		}
-	}
-	// for xlate_pending response, ocse has to THEN follow up with an xlate_done response
-	// (at some unknown time later) and that will "complete" the original cmd (no rd/write )
-	if ( allow_pending(cmd->parms)) {
-		event->state = MEM_XLATE_PENDING;
-		event->type = CMD_FAILED;
-		event->resp_opcode = TLX_RSP_READ_FAILED;
-		event->resp = 0x04;
-		debug_msg("handle_buffer_write: send XLATE_PENDING for this cmd =0x%x \n", event->command);
-		return;
+		// for xlate_pending response, ocse has to THEN follow up with an xlate_done response
+		// (at some unknown time later) and that will "complete" the original cmd (no rd/write )
+		if ( allow_pending(cmd->parms)) {
+		        event->state = MEM_XLATE_PENDING;
+			event->type = CMD_FAILED;
+			event->resp_opcode = TLX_RSP_READ_FAILED;
+			event->resp = 0x04;
+			debug_msg("handle_buffer_write: send XLATE_PENDING for this cmd =0x%x \n", event->command);
+			return;
+		}
 	}
 
 	// after the client returns data with a call to the function _handle_mem_read,
