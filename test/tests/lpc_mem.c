@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
     uint8_t *rcacheline, *wcacheline;
     uint8_t *from, *to;
     uint64_t to_i;
-    uint8_t w;
+    uint8_t *w;
 
     char amo_r[8], amo_w[8];
     char *status;
@@ -242,9 +242,10 @@ int main(int argc, char *argv[])
     }    
     printf("\n");
     // cmd, offset, *v, *w, *out, size
-    w = 0x4;
+    *w = 0x10;
+    printf("w = 0x%x\n", *w);
     printf("Attempting lpc amo readwrite\n");
-    ocxl_lpc_amo_readwrite(lpc_mmio_h, 0x1, to_i, from, &w, to, size);
+    ocxl_lpc_amo_readwrite(lpc_mmio_h, 0x9, to_i, from, w, to, size);
     printf("to = 0x");
     for(i=0; i<4; i++) {
         printf("%02x", to[i]);
