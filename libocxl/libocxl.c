@@ -541,11 +541,11 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 
 	switch ( ocse_message ) {
 	case OCSE_XLATE_RELEASE:
-	        // search ea list for addr
+	        // search ea list for ta matching addr
 	        this = afu->eas;
 		prev = NULL;
 	        while (this != NULL) {
-		  if ( this->ea == addr ) break; // found matching ea, use values
+		  if ( this->ta == addr ) break; // found matching ea, use values
 		  prev = this;
 		  this = this->_next;
 		}
