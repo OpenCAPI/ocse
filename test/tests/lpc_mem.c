@@ -245,7 +245,7 @@ int main(int argc, char *argv[])
     *w = 0x10;
     printf("w = 0x%x\n", *w);
     printf("Attempting lpc amo readwrite\n");
-    ocxl_lpc_amo_readwrite(lpc_mmio_h, 0x9, to_i, from, w, to, size);
+    ocxl_lpc_amo_readwrite(lpc_mmio_h, 0x5, to_i, from, w, to, size);
     printf("to = 0x");
     for(i=0; i<4; i++) {
         printf("%02x", to[i]);
