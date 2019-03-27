@@ -1887,6 +1887,7 @@ void handle_response(struct cmd *cmd)
 	  // maybe we should free it too???
 	  return;
 	}
+
 	if (((event->form_flag & 0x2) == 1) && (event->state == MEM_DONE)) { // cmd is posted; no resp needed so free structs
 		debug_msg("%s:RESPONSE event @ 0x%016" PRIx64 ", NO RESPONSE sent for XLATE_RELEASE  afutag=0x%02x code=0x%x", cmd->afu_name,
 		    event, event->afutag, event->resp);

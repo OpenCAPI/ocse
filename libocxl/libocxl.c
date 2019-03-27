@@ -480,19 +480,44 @@ static void _handle_write(struct ocxl_afu *afu, uint64_t addr, uint16_t size,
 	DPRINTF("WRITE to addr @ 0x%016" PRIx64 "\n", addr);
 }
 
-static void _handle_touch(struct ocxl_afu *afu, uint64_t addr, uint8_t function_code, uint8_t cmd_pg_size)
+static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 {
+        uint64_t addr;
         uint64_t ta;
+	uint8_t function_code;
+	uint8_t cmd_pg_size;
 	uint8_t buffer[10];
 	uint8_t size;
+	struct ocxl_ea_area *prev;
 	struct ocxl_ea_area *this;
+
+	if (!afu) fatal_msg("NULL afu passed to libocxl.c:_handle_xlate");
+
+	// retrieve additional bytes from socket
+	if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer, -1, 0) < 0) {
+	        warn_msg("Socket failure getting memory touch addr");
+		_all_idle(afu);
+		return;
+	}
+	memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
+	addr = ntohll(addr);
+	DPRINTF("to addr 0x%016" PRIx64 "\n", addr);
+
+	if (get_bytes_silent(afu->fd, 2, buffer, -1, 0) < 0) {
+	        warn_msg("Socket failure getting cmd_flag and cmd_pg_size");
+		_all_idle(afu);
+		return;
+	}
+	memcpy( (char *)&function_code, &buffer[0], sizeof( function_code ) );
+	memcpy( (char *)&cmd_pg_size, &buffer[1], sizeof( cmd_pg_size ) );
+	DPRINTF("xlate_touch cmd_flag= 0x%x\n", function_code);
+	DPRINTF("xlate_touch cmd_pg_size= 0x%x\n", cmd_pg_size);
 
 	// TODO check pg size; decide if to fail cmd for various other reasons and send back a fail resp code
 	// this is the routine that now has to look at the function_code (cmd_flag) and do some extra processing
 	// if the touch is requesting a TA, we have to build a translation table entry and return a "TA"
 	// add data to the OCSE_MEM_SUCCESS message
-	if (!afu)
-		fatal_msg("NULL afu passed to libocxl.c:_handle_touch");
+
 	if (!_testmemaddr((uint8_t *) addr)) {
 		if (_handle_dsi(afu, addr) < 0) {
 			perror("DSI Failure");
@@ -506,50 +531,86 @@ static void _handle_touch(struct ocxl_afu *afu, uint64_t addr, uint8_t function_
 		}
 		return;
 	}
-	
+
 	size = 0;
 	buffer[size] = OCSE_MEM_SUCCESS;
 	size++;
 	
-	// if function code is request a ta, 
-	if ( (function_code & 0x08 ) == 0x08 ) {
-	        // create a translation table entry
-	        // translation table entry contains ea, ta (= ea), pa=0, mem_hit=0
-	        // scan list for an matching EA (addr) entry
-	        // if we find it, break and use it
-	        // else add list entry to front and use it
+	// if this is a release, search the eas' for a matching address, and free it.
+	// if this is a touch, possibly create an eas 
+
+	switch ( ocse_message ) {
+	case OCSE_XLATE_RELEASE:
+	        // search ea list for addr
 	        this = afu->eas;
+		prev = NULL;
 	        while (this != NULL) {
 		  if ( this->ea == addr ) break; // found matching ea, use values
+		  prev = this;
 		  this = this->_next;
 		}
-		
-		if (this == NULL ) {
-		  // add entry to head of list
-		  this = (struct ocxl_ea_area *)malloc( sizeof( struct ocxl_ea_area ) );
-		  this->ea = addr;
-		  this->ta = addr;
-		  this->pa = 0x0;
-		  this->mh = 0;
-		  this->pg_size = 0x12; // 4k pages
-		  this->_next = afu->eas;
-		  afu->eas = this;
+		// if this = NULL, we didn't find an ea entry - just return success
+		if ( this == NULL ) {
+		        return;
 		}
-
-	        // and add ta, pa to ocse_mem_success message
-	        ta = htonll(this->ta);
-		memcpy( (char *)&(buffer[size]), (char *)&ta, sizeof( ta ) );
-		size = size + sizeof( ta );
+		// release this entry
+		if ( prev == NULL ) {
+		  // update the afu->eas to point to this->_next
+		  afu->eas = this->_next;
+		} else {
+		  // update prev->_next to point to this->_next
+		  prev->_next = this->_next;
+		}
+		// free this
+		free( this );
+		DPRINTF("RELEASE of addr @ 0x%016" PRIx64 "\n", addr);
+	        break;
+	case OCSE_MEMORY_TOUCH:
+	        // if function code is request a ta, 
+	        if ( (function_code & 0x08 ) == 0x08 ) {
+		        // create a translation table entry
+		        // translation table entry contains ea, ta (= ea), pa=0, mem_hit=0
+		        // scan list for an matching EA (addr) entry
+		        // if we find it, break and use it
+		        // else add list entry to front and use it
+		        this = afu->eas;
+			while (this != NULL) {
+			        if ( this->ea == addr ) break; // found matching ea, use values
+				this = this->_next;
+			}
 		
-		buffer[size] = this->pg_size;
-		size++;
+			if (this == NULL ) {
+			        // add entry to head of list
+			        this = (struct ocxl_ea_area *)malloc( sizeof( struct ocxl_ea_area ) );
+				this->ea = addr;
+				this->ta = addr;
+				this->pa = 0x0;
+				this->mh = 0;
+				this->pg_size = 0x12; // 4k pages
+				this->_next = afu->eas;
+				afu->eas = this;
+			}
+
+			// and add ta, pa to ocse_mem_success message
+			ta = htonll(this->ta);
+			memcpy( (char *)&(buffer[size]), (char *)&ta, sizeof( ta ) );
+			size = size + sizeof( ta );
+		
+			buffer[size] = this->pg_size;
+			size++;
+		}
+		DPRINTF("TOUCH of addr @ 0x%016" PRIx64 "\n", addr);
+	        break;
 	}
 
+	// and send the success or message that has been built
 	if (put_bytes_silent(afu->fd, size, buffer) != 1) {
 		afu->opened = 0;
 		afu->attached = 0;
 	}
-	DPRINTF("TOUCH of addr @ 0x%016" PRIx64 "\n", addr);
+
+	return;
+
 }
 
 static void _handle_ack(struct ocxl_afu *afu)
@@ -1718,7 +1779,7 @@ static void *_psl_loop(void *ptr)
 {
 	struct ocxl_afu *afu = (struct ocxl_afu *)ptr;
 	uint8_t buffer[MAX_LINE_CHARS];
-	uint8_t op_size, function_code, amo_op, cmd_endian, cmd_pg_size;
+	uint8_t op_size, function_code, amo_op, cmd_endian; //, cmd_pg_size;
 	uint64_t addr, wr_be;
 	uint16_t size;
 	uint8_t bvalue;
@@ -2125,31 +2186,13 @@ static void *_psl_loop(void *ptr)
 			break;
 
 
+		case OCSE_XLATE_RELEASE:
+			DPRINTF("AFU XLATE RELEASE\n");
+			_handle_xlate( afu, OCSE_XLATE_RELEASE );
+			break;
 		case OCSE_MEMORY_TOUCH:
 			DPRINTF("AFU XLATE TOUCH\n");
-			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
-					     -1, 0) < 0) {
-				warn_msg
-				    ("Socket failure getting memory touch addr");
-				_all_idle(afu);
-				break;
-			}
-			memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
-			addr = ntohll(addr);
-			DPRINTF("to addr 0x%016" PRIx64 "\n", addr);
-			if (get_bytes_silent(afu->fd, 2, buffer,
-					     -1, 0) < 0) {
-				warn_msg
-				    ("Socket failure getting cmd_flag and cmd_pg_size");
-				_all_idle(afu);
-				break;
-			}
-			memcpy( (char *)&function_code, &buffer[0], sizeof( function_code ) );
-			memcpy( (char *)&cmd_pg_size, &buffer[1], sizeof( cmd_pg_size ) );
-			DPRINTF("xlate_touch cmd_flag= 0x%x\n", function_code);
-			DPRINTF("xlate_touch cmd_pg_size= 0x%x\n", cmd_pg_size);
-
-			_handle_touch(afu, addr, function_code, cmd_pg_size);
+			_handle_xlate( afu, OCSE_MEMORY_TOUCH );
 			break;
 		case OCSE_MMIO_ACK:
 			_handle_ack(afu);
