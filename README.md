@@ -1,9 +1,6 @@
-# ocse4_1b
+# ocse
 
-OpenCAPI Simulation Engine 4.0
-
---- ATTENTION ATTENTION ATTENTION ---
-This branch is for the development of OpenCAPI 4.0 features
+OpenCAPI Simulation Engine
 
 Copyright 2015,2017 International Business Machines
 

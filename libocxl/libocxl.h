@@ -45,9 +45,7 @@ typedef enum {
 
 typedef enum {
   OCXL_GLOBAL_MMIO,
-  OCXL_PER_PASID_MMIO,
-  OCXL_LPC_SYSTEM_MEM,
-  OCXL_LPC_SPECIAL_PURPOSE_MEM
+  OCXL_PER_PASID_MMIO 
 } ocxl_mmio_type;
 
 #define AFU_NAME_MAX 24
@@ -146,6 +144,8 @@ typedef struct ocxl_wait_event {
   int received; // set by _handle_wake_host_thread - cleared by ocxl_wait upon receipt of the wake host thread
   struct ocxl_wait_event *_next;
 } ocxl_wait_event;
+
+  ocxl_wait_event *ocxl_wait_list = NULL;
 
 #define OCXL_ATTACH_FLAGS_NONE (0)
 

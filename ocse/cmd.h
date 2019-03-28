@@ -38,15 +38,15 @@
 enum cmd_type {
 	CMD_READ,
 	CMD_WRITE,
-	CMD_TOUCH, 
-	CMD_XL_TO_PA,  
+	CMD_TOUCH,
 	CMD_INTERRUPT,
 	CMD_WAKE_HOST_THRD,
 	CMD_WR_BE,
 	CMD_AMO_RD,
 	CMD_AMO_RW,
 	CMD_AMO_WR,
-	CMD_XLATE_REL, // release TA from CMD_XL_TOUCH
+	CMD_XLAT_RD_TOUCH,
+	CMD_XLAT_WR_TOUCH,
 	CMD_FAILED,
 	CMD_OTHER
 };
@@ -88,22 +88,12 @@ struct cmd_event {
 	uint32_t resp_dl;
 	uint32_t resp_dp;
 	uint32_t resp_opcode;
-        uint64_t resp_ta;
-        uint32_t resp_host_tag;
-        uint8_t resp_cache_state;
-        uint8_t resp_ef;
-        uint8_t resp_w;
-        uint8_t resp_mh;
-        uint8_t  resp_pg_size;
-        uint16_t resp_capptag;  //???
 	uint32_t dpartial;
 	uint64_t wr_be;
 	uint16_t resp_bytes_sent;
 	uint8_t cmd_flag;
 	uint8_t cmd_endian;
 	uint8_t cmd_pg_size;
-	uint8_t form_flag; // 0x1 = .S, 0x2= .P, 0x4 = .N , 0x80= .T form of AP instruction
-	uint8_t stream_id;
 	uint8_t unlock;
 	uint8_t buffer_activity;
 	uint8_t *data;

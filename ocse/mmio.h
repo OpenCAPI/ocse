@@ -1,5 +1,5 @@
 /*
- * Copyright 2014,2019 International Business Machines
+ * Copyright 2014,2017 International Business Machines
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,11 +49,9 @@ struct mmio_event {
 	uint64_t cmd_PA;
 	uint16_t cmd_CAPPtag;
 	uint8_t cmd_opcode;
-	uint8_t cmd_flg;
 	uint8_t cmd_pL;
-        uint8_t cmd_dL;     // dL, dP, and pL are encoded from either size or dw in send_mmio
-        uint8_t cmd_dP;
-	uint8_t cmd_endian;
+  // uint8_t cmd_TorR;  //may not need this
+  // uint8_t cmd_rd_cnt;
   // parallel records for general capp commands
         uint16_t partial_index;  // this keeps track of where we are if multiple beats of data are coming with this response
         uint8_t ack;    // use this to hold the ack value for the message back to libocxl
@@ -65,8 +63,9 @@ struct mmio_event {
         uint32_t size;  // if size = 0, we use dw to imply size
         uint32_t size_received;  // keep track of the total amount of data we have received from the afu response
         uint8_t *data;  // if size = 0, we use cmd_data as the data field
-        uint8_t *dataw;  // used for capp amo_rw commands only
         uint64_t be;  // if be_valid, use this as the byte enable in the command
+        uint8_t cmd_dL;     // dL, dP, and pL are encoded from either size or dw in send_mmio
+        uint8_t cmd_dP;
 	enum ocse_state state;
 	struct mmio_event *_next;
 };
@@ -131,10 +130,92 @@ struct fcn_cfg {
       struct afu_cfg **afu_cfg_array;
 };
 
+/* struct afu_cfg_sp { */
+/*         uint16_t cr_device; */
+/*         uint16_t cr_vendor; */
+/*         uint32_t PASID_CP; */
+/*         uint32_t PASID_CTL_STS; */
+/*         uint32_t OCAPI_TL_CP; */
+/*         uint32_t OCAPI_TL_REVID; */
+/*         uint32_t OCAPI_TL_VERS; */
+/*         uint32_t OCAPI_TL_TMP_CFG; */
+/*         uint32_t OCAPI_TL_TX_RATE; */
+/*         uint32_t OCAPI_TL_MAXAFU; */
+/*         uint32_t FUNC_CFG_CP; */
+/*         uint32_t FUNC_CFG_REVID; */
+/*         uint32_t FUNC_CFG_MAXAFU; */
+/*         uint32_t AFU_INFO_CP; */
+/*         uint32_t AFU_INFO_REVID; */
+/*         uint32_t AFU_INFO_INDEX; */
+/*         uint32_t AFU_CTL_CP_0; */
+/*         uint32_t AFU_CTL_REVID_4; */
+/*         uint32_t AFU_CTL_EN_RST_INDEX_8; */
+/*         uint32_t AFU_CTL_WAKE_TERM_C; */
+/*         uint32_t AFU_CTL_PASID_LEN_10; */
+/*         uint32_t AFU_CTL_PASID_BASE_14; */
+/*         uint32_t AFU_CTL_ACTAG_LEN_EN_S; */
+/*         uint32_t AFU_CTL_ACTAG_BASE; */
+/*         uint8_t  name_space[25]; */
+/*         uint32_t global_MMIO_offset_high; */
+/*         uint32_t global_MMIO_offset_low; */
+/*         uint32_t global_MMIO_BAR; */
+/*         uint32_t global_MMIO_size; */
+/*         uint32_t pp_MMIO_offset_high; */
+/*         uint32_t pp_MMIO_offset_low; */
+/*         uint32_t pp_MMIO_BAR; */
+/*         uint32_t pp_MMIO_stride; */
+/* 	uint32_t num_ints_per_process; */
+/* 	uint32_t num_of_processes; */
+/* }; */
+
+
+/* struct afu_ctl_desc_sp { */
+/*         uint32_t AFU_CTL_CP_0; */
+/*         uint32_t AFU_CTL_REVID_4; */
+/*         uint32_t AFU_CTL_EN_RST_INDEX_8; */
+/*         uint32_t AFU_CTL_WAKE_TERM_C; */
+/*         uint32_t AFU_CTL_PASID_LEN_10; */
+/*         uint32_t AFU_CTL_PASID_BASE_14; */
+/*         uint32_t AFU_CTL_ACTAG_LEN_EN_S; */
+/*         uint32_t AFU_CTL_ACTAG_BASE; */
+/*         uint8_t  name_space[25]; */
+/*         uint32_t global_MMIO_offset_high; */
+/*         uint32_t global_MMIO_offset_low; */
+/*         uint32_t global_MMIO_BAR; */
+/*         uint32_t global_MMIO_size; */
+/*         uint32_t pp_MMIO_offset_high; */
+/*         uint32_t pp_MMIO_offset_low; */
+/*         uint32_t pp_MMIO_BAR; */
+/*         uint32_t pp_MMIO_stride; */
+/* 	uint32_t num_ints_per_process; */
+/* 	uint32_t num_of_processes; */
+/* }; */
+
+/* struct fun_cfg_sp { */
+/*         uint16_t cr_device; */
+/*         uint16_t cr_vendor; */
+/*         uint32_t PASID_CP; */
+/*         uint32_t PASID_CTL_STS; */
+/*         uint32_t OCAPI_TL_CP; */
+/*         uint32_t OCAPI_TL_REVID; */
+/*         uint32_t OCAPI_TL_VERS; */
+/*         uint32_t OCAPI_TL_TMP_CFG; */
+/*         uint32_t OCAPI_TL_TX_RATE; */
+/*         uint32_t OCAPI_TL_MAXAFU; */
+/*         uint32_t FUNC_CFG_CP; */
+/*         uint32_t FUNC_CFG_REVID; */
+/*         uint32_t FUNC_CFG_MAXAFU; */
+/*         uint32_t AFU_INFO_CP; */
+/*         uint32_t AFU_INFO_REVID; */
+/*         uint32_t AFU_INFO_INDEX; */
+/* 	struct afu_ctl_desc_sp *acdsptr; */
+/* }; */
 
 struct mmio {
 	struct AFU_EVENT *afu_event;
         struct fcn_cfg **fcn_cfg_array;  // this array will be indexed by the function part of the device name
+        //struct afu_cfg_sp cfg;
+	//struct fun_cfg_sp *fun_array;
 	struct mmio_event *list;
 	char *afu_name;
 	FILE *dbg_fp;
@@ -153,7 +234,7 @@ struct mmio_event *add_mmio(struct mmio *mmio, uint32_t rnw, uint32_t dw,
 
 void send_mmio(struct mmio *mmio);
 
-//void handle_mmio_ack(struct mmio *mmio);
+void handle_mmio_ack(struct mmio *mmio);
 
 void handle_ap_resp(struct mmio *mmio);
 
@@ -169,8 +250,5 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client);
 
 struct mmio_event *handle_mem(struct mmio *mmio, struct client *client,
 			      int rnw, int region, int be_valid);
-
-struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
-			      int rnw, int region, int cmd);
 
 #endif				/* _MMIO_H_ */

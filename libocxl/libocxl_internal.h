@@ -70,42 +70,20 @@ struct ocxl_waitasec {
 struct mem_req {
 	volatile enum libocxl_req_state state;
 	volatile uint8_t type;
-	volatile uint8_t cmd;
 	volatile uint64_t addr;
 	volatile uint64_t size;
 	volatile uint64_t be;
 	uint8_t *data;
-	uint8_t *datab;
 };
 
 typedef struct ocxl_afu ocxl_afu;
 
-// ocxl_mmio_area contains information for all memory regions of the afu
-//   global mmio
-//   per pasid mmio
-//   lpc system memory
-//   lpc special purpose memory
 typedef struct ocxl_mmio_area {
-        char *start;         // The first addressable byte of the area
-        size_t length;       // The size of the area in bytes
-        ocxl_mmio_type type; // The type of the area
-         void *ocxl_ea;  // the address of the area that we malloc to imitate lpc space 
-        ocxl_afu *afu;       // The AFU this MMIO area belongs to
+	char *start; /**< The first addressable byte of the area */
+	size_t length; /**< The size of the area in bytes */
+	ocxl_mmio_type type; /**< The type of the area */
+	ocxl_afu *afu; /**< The AFU this MMIO area belongs to */
 } ocxl_mmio_area;
-
-// ocxl_ea_area contains translation information for translated addresses requested by the afu
-//   EA
-//   TA (which are modeled by reflecting back the EA
-//   MH - memory hit hint (not supported until OpenCAPI 5.0)
-//   Page size
-typedef struct ocxl_ea_area {
-        uint64_t ea;        // the effective address for which we want the translation
-        uint64_t ta;        // the translated address for the given ea
-        uint64_t pa;        // the physical address in LPC memory - not supported
-        uint8_t mh;         // memory hit - not supported
-        uint8_t pg_size;    // not supported
-        struct ocxl_ea_area *_next;
-} ocxl_ea_area;
 
 // struct ocxl_afu_h {
 struct ocxl_afu {
@@ -122,11 +100,16 @@ struct ocxl_afu {
 	uint16_t vendor_id;
         uint8_t afu_version_major;
         uint8_t afu_version_minor;
+  // uint64_t global_mmio_offset;  // moves to global_mmio.start?
+  // uint32_t global_mmio_size;    // moves to global_mmio.length?
+  // uint64_t pp_mmio_offset;  // moves to per_pasid_mmio.start?
+  // uint32_t pp_mmio_stride;  // moves to per_pasid_mmio.length?
 	ocxl_mmio_area global_mmio;
 	ocxl_mmio_area per_pasid_mmio;
+  // need to save pointers to "mapped" global and per pasid mmio areas
         uint32_t mmio_count;
         uint32_t mmio_max;
-        ocxl_mmio_area mmios[4];
+        ocxl_mmio_area mmios[2];
         uint64_t mem_base_address;
         uint8_t mem_size;
 	uint16_t context;
@@ -138,7 +121,6 @@ struct ocxl_afu {
 	int mapped;
 	int global_mapped;
 	int lpc_mapped;
-	int lpc_special_mapped;
 	int pipe[2];
         int irq_count;
 	struct int_req int_req;
@@ -147,7 +129,9 @@ struct ocxl_afu {
 	struct mmio_req mmio;
 	struct mem_req mem;
 	struct ocxl_irq *irq;
-        ocxl_ea_area *eas;
+  //struct ocxl_afu *_head;
+  //struct ocxl_afu *_next;
+  //struct ocxl_afu *_next_adapter; // ???
 };
 
 #endif

@@ -34,7 +34,6 @@
 #include <time.h>
 #include <unistd.h>
 #include <limits.h>
-#include "sys/mman.h"
 
 #include "libocxl_internal.h"
 #include "libocxl.h"
@@ -90,8 +89,6 @@ static int _testmemaddr(uint8_t * memaddr)
 
 	return ret;
 }
-
-ocxl_wait_event *ocxl_wait_list = NULL;
 
 ocxl_wait_event *_alloc_wait_event( uint16_t tid )
 {
@@ -480,144 +477,31 @@ static void _handle_write(struct ocxl_afu *afu, uint64_t addr, uint16_t size,
 	DPRINTF("WRITE to addr @ 0x%016" PRIx64 "\n", addr);
 }
 
-static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
+static void _handle_touch(struct ocxl_afu *afu, uint64_t addr, uint8_t function_code, uint8_t cmd_pg_size)
 {
-        uint64_t addr;
-        uint64_t ta;
-	uint8_t function_code, form_flag;
-	uint8_t cmd_pg_size;
-	uint8_t buffer[11];
-	uint8_t size;
-	struct ocxl_ea_area *prev;
-	struct ocxl_ea_area *this;
-
-	if (!afu) fatal_msg("NULL afu passed to libocxl.c:_handle_xlate");
-
-	// retrieve additional bytes from socket
-	if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
-		warn_msg("Socket failure getting form_flag ");
-		_all_idle(afu);
-		return;
-	}
-	memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
-	DPRINTF( " form_flag=%x\n", form_flag);
-	if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer, -1, 0) < 0) {
-	        warn_msg("Socket failure getting memory touch addr");
-		_all_idle(afu);
-		return;
-	}
-	memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
-	addr = ntohll(addr);
-	DPRINTF("to addr 0x%016" PRIx64 "\n", addr);
-
-	if (get_bytes_silent(afu->fd, 2, buffer, -1, 0) < 0) {
-	        warn_msg("Socket failure getting cmd_flag and cmd_pg_size");
-		_all_idle(afu);
-		return;
-	}
-	memcpy( (char *)&function_code, &buffer[0], sizeof( function_code ) );
-	memcpy( (char *)&cmd_pg_size, &buffer[1], sizeof( cmd_pg_size ) );
-	DPRINTF("xlate_touch cmd_flag= 0x%x\n", function_code);
-	DPRINTF("xlate_touch cmd_pg_size= 0x%x\n", cmd_pg_size);
-
-	// TODO check pg size; decide if to fail cmd for various other reasons and send back a fail resp code
-	// this is the routine that now has to look at the function_code (cmd_flag) and do some extra processing
-	// if the touch is requesting a TA, we have to build a translation table entry and return a "TA"
-	// add data to the OCSE_MEM_SUCCESS message
-
+	uint8_t buffer;
+// TODO check pg size; decide if to fail cmd for various other reasons and send back a fail resp code
+	if (!afu)
+		fatal_msg("NULL afu passed to libocxl.c:_handle_touch");
 	if (!_testmemaddr((uint8_t *) addr)) {
 		if (_handle_dsi(afu, addr) < 0) {
 			perror("DSI Failure");
 			return;
 		}
 		DPRINTF("TOUCH of invalid addr @ 0x%016" PRIx64 "\n", addr);
-		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
-		if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
+		buffer = (uint8_t) OCSE_MEM_FAILURE;
+		if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
 			afu->opened = 0;
 			afu->attached = 0;
 		}
 		return;
 	}
-
-	size = 0;
-	buffer[size] = OCSE_MEM_SUCCESS;
-	size++;
-	
-	// if this is a release, search the eas' for a matching address, and free it.
-	// if this is a touch, possibly create an eas 
-
-	switch ( ocse_message ) {
-	case OCSE_XLATE_RELEASE:
-	        // search ea list for ta matching addr
-	        this = afu->eas;
-		prev = NULL;
-	        while (this != NULL) {
-		  if ( this->ta == addr ) break; // found matching ea, use values
-		  prev = this;
-		  this = this->_next;
-		}
-		// if this = NULL, we didn't find an ea entry - just return success
-		if ( this == NULL ) {
-		        return;
-		}
-		// release this entry
-		if ( prev == NULL ) {
-		  // update the afu->eas to point to this->_next
-		  afu->eas = this->_next;
-		} else {
-		  // update prev->_next to point to this->_next
-		  prev->_next = this->_next;
-		}
-		// free this
-		free( this );
-		DPRINTF("RELEASE of addr @ 0x%016" PRIx64 "\n", addr);
-	        break;
-	case OCSE_MEMORY_TOUCH:
-	        // if function code is request a ta, 
-	        if ( (function_code & 0x08 ) == 0x08 ) {
-		        // create a translation table entry
-		        // translation table entry contains ea, ta (= ea), pa=0, mem_hit=0
-		        // scan list for an matching EA (addr) entry
-		        // if we find it, break and use it
-		        // else add list entry to front and use it
-		        this = afu->eas;
-			while (this != NULL) {
-			        if ( this->ea == addr ) break; // found matching ea, use values
-				this = this->_next;
-			}
-		
-			if (this == NULL ) {
-			        // add entry to head of list
-			        this = (struct ocxl_ea_area *)malloc( sizeof( struct ocxl_ea_area ) );
-				this->ea = addr;
-				this->ta = addr;
-				this->pa = 0x0;
-				this->mh = 0;
-				this->pg_size = 0x12; // 4k pages
-				this->_next = afu->eas;
-				afu->eas = this;
-			}
-
-			// and add ta, pa to ocse_mem_success message
-			ta = htonll(this->ta);
-			memcpy( (char *)&(buffer[size]), (char *)&ta, sizeof( ta ) );
-			size = size + sizeof( ta );
-		
-			buffer[size] = this->pg_size;
-			size++;
-		}
-		DPRINTF("TOUCH of addr @ 0x%016" PRIx64 "\n", addr);
-	        break;
-	}
-
-	// and send the success or message that has been built
-	if (put_bytes_silent(afu->fd, size, buffer) != 1) {
+	buffer = OCSE_MEM_SUCCESS;
+	if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
 		afu->opened = 0;
 		afu->attached = 0;
 	}
-
-	return;
-
+	DPRINTF("TOUCH of addr @ 0x%016" PRIx64 "\n", addr);
 }
 
 static void _handle_ack(struct ocxl_afu *afu)
@@ -637,33 +521,17 @@ static void _handle_ack(struct ocxl_afu *afu)
 	if (resp_code !=0) // TODO update this to handle resp code retry requests
 		error_msg ("handle_ack: AFU sent RD or WR FAILED response code = 0x%d ", resp_code);
 
-	if ( ( afu->mmio.type == OCSE_MMIO_MAP ) | 
-	     ( afu->mmio.type == OCSE_GLOBAL_MMIO_MAP ) | 
-	     ( afu->mmio.type == OCSE_LPC_SYSTEM_MAP ) ) {
-	        afu->mmios[afu->mmio_count].afu = afu;
-
-		switch (afu->mmio.type) {
-		case OCSE_MMIO_MAP:
-		        afu->mmios[afu->mmio_count].type = OCXL_PER_PASID_MMIO;
-			afu->mmios[afu->mmio_count].start = afu->per_pasid_mmio.start;
-			afu->mmios[afu->mmio_count].length = afu->per_pasid_mmio.length;
-			break;
-		case OCSE_GLOBAL_MMIO_MAP:
-		        afu->mmios[afu->mmio_count].type = OCXL_GLOBAL_MMIO;
-			afu->mmios[afu->mmio_count].start = afu->global_mmio.start;
-			afu->mmios[afu->mmio_count].length = afu->global_mmio.length;
-			break;
-		case OCSE_LPC_SYSTEM_MAP:
-		        // convert mem_size to length 
-		        afu->mmios[afu->mmio_count].type = OCXL_LPC_SYSTEM_MEM;
-			afu->mmios[afu->mmio_count].start = (char *)afu->mem_base_address;
-			debug_msg("_handle_ack: converting mem_size %d to length", afu->mem_size );
-			afu->mmios[afu->mmio_count].length = afu->mem_size!=0 ? (uint64_t)0x1 << (afu->mem_size-1) : 0x0 ;
-			debug_msg("_handle_ack: converted mem_size 0x%x to length 0x%016lx", afu->mem_size, afu->mmios[afu->mmio_count].length );
-			break;
-		default:
-		        break;
-		}
+	if ((afu->mmio.type == OCSE_MMIO_MAP) | (afu->mmio.type == OCSE_GLOBAL_MMIO_MAP) ) {
+	  afu->mmios[afu->mmio_count].afu = afu;
+	  if (afu->mmio.type == OCSE_GLOBAL_MMIO_MAP) {
+	    afu->mmios[afu->mmio_count].type = OCXL_GLOBAL_MMIO;
+	    afu->mmios[afu->mmio_count].start = afu->global_mmio.start;
+	    afu->mmios[afu->mmio_count].length = afu->global_mmio.length;
+	  } else {
+	  afu->mmios[afu->mmio_count].type = OCXL_PER_PASID_MMIO;
+	    afu->mmios[afu->mmio_count].start = afu->per_pasid_mmio.start;
+	    afu->mmios[afu->mmio_count].length = afu->per_pasid_mmio.length;
+	  }
 	}
 
 	if ((afu->mmio.type == OCSE_MMIO_READ64) | (afu->mmio.type == OCSE_GLOBAL_MMIO_READ64) ) {
@@ -689,9 +557,7 @@ static void _handle_ack(struct ocxl_afu *afu)
 			debug_msg("KEM:0x%08x", afu->mmio.data);
 		}
 	}
-
 	afu->mmio.state = LIBOCXL_REQ_IDLE;
-
 }
 
 
@@ -1541,215 +1407,6 @@ static void _mem_write_be(struct ocxl_afu *afu)
 	afu->mem.state = LIBOCXL_REQ_PENDING;
 }
 
-static void _amo_read(struct ocxl_afu *afu)
-{
-	uint8_t *buffer;
-	int buffer_length;
-	int buffer_offset;
-
-	uint32_t offset;
-	uint32_t size;
-
-	size = afu->mem.size;
-	debug_msg("_amo_read:");
-
-	if (!afu)
-		fatal_msg("NULL afu passed to libocxl.c:_amo_read");
-
-	// buffer length = 1 byte for type, buffer remainder?, 4 bytes for offset, 4 bytes for size, 1 byte for cmd_flag, 1 byte for endian
-	buffer_length = 1 + sizeof(offset) + sizeof(size) + 1 + 1 ;
-	debug_msg("_amo_read: buffer length %d", buffer_length);
-	buffer = (uint8_t *)malloc( buffer_length );
-
-	debug_msg("_amo_read: buffer[0]");
-	buffer[0] = afu->mem.type;
-
-	buffer_offset = 1;
-	debug_msg( "_amo_read: buffer[%d]", buffer_offset );
-	offset = htonl(afu->mem.addr);
-	memcpy( (char *)&(buffer[buffer_offset]), (char *)&offset, sizeof(offset));
-	buffer_offset += sizeof(offset);
-
-	debug_msg( "_amo_read: buffer[%d]", buffer_offset );
-	size = htonl(afu->mem.size);
-	memcpy((char *)&(buffer[buffer_offset]), (char *)&size, sizeof(size));
-	buffer_offset += sizeof(size);
-
-	debug_msg( "_amo_read: buffer[%d]", buffer_offset );
-	buffer[buffer_offset] = afu->mem.cmd;
-	buffer_offset += 1;
-
-	debug_msg( "_amo_read: buffer[%d]", buffer_offset );
-        buffer[buffer_offset] = 0; // constant endianness for now
-	buffer_offset += 1;
-
-	if (put_bytes_silent(afu->fd, buffer_length, buffer) != buffer_length) {
-		free(buffer);
-		close_socket(&(afu->fd));
-		afu->opened = 0;
-		afu->attached = 0;
-		afu->mem.state = LIBOCXL_REQ_IDLE;
-		return;
-	}
-
-	free(buffer);
-	afu->mem.state = LIBOCXL_REQ_PENDING;
-}
-
-static void _amo_write(struct ocxl_afu *afu)
-{
-	uint8_t *buffer;
-	int buffer_length;
-	int buffer_offset;
-
-	uint32_t offset;
-	uint32_t size, hsize;
-
-	debug_msg("_amo_read:");
-
-	if (!afu)
-		fatal_msg("NULL afu passed to libocxl.c:_amo_write");
-
-	// buffer length = 1 byte for type, 
-	//                 4 bytes for offset, 
-	//                 4 bytes for size, 
-	//                 1 byte for cmd_flag, 
-	//                 1 byte for endian, 
-	//                 size bytes for val
-	size = afu->mem.size;
-	hsize = afu->mem.size;
-
-
-	debug_msg( "_amo_write: size=%d", size );
-	buffer_length = 1 + sizeof(offset) + sizeof(size) + 1 + 1 + size ;
-	debug_msg("_amo_write: buffer length %d", buffer_length);
-	buffer = (uint8_t *)malloc( buffer_length );
-
-	debug_msg("_amo_write: buffer[0]");
-	buffer[0] = afu->mem.type;
-
-	buffer_offset = 1;
-	debug_msg( "_amo_write: buffer[%d]", buffer_offset );
-	offset = htonl(afu->mem.addr);
-	memcpy( (char *)&(buffer[buffer_offset]), (char *)&offset, sizeof(offset));
-	buffer_offset += sizeof(offset);
-
-	debug_msg( "_amo_write: buffer[%d]", buffer_offset );
-	size = htonl(afu->mem.size);
-	memcpy((char *)&(buffer[buffer_offset]), (char *)&size, sizeof(hsize));
-	buffer_offset += sizeof(hsize);
-	debug_msg( "_amo_write: size=%d", hsize );
-
-	debug_msg( "_amo_write: buffer[%d]", buffer_offset );
-	buffer[buffer_offset] = afu->mem.cmd;
-	buffer_offset += 1;
-
-	debug_msg( "_amo_write: buffer[%d]", buffer_offset );
-        buffer[buffer_offset] = 0; // constant endianness for now
-	buffer_offset += 1;
-
-	// data = htonll(afu->mmio.data);
-	debug_msg( "_amo_write: buffer[%d]", buffer_offset );
-	memcpy( (char *)&(buffer[buffer_offset]), afu->mem.data, afu->mem.size );
-	buffer_offset += hsize;
-	debug_msg( "_amo_write: buffer[%d]", buffer_offset );
-
-	if (put_bytes_silent(afu->fd, buffer_length, buffer) != buffer_length) {
-		free(buffer);
-		close_socket(&(afu->fd));
-		afu->opened = 0;
-		afu->attached = 0;
-		afu->mem.state = LIBOCXL_REQ_IDLE;
-		return;
-	}
-
-	free(buffer);
-	afu->mem.state = LIBOCXL_REQ_PENDING;
-}
-
-static void _amo_readwrite(struct ocxl_afu *afu)
-{
-	uint8_t *buffer;
-	int buffer_length;
-	int buffer_offset;
-
-	uint32_t offset;
-	uint32_t size, hsize;
-
-	//size will be adjusted later in mmio.c for cmd_flag > 7
-	size = afu->mem.size;
-	hsize = afu->mem.size;
-	debug_msg("_amo_readwrite:");
-
-	if (!afu)
-		fatal_msg("NULL afu passed to libocxl.c:_amo_readwrite");
-
-	// buffer length = 1 byte for type, 
-	//                 4 bytes for offset, 
-	//                 4 bytes for size, 
-	//                 1 byte for cmd_flag, 
-	//                 1 byte for endian, 
-	//                 ?size bytes for valv
-	//                 ?size bytes for valw (for some cmds_flags)
-
-	// buffer length depends on cmd_flag, allocate maximum
-	buffer_length = 1 + sizeof(offset) + sizeof(size) + 1 + 1 + size + size ;
-	debug_msg("_amo_readwrite: buffer length %d", buffer_length);
-	buffer = (uint8_t *)malloc( buffer_length );
-
-	debug_msg("_amo_readwrite: buffer[0]");
-	buffer[0] = afu->mem.type;
-
-	buffer_offset = 1;
-	debug_msg( "_amo_readwrite: buffer[%d]", buffer_offset );
-	offset = htonl(afu->mem.addr);
-	memcpy( (char *)&(buffer[buffer_offset]), (char *)&offset, sizeof(offset));
-	buffer_offset += sizeof(offset);
-
-	debug_msg( "_amo_readwrite: buffer[%d]", buffer_offset );
-	size = htonl(afu->mem.size);
-	memcpy((char *)&(buffer[buffer_offset]), (char *)&size, sizeof(hsize));
-	buffer_offset += sizeof(hsize);
-
-	debug_msg( "_amo_readwrite: buffer[%d]", buffer_offset );
-	buffer[buffer_offset] = afu->mem.cmd;
-	buffer_offset += 1;
-
-	debug_msg( "_amo_readwrite: buffer[%d]", buffer_offset );
-        buffer[buffer_offset] = 0; // constant endianness for now
-	buffer_offset += 1;
-	debug_msg( "_amo_readwrite: size=%d", hsize );
-
-	// if mem.cmd is 0-7, 9, or 10
-	// data = htonll(afu->mmio.data);
-	// CLIENTS MUST SEND NULL PTR for datav when cmd_flg= 0x8!
-	if ( afu->mem.data != NULL ) {
-	  debug_msg( "_amo_readwrite: buffer data[%d]", buffer_offset );
-	  memcpy( (char *)&(buffer[buffer_offset]), afu->mem.data, afu->mem.size );
-	  buffer_offset += hsize;
-	}
-
-	// if mem.cmd is 8, 9, or 10
-	// data = htonll(afu->mmio.datab);
-	if ( afu->mem.datab != NULL ) {
-	  debug_msg( "_amo_readwrite: buffer datab[%d]", buffer_offset );
-	  memcpy( (char *)&(buffer[buffer_offset]), afu->mem.datab, afu->mem.size );
-	  buffer_offset += hsize;
-	}
-
-	if (put_bytes_silent(afu->fd, buffer_offset, buffer) != buffer_offset) {
-		free(buffer);
-		close_socket(&(afu->fd));
-		afu->opened = 0;
-		afu->attached = 0;
-		afu->mem.state = LIBOCXL_REQ_IDLE;
-		return;
-	}
-
-	free(buffer);
-	afu->mem.state = LIBOCXL_REQ_PENDING;
-}
-
 static void _handle_mem_ack(struct ocxl_afu *afu)
 {
 	uint8_t resp_code;
@@ -1765,9 +1422,7 @@ static void _handle_mem_ack(struct ocxl_afu *afu)
 	} 
 	if (resp_code !=0) // TODO update this to handle resp code retry requests
 		error_msg ("handle_mem_ack: AFU sent RD or WR FAILED response code = 0x%d ", resp_code);
-	if ( ( afu->mem.type == OCSE_LPC_READ ) || 
-	     ( afu->mem.type == OCSE_AFU_AMO_RD ) || 
-	     ( afu->mem.type == OCSE_AFU_AMO_RW ) ) {
+	if ( afu->mem.type == OCSE_LPC_READ ) {
 	        // assuming it all worked, we already know the size in afu->mem.size
 	        debug_msg( "_handle_mem_ack: getting %d bytes from socket", afu->mem.size );
 		afu->mem.data = (uint8_t *)malloc( afu->mem.size );
@@ -1786,10 +1441,10 @@ static void *_psl_loop(void *ptr)
 {
 	struct ocxl_afu *afu = (struct ocxl_afu *)ptr;
 	uint8_t buffer[MAX_LINE_CHARS];
-	uint8_t op_size, function_code, amo_op, cmd_endian; //, cmd_pg_size;
+	uint8_t op_size, function_code, amo_op, cmd_endian, cmd_pg_size;
 	uint64_t addr, wr_be;
 	uint16_t size;
-	uint8_t bvalue, form_flag;
+	uint8_t bvalue;
 	uint16_t value;
 	uint32_t lvalue;
 	uint64_t llvalue;
@@ -1812,8 +1467,6 @@ static void *_psl_loop(void *ptr)
 			switch (afu->mmio.type) {
 			case OCSE_MMIO_MAP:
 			case OCSE_GLOBAL_MMIO_MAP:
-			case OCSE_LPC_SYSTEM_MAP:
-			case OCSE_LPC_SPECIAL_PURPOSE_MAP:
 				_mmio_map(afu);
 				break;
 			case OCSE_MMIO_WRITE64:
@@ -1836,7 +1489,7 @@ static void *_psl_loop(void *ptr)
 		}
 		if (afu->mem.state == LIBOCXL_REQ_REQUEST) {
 			switch (afu->mem.type) {
-			case OCSE_LPC_SYSTEM_MAP:
+			case OCSE_LPC_MAP:
 				_mem_map(afu);
 				break;
 			case OCSE_LPC_WRITE:
@@ -1847,16 +1500,6 @@ static void *_psl_loop(void *ptr)
 				break;
 			case OCSE_LPC_READ:
 				_mem_read(afu);
-				break;
-			// when the amo operation appears here, it represents a CAPP amo command
-			case OCSE_AFU_AMO_RD:
-				_amo_read(afu);
-				break;
-			case OCSE_AFU_AMO_WR:
-				_amo_write(afu);
-				break;
-			case OCSE_AFU_AMO_RW:
-				_amo_readwrite(afu);
 				break;
 			default:
 				break;
@@ -1980,16 +1623,12 @@ static void *_psl_loop(void *ptr)
 			afu->per_pasid_mmio.length = lvalue;
 			offset += sizeof(uint32_t);
 
-			// we will only allow 4 mmio(memory) areas per attach.  
-			//     global mmio registers
-			//     per pasid mmio registers 
-			//     lpc system memory
-			//     lpc special purpose memory.
+			// we will only allow 2 mmio areas per attach.  one for global and the second for per pasid.
 			// we will only allow 1 per pasid area per attach and it must be the full area for this pasid,
 			// that is, the full stride.  and the offset is 0 from this pasid's (context) area
 
 			afu->mmio_count = 0;
-			afu->mmio_max = 4;
+			afu->mmio_max = 2;
 			
                         memcpy((char *)&llvalue, (char *)&(buffer[offset]), 8); // mem_base_address
 			afu->mem_base_address = llvalue;
@@ -2013,14 +1652,6 @@ static void *_psl_loop(void *ptr)
 			memcpy( (char *)&size, buffer, sizeof( size ) );
 			size = ntohs(size);
 			DPRINTF( "of size=%d \n", size );
-
-			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
-				warn_msg("Socket failure getting form_flag ");
-				_all_idle(afu);
-				break;
-			}
-			memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
-			DPRINTF( " form_flag=%x\n", form_flag);
 			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
 					     -1, 0) < 0) {
 				warn_msg
@@ -2045,13 +1676,6 @@ static void *_psl_loop(void *ptr)
 			memcpy( (char *)&size, buffer, sizeof( size ) );
 			size = ntohs(size);
 			DPRINTF( "of size=%d \n", size );
-			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
-				warn_msg("Socket failure getting form_flag ");
-				_all_idle(afu);
-				break;
-			}
-			memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
-			DPRINTF( " form_flag=%x\n", form_flag);
 			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
 						 -1, 0) < 0) {
 				warn_msg
@@ -2085,13 +1709,6 @@ static void *_psl_loop(void *ptr)
 			memcpy( (char *)&size, buffer, sizeof( size ) );
 			size = ntohs(size);
 			DPRINTF( "of size=%d \n", size );
-			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
-				warn_msg("Socket failure getting form_flag ");
-				_all_idle(afu);
-				break;
-			}
-			memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
-			DPRINTF( " form_flag=%x\n", form_flag);
 			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
 					     -1, 0) < 0) {
 				warn_msg
@@ -2122,8 +1739,7 @@ static void *_psl_loop(void *ptr)
 			}
 			_handle_write_be(afu, addr, size, buffer, wr_be);
 			break;
-			
-		// When amo operations appear here, they represent AP amo commands
+
 		case OCSE_AMO_WR:
 		case OCSE_AMO_RW:
 			amo_op = buffer[0];
@@ -2141,13 +1757,6 @@ static void *_psl_loop(void *ptr)
 			//memcpy( (char *)&size, buffer, sizeof( size ) );
 			//size = ntohs(size);
 			DPRINTF( "op_size=%d \n", op_size );
-			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
-				warn_msg("Socket failure getting form_flag ");
-				_all_idle(afu);
-				break;
-			}
-			memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
-			DPRINTF( " form_flag=%x\n", form_flag);
 			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
 					     -1, 0) < 0) {
 				warn_msg
@@ -2196,13 +1805,6 @@ static void *_psl_loop(void *ptr)
 			//size = ntohs(size);
 		//	op_size = (uint8_t) size;
 			DPRINTF( "op_size=%d \n", op_size );
-			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
-				warn_msg("Socket failure getting form_flag ");
-				_all_idle(afu);
-				break;
-			}
-			memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
-			DPRINTF( " form_flag=%x\n", form_flag);
 			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
 					     -1, 0) < 0) {
 				warn_msg
@@ -2229,13 +1831,31 @@ static void *_psl_loop(void *ptr)
 			break;
 
 
-		case OCSE_XLATE_RELEASE:
-			DPRINTF("AFU XLATE RELEASE\n");
-			_handle_xlate( afu, OCSE_XLATE_RELEASE );
-			break;
 		case OCSE_MEMORY_TOUCH:
 			DPRINTF("AFU XLATE TOUCH\n");
-			_handle_xlate( afu, OCSE_MEMORY_TOUCH );
+			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
+					     -1, 0) < 0) {
+				warn_msg
+				    ("Socket failure getting memory touch addr");
+				_all_idle(afu);
+				break;
+			}
+			memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
+			addr = ntohll(addr);
+			DPRINTF("to addr 0x%016" PRIx64 "\n", addr);
+			if (get_bytes_silent(afu->fd, 2, buffer,
+					     -1, 0) < 0) {
+				warn_msg
+				    ("Socket failure getting cmd_flag and cmd_pg_size");
+				_all_idle(afu);
+				break;
+			}
+			memcpy( (char *)&function_code, &buffer[0], sizeof( function_code ) );
+			memcpy( (char *)&cmd_pg_size, &buffer[1], sizeof( cmd_pg_size ) );
+			DPRINTF("xlate_touch cmd_flag= 0x%x\n", function_code);
+			DPRINTF("xlate_touch cmd_pg_size= 0x%x\n", cmd_pg_size);
+
+			_handle_touch(afu, addr, function_code, cmd_pg_size);
 			break;
 		case OCSE_MMIO_ACK:
 			_handle_ack(afu);
@@ -3187,8 +2807,6 @@ ocxl_err ocxl_afu_close( ocxl_afu_h afu )
 {
         struct ocxl_afu *my_afu;
 	struct ocxl_irq *irq;
-	struct ocxl_ea_area *this_ea;
-	int i;
 
 	my_afu = (struct ocxl_afu *)afu;
 
@@ -3201,17 +2819,9 @@ ocxl_err ocxl_afu_close( ocxl_afu_h afu )
 	}
 
 	// mmio unmap
-	for (i=0; i < my_afu->mmio_count; i++ ) {
-	  ocxl_mmio_unmap( &(my_afu->mmios[i]) );
-	}
-	
-	// free eas
-	while (afu->eas != NULL) {
-	  this_ea = afu->eas;
-	  afu->eas = this_ea->_next;
-	  free( this_ea );
-	}
-
+	my_afu->global_mapped = 0;
+	my_afu->mapped = 0;
+  
 	_afu_free( afu );
 
 	return OCXL_OK;
@@ -3399,186 +3009,81 @@ ocxl_err ocxl_afu_get_p9_thread_id(ocxl_afu_h afu, uint16_t *thread_id)
   return 0;
 }
 
-ocxl_err ocxl_mmio_map_advanced( ocxl_afu_h afu, ocxl_mmio_type type, size_t size, int prot, uint64_t flags, off_t offset, ocxl_mmio_h *region )
+ocxl_err ocxl_mmio_map( ocxl_afu_h afu, ocxl_mmio_type type, ocxl_mmio_h *mmio )
 {
-        ocxl_err err = OCXL_INVALID_ARGS;
+	ocxl_err err;
 
-	debug_msg( "MMIO (and lpc memory) MAP" );
+	debug_msg( "MMIO MAP" );
 	if (afu == NULL) {
-		warn_msg("ocxl_mmio_map_advanced: NULL afu!");
+		warn_msg("ocxl_mmio_map: NULL afu!");
 		err = OCXL_NO_CONTEXT;
 		goto map_fail;
 	}
 
 	if (!afu->opened) {
-		warn_msg("ocxl_mmio_map_advanced: Must open afu first!");
+		warn_msg("ocxl_mmio_map: Must open afu first!");
 		err = OCXL_NO_CONTEXT;
 		goto map_fail;
 	}
 
 	if (!afu->attached) {
-		warn_msg("ocxl_mmio_map_advanced: Must attach afu first!");
+		warn_msg("ocxl_mmio_map: Must attach afu first!");
 		err = OCXL_NO_CONTEXT;
 		goto map_fail;
 	}
 
 	if (afu->mmio_count == afu->mmio_max) {
-		warn_msg("ocxl_mmio_map_advanced: insufficient memory to map the new mmio area!");
+		warn_msg("ocxl_mmio_map: insufficient memory to map the new mmio area!");
 		err = OCXL_NO_MEM;
 		goto map_fail;
 	}
 
-	if ( size == 0 ) {
-	  switch (type) {
-	  case OCXL_GLOBAL_MMIO:
-	    size = afu->global_mmio.length;
-	    break;
-	  case OCXL_PER_PASID_MMIO:
-	    size = afu->per_pasid_mmio.length;
-	    break;
-	  case OCXL_LPC_SYSTEM_MEM:
-	    // if mem_size == 0, there is no mem
-	    // otherwise size is 2**mem_size
-	    if ( afu->mem_size == 0 ) {
-	      warn_msg("ocxl_mmio_map_advanced: no lpc system memory available!");
-	      err = OCXL_NO_MEM;
-	      goto map_fail;
-	    }
-	    size = (size_t)0x1 << (afu->mem_size - 1);
-	    break;
-	  case OCXL_LPC_SPECIAL_PURPOSE_MEM:
-	    // Send LPC SPECIAL PURPOSE MEMORY map to OCSE
-	    // check template major/minor for legality of this
-	    // afu->mmio.type = OCSE_LPC_SPECIAL_PURPOSE_MAP;
-	    warn_msg("ocxl_mmio_map_advanced: lpc special purpose memory map not yet supported!");
-	    goto map_fail;
-	  default:
-	    err = OCXL_INVALID_ARGS;
-	    goto map_fail;
-	    break;
-	  }
-	}
-
 	switch (type) {
 	case OCXL_GLOBAL_MMIO:
-	  if ( size + offset > afu->global_mmio.length ) {
-	    warn_msg("ocxl_mmio_map_advanced: insufficient global mmio memory available!");
-	    err = OCXL_NO_MEM;
-	    goto map_fail;
-	  }
+	  // Send MMIO map to OCSE
 	  afu->mmio.type = OCSE_GLOBAL_MMIO_MAP;
+	  // my_afu->mmio.data = (uint64_t) endian;
+	  afu->mmio.state = LIBOCXL_REQ_REQUEST;
 	  break;
 	case OCXL_PER_PASID_MMIO:
-	  if ( size + offset > afu->per_pasid_mmio.length ) {
-	    warn_msg("ocxl_mmio_map_advanced: insufficient per pasid mmio memory available!");
-	    err = OCXL_NO_MEM;
-	    goto map_fail;
-	  }
+	  // Send MMIO map to OCSE
 	  afu->mmio.type = OCSE_MMIO_MAP;
+	  // my_afu->mmio.data = (uint64_t) endian;
+	  afu->mmio.state = LIBOCXL_REQ_REQUEST;
 	  break;
-	case OCXL_LPC_SYSTEM_MEM:
-	  if ( ( size + offset ) > ( (uint64_t)0x1 << (afu->mem_size - 1) ) ) {
-	    warn_msg("ocxl_mmio_map_advanced: insufficient lpc system memory available!");
-	    err = OCXL_NO_MEM;
-	    goto map_fail;
-	  }
-	  afu->mmio.type = OCSE_LPC_SYSTEM_MAP;
-	  break;
-	case OCXL_LPC_SPECIAL_PURPOSE_MEM:
 	default:
 	  err = OCXL_INVALID_ARGS;
 	  goto map_fail;
 	  break;
 	}
 
-	afu->mmio.state = LIBOCXL_REQ_REQUEST;
-
-	// wait for _pls_loop to see and process mmio libocxl_req_request and set to libocxl_req_idle
 	while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
 
-	switch (type) {
-	case OCXL_GLOBAL_MMIO:
+	if (type == OCXL_GLOBAL_MMIO)
 	  afu->global_mapped = 1;
-	  break;
-	case OCXL_PER_PASID_MMIO:
+	else
 	  afu->mapped = 1;
-	  break;
-	case OCXL_LPC_SYSTEM_MEM:
-	  afu->lpc_mapped = 1;
-	  break;
-	case OCXL_LPC_SPECIAL_PURPOSE_MEM:
-	  afu->lpc_special_mapped = 1;
-	  break;
-	default:
-	  err = OCXL_INVALID_ARGS;
-	  goto map_fail;
-	  break;
-	}
-
 	
-	*region = (ocxl_mmio_h)&(afu->mmios[afu->mmio_count]);
+	*mmio = (ocxl_mmio_h)&(afu->mmios[afu->mmio_count]);
 	afu->mmio_count++;
 	  
 	return OCXL_OK;
-
  map_fail:
 	return err;
-}
-
-ocxl_err ocxl_mmio_map( ocxl_afu_h afu, ocxl_mmio_type type, ocxl_mmio_h *region )
-{
-	return ocxl_mmio_map_advanced( afu, type, 0, PROT_READ | PROT_WRITE, 0, 0, region );
-}
-
-ocxl_err ocxl_mmio_get_info( ocxl_mmio_h region, void **address, size_t *size )
-{
-  // malloc the mmio area (but it is not to be used by the application software directly
-  // return the size of the area and the virtual address (EA) of the area
-  // the application is permitted to send the EA, or a derivative of it, to the accelerator
-  // the accelerator may access "LPC memory" via that EA.
-  // Can we do this for the global and per pasid mmio regions?  We don't have to, 
-  // but it would be a consistant approach.  The question may be the shear size
-  // of the various memory areas.
-  // if the accelerator is going to use a direct access to accelerator memory, the use
-  // this routine is not required.  the helper function (ocxl_mmio_* and ocxl_lpc_*)
-  // handle the memory via the connection to the afu handle
-  region->ocxl_ea = malloc( region->length );
-  if (region->ocxl_ea == NULL) {
-    // unsuccessful malloc
-    warn_msg( "ocxl_mmio_get_info: unable to malloc requested size 0x%016llx", (uint64_t)region->length );
-    return OCXL_NO_MEM;
-  }
-
-  *address = region->ocxl_ea;
-  *size = region->length;
-  return OCXL_OK;
 }
 
 ocxl_err ocxl_mmio_unmap( ocxl_mmio_h region )
 {
 // since we've created a static array for the areas, this is tricky...
-  if ( region->ocxl_ea != NULL ) {
-    free( region->ocxl_ea );
-  }
+	if (region->type == OCXL_GLOBAL_MMIO)
+	  region->afu->global_mapped = 0;
+	else
+	  region->afu->mapped = 0;
 
-  switch ( region->type ) {
-  case OCXL_GLOBAL_MMIO:
-    region->afu->global_mapped = 0;
-    break;
-  case OCXL_PER_PASID_MMIO:
-    region->afu->mapped = 0;
-    break;
-  case OCXL_LPC_SYSTEM_MEM:
-    region->afu->lpc_mapped = 0;
-    break;
-  default:
-    break;
-  }
+// but what about mmio_count?
 
-  // but what about mmio_count?
-  
-  return OCXL_OK;
+	return OCXL_OK;
 }
 
 ocxl_err ocxl_mmio_write64( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, uint64_t value )
@@ -3613,7 +3118,7 @@ ocxl_err ocxl_mmio_write64( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, 
 		goto write64_fail;
 	}
 
-	debug_msg("ocxl_mmio_write64: passed parameter checks");
+	//debug_msg("ocxl_mmio_write64: passed parameter checks");
 
 	/* if ( offset >= my_afu->mmio_length ) { */
 	/* 	warn_msg("ocxl_mmio_write64: offset out of bounds!"); */
@@ -3632,12 +3137,12 @@ ocxl_err ocxl_mmio_write64( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, 
 	mmio->afu->mmio.data = value;
 	mmio->afu->mmio.state = LIBOCXL_REQ_REQUEST;
 
-	debug_msg("ocxl_mmio_write64: waiting for idle");
+	//debug_msg("ocxl_mmio_write64: waiting for idle");
 
 	while (mmio->afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
 
-	debug_msg("ocxl_mmio_write64: mmio acked");
+	//debug_msg("ocxl_mmio_write64: mmio acked");
 
 	if (!mmio->afu->opened) {
 	  err = OCXL_NO_DEV;
@@ -3826,6 +3331,62 @@ ocxl_err ocxl_mmio_read32( ocxl_mmio_h mmio, off_t offset, ocxl_endian endian, u
 	errno = ENODEV;
 	return err;
 }
+
+/* ocxl_err ocxl_global_mmio_map( ocxl_afu_h afu, ocxl_endian endian) */
+/* { */
+/*         struct ocxl_afu *my_afu; */
+
+/* 	my_afu = (struct ocxl_afu *)afu; */
+
+/* 	debug_msg( "GLOBAL MMIO MAP" ); */
+/* 	if (my_afu == NULL) { */
+/* 		warn_msg("ocxl_global_mmio_map: NULL afu!"); */
+/* 		goto map_fail; */
+/* 	} */
+
+/* 	if (!my_afu->opened) { */
+/* 		printf("ocxl_global_mmio_map: Must open afu first!\n"); */
+/* 		goto map_fail; */
+/* 	} */
+
+/* 	if (!my_afu->attached) { */
+/* 		printf("ocxl_global_mmio_map: Must attach first!\n"); */
+/* 		goto map_fail; */
+/* 	} */
+
+/* 	if (endian & ~(OCXL_MMIO_FLAGS)) { */
+/* 		printf("ocxl_global_mmio_map: Invalid flags!\n"); */
+/* 		goto map_fail; */
+/* 	} */
+/* 	// Send MMIO map to OCSE */
+/* 	my_afu->mmio.type = OCSE_GLOBAL_MMIO_MAP; */
+/* 	my_afu->mmio.data = (uint64_t) endian; */
+/* 	my_afu->mmio.state = LIBOCXL_REQ_REQUEST; */
+/* 	while (my_afu->mmio.state != LIBOCXL_REQ_IDLE)	/\*infinite loop *\/ */
+/* 		_delay_1ms(); */
+/* 	my_afu->global_mapped = 1; */
+
+/* 	return OCXL_OK; */
+/*  map_fail: */
+/* 	errno = ENODEV; */
+/* 	return OCXL_NO_DEV; */
+/* } */
+
+/* ocxl_err ocxl_global_mmio_unmap( ocxl_afu_h afu ) */
+/* { */
+/*         struct ocxl_afu *my_afu; */
+
+/* 	my_afu = (struct ocxl_afu *)afu; */
+
+/* 	if (my_afu == NULL) { */
+/* 		warn_msg("ocxl_global_mmio_map: NULL afu!"); */
+/* 		return OCXL_NO_DEV; */
+/* 	} */
+
+/* 	my_afu->global_mapped = 0; */
+	
+/* 	return OCXL_OK; */
+/* } */
 
 ocxl_err ocxl_global_mmio_write64( ocxl_afu_h afu, uint64_t offset, uint64_t val)
 {

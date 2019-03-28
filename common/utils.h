@@ -70,20 +70,15 @@
 #define OCSE_GLOBAL_MMIO_WRITE64	0x27
 #define OCSE_GLOBAL_MMIO_READ32	        0x28
 #define OCSE_GLOBAL_MMIO_WRITE32	0x29
-#define OCSE_LPC_SYSTEM_MAP    	        0x2a
+#define OCSE_LPC_MAP     	        0x2a
 #define OCSE_LPC_READ	                0x2b
 #define OCSE_LPC_WRITE          	0x2c
 #define OCSE_LPC_WRITE_BE          	0x2d
 #define OCSE_LPC_ACK            	0x2e
 #define OCSE_LPC_FAIL            	0x2f
-#define OCSE_AFU_AMO_RD                 0x30
-#define OCSE_AFU_AMO_RW                 0x38
-#define OCSE_AFU_AMO_WR                 0x40
-#define OCSE_XLATE_RELEASE              0x41
-#define OCSE_FIND                       0x50
-#define OCSE_FIND_NTH                   0x51
-#define OCSE_FIND_ACK                   0x52
-#define OCSE_LPC_SPECIAL_PURPOSE_MAP    0x60
+#define OCSE_FIND                       0x30
+#define OCSE_FIND_NTH                   0x31
+#define OCSE_FIND_ACK                   0x32
 
 #define OCSE_FAILED                     0xff
 

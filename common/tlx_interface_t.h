@@ -1,5 +1,5 @@
 /*
- * Copyright 2014,2018 International Business Machines
+ * Copyright 2014,2017 International Business Machines
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,8 +27,7 @@
 #include <unistd.h>
 
 // Choose ONE to define what TLX support level will be
-//#define TLX3 1 
-#define TLX4 1 
+#define TLX3 1
 
 // this is the size of the transimit and receive buffers in the afu_event
 // it needs to be large enough to transmit/receive the maximum size of legally concurrent events
@@ -41,18 +40,9 @@
 #define PROTOCOL_PRIMARY 3
 #define PROTOCOL_SECONDARY 0000
 #define PROTOCOL_TERTIARY 0
-#endif /* TLX3 TODO we currently support TLX3 & TLX4 cmds....should we have to just support TlX3 ones? hope not... */
-
-#ifdef TLX4
-#define PROTOCOL_PRIMARY 4
-#define PROTOCOL_SECONDARY 0001
-#define PROTOCOL_TERTIARY 0
-#endif /* TLX4 */
-
-
+#endif /* TLX3 */
 
 /* Select the initial value for credits??  */
-/* TODO DO we need this anymore? AFU is setting initial values; what are our "queue" sizes? */
 #define MAX_AFU_TLX_CMD_CREDITS 5
 #define MAX_AFU_TLX_RESP_CREDITS 10
 #define MAX_TLX_AFU_CMD_CREDITS 8
@@ -74,7 +64,6 @@
 #define TLX_AFU_DOUBLE_RESP_AND_DATA 7
 #define TLX_AFU_RESP_DATA_NOT_VALID 8
 #define TLX_AFU_NO_CREDITS 10
-#define AFU_TLX_DOUBLE_DATA 20
 #define AFU_TLX_DOUBLE_COMMAND 21
 #define AFU_TLX_CMD_NOT_VALID 22
 #define AFU_TLX_DOUBLE_CMD_AND_DATA 23
@@ -102,91 +91,143 @@
 /* TL CAPP Command opcodes (from host to AFU) */
 
 #define TLX_CMD_NOP 0
-#define TLX_CMD_XLATE_DONE 	0x18 	// VC0
-#define TLX_CMD_INTRP_RDY  	0x1a	// VC0
-#define TLX_CMD_RD_MEM	  	0x20	// VC1
-#define TLX_CMD_CO_MEM	  	0x21	// VC1      TLX5 only
-#define TLX_CMD_RD_PF	  	0x22	// VC1      OMI only
-#define TLX_CMD_PR_RD_MEM  	0x28	// VC1
-#define TLX_CMD_AMO_RD     	0x30	// VC1      TLX4
-#define TLX_CMD_AMO_RW     	0x38	// VC1 DCP1 TLX4
-#define TLX_CMD_AMO_W      	0x40	// VC1 DCP1 TLX4
-#define TLX_CMD_PAD_MEM  	0x80	// VC1      OMI only
-#define TLX_CMD_WRITE_MEM  	0x81	// VC1 DCP1
-#define TLX_CMD_WRITE_MEM_BE	0x82	// VC1 DCP1
-#define TLX_CMD_WRITE_META	0x83	// VC1      TLX5 only
-#define TLX_CMD_PR_WR_MEM	0x86	// VC1 DCP1
-#define TLX_CMD_FORCE_EVICT	0xd0	// VC0      TLX4
-#define TLX_CMD_KILL_XLATE	0xd2	// VC2      TLX4
-#define TLX_CMD_DISABLE_CACHE	0xd4	// VC2      TLX4
-#define TLX_CMD_ENABLE_CACHE	0xd5	// VC2      TLX4
-#define TLX_CMD_DISABLE_ATC	0xd6	// VC2      TLX4
-#define TLX_CMD_ENABLE_ATC	0xd7	// VC2      TLX4
-#define TLX_CMD_CONFIG_READ	0xe0	// VC1
-#define TLX_CMD_CONFIG_WRITE	0xe1	// VC1 DCP1
-#define TLX_CMD_MEM_CNTL	0xef	// VC0      OMI only
+#define TLX_CMD_XLATE_DONE 	0x18
+#define TLX_CMD_RETURN_ADR_TAG  0x19	// TLX4 only
+#define TLX_CMD_INTRP_RDY  	0x1a
+#define TLX_CMD_RD_MEM	  	 0x20
+#define TLX_CMD_PR_RD_MEM  	0x28
+#define TLX_CMD_AMO_RD     	0x30	// TLX4 only
+#define TLX_CMD_AMO_RW     	0x31	// TLX4 only
+#define TLX_CMD_AMO_W      	0x40	// TLX4 only
+#define TLX_CMD_WRITE_MEM  	0x81
+#define TLX_CMD_WRITE_MEM_BE	0x82
+#define TLX_CMD_WRITE_META	0x83	// OMI
+#define TLX_CMD_PR_WR_MEM	0x86
+#define TLX_CMD_FORCE_EVICT	0xd0	// TLX4 only
+#define TLX_CMD_FORCE_UR	0xd2	// TLX4 only
+#define TLX_CMD_WAKE_AFU_THREAD	0xdf	// TLX4 only
+#define TLX_CMD_CONFIG_READ	0xe0
+#define TLX_CMD_CONFIG_WRITE	0xe1
 
 
 /* TLX AP Command opcodes (from AFU to host) */
 
 #define AFU_CMD_NOP 0
-#define AFU_CMD_RD_WNITC 	0x10	// VC3
-#define AFU_CMD_RD_WNITC_N 	0x14	// VC3
-#define AFU_CMD_PR_RD_WNITC 	0x12	// VC3
-#define AFU_CMD_PR_RD_WNITC_N 	0x16	// VC3
-#define AFU_CMD_DMA_W  		0x20	// VC3 DCP3
-#define AFU_CMD_DMA_W_N	  	0x24	// VC3 DCP3
-#define AFU_CMD_DMA_W_BE  	0x28	// VC3 DCP3
-#define AFU_CMD_DMA_W_BE_N  	0x2c	// VC3 DCP3
-#define AFU_CMD_DMA_PR_W  	0x30	// VC3 DCP3
-#define AFU_CMD_DMA_PR_W_N  	0x34	// VC3 DCP3
-#define AFU_CMD_AMO_RD  	0x38	// VC3
-#define AFU_CMD_AMO_RD_N  	0x3c	// VC3
-#define AFU_CMD_AMO_RW  	0x40	// VC3 DCP3
-#define AFU_CMD_AMO_RW_N  	0x44	// VC3 DCP3
-#define AFU_CMD_AMO_W  		0x48	// VC3 DCP3
-#define AFU_CMD_AMO_W_N  	0x4c	// VC3 DCP3
-#define AFU_CMD_ASSIGN_ACTAG	0x50	// VC3
-#define AFU_CMD_XLATE_RELEASE	0x51	// VC3      TLX4
-#define AFU_CMD_MEM_PA_FLUSH	0x52	// VC1      TLX5 only
-#define AFU_CMD_MEM_BACK_FLUSH	0x53	// VC1      TLX5 only
-#define AFU_CMD_MEM_SYN_DONE	0x54	// VC2      TLX4
-#define AFU_CMD_CASTOUT		0x55	// VC2      TLX4
-#define AFU_CMD_CASTOUT_PUSH	0x56	// VC2 DCP2 TLX4
-#define AFU_CMD_INTRP_REQ	0x58	// VC3
-#define AFU_CMD_INTRP_REQ_S	0x59	// VC3      TLX4
-#define AFU_CMD_INTRP_REQ_D	0x5a	// VC3 DCP3
-#define AFU_CMD_INTRP_REQ_D_S	0x5b	// VC3 DCP3 TLX4
-#define AFU_CMD_WAKE_HOST_THRD	0x5c	// VC3	
-#define AFU_CMD_WAKE_HOST_THRD_S	0x5d    // VC3      TLX4
-#define AFU_CMD_UPGRADE_STATE		0x60 	// VC3      TLX4
-#define AFU_CMD_READ_ME			0x68 	// VC3      TLX4
-#define AFU_CMD_READ_MES		0x69 	// VC3      TLX4
-#define AFU_CMD_READ_S			0x6a 	// VC3      TLX4
-#define AFU_CMD_XLATE_TOUCH		0x78	// VC3 
-#define AFU_CMD_XLATE_TO_PA		0x79	// VC3      TLX5 only
-#define AFU_CMD_XLATE_TOUCH_N		0x7c	// VC3
-#define AFU_CMD_RD_WNITC_T		0x90 	// VC3      TLX4
-#define AFU_CMD_RD_WNITC_T_S		0x91 	// VC3      TLX4
-#define AFU_CMD_PR_RD_WNITC_T		0x92 	// VC3      TLX4
-#define AFU_CMD_PR_RD_WNITC_T_S		0x93 	// VC3      TLX4
-#define AFU_CMD_DMA_W_T_P	  	0xa2	// VC3 DCP3 TLX4
-#define AFU_CMD_DMA_W_T_P_S		0xa3	// VC3 DCP3 TLX4
-#define AFU_CMD_DMA_W_BE_T_P     	0xaa	// VC3 DCP3 TLX4
-#define AFU_CMD_DMA_W_BE_T_P_S   	0xab	// VC3 DCP3 TLX4
-#define AFU_CMD_DMA_PR_W_T_P  		0xb2	// VC3 DCP3 TLX4
-#define AFU_CMD_DMA_PR_W_T_P_S		0xb3	// VC3 DCP3 TLX4
-#define AFU_CMD_AMO_RD_T  		0xb8	// VC3      TLX4
-#define AFU_CMD_AMO_RD_T_S  		0xb9	// VC3      TLX4
-#define AFU_CMD_AMO_RW_T  		0xc0	// VC3 DCP3 TLX4
-#define AFU_CMD_AMO_RW_T_S  		0xc1	// VC3 DCP3 TLX4
-#define AFU_CMD_AMO_W_T_P  		0xca	// VC3 DCP3 TLX4
-#define AFU_CMD_AMO_W_T_P_S		0xcb	// VC3 DCP3 TLX4
-#define AFU_CMD_UPGRADE_STATE_T		0xe0 	// VC3      TLX4
-#define AFU_CMD_READ_ME_T		0xe8 	// VC3      TLX4
-#define AFU_CMD_READ_MES_T		0xe9 	// VC3      TLX4
-#define AFU_CMD_READ_S_T		0xea	// VC3      TLX4
-#define AFU_CMD_SYNC			0xef	// VC3      TLX4
+#define AFU_CMD_RD_WNITC 	0x10
+#define AFU_CMD_RD_WNITC_S 	0x11 	//TLX4 only
+#define AFU_CMD_RD_WNITC_N 	0x14
+#define AFU_CMD_RD_WNITC_N_S 	0x15 	//TLX4 only
+#define AFU_CMD_PR_RD_WNITC 	0x12
+#define AFU_CMD_PR_RD_WNITC_S 	0x13 	//TLX4 only
+#define AFU_CMD_PR_RD_WNITC_N 	0x16
+#define AFU_CMD_PR_RD_WNITC_N_S	0x17 	//TLX4 only
+#define AFU_CMD_DMA_W  		0x20
+#define AFU_CMD_DMA_W_S  	0x21	// TLX4 only
+#define AFU_CMD_DMA_W_P	  	0x22	// TLX4 only
+#define AFU_CMD_DMA_W_P_S	0x23	// TLX4 only
+#define AFU_CMD_DMA_W_N	  	0x24
+#define AFU_CMD_DMA_W_N_S  	0x25	// TLX4 only
+#define AFU_CMD_DMA_W_N_P 	0x26	// TLX4 only
+#define AFU_CMD_DMA_W_N_P_S     0x27	// TLX4 only
+#define AFU_CMD_DMA_W_BE  	0x28
+#define AFU_CMD_DMA_W_BE_S     	0x29	// TLX4 only
+#define AFU_CMD_DMA_W_BE_P     	0x2a	// TLX4 only
+#define AFU_CMD_DMA_W_BE_P_S   	0x2b	// TLX4 only
+#define AFU_CMD_DMA_W_BE_N  	0x2c
+#define AFU_CMD_DMA_W_BE_N_S	0x2d	// TLX4 only
+#define AFU_CMD_DMA_W_BE_N_P	0x2e	// TLX4 only
+#define AFU_CMD_DMA_W_BE_N_P_S	0x2f	// TLX4 only
+#define AFU_CMD_DMA_PR_W  	0x30
+#define AFU_CMD_DMA_PR_W_S  	0x31	// TLX4 only
+#define AFU_CMD_DMA_PR_W_P  	0x32	// TLX4 only
+#define AFU_CMD_DMA_PR_W_P_S	0x33	// TLX4 only
+#define AFU_CMD_DMA_PR_W_N  	0x34
+#define AFU_CMD_DMA_PR_W_N_S  	0x35	// TLX4 only
+#define AFU_CMD_DMA_PR_W_N_P 	0x36	// TLX4 only
+#define AFU_CMD_DMA_PR_W_N_P_S  0x37	// TLX4 only
+#define AFU_CMD_AMO_RD  	0x38
+#define AFU_CMD_AMO_RD_S  	0x39	// TLX4 only
+#define AFU_CMD_AMO_RD_N  	0x3c
+#define AFU_CMD_AMO_RD_N_S  	0x3d	// TLX4 only
+#define AFU_CMD_AMO_RW  	0x40
+#define AFU_CMD_AMO_RW_S  	0x41	// TLX4 only
+#define AFU_CMD_AMO_RW_N  	0x44
+#define AFU_CMD_AMO_RW_N_S  	0x45	// TLX4 only
+#define AFU_CMD_AMO_W  		0x48
+#define AFU_CMD_AMO_W_S  	0x49	// TLX4 only
+#define AFU_CMD_AMO_W_P  	0x4a	// TLX4 only
+#define AFU_CMD_AMO_W_P_S	0x4b	// TLX4 only
+#define AFU_CMD_AMO_W_N  	0x4c
+#define AFU_CMD_AMO_W_N_S  	0x4d	// TLX4 only
+#define AFU_CMD_AMO_W_N_P 	0x4e	// TLX4 only
+#define AFU_CMD_AMO_W_N_P_S  	0x4f	// TLX4 only
+#define AFU_CMD_ASSIGN_ACTAG	0x50
+#define AFU_CMD_ADR_TAG_RELEASE	0x51	// TLX4 only
+#define AFU_CMD_MEM_PA_FLUSH	0x52	// TLX4 only
+#define AFU_CMD_CASTOUT		0x55	// TLX4 only
+#define AFU_CMD_CASTOUT_PUSH	0x56	// TLX4 only
+#define AFU_CMD_INTRP_REQ	0x58
+#define AFU_CMD_INTRP_REQ_S	0x59	// TLX4 only
+#define AFU_CMD_INTRP_REQ_D	0x5a
+#define AFU_CMD_INTRP_REQ_D_S	0x5b	// TLX4 only
+#define AFU_CMD_WAKE_HOST_THRD	0x5c
+#define AFU_CMD_WAKE_HOST_THRD_S	0x5d // TLX4 only
+#define AFU_CMD_UPGRADE_STATE		0x60 	// TLX4 only
+#define AFU_CMD_READ_EXCLUSIVE		0x68 	// TLX4 only
+#define AFU_CMD_READ_SHARED		0x69 	// TLX4 only
+#define AFU_CMD_XLATE_TOUCH		0x78
+#define AFU_CMD_XLATE_TOUCH_N		0x7c
+#define AFU_CMD_RD_WNITC_T		0x90 	// TLX4 only
+#define AFU_CMD_RD_WNITC_T_S		0x91 	// TLX4 only
+#define AFU_CMD_RD_WNITC_T_N		0x94 	// TLX4 only
+#define AFU_CMD_RD_WNITC_T_N_S		0x95 	// TLX4 only
+#define AFU_CMD_PR_RD_WNITC_T		0x92 	// TLX4 only
+#define AFU_CMD_PR_RD_WNITC_T_S		0x93 	// TLX4 only
+#define AFU_CMD_PR_RD_WNITC_T_N		0x96 	// TLX4 only
+#define AFU_CMD_PR_RD_WNITC_T_N_S	0x97 	// TLX4 only
+#define AFU_CMD_DMA_W_T  		0xa0    // TLX4 only
+#define AFU_CMD_DMA_W_T_S  		0xa1	// TLX4 only
+#define AFU_CMD_DMA_W_T_P	  	0xa2	// TLX4 only
+#define AFU_CMD_DMA_W_T_P_S		0xa3	// TLX4 only
+#define AFU_CMD_DMA_W_T_N	  	0xa4    // TLX4 only
+#define AFU_CMD_DMA_W_T_N_S  		0xa5	// TLX4 only
+#define AFU_CMD_DMA_W_T_N_P 		0xa6	// TLX4 only
+#define AFU_CMD_DMA_W_T_N_P_S    	0xa7	// TLX4 only
+#define AFU_CMD_DMA_W_BE_T  		0xa8	// TLX4 only
+#define AFU_CMD_DMA_W_BE_T_S     	0xa9	// TLX4 only
+#define AFU_CMD_DMA_W_BE_T_P     	0xaa	// TLX4 only
+#define AFU_CMD_DMA_W_BE_T_P_S   	0xab	// TLX4 only
+#define AFU_CMD_DMA_W_BE_T_N  		0xac	// TLX4 only
+#define AFU_CMD_DMA_W_BE_T_N_S		0xad	// TLX4 only
+#define AFU_CMD_DMA_W_BE_T_N_P		0xae	// TLX4 only
+#define AFU_CMD_DMA_W_BE_T_N_P_S	0xaf	// TLX4 only
+#define AFU_CMD_DMA_PR_W_T  		0xb0	// TLX4 only
+#define AFU_CMD_DMA_PR_W_T_S  		0xb1	// TLX4 only
+#define AFU_CMD_DMA_PR_W_T_P  		0xb2	// TLX4 only
+#define AFU_CMD_DMA_PR_W_T_P_S		0xb3	// TLX4 only
+#define AFU_CMD_DMA_PR_W_T_N  		0xb4	// TLX4 only
+#define AFU_CMD_DMA_PR_W_T_N_S  	0xb5	// TLX4 only
+#define AFU_CMD_DMA_PR_W_T_N_P 		0xb6	// TLX4 only
+#define AFU_CMD_DMA_PR_W_T_N_P_S  	0xb7	// TLX4 only
+#define AFU_CMD_AMO_RD_T  		0xb8	// TLX4 only
+#define AFU_CMD_AMO_RD_T_S  		0xb9	// TLX4 only
+#define AFU_CMD_AMO_RD_T_N  		0xbc	// TLX4 only
+#define AFU_CMD_AMO_RD_T_N_S  		0xbd	// TLX4 only
+#define AFU_CMD_AMO_RW_T  		0xc0	// TLX4 only
+#define AFU_CMD_AMO_RW_T_S  		0xc1	// TLX4 only
+#define AFU_CMD_AMO_RW_T_N  		0xc4	// TLX4 only
+#define AFU_CMD_AMO_RW_T_N_S  		0xc5	// TLX4 only
+#define AFU_CMD_AMO_W_T  		0xc8	// TLX4 only
+#define AFU_CMD_AMO_W_T_S  		0xc9	// TLX4 only
+#define AFU_CMD_AMO_W_T_P  		0xca	// TLX4 only
+#define AFU_CMD_AMO_W_T_P_S		0xcb	// TLX4 only
+#define AFU_CMD_AMO_W_T_N  		0xcc	// TLX4 only
+#define AFU_CMD_AMO_W_T_N_S  		0xcd	// TLX4 only
+#define AFU_CMD_AMO_W_T_N_P 		0xce	// TLX4 only
+#define AFU_CMD_AMO_W_T_N_P_S  		0xcf	// TLX4 only
+#define AFU_CMD_UPGRADE_STATE_T		0xe0 	// TLX4 only
+#define AFU_CMD_READ_EXCLUSIVE_T	0xe8 	// TLX4 only
+#define AFU_CMD_READ_SHARED_T		0xe9 	// TLX4 only
 
 /*  AMO_OPCODES per TL SPEC: used in LIBOCXL */
 #define AMO_WRMWF_ADD	 0x00
@@ -210,42 +251,32 @@
 /* TL CAPP responses (from host to AFU)  */
 #define TLX_RSP_NOP 0
 #define TLX_RSP_RET_TLX_CREDITS	0x01
-#define TLX_RSP_TOUCH_RESP	0x02	// VC0
-#define TLX_RSP_SYN_DETECTED	0x03	// VC0      TLX4
-#define TLX_RSP_READ_RESP	0x04	// VC0 DCP0
-#define TLX_RSP_READ_FAILED	0x05	// VC0
-#define TLX_RSP_CL_RD_RESP	0x06 	// VC0 DCP0 TLX4
-#define TLX_RSP_UGRADE_RESP	0x07 	// VC0      TLX4
-#define TLX_RSP_WRITE_RESP	0x08	// VC0
-#define TLX_RSP_WRITE_FAILED	0x09	// VC0
-#define TLX_RSP_MEM_FLUSH_DONE	0x0a 	// VC1      TLX4
-#define TLX_RSP_SYNC_DONE	0x0b 	// VC0      TLX4
-#define TLX_RSP_INTRP_RESP	0x0c	// VC0
-#define TLX_RSP_READ_RESP_OW	0x0d 	// VC0 DCP0 OMI only
-#define TLX_RSP_READ_RESP_XW	0x0e 	// VC0 DCP0 OMI only
-#define TLX_RSP_TOUCH_RESP_T	0x0f	// VC0      TLX4
-#define TLX_RSP_WAKE_HOST_RESP	0x10	// VC0
-#define TLX_RSP_BACK_FLUSH_DONE	0x11	// VC1      TLX5 only
-#define TLX_RSP_PA_RESP		0x12	// VC0      TLX5 only
-#define TLX_RSP_CL_RD_RESP_OW	0x16 	// VC0 DCP0 TLX4
+#define TLX_RSP_TOUCH_RESP	0x02
+#define TLX_RSP_READ_RESP	0x04
+#define TLX_RSP_UGRADE_RESP	0x07 	// TLX4 only
+#define TLX_RSP_READ_FAILED	0x05
+#define TLX_RSP_CL_RD_RESP	0x06 	// TLX4 only
+#define TLX_RSP_WRITE_RESP	0x08
+#define TLX_RSP_WRITE_FAILED	0x09
+#define TLX_RSP_MEM_FLUSH_DONE	0x0a 	// TLX4 only
+#define TLX_RSP_INTRP_RESP	0x0c
+#define TLX_RSP_READ_RESP_OW	0x0d 	// OMI
+#define TLX_RSP_READ_RESP_XW	0x0e 	// OMI
+#define TLX_RSP_WAKE_HOST_RESP	0x10
+#define TLX_RSP_CL_RD_RESP_OW	0x16 	// TLX4 only
 
 
 /* TLX AP responses (from AFU to host) */
 #define AFU_RSP_NOP  0
-#define AFU_RSP_MEM_RD_RESP	0x01	// VC0 DCP0
-#define AFU_RSP_MEM_RD_FAIL	0x02	// VC0
-#define AFU_RSP_MEM_RD_RESP_OW	0x03 	// VC0 DCP0 OMI only
-#define AFU_RSP_MEM_WR_RESP	0x04	// VC0
-#define AFU_RSP_MEM_WR_FAIL	0x05	// VC0
-#define AFU_RSP_MEM_RD_RESP_XW	0x07 	// VC0 DCP0 OMI only
-#define AFU_RSP_RET_TL_CREDITS	0x08 	//          TLX4?
-#define AFU_RSP_MEM_CO_RESP	0x09	// VC0      TLX4
-#define AFU_RSP_MEM_CNTL_DONE	0x0b 	// VC0      OMI only
-#define AFU_RSP_KILL_XLATE_DONE	0x0c 	// VC3      TLX4
-#define AFU_RSP_CACHE_DISABLED	0x0d	// VC0      TLX4
-#define AFU_RSP_CACHE_ENABLED	0x0e	// VC0      TLX4
-#define AFU_RSP_ATC_DISABLED	0x80	// VC0      TLX4
-#define AFU_RSP_ATC_ENABLED	0x81	// VC0      TLX4
+#define AFU_RSP_MEM_RD_RESP	0x01
+#define AFU_RSP_MEM_RD_FAIL	0x02
+#define AFU_RSP_MEM_RD_RESP_OW	0x03 	// OMI
+#define AFU_RSP_MEM_WR_RESP	0x04
+#define AFU_RSP_MEM_WR_FAIL	0x05
+#define AFU_RSP_MEM_RD_RESP_XW	0x07 	// OMI
+#define AFU_RSP_RET_TL_CREDITS	0x08 	// OMI
+#define AFU_RSP_WAKE_AFU_RESP	0x0a 	// TLX4 only
+#define AFU_RSP_FORCE_UR_DONE	0x0c 	// TLX4 only
 
 
 
@@ -267,209 +298,163 @@ struct AFU_EVENT {
   unsigned char rbuf[TLX_BUFFER_SIZE];    /* receive buffer for socket communications */
   uint32_t rbp;                           /* receive buffer position */
   // Config and Credits
-  uint8_t  afu_tlx_credit_req_valid;	  /* needed for xfer of credit & req changes TODO UPDATE THIS*/
-  uint8_t  tlx_afu_credit_valid;	  /* needed for xfer of credits TODO UPDATE THIS */
-  uint8_t  afu_tlx_vc0_credits_available; // init from afu_tlx_vc0_initial_credit, decrement on tlx_afu_vc0_valid, increment on afu_tlx_vc0_credit
-  uint8_t  afu_tlx_vc1_credits_available; // init from afu_tlx_vc1_initial_credit, decrement on tlx_afu_vc1_valid, increment on afu_tlx_vc1_credit
-  uint8_t  afu_tlx_vc2_credits_available; // init from afu_tlx_vc2_initial_credit, decrement on tlx_afu_vc2_valid, increment on afu_tlx_vc2_credit
-  uint8_t  tlx_afu_cmd_credits_available; // init from tlx_afu_cmd_resp_initial_credit, decrement on afu_tlx_cmd_valid, increment on tlx_afu_cmd_credit
+  uint8_t  afu_tlx_credit_req_valid;		  /* needed for xfer of credit & req changes */
+  uint8_t  tlx_afu_credit_valid;		  /* needed for xfer of credits */
+  uint8_t  afu_tlx_cmd_credits_available; // init from afu_tlx_cmd_initial_credit, decrement on tlx_afu_cmd_valid, increment on afu_tlx_cmd_credit
+  uint8_t  afu_tlx_resp_credits_available; // init from afu_tlx_resp_initial_credit, decrement on tlx_afu_resp_valid, increment on afu_tlx_resp_credit
+  uint8_t  tlx_afu_cmd_credits_available;  // init from tlx_afu_cmd_resp_initial_credit, decrement on afu_tlx_cmd_valid, increment on tlx_afu_cmd_credit
   uint8_t  tlx_afu_resp_credits_available; // init from tlx_afu_cmd_resp_initial_credit, decrement on afu_tlx_resp_valid, increment on tlx_afu_resp_credit
-  uint8_t  tlx_afu_vc0_credits_available; // init from tlx_afu_vc0_initial_credit, decrement on afu_tlx_vc0_valid, increment on tlx_afu_vc0_credit
-  uint8_t  tlx_afu_vc1_credits_available; // init from tlx_afu_vc1_initial_credit, decrement on afu_tlx_vc1_valid, increment on tlx_afu_vc1_credit
-  uint8_t  tlx_afu_vc2_credits_available; // init from tlx_afu_vc2_initial_credit, decrement on afu_tlx_vc2_valid, increment on tlx_afu_vc2_credit
-  uint8_t  tlx_afu_vc3_credits_available; // init from tlx_afu_vc3_initial_credit, decrement on afu_tlx_vc3_valid, increment on tlx_afu_vc3_credit
-  uint8_t  tlx_afu_dcp0_credits_available; // init from tlx_afu_dcp0_initial_credit, decrement on afu_tlx_dcp0_data_valid, increment on tlx_afu_dcp0_credit
-  uint8_t  tlx_afu_dcp2_credits_available; // init from tlx_afu_dcp1_initial_credit, decrement on afu_tlx_dcp1_data_valid, increment on tlx_afu_dcp1_credit
-  uint8_t  tlx_afu_dcp3_credits_available; // init from tlx_afu_dcp3_initial_credit, decrement on afu_tlx_dcp3_data_valid, increment on tlx_afu_dcp3_credit
+  uint8_t  tlx_afu_resp_data_credits_available;
+  uint8_t  tlx_afu_cmd_data_credits_available;
   uint8_t  cfg_tlx_credits_available;
-  uint16_t  tlx_afu_dcp1_data_byte_cnt;	  /*  used for socket transfer only */
-  uint16_t  tlx_afu_dcp0_data_byte_cnt;	  /*  used for socket transfer only */
-  uint16_t  afu_cfg_resp_data_byte_cnt;	  /*  used for socket transfer only */
+  uint16_t  tlx_afu_cmd_data_byte_cnt;	/*  used for socket transfer only */
+  uint16_t  tlx_afu_resp_data_byte_cnt;	/*  used for socket transfer only */
+  uint16_t  afu_cfg_resp_data_byte_cnt;	/*  used for socket transfer only */
 
+  // TLX Parser - TLX to AFU CAPP Command Interface (table 2)
+  // CAPP to AP (host to afu) commands and data
+  uint8_t tlx_afu_cmd_valid;              /* 1 bit command valid from from host */
+  uint8_t tlx_afu_cmd_opcode;             /* 8 bit command op code */
+  uint16_t tlx_afu_cmd_capptag;           /* 16 bit command tag from host */
+  uint8_t tlx_afu_cmd_dl;                 /* 2 bit command encoded data length */
+  uint8_t tlx_afu_cmd_pl;                 /* 3 bit command encoded partial data length */
+  uint64_t tlx_afu_cmd_be;                /* 64 bit command byte enable */
+  uint8_t tlx_afu_cmd_end;                /* 1 bit command endianness 0=little */
+  //uint8_t tlx_afu_cmd_t;                  /* 1 bit command type 0=configuration read/write; 1=configuration read/write */
+  uint64_t tlx_afu_cmd_pa;                /* 64 bit command phyiscal address */
+#ifdef TLX4
+  uint8_t tlx_afu_cmd_flag;               /* 4 bit command flag for atomic memory ops - OCAPI 4 */
+  uint8_t tlx_afu_cmd_os;                 /* 1 bit command ordered segment - OCAPI 4 */
+#endif
+  uint8_t afu_tlx_cmd_credit;              /* 1 bit return a credit to tlx */
+  uint8_t afu_tlx_cmd_initial_credit;      /* 7 bit initial number of credits that the afu is providing to tlx for consumption valid? */
 
-  // TLX Receiver Interface as shown in TLX4.0 Reference Design
-  //
-  // TLX to AFU VC0 Interface (table 2) TLX sends CAPP responses & posted cmds to AFU
-  uint8_t afu_tlx_vc0_initial_credit;     /* 7 bit initial # of credits that the afu provides to tlx for sending CAPP responses to AFU  */
-  uint8_t afu_tlx_vc0_credit;             /* 1 bit return a credit to tlx */
-  uint8_t tlx_afu_vc0_valid;              /* 1 bit response/posted command valid from from host */
-  uint8_t tlx_afu_vc0_opcode;             /* 8 bit response/posted command op code */
-  uint16_t tlx_afu_vc0_afutag;            /* 16 bit response tag - match to afu_tlx_cmd_afutag */
-  uint16_t tlx_afu_vc0_capptag;           /* 16 bit unique handle/command tag from host */
-  uint64_t tlx_afu_vc0_pa_or_ta;          /* 52 bit response/command phyiscal or translated address  bits [63:12]*/
-  uint8_t tlx_afu_vc0_dl;                 /* 2 bit response/command encoded data length */
-  uint8_t tlx_afu_vc0_dp;                 /* 2 bit response/command data part - indicates data content of current resp packet */
-  uint8_t tlx_afu_vc0_ef;                 /* 1 bit evict and fill directive  */
-  uint8_t tlx_afu_vc0_w;                  /* 1 bit write permission flag  */
-  uint8_t tlx_afu_vc0_mh;                 /* 1 bit memory hit flag  */
-  uint8_t tlx_afu_vc0_pg_size;            /* 6 bit page size  */
-  uint32_t tlx_afu_vc0_host_tag;          /* 24 bit tag associated w/data held in AFU L1  */
-  uint8_t tlx_afu_vc0_resp_code;          /* 4 bit response code (see TL spec for specific cmd */
-  uint8_t tlx_afu_vc0_cache_state;        /* 3 bit specifies cache state the cache line has obtained  */
+// TLX Parser - TLX to AFU CAPP Configuration Command Interface (table 3)
+  uint8_t cfg_tlx_credit_return;              /* 1 bit return a credit to tlx for config cmds */
+  uint8_t cfg_tlx_initial_credit;             /* 4 bit initial number of credits that the afu is providing to tlx for consumption */
+  uint8_t tlx_cfg_valid;                      /* 1 bit cfg command valid from from host */
+  uint8_t tlx_cfg_opcode;                     /* 8 bit cfg command op code */
+  uint16_t tlx_cfg_capptag;                   /* 16 bit cfg command tag from host */
+  uint64_t tlx_cfg_pa;                /* 64 bit cfg command phyiscal address */
+  uint8_t tlx_cfg_t;                  /* 1 bit command  0=type 0 configuration read/write; 1= type 1 configuration read/write */
+  uint8_t tlx_cfg_pl;                 /* 3 bit cfg command encoded partial data length */
+  uint8_t tlx_cfg_data_bdi;            /* 1 bit bad config data indicator */
+  unsigned char tlx_cfg_data_bus[4];  /* 32 bit (4 byte) config cmd data  */
 
-  // TLX to AFU DCP0 DATA Interface (table 3) TLX sends CAPP response data to AFU
-  uint8_t afu_tlx_dcp0_rd_req;             /* 1 bit DCP0 data read request */
-  uint8_t afu_tlx_dcp0_rd_cnt;             /* 3 bit encoded DCP0 data read request size */
-  uint8_t tlx_afu_dcp0_data_valid;         /* 1 bit response data valid */
-  unsigned char tlx_afu_dcp0_data[256];    /* upto 256 B of data may come with a response - we should maybe make sure this is little endian order */
+  // TLX Parser - TLX to AFU CAPP Response Interface (table 4)
+  // CAPP to AP (host to afu) responses (generally to ap/capp commands and data)
+  uint8_t tlx_afu_resp_valid;             /* 1 bit valid respoonse from tlx */
+  uint8_t tlx_afu_resp_opcode;            /* 8 bit response op code */
+  uint16_t tlx_afu_resp_afutag;           /* 16 bit response tag - match to afu_tlx_cmd_afutag */
+  uint8_t tlx_afu_resp_code;              /* 4 bit response reason code */
+  uint8_t tlx_afu_resp_pg_size;           /* 6 bit page size */
+  uint8_t tlx_afu_resp_dl;                /* 2 bit encoded data length */
+  uint8_t tlx_afu_resp_dp;                /* 2 bit data part - which part of the data is in resp data */
+  uint32_t tlx_afu_resp_addr_tag;          /* 18 bit bad address tag from a translate request */
+#ifdef TLX4
+  uint32_t tlx_afu_resp_host_tag;            /* TLX4 */
+  uint8_t tlx_afu_resp_cache_state;          /* TLX4 */
+#endif
+  uint8_t afu_tlx_resp_credit;              /* 1 bit return a credit to tlx */
+  uint8_t afu_tlx_resp_initial_credit;      /* 7 bit initial number of credits that the afu is providing to tlx for consumption - when is this valid? */
+
+  // TLX Parser - TLX to AFU CAPP Response DATA Interface (table 5)
+  // CAPP to AP (host to afu) data responses (generally to ap/capp read commands)
+  uint8_t tlx_afu_resp_data_valid;         /* 1 bit response data valid */
+  unsigned char tlx_afu_resp_data[256];    /* upto 256 B of data may come back with a response - we should maybe make sure this is little endian order */
                                            /* we don't send this directly on tlx interface.  it is buffered for later distribution.   */
-  uint8_t tlx_afu_dcp0_data_bdi;           /* 1 bit bad data indicator */
+  uint8_t tlx_afu_resp_data_bdi;           /* 1 bit bad data indicator */
+  uint8_t afu_tlx_resp_rd_req;             /* 1 bit response to a read request */
+  uint8_t afu_tlx_resp_rd_cnt;             /* 3 bit encoded read count */
 
   // response data fifo to buffer responses for later resp_rd_req
-  struct DATA_PKT *dcp0_data_head;
-  struct DATA_PKT *dcp0_data_tail;
-  uint32_t dcp0_data_rd_cnt;
+  struct DATA_PKT *rdata_head;
+  struct DATA_PKT *rdata_tail;
+  uint32_t rdata_rd_cnt;
 
-  // TLX to AFU VC1 Interface (table 4)  TLX sends CAPP commands to AFU
-  uint8_t afu_tlx_vc1_initial_credit;     /* 7 bit initial # of credits that the afu provides to tlx for sending CAPP cmds to AFU  */
-  uint8_t afu_tlx_vc1_credit;             /* 1 bit return a credit to tlx */
-  uint8_t tlx_afu_vc1_valid;              /* 1 bit command valid from from host */
-  uint8_t tlx_afu_vc1_opcode;             /* 8 bit command op code */
-  uint16_t tlx_afu_vc1_afutag;            /* 16 bit cmds tag - match to afu_tlx_cmd_afutag */
-  uint16_t tlx_afu_vc1_capptag;           /* 16 bit command tag from host */
-  uint64_t tlx_afu_vc1_pa;                /* 64 bit command phyiscal address */
-  uint8_t tlx_afu_vc1_dl;                 /* 2 bit command encoded data length */
-  uint8_t tlx_afu_vc1_dp;                 /* 2 bit command data part - indicates data content of current resp packet */
-  uint64_t tlx_afu_vc1_be;                /* 64 bit byte enable  */
-  uint8_t tlx_afu_vc1_pl;                 /* 3 bit encoded partial length  */
-  uint8_t tlx_afu_vc1_endian;             /* 1 bit operand endianess 0 = LE, 1 = BE  */
-  uint8_t tlx_afu_vc1_co;                 /* 1 bit chekout hint see spec  */
-  uint8_t tlx_afu_vc1_os;                 /* 1 bit ordered segment 1= ordering guaranteed  */
-  uint8_t tlx_afu_vc1_cmdflag;            /* 4 bit specifies execution behavior for cmds specified w/this field. see spec  */
-  uint8_t tlx_afu_vc1_mad;                /* 8 bit memory access directive  */
-
-  // TLX to AFU DCP1 DATA Interface (table 5) TLX sends CAPP command data to AFU upon request
-  uint8_t afu_tlx_dcp1_rd_req;             /* 1 bit DCP0 data read request */
-  uint8_t afu_tlx_dcp1_rd_cnt;             /* 3 bit encoded DCP0 data read request size */
-  uint8_t tlx_afu_dcp1_data_valid;         /* 1 bit cmds data valid */
-  unsigned char tlx_afu_dcp1_data[256];    /* upto 256 B of data may come back with a response - we should maybe make sure this is little endian order */
+  //  TLX Parser - TLX to AFU CAPP Command DATA Interface (table 6)
+  // CAPP to AP (host to afu) data (generally to capp/ap write commands)
+  uint8_t tlx_afu_cmd_data_valid;          /* 1 bit command from host valid */
+  unsigned char tlx_afu_cmd_data_bus[256];  /* upto 256 B of data may come with a command - we should maybe make sure this is little endian order */
                                            /* we don't send this directly on tlx interface.  it is buffered for later distribution.   */
-  uint8_t tlx_afu_dcp1_data_bdi;           /* 1 bit bad data indicator */
+  uint8_t tlx_afu_cmd_data_bdi;            /* 1 bit bad data indicator */
+  uint8_t afu_tlx_cmd_rd_req;              /* 1 bit read request */
+  uint8_t afu_tlx_cmd_rd_cnt;              /* 3 bit encoded read count */
+  //uint8_t tlx_cfg_cmd_data_valid;          /* 1 bit config command data from host valid */
+  //uint8_t tlx_cfg_cmd_data_bdi;            /* 1 bit bad config data indicator */
+  //unsigned char tlx_cfg_cmd_data_bus[4];  /* 32 bit (4 byte) config cmd data  */
 
-  // response data fifo to buffer responses for later cmd_rd_req
-  struct DATA_PKT *dcp1_data_head;
-  struct DATA_PKT *dcp1_data_tail;
-  uint32_t dcp1_data_rd_cnt;
-
-  // TLX to AFU VC2 Interface (table 6) TLX sends CAPP commands to AFU
-  uint8_t afu_tlx_vc2_initial_credit;     /* 7 bit initial # of credits that the afu provides to tlx for sending CAPP responses to AFU  */
-  uint8_t afu_tlx_vc2_credit;             /* 1 bit return a credit to tlx */
-  uint8_t tlx_afu_vc2_valid;              /* 1 bit command valid from from host */
-  uint8_t tlx_afu_vc2_opcode;             /* 8 bit command op code */
-  uint16_t tlx_afu_vc2_capptag;           /* 16 bit command tag from host */
-  uint64_t tlx_afu_vc2_ea;                /* 52 bit command effective address  bits [63:12] */
-  uint8_t tlx_afu_vc2_pg_size;            /* 6 bit page size  */
-  uint8_t tlx_afu_vc2_cmdflag;            /* 4 bit specifies execution behavior for cmds specified w/this field. see spec  */
-  uint32_t tlx_afu_vc2_pasid;             /* 20 bit PASID for user process associated w/this cmd  */
-  uint16_t tlx_afu_vc2_bdf;               /* 16 bit BDF Bus Device Function for AFU associated w/this cmd  */
+  // command data fifo to buffer responses for later cmd_rd_req
+  struct DATA_PKT *cdata_head;
+  struct DATA_PKT *cdata_tail;
+  uint32_t cdata_rd_cnt;
 
 
-  // TLX to AFU CFG Interface for configuration cmds (table 7) TLX sends cfg cmds to AFU
-  uint8_t cfg_tlx_initial_credit;         /* 4 bit initial number of credits that the afu is providing to tlx for consumption */
-  uint8_t cfg_tlx_credit_return;          /* 1 bit return a credit to tlx for config cmds */
-  uint8_t tlx_cfg_valid;                  /* 1 bit cfg command valid from from host */
-  uint8_t tlx_cfg_opcode;                 /* 8 bit cfg command op code */
-  uint16_t tlx_cfg_capptag;               /* 16 bit cfg command tag from host */
-  uint64_t tlx_cfg_pa;                    /* 64 bit cfg command phyiscal address */
-  uint8_t tlx_cfg_pl;                     /* 3 bit cfg command encoded partial data length */
-  uint8_t tlx_cfg_t;                      /* 1 bit command  0=type 0 configuration read/write; 1= type 1 configuration read/write */
-  unsigned char tlx_cfg_data_bus[4];      /* 32 bit (4 byte) config cmd data  */
-  uint8_t tlx_cfg_data_bdi;               /* 1 bit bad config data indicator */
+  // TLX Framer Misc Interface (table 8)
+  uint8_t tlx_afu_cmd_initial_credit;  /* 4 bit initial number of response credits available to the afu - when is this valid? */
+  uint8_t tlx_afu_resp_initial_credit; /* 4 bit initial number of response credits available to the afu - when is this valid? */
+  uint8_t tlx_afu_cmd_data_initial_credit;     /* 6 bit initial number of data credits available to the afu - when is this valid? */
+  uint8_t tlx_afu_resp_data_initial_credit;    /* 6 bit initial number of data credits available to the afu - when is this valid? */
 
+  // TLX Framer - AFU to TLX AP Command Interface (table 11)
+  // AP to CAPP (afu to host) commands and data
+  uint8_t tlx_afu_cmd_credit;              /* 1 bit tlx returning a command credit to the afu */
+  uint8_t tlx_afu_cmd_data_credit;         /* 1 bit tlx returning a command data credit to the afu */
+  uint8_t afu_tlx_cmd_valid;              /* 1 bit 0|1 indicates that a valid command is being presented by the afu to tlx */
+  uint8_t afu_tlx_cmd_opcode;             /* 8 bit opcode */
+  uint16_t afu_tlx_cmd_actag;             /* 12 bit address context tag */
+  uint8_t afu_tlx_cmd_stream_id;          /* 4 bit address context tag */
+  unsigned char afu_tlx_cmd_ea_or_obj[9]; /* 68 bit effective address or object handle */
+  uint16_t afu_tlx_cmd_afutag;            /* 16 bit command tag */
+  uint8_t afu_tlx_cmd_dl;                 /* 2 bits encoded data length */  /* combine dl and pl ??? */
+  uint8_t afu_tlx_cmd_pl;                 /* 3 bits encoded partial data length */
+#ifdef TLX4
+  uint8_t afu_tlx_cmd_os;                 /* 1 bit ordered segment CAPI 4 */
+#endif
+  uint64_t afu_tlx_cmd_be;                /* 64 bit byte enable */
+  uint8_t afu_tlx_cmd_flag;               /* 4 bit command flag for atomic opcodes */
+  uint8_t afu_tlx_cmd_endian;             /* 1 bit endianness 0=little endian; 1=big endian */
+  uint16_t afu_tlx_cmd_bdf;               /* 16 bit bus device function - obtained during device config n*/
+  uint32_t afu_tlx_cmd_pasid;             /* 20 bit PASID */
+  uint8_t afu_tlx_cmd_pg_size;            /* 6 bit page size hint */
+  uint8_t afu_tlx_cdata_valid;            /* 1 bit command data valid */
+  unsigned char afu_tlx_cdata_bus[64];    /* 512 bit command data bus */
+  uint8_t afu_tlx_cdata_bdi;              /* 1 bit bad command data */
 
-  // TLX Receiver Configuration ports  (table 8)
-  uint8_t tlx_cfg_rcv_tmpl_capability_0;  /* 1 bit xmit template enable - default */
-  uint8_t tlx_cfg_rcv_tmpl_capability_1;  /* 1 bit xmit template enable */
-  uint8_t tlx_cfg_rcv_tmpl_capability_2;  /* 1 bit xmit template enable */
-  uint8_t tlx_cfg_rcv_tmpl_capability_3;  /* 1 bit xmit template enable */
-  uint8_t tlx_cfg_rcv_rate_capability_0;  /* 4 bit xmit rate */
-  uint8_t tlx_cfg_rcv_rate_capability_1;  /* 4 bit xmit rate */
-  uint8_t tlx_cfg_rcv_rate_capability_2;  /* 4 bit xmit rate */
-  uint8_t tlx_cfg_rcv_rate_capability_3;  /* 4 bit xmit rate */
-  uint8_t cfg_tlx_resync_credits;         /* 1 bit 0 -> 1 transition means TLX will re-apply initial credits from AFU  */
+  // TLX Framer - AFU to TLX AP Response Interface (table 12)
+  uint8_t tlx_afu_resp_credit;            /* 1 bit tlx returning a response credit to the afu */
+  uint8_t tlx_afu_resp_data_credit;       /* 1 bit tlx returning a response data credit to the afu */
+  uint8_t afu_tlx_resp_valid;             /* 1 bit afu response is valid */
+  uint8_t afu_tlx_resp_opcode;            /* 8 bit response op code */
+  uint8_t afu_tlx_resp_dl;                /* 2 bit response data length */
+  uint16_t afu_tlx_resp_capptag;          /* 16 bit response capptag - should match a tlx_afu_cmd_capptag */
+  uint8_t afu_tlx_resp_dp;                /* 2 bit response data part */
+  uint8_t afu_tlx_resp_code;              /* 4 bit response reason code */
+  uint8_t afu_tlx_rdata_valid;            /* 6 bit response data is valid */
+  unsigned char afu_tlx_rdata_bus[64];    /* 512 bit response data */
+  uint8_t afu_tlx_rdata_bdi;              /* 1 bit response data is bad */
 
-  // TLX Receiver to TLX Framer Credit Interface (table 9 & table 10) Not modeled
-  // TLX Receiver Misc Ports (table 11) Not modeled
-
-  // TLX Framer Interfaces as shown in TLX 4.0 Reference Design
-  
-  // TLX Framer - AFU to TLX AP Configuration Response Interface (table 13) AFU sends cfg responses to TLX
+  // TLX Framer - AFU to TLX AP Configuration Interface (table 13)
   uint8_t cfg_tlx_resp_valid;             /* 1 bit afu cfg response is valid */
   uint8_t cfg_tlx_resp_opcode;            /* 8 bit cfg response op code */
   uint16_t cfg_tlx_resp_capptag;          /* 16 bit  cfg response capptag - should match a tlx_cfg_cmd capptag */
   uint8_t cfg_tlx_resp_code;              /* 4 bit cfg response reason code */
+  uint8_t tlx_cfg_resp_ack;		  /* 1 bit signal to AFU after taking cfg resp from interface */
   uint8_t cfg_tlx_rdata_offset;           /* 4 bit offset into 32B buffer */
   unsigned char cfg_tlx_rdata_bus[4];  	  /* 32 bit (4 byte) config response data  */
-  uint8_t cfg_tlx_rdata_valid;            /* 6 bit config response data is valid */
+  uint8_t cfg_tlx_rdata_valid;          /* 6 bit config response data is valid */
   uint8_t cfg_tlx_rdata_bdi;              /* 1 bit config response data is bad */
-  uint8_t tlx_cfg_resp_ack;		  /* 1 bit signal to AFU after taking cfg resp from interface */
 
-  // TLX Framer - AFU to TLX VC0/DCP0  Interface (table 14) AFU sends AP responses and response data to TLX
-  uint8_t tlx_afu_vc0_initial_credit;     /* 4 bit initial number of response credits available to afu for AP responses -hardcoded to 7 in TLX 4 ref design */
-  uint8_t tlx_afu_dcp0_initial_credit;    /* 6 bit initial number of response data credits available to afu ifor AP response data - hardcoded to 16 in TLX 4 ref design */
-  uint8_t tlx_afu_vc0_credit;             /* 1 bit tlx returning a response credit to the afu */
-  uint8_t tlx_afu_dcp0_credit;            /* 1 bit tlx returning a response data credit to the afu */
-  uint8_t afu_tlx_vc0_valid;              /* 1 bit afu response is valid */
-  uint8_t afu_tlx_vc0_opcode;             /* 8 bit response op code */
-  uint16_t afu_tlx_vc0_capptag;           /* 16 bit response capptag - should match a tlx_afu_cmd_capptag */
-  uint8_t afu_tlx_vc0_dl;                 /* 2 bit response data length */
-  uint8_t afu_tlx_vc0_dp;                 /* 2 bit response data part */
-  uint8_t afu_tlx_vc0_resp_code;          /* 4 bit response reason code */
-  uint8_t afu_tlx_dcp0_data_valid;        /* 1 bit response data is valid */
-  unsigned char afu_tlx_dcp0_data_bus[64]; /* 512 bit response data */
-  uint8_t afu_tlx_dcp0_data_bdi;          /* 1 bit response data is bad */
+  // TLX Framer - Template Configuration (table 15)
+  uint8_t afu_cfg_xmit_tmpl_config_0;     /* 1 bit xmit template enable - default */
+  uint8_t afu_cfg_xmit_tmpl_config_1;     /* 1 bit xmit template enable */
+  uint8_t afu_cfg_xmit_tmpl_config_2;     /* 1 bit xmit template enable - not in TLX3 */
+  uint8_t afu_cfg_xmit_tmpl_config_3;     /* 1 bit xmit template enable */
+  uint8_t afu_cfg_xmit_rate_config_0;     /* 4 bit xmit rate */
+  uint8_t afu_cfg_xmit_rate_config_1;     /* 4 bit xmit rate */
+  uint8_t afu_cfg_xmit_rate_config_2;     /* 4 bit xmit rate - not in TLX3 */
+  uint8_t afu_cfg_xmit_rate_config_3;     /* 4 bit xmit rate */
 
-  // TLX Framer - AFU to TLX VC1 Interface (table 15) AFU sends AP commands to TLX
-  uint8_t tlx_afu_vc1_initial_credit;     /* 4 bit initial number of cmd credits available to the afu for AP cmds -hardcoded to 4 in TLX 4 ref design   */
-  uint8_t tlx_afu_vc1_credit;             /* 1 bit tlx returning a command credit to the afu */
-  uint8_t afu_tlx_vc1_valid;              /* 1 bit 0|1 indicates that a valid command is being presented by the afu to tlx */
-  uint8_t afu_tlx_vc1_opcode;             /* 8 bit opcode */
-  uint8_t afu_tlx_vc1_stream_id;          /* 4 bit stream identifier used by afu (AP)  */
-  uint16_t afu_tlx_vc1_afutag;            /* 16 bit command tag */
-  uint64_t afu_tlx_vc1_pa;                /* 58 bit physical address  bits [63:6]*/
-  uint8_t afu_tlx_vc1_dl;                 /* 2 bits encoded data length */  
-
-  // TLX Framer - AFU to TLX VC2/DCP2 Interface (table 16) AFU sends AP commands and data to TLX
-  uint8_t tlx_afu_vc2_initial_credit;     /* 4 bit initial number of cmd credits available to afu for AP cmds -hardcoded to 4 in TLX 4 ref design */
-  uint8_t tlx_afu_dcp2_initial_credit;    /* 6 bit initial number of cmd data credits available to afu for AP cmd data - hardcoded to 16 in TLX 4 ref design */
-  uint8_t tlx_afu_vc2_credit;             /* 1 bit tlx returning a command credit to the afu */
-  uint8_t tlx_afu_dcp2_credit;            /* 1 bit tlx returning a command data credit to the afu */
-  uint8_t afu_tlx_vc2_valid;              /* 1 bit afu command is valid */
-  uint8_t afu_tlx_vc2_opcode;             /* 8 bit command op code */
-  uint8_t afu_tlx_vc2_dl;                 /* 2 bit command data length */
-  uint32_t afu_tlx_vc2_host_tag;          /* 24 bit host tag */
-  uint8_t afu_tlx_vc2_cache_state;        /* 3 bit cache state the line has obtained MESEI */
-  uint8_t afu_tlx_vc2_cmdflg;             /* 4 bit cmdflg specifies exection behavior for cmds */
-  uint8_t afu_tlx_dcp2_data_valid;        /* 1 bit cmd data is valid */
-  unsigned char afu_tlx_dcp2_data_bus[64]; /* 512 bit cmd data */
-  uint8_t afu_tlx_dcp2_data_bdi;          /* 1 bit cmd data is bad */
-
-  // TLX Framer - AFU to TLX VC3/DCP3 Interface (table 17) AFU sends AP commands and data to TLX
-  uint8_t tlx_afu_vc3_initial_credit;     /* 4 bit initial number of cmd credits available to afu for AP cmds -hardcoded to 4 in TLX 4 ref design */
-  uint8_t tlx_afu_dcp3_initial_credit;    /* 6 bit initial number of cmd credits available to afu for AP cmds - hardcoded to 16 in TLX 4 ref design */
-  uint8_t tlx_afu_vc3_credit;             /* 1 bit tlx returning a command credit to the afu */
-  uint8_t tlx_afu_dcp3_credit;            /* 1 bit tlx returning a command data credit to the afu */
-  uint8_t afu_tlx_vc3_valid;              /* 1 bit 0|1 indicates that a valid command is being presented by the afu to tlx */
-  uint8_t afu_tlx_vc3_opcode;             /* 8 bit opcode */
-  uint8_t afu_tlx_vc3_stream_id;          /* 4 bit stream identifier used by afu (AP) */
-  uint16_t afu_tlx_vc3_afutag;            /* 16 bit command tag */
-  uint16_t afu_tlx_vc3_actag;             /* 12 bit address context tag */
-  unsigned char afu_tlx_vc3_ea_ta_or_obj[9]; /* 68 bit effective address, translated address or object handle */
-  uint8_t afu_tlx_vc3_dl;                 /* 2 bits encoded data length */  /* combine dl and pl ??? */
-  uint64_t afu_tlx_vc3_be;                /* 64 bit byte enable */
-  uint8_t afu_tlx_vc3_pl;                 /* 3 bits encoded partial data length */
-  uint8_t afu_tlx_vc3_os;                 /* 1 bit ordered segment CAPI 4 */
-  uint8_t afu_tlx_vc3_endian;             /* 1 bit endianness 0=little endian; 1=big endian */
-  uint8_t afu_tlx_vc3_pg_size;            /* 6 bit page size hint */
-  uint8_t afu_tlx_vc3_cmdflag;            /* 4 bit command flag for atomic opcodes */
-  uint32_t afu_tlx_vc3_pasid;             /* 20 bit PASID */
-  uint16_t afu_tlx_vc3_bdf;               /* 16 bit bus device function - obtained during device config n*/
-  uint8_t afu_tlx_vc3_mad;                /* 8 bit Memory Address Directive */
-  uint8_t afu_tlx_dcp3_data_valid;        /* 1 bit command data valid */
-  unsigned char afu_tlx_dcp3_data_bus[64]; /* 512 bit command data bus */
-  uint8_t afu_tlx_dcp3_data_bdi;          /* 1 bit bad command data */
-
-  
 };
 /* *INDENT-ON* */
 #endif

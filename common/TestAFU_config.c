@@ -46,9 +46,6 @@ int config_machine(MachineConfig *machine, MachineConfigParam configparam)
 	set_machine_config_status_address(machine, configparam.status_address);
 	set_machine_memory_base_address(machine, configparam.mem_base_address);
 	set_machine_memory_size(machine, configparam.mem_size);
-	set_machine_config_cmdflag(machine, configparam.cmdflag);
-	set_machine_config_oplength(machine, configparam.oplength);
-	
 	if (configparam.enable_always){
 		set_machine_config_enable_always(machine); 
 	}
@@ -76,7 +73,7 @@ static int _machine_base_address_index(uint16_t machine_number, int mode)
 }
 
 // Function to write config to AFU MMIO space
-int enable_machine(ocxl_afu_h afu, ocxl_mmio_h pp_mmio_h, MachineConfig *machine, MachineConfigParam param, int mode)
+int enable_machine(ocxl_afu_h afu, MachineConfig *machine, MachineConfigParam param, int mode)
 {
 	int i;
 	uint16_t machine_number;
@@ -91,8 +88,8 @@ int enable_machine(ocxl_afu_h afu, ocxl_mmio_h pp_mmio_h, MachineConfig *machine
 	for (i = 3; i >= 0; --i){
 		uint64_t data = machine->config[i];
 		printf("config[%d] = 0x%"PRIx64"\n", i, data);
-		if (ocxl_mmio_write64(pp_mmio_h, machine_config_base_address + (i * 8), 
-			OCXL_MMIO_LITTLE_ENDIAN, data))
+		if (ocxl_mmio_write64(afu, machine_config_base_address + (i * 8),
+		    data))
 		{
 			printf("Failed to write data config[%d]\n", i);
 			return -1;
@@ -102,39 +99,26 @@ int enable_machine(ocxl_afu_h afu, ocxl_mmio_h pp_mmio_h, MachineConfig *machine
 	return 0;
 }
 
-int clear_machine_config(ocxl_mmio_h pp_mmio_h, MachineConfig *machine, 
-	MachineConfigParam param, int mode, uint64_t *result)
+int clear_machine_config(ocxl_afu_h afu, MachineConfig *machine, MachineConfigParam param, int mode)
 {
-  int i;
-  uint16_t machine_number;
-  uint16_t context;
-  int machine_config_base_address;
+    int i;
+    uint16_t machine_number;
+    uint16_t context;
+    int machine_config_base_address;
 
-  context = param.context;
-  machine_number = param.machine_number;
-  machine_config_base_address = _machine_base_address_index(machine_number, mode);
-  machine_config_base_address += context * 0x1000;
-  if(param.command == 0x38) {	// AMO_R
-  	for(i=0; i<4; i++) {
-  		if (ocxl_mmio_read64(pp_mmio_h, machine_config_base_address +(i*8), 
-  			OCXL_MMIO_LITTLE_ENDIAN, result))
-  		{
-  			printf("Failed to read mmio data\n");
-  			return -1;
-  		}
-  		printf("mmio read config[%d] = 0x%"PRIx64"\n", i, *result);
-  	}
-  }
-  else {
-		if(ocxl_mmio_write64(pp_mmio_h, machine_config_base_address, OCXL_MMIO_LITTLE_ENDIAN, 0x0)) {
-			printf("Failed to clear machine config\n");
-			return -1;
-		}
-	}
-  return 0;
+    context = param.context;
+    machine_number = param.machine_number;
+    machine_config_base_address = _machine_base_address_index(machine_number, mode);
+    machine_config_base_address += context * 0x1000;
+
+    if(ocxl_mmio_write64(afu, machine_config_base_address, 0x0)) {
+	printf("Failed to clear machine config\n");
+	return -1;
+    }
+    return 0;
 }
 // Function to read config from AFU
-int poll_machine(ocxl_mmio_h pp_mmio_h, MachineConfig *machine, uint16_t context, int mode) {
+int poll_machine(ocxl_afu_h afu, MachineConfig *machine, uint16_t context, int mode) {
 	int i;
 
 	int machineConfig_baseaddress = _machine_base_address_index(context, mode);
@@ -142,7 +126,7 @@ int poll_machine(ocxl_mmio_h pp_mmio_h, MachineConfig *machine, uint16_t context
 
 	for (i = 0; i < 2; ++i){
 		uint64_t temp;
-		if (ocxl_mmio_read64(pp_mmio_h, machineConfig_baseaddress + (i * 8), OCXL_MMIO_LITTLE_ENDIAN,
+		if (ocxl_mmio_read64(afu, machineConfig_baseaddress + (i * 8),
 				    &temp))
 		{
 			printf("Failed to read data\n");
@@ -155,23 +139,23 @@ int poll_machine(ocxl_mmio_h pp_mmio_h, MachineConfig *machine, uint16_t context
 }
 
 // Function to set most commonly used elements and write to AFU MMIO space
-int config_and_enable_machine(ocxl_afu_h afu, ocxl_mmio_h pp_mmio_h, MachineConfig *machine, 
+int config_and_enable_machine(ocxl_afu_h afu, MachineConfig *machine, 
 		MachineConfigParam param, int mode)
 {
 	if (config_machine(machine, param))
 		return -1;
-	if (enable_machine(afu, pp_mmio_h, machine, param, mode))
+	if (enable_machine(afu, machine, param, mode))
 		return -1;
 	return 0;
 }
 
 // Wait for response from AFU machine
-int get_response(ocxl_mmio_h pp_mmio_h, MachineConfig *machine, uint16_t context, int mode)
+int get_response(ocxl_afu_h afu, MachineConfig *machine, uint16_t context, int mode)
 {
 	uint8_t response;
 
 	do {
-		if (poll_machine(pp_mmio_h, machine, context, mode) < 0)
+		if (poll_machine(afu, machine, context, mode) < 0)
 			return 0xFF;
 		get_machine_config_response_code(machine, &response);
 		printf("get_machine_config_response_code = 0x%x\n", response);
@@ -182,7 +166,7 @@ int get_response(ocxl_mmio_h pp_mmio_h, MachineConfig *machine, uint16_t context
 
 // Function to set most commonly used elements, write to AFU MMIO space and
 // wait for command completion
-int config_enable_and_run_machine(ocxl_afu_h afu, ocxl_mmio_h pp_mmio_h, MachineConfig *machine, 
+int config_enable_and_run_machine(ocxl_afu_h afu, MachineConfig *machine, 
 			MachineConfigParam param, int mode)
 {
 	int rc;
@@ -190,7 +174,7 @@ int config_enable_and_run_machine(ocxl_afu_h afu, ocxl_mmio_h pp_mmio_h, Machine
 
 //	context = param.context;
 
-	if (config_and_enable_machine(afu, pp_mmio_h, machine, param, mode) < 0)
+	if (config_and_enable_machine(afu, machine, param, mode) < 0)
 		return -1;
 
 	//rc = get_response(afu, machine, context, mode);
@@ -239,30 +223,11 @@ void set_machine_config_machine_number(MachineConfig* machine, uint16_t machine_
 	machine->config[0] |= ((uint64_t)machine_number << 16);
 }
 
-// Size of the memory space the AFU machine operate in
-void set_machine_memory_size(MachineConfig * machine, uint16_t size) {
-  machine->config[1] &= ~0x000000000000FFFF;
-	machine->config[1] |= size;
-}
-
-// amo cmd_flag
-void set_machine_config_cmdflag(MachineConfig* machine, uint8_t cmdflag) {
-	machine->config[1] &= ~0x0000000000FF0000LL;
-	machine->config[1] |= ((uint64_t)cmdflag << 16);
-}
-
-// amo operand length by pLength
-void set_machine_config_oplength(MachineConfig* machine, uint8_t oplength) {
-	machine->config[1] &= ~0x00000000FF000000LL;
-	machine->config[1] |= ((uint64_t)oplength << 24);
-}
-
 // Machine status address
 void set_machine_config_status_address(MachineConfig* machine, uint32_t status_address) {
 	machine->config[1] &= ~0xFFFFFFFF00000000LL;
 	machine->config[1] |= ((uint64_t)status_address << 32);
 }
-
 
 // Max delay field is the last 16 bits of double-word 0
 //void set_machine_config_max_delay(MachineConfig* machine, uint16_t max_delay) {
@@ -316,7 +281,11 @@ void set_machine_memory_dest_address(MachineConfig *machine, uint64_t addr) {
     machine->config[3] = addr;
 }
 
-
+// Size of the memory space the AFU machine operate in
+void set_machine_memory_size(MachineConfig * machine, uint16_t size) {
+    machine->config[1] &= ~0x000000000000FFFF;
+	machine->config[1] |= size;
+}
 
 //////////////////////////////////
 // Get machine config functions //
@@ -412,20 +381,12 @@ void get_machine_config_command_timestamp(MachineConfig *machine, uint16_t* comm
 	*command_timestamp = (uint16_t)((machine->config[1]) & 0x0000000000007FFFLL);
 }
 
-void get_machine_config_oplength(MachineConfig *machine, uint8_t* oplength) {
-	*oplength = (uint8_t)((machine->config[1]) & 0x00000000FF000000LL);
-}
-
-void get_machine_config_cmdflag(MachineConfig *machine, uint8_t* cmdflag) {
-	*cmdflag = (uint8_t)((machine->config[1] & 0x0000000000FF0000LL));
-}
-
 // Base address of the memory space the AFU machine operate in
 void get_machine_memory_base_address(MachineConfig *machine, uint64_t* addr) {
 	*addr = machine->config[2];
 }
 
 // Size of the memory space the AFU machine operate in
-void get_machine_memory_dest_address(MachineConfig *machine, uint64_t* size) {
+void get_machine_memory_size(MachineConfig *machine, uint64_t* size) {
 	*size = machine->config[3];
 }

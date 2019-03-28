@@ -18,7 +18,6 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include <inttypes.h>
-#include "test.h"
 #include "../../libocxl/libocxl.h"
 
 #define MDEVICE "/dev/cxl/tlx0.0000:00:00.1.0"
@@ -44,7 +43,6 @@ int main(int argc, char *argv[])
     uint64_t wed, result;
     ocxl_afu_h mafu_h;
     uint32_t result32;
-    ocxl_mmio_h pp_mmio_h;
 
     static struct option long_options[] = {
 	{"cachelines", required_argument, 0	  , 'c'},
@@ -86,26 +84,26 @@ int main(int argc, char *argv[])
     
     // attach device
     printf("Attaching device ...\n");
-    rc = ocxl_afu_attach(mafu_h, 0);
+    rc = ocxl_afu_attach(mafu_h);
     if(rc != 0) {
 	perror("cxl_afu_attach:"MDEVICE);
 	return rc;
     }
 
     printf("Attempt mmio mapping afu registers\n");
-    if (ocxl_mmio_map(mafu_h, OCXL_PER_PASID_MMIO, &pp_mmio_h) != 0) {
+    if (ocxl_mmio_map(mafu_h, OCXL_MMIO_BIG_ENDIAN) != 0) {
 	printf("FAILED: ocxl_mmio_map\n");
 	goto done;
     }
     wed = 0x0102030405060708;
     printf("WED data = 0x%016lx WED address = 0x%016lx\n", wed, (long)&wed);
     printf("Attempt mmio write\n");
-    if(ocxl_mmio_write64(mafu_h, 0x08, OCXL_MMIO_LITTLE_ENDIAN, wed) != 0) {
+    if(ocxl_mmio_write64(mafu_h, 0x08, wed) != 0) {
 	printf("FAILED: ocxl_mmio_write64\n");
 	goto done;
     }
     printf("Attempt mmio read\n");
-    if(ocxl_mmio_read64(mafu_h, 0x8, OCXL_MMIO_LITTLE_ENDIAN, &result) != 0) {
+    if(ocxl_mmio_read64(mafu_h, 0x8, &result) != 0) {
 	printf("FAILED: ocxl_mmio_read64\n");
 	goto done;
     }
@@ -115,12 +113,12 @@ int main(int argc, char *argv[])
     wed = 0x0a0b0c0d0e0f1122;
     printf("WED data = 0x%016lx WED address = 0x%016lx\n", wed, (long)&wed);
     printf("Attempt mmio write\n");
-    if(ocxl_mmio_write32(mafu_h, 0x20, OCXL_MMIO_LITTLE_ENDIAN, wed) != 0) {
+    if(ocxl_mmio_write32(mafu_h, 0x20, wed) != 0) {
 	printf("FAILED: ocxl_mmio_write32\n");
 	goto done;
     }
     printf("Attempt mmio read\n");
-    if(ocxl_mmio_read32(mafu_h, 0x20, OCXL_MMIO_LITTLE_ENDIAN, &result32) != 0) {
+    if(ocxl_mmio_read32(mafu_h, 0x20, &result32) != 0) {
 	printf("FAILED: ocxl_mmio_read32\n");
 	goto done;
     }

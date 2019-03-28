@@ -152,7 +152,7 @@ Descriptor::is_dedicated () const
 bool
 Descriptor::is_directed () const
 {
-    return ((get_reg_prog_model () & MASK_IS_DIRECTED) == MASK_IS_DIRECTED);
+    return ((get_reg_prog_model () == MASK_IS_DIRECTED) == MASK_IS_DIRECTED);
 }
 
 // reg0x00
