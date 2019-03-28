@@ -3299,6 +3299,7 @@ ocxl_err ocxl_afu_irq_alloc( ocxl_afu_h afu, void *info, ocxl_irq_h *irq_handle 
 	if (afu->irq == NULL) {
 	  // this is the first new irq
 	  afu->irq = new_irq;
+	  afu->irq_count++;   
 	  return OCXL_OK;
 	}
 

@@ -870,7 +870,7 @@ void handle_buffer_write(struct cmd *cmd)
 	debug_msg( "handle_buffer_write: we've picked a non-NULL event and the client is still there" );
 
 	if ((event->state == MEM_IDLE) && (client->mem_access == NULL)) {
-	// Check to see if this cmd gets selected for a RETRY or FAILED or PENDING or DERROR read_failed response
+	        // Check to see if this cmd gets selected for a RETRY or FAILED or PENDING or DERROR read_failed response
 		if ( allow_retry(cmd->parms)) {
 			event->state = MEM_DONE;
 			event->type = CMD_FAILED;
@@ -895,16 +895,16 @@ void handle_buffer_write(struct cmd *cmd)
 			debug_msg("handle_buffer_write: DERROR this cmd =0x%x \n", event->command);
 			return;
 		}
-	}
-	// for xlate_pending response, ocse has to THEN follow up with an xlate_done response
-	// (at some unknown time later) and that will "complete" the original cmd (no rd/write )
-	if ( allow_pending(cmd->parms)) {
-		event->state = MEM_XLATE_PENDING;
-		event->type = CMD_FAILED;
-		event->resp_opcode = TLX_RSP_READ_FAILED;
-		event->resp = 0x04;
-		debug_msg("handle_buffer_write: send XLATE_PENDING for this cmd =0x%x \n", event->command);
-		return;
+		// for xlate_pending response, ocse has to THEN follow up with an xlate_done response
+		// (at some unknown time later) and that will "complete" the original cmd (no rd/write )
+		if ( allow_pending(cmd->parms)) {
+		        event->state = MEM_XLATE_PENDING;
+			event->type = CMD_FAILED;
+			event->resp_opcode = TLX_RSP_READ_FAILED;
+			event->resp = 0x04;
+			debug_msg("handle_buffer_write: send XLATE_PENDING for this cmd =0x%x \n", event->command);
+			return;
+		}
 	}
 
 	// after the client returns data with a call to the function _handle_mem_read,
@@ -1390,14 +1390,18 @@ void handle_xlate_intrp_pending_sent(struct cmd *cmd)
 		return;
 	} else
 		event->resp = 0x0;  // send completed resp code in the xlate_done cmd
-	if ((event->command == AFU_CMD_XLATE_TOUCH) || (event->command == AFU_CMD_XLATE_TOUCH_N))
-		cmd_to_send = TLX_CMD_XLATE_DONE;
-	else
+
+	// test for "interrupt" commands to return intrp_rdy, otherwise return xlate_done
+	// this range includes: intrp_req, intrp_req_s, intrp_req_d, intrp_req_d_s, wake_host_thread, and wake_host_thread_s
+	if ((event->command >= AFU_CMD_INTRP_REQ) && (event->command <= AFU_CMD_WAKE_HOST_THRD_S))
 		cmd_to_send = TLX_CMD_INTRP_RDY;
+	else
+		cmd_to_send = TLX_CMD_XLATE_DONE;
+
 	// These POSTED cmds get sent back over vx0 (resp channel).
 	// TODO why are we using fixed value 0xefac for afutag?
 	if (tlx_afu_send_resp_cmd_vc0(cmd->afu_event,
-			cmd_to_send, 0xefac, event->resp,0,0,0,0,0,0,0,0,0,0) == TLX_SUCCESS){
+			cmd_to_send, event->afutag, event->resp,0,0,0,0,0,0,0,0,0,0) == TLX_SUCCESS){
 			debug_msg("%s:XLATE_INTRP_DONE CMD event @ 0x%016" PRIx64 ", sent tag=0x%02x code=0x%x cmd=0x%x", cmd->afu_name,
 			    event, event->afutag, event->resp, cmd_to_send);
 			*head = event->_next;

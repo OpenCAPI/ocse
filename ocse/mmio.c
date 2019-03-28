@@ -81,6 +81,7 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 	event->rnw = rnw;
 	event->dw = dw;
 	event->size = 0;  // part of the new fields
+	event->size_received = 0;  // part of the new fields
 	event->be_valid = 0;  // part of the new fields
 	event->data = NULL;
 	event->be = 0;
@@ -179,6 +180,7 @@ static struct mmio_event *_add_mem_event(struct mmio *mmio, struct client *clien
 	event->be_valid = be_valid;
 	event->dw = 0;
 	event->size = size;  // part of the new fields
+	event->size_received = 0;  // part of the new fields
 	event->data = data;
 	event->be = be;
 	if (client == NULL)  {
@@ -1147,9 +1149,31 @@ void handle_ap_resp_data(struct mmio *mmio)
 			  } else {
 			        // size will be 64, 128 or 256
 			        length = 64;
-				memcpy( &mmio->list->data[mmio->list->partial_index], rdata_bus, length );
+				offset = 0;
+				switch (mmio->list->resp_dL) {
+				case 1:
+				  // the size of the response is 64 bytes in 1 beat
+				  // offset is a simple function of dP * length
+				  // only one beat of data comes in, so we can forget partial_index
+				  offset = mmio->list->resp_dP * length;
+				  break;
+				case 2:
+				  // the size of the response is 128 bytes in 2 beats
+				  // offset is a simple function of dP * 2 * length  plus the partial index
+				  offset = ( mmio->list->resp_dP * ( 2 * length ) ) + mmio->list->partial_index;
+				  break;
+				case 3:
+				  // the size of the response is 256 bytes in 4 beats
+				  // offset is a simple function of partial_index
+				  offset = mmio->list->partial_index;
+				  break;
+				default:
+				  error_msg("UNEXPECTED resp_dL: %d received", mmio->list->resp_dL);
+				}
+				memcpy( &mmio->list->data[offset], rdata_bus, length );
 				mmio->list->partial_index = mmio->list->partial_index + length;
-				if ( mmio->list->partial_index == mmio->list->size ) {
+				mmio->list->size_received = mmio->list->size_received + length;
+				if ( mmio->list->size_received == mmio->list->size ) {
 				      // we have all the data we expect
 				      mmio->list->state = OCSE_DONE;
 				}
@@ -1176,13 +1200,63 @@ void handle_ap_resp_data(struct mmio *mmio)
 	}
 }
 
+// check resp_dl and resp_dp versus the expected cmd_dl
+// this will include responses to config commmands, mmio requests, and lpc memory requests
+int _resp_dldp_is_legal(uint8_t cmd_dl, uint8_t resp_dl, uint8_t resp_dp)
+{
+  if ( cmd_dl == 0 ) { // partial read
+    if (resp_dl == 1) {
+      return 0;
+    }
+  } 
+  
+  if ( cmd_dl == 1 ) { // 64 byte read
+    if (resp_dl == 1) {
+      return 0;
+    }
+  } 
+
+  if ( cmd_dl == 2 ) { // 128 byte read
+    if (resp_dl == 1) { // non-matching dl, split response
+      if ( ( resp_dp == 0 ) | ( resp_dp == 1 ) ) {
+	return 0;
+      }
+    } 
+    if ( resp_dl == 2 ) { // matching dl, single response
+      if ( resp_dp == 0 ) {
+	return 0;
+      }
+    }
+  } 
+
+  if ( cmd_dl == 3 ) { // 256 byte read
+    if (resp_dl == 1) { // non-matching dl, split response
+      if ( ( resp_dp == 0 ) | ( resp_dp == 1 ) | ( resp_dp == 2 ) | ( resp_dp == 3 ) ) {
+	return 0;
+      }
+    } 
+    if ( resp_dl == 2 ) { // non-matching dl, split response
+      if ( ( resp_dp == 0 ) | ( resp_dp == 1 ) ) {
+	return 0;
+      }
+    }
+    if ( resp_dl == 3 ) { // matching dl, single response
+      if ( resp_dp == 0 ) {
+	return 0;
+      }
+    }
+  }
+  
+  return 1;
+}
+
 // Handle ap responses coming from the afu
 // this will include responses to config commmands, mmio requests, amo cmds and lpc memory requests
 void handle_ap_resp(struct mmio *mmio)
 {
 	int rc;
 	char type[7];
-	uint8_t afu_resp_opcode, resp_dl,resp_dp, resp_data_is_valid, resp_code, rdata_bad;
+	uint8_t afu_resp_opcode, resp_dl, resp_dp, resp_data_is_valid, resp_code, rdata_bad;
 	uint16_t resp_capptag;
 	uint32_t cfg_read_data = 0;
 	unsigned char   rdata_bus[64];
@@ -1280,9 +1354,20 @@ void handle_ap_resp(struct mmio *mmio)
 		      mmio->list->state = OCSE_DONE;
 		      // mmio->list = mmio->list->_next;
 		} else {
-		      // debug_msg( "MMIO size > 0" );
-		      mmio->list->partial_index = 0;
-		      mmio->list->state = OCSE_BUFFER;
+		  // debug_msg( "MMIO size > 0" );
+		  if ( _resp_dldp_is_legal( mmio->list->cmd_dL, resp_dl, resp_dp ) == 1 ) {
+		    error_msg("%s:%s PARTIAL MEMORY READ RESP: cmd dL %d received illegal resp dL/dP received %d/%d", 
+			      mmio->afu_name, 
+			      type, 
+			      mmio->list->cmd_dL, 
+			      resp_dl, 
+			      resp_dp );
+		  }
+		  // save resp_dl and resp_dp to handle the split response insertion into the data buffer
+		  mmio->list->resp_dL = resp_dl;
+		  mmio->list->resp_dP = resp_dp;
+		  mmio->list->partial_index = 0;
+		  mmio->list->state = OCSE_BUFFER;
 		}
 	      } else {
 		mmio->list->state = OCSE_DONE;
