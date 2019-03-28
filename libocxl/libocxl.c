@@ -484,9 +484,9 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 {
         uint64_t addr;
         uint64_t ta;
-	uint8_t function_code;
+	uint8_t function_code, form_flag;
 	uint8_t cmd_pg_size;
-	uint8_t buffer[10];
+	uint8_t buffer[11];
 	uint8_t size;
 	struct ocxl_ea_area *prev;
 	struct ocxl_ea_area *this;
@@ -494,6 +494,13 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 	if (!afu) fatal_msg("NULL afu passed to libocxl.c:_handle_xlate");
 
 	// retrieve additional bytes from socket
+	if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
+		warn_msg("Socket failure getting form_flag ");
+		_all_idle(afu);
+		return;
+	}
+	memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
+	DPRINTF( " form_flag=%x\n", form_flag);
 	if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer, -1, 0) < 0) {
 	        warn_msg("Socket failure getting memory touch addr");
 		_all_idle(afu);
@@ -1782,7 +1789,7 @@ static void *_psl_loop(void *ptr)
 	uint8_t op_size, function_code, amo_op, cmd_endian; //, cmd_pg_size;
 	uint64_t addr, wr_be;
 	uint16_t size;
-	uint8_t bvalue;
+	uint8_t bvalue, form_flag;
 	uint16_t value;
 	uint32_t lvalue;
 	uint64_t llvalue;
@@ -2006,6 +2013,14 @@ static void *_psl_loop(void *ptr)
 			memcpy( (char *)&size, buffer, sizeof( size ) );
 			size = ntohs(size);
 			DPRINTF( "of size=%d \n", size );
+
+			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
+				warn_msg("Socket failure getting form_flag ");
+				_all_idle(afu);
+				break;
+			}
+			memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
+			DPRINTF( " form_flag=%x\n", form_flag);
 			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
 					     -1, 0) < 0) {
 				warn_msg
@@ -2030,6 +2045,13 @@ static void *_psl_loop(void *ptr)
 			memcpy( (char *)&size, buffer, sizeof( size ) );
 			size = ntohs(size);
 			DPRINTF( "of size=%d \n", size );
+			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
+				warn_msg("Socket failure getting form_flag ");
+				_all_idle(afu);
+				break;
+			}
+			memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
+			DPRINTF( " form_flag=%x\n", form_flag);
 			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
 						 -1, 0) < 0) {
 				warn_msg
@@ -2063,6 +2085,13 @@ static void *_psl_loop(void *ptr)
 			memcpy( (char *)&size, buffer, sizeof( size ) );
 			size = ntohs(size);
 			DPRINTF( "of size=%d \n", size );
+			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
+				warn_msg("Socket failure getting form_flag ");
+				_all_idle(afu);
+				break;
+			}
+			memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
+			DPRINTF( " form_flag=%x\n", form_flag);
 			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
 					     -1, 0) < 0) {
 				warn_msg
@@ -2112,6 +2141,13 @@ static void *_psl_loop(void *ptr)
 			//memcpy( (char *)&size, buffer, sizeof( size ) );
 			//size = ntohs(size);
 			DPRINTF( "op_size=%d \n", op_size );
+			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
+				warn_msg("Socket failure getting form_flag ");
+				_all_idle(afu);
+				break;
+			}
+			memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
+			DPRINTF( " form_flag=%x\n", form_flag);
 			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
 					     -1, 0) < 0) {
 				warn_msg
@@ -2160,6 +2196,13 @@ static void *_psl_loop(void *ptr)
 			//size = ntohs(size);
 		//	op_size = (uint8_t) size;
 			DPRINTF( "op_size=%d \n", op_size );
+			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
+				warn_msg("Socket failure getting form_flag ");
+				_all_idle(afu);
+				break;
+			}
+			memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
+			DPRINTF( " form_flag=%x\n", form_flag);
 			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
 					     -1, 0) < 0) {
 				warn_msg

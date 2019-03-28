@@ -837,7 +837,8 @@ void handle_buffer_write(struct cmd *cmd)
 {
 	struct cmd_event *event;
 	struct client *client;
-	uint8_t buffer[11];  // 1 message byte + 2 size bytes + 8 address bytes
+	//uint8_t buffer[11];  // 1 message byte + 2 size bytes + 8 address bytes
+	uint8_t buffer[12];  // 1 message byte + 2 size bytes + 8 address bytesa + 1 form_flag
 	uint64_t *addr;
 	uint16_t *size;
 	//int quadrant, byte;
@@ -950,12 +951,14 @@ void handle_buffer_write(struct cmd *cmd)
 	  	buffer[0] = (uint8_t) OCSE_MEMORY_READ;
 		size = (uint16_t *)&(buffer[1]);
 		*size = htons(event->size);
-		addr = (uint64_t *) & (buffer[3]);
+		buffer[3] = event->form_flag;
+		addr = (uint64_t *) & (buffer[4]);
 		*addr = htonll(event->addr);
 		event->abort = &(client->abort);
-		debug_msg("%s:MEMORY READ FOR CAS afutag=0x%02x size=%d addr=0x%016"PRIx64,
-		    cmd->afu_name, event->afutag, event->size, event->addr);
-		if (put_bytes(client->fd, 10, buffer, cmd->dbg_fp,
+		debug_msg("%s:MEMORY READ FOR CAS afutag=0x%02x size=%d addr=0x%016"PRIx64" form_flag=0x%x",
+		    cmd->afu_name, event->afutag, event->size, event->addr, event->form_flag);
+		//if (put_bytes(client->fd, 10, buffer, cmd->dbg_fp,
+		if (put_bytes(client->fd, 12, buffer, cmd->dbg_fp,
 			cmd->dbg_id, event->context) < 0) {
 		    client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		  }
@@ -988,15 +991,16 @@ void handle_buffer_write(struct cmd *cmd)
 		    size = (uint16_t *)&(buffer[1]);
 		    *size = htons(event->size);
 
-		    addr = (uint64_t *) & (buffer[3]);
+		    buffer[3] = event->form_flag;
+		    addr = (uint64_t *) & (buffer[4]);
 		    *addr = htonll(event->addr);
 
 		    event->abort = &(client->abort);
 
-		    debug_msg("%s:MEMORY READ afutag=0x%04x size=%d addr=0x%016"PRIx64,
-			    cmd->afu_name, event->afutag, event->size, event->addr);
+		    debug_msg("%s:MEMORY READ afutag=0x%04x size=%d addr=0x%016"PRIx64" form_flag=0x%x",
+			    cmd->afu_name, event->afutag, event->size, event->addr, event->form_flag);
 
-		    if (put_bytes(client->fd, 11, buffer, cmd->dbg_fp,
+		    if (put_bytes(client->fd, 12, buffer, cmd->dbg_fp,
 				cmd->dbg_id, event->context) < 0) {
 		          client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		    }
@@ -1145,22 +1149,23 @@ void handle_afu_tlx_write_cmd(struct cmd *cmd)
 	debug_msg("%s:BUFFER READY TO GO TO CLIENT afutag=0x%04x addr=0x%016"PRIx64, cmd->afu_name,
 		  event->afutag, event->addr);
 	if (event->type == CMD_WRITE) {
-		buffer = (uint8_t *) malloc(event->size + 11);
+		buffer = (uint8_t *) malloc(event->size + 12);
 		buffer[0] = (uint8_t) OCSE_MEMORY_WRITE;
 		buffer[1] = (uint8_t) ((event->size & 0x0F00) >>8);
 		buffer[2] = (uint8_t) (event->size & 0xFF);
-		addr = (uint64_t *) & (buffer[3]);
+		buffer[3] = (uint8_t) event->form_flag;
+		addr = (uint64_t *) & (buffer[4]);
 		*addr = htonll(event->addr);
 		if (event->size <=32) {
 			offset = event->addr & ~CACHELINE_MASK;
 			debug_msg("partial write: size=0x%x and offset=0x%x", event->size, offset);
-			memcpy(&(buffer[11]), &(event->data[offset]), event->size);
+			memcpy(&(buffer[12]), &(event->data[offset]), event->size);
 		} else
-			memcpy(&(buffer[11]), &(event->data[0]), event->size);
+			memcpy(&(buffer[12]), &(event->data[0]), event->size);
 		event->abort = &(client->abort);
 		debug_msg("%s: MEMORY WRITE afutag=0x%02x size=%d addr=0x%016"PRIx64" port=0x%2x",
 		  	cmd->afu_name, event->afutag, event->size, event->addr, client->fd);
-		if (put_bytes(client->fd, event->size + 11, buffer, cmd->dbg_fp,
+		if (put_bytes(client->fd, event->size + 12, buffer, cmd->dbg_fp,
 		      	cmd->dbg_id, client->context) < 0) {
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		}
@@ -1265,55 +1270,58 @@ void handle_write_be_or_amo(struct cmd *cmd)
 	// The request will now await confirmation from the client that the memory write/op was
 	// successful before generating a response.
 	if (event->type == CMD_WR_BE) {
-		buffer = (uint8_t *) malloc(event->size + 19);
+		buffer = (uint8_t *) malloc(event->size + 20);
 		buffer[0] = (uint8_t) OCSE_WR_BE;
 		size = (uint16_t *)&(buffer[1]);
 		*size = htons(event->size); //value of size alwayz 64 for this cmd
-		addr = (uint64_t *) & (buffer[3]);
+		buffer[3] = (uint8_t) event->form_flag;
+		addr = (uint64_t *) & (buffer[4]);
 		*addr = htonll(event->addr);
-		wr_be = (uint64_t *) & (buffer[11]);
+		wr_be = (uint64_t *) & (buffer[12]);
 		*wr_be = htonll(event->wr_be);
-		memcpy(&(buffer[19]), &(event->data[0]), event->size);
+		memcpy(&(buffer[20]), &(event->data[0]), event->size);
 		event->abort = &(client->abort);
 		debug_msg("%s:WRITE_BE wr_be=0x%016"PRIx64" size=%d addr=0x%016"PRIx64" port=0x%2x",
 		  	cmd->afu_name, event->wr_be, event->size, event->addr, client->fd);
-		if (put_bytes(client->fd, event->size + 19, buffer, cmd->dbg_fp,
+		if (put_bytes(client->fd, event->size + 20, buffer, cmd->dbg_fp,
 		      cmd->dbg_id, client->context) < 0)
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 	} else if (event->type == CMD_AMO_WR || event->type == CMD_AMO_RW) { //these have data from cdata_bus
 
 		offset = event->addr & ~CACHELINE_MASK;
-			buffer = (uint8_t *) malloc(28);
+			buffer = (uint8_t *) malloc(29);
 		if (event->type == CMD_AMO_WR)
 			buffer[0] = (uint8_t) OCSE_AMO_WR;
 		 else // (event->type == CMD_AMO_RW)
 			buffer[0] = (uint8_t) OCSE_AMO_RW;
 		buffer[1] = (uint8_t)event->size;
-		addr = (uint64_t *) & (buffer[2]);
+		buffer[2] = (uint8_t) event->form_flag;
+		addr = (uint64_t *) & (buffer[3]);
 		*addr = htonll(event->addr);
-		buffer[10] = event->cmd_flag;
-		buffer[11] = event->cmd_endian;
-		memcpy(&(buffer[12]), &(event->data[offset]), 16);
+		buffer[11] = event->cmd_flag;
+		buffer[12] = event->cmd_endian;
+		memcpy(&(buffer[13]), &(event->data[offset]), 16);
 		event->abort = &(client->abort);
 
 		debug_msg("%s:AMO_WR or AMO_RW cmd_flag=0x%02x size=%d addr=0x%016"PRIx64" port=0x%2x",
 		  	cmd->afu_name, event->cmd_flag, event->size, event->addr, client->fd);
-		if (put_bytes(client->fd, 28, buffer, cmd->dbg_fp,
+		if (put_bytes(client->fd, 29, buffer, cmd->dbg_fp,
 		      cmd->dbg_id, client->context) < 0) 
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 	} else if (event->type == CMD_AMO_RD ) {  //these have no data, use just memory ops. Still need op_size though
-		buffer = (uint8_t *) malloc(12); //or 13??
+		buffer = (uint8_t *) malloc(13); //or 13??
 		buffer[0] = (uint8_t) OCSE_AMO_RD;
 		buffer[1] = (uint8_t)event->size;
-		addr = (uint64_t *) & (buffer[2]);
+		buffer[2] = (uint8_t)event->form_flag;
+		addr = (uint64_t *) & (buffer[3]);
 		*addr = htonll(event->addr);
-		buffer[10] = event->cmd_flag;
-		buffer[11] = event->cmd_endian;
+		buffer[11] = event->cmd_flag;
+		buffer[12] = event->cmd_endian;
 		event->abort = &(client->abort);
 
 		debug_msg("%s:AMO_RD cmd_flag=0x%02x size=%d addr=0x%016"PRIx64" port=0x%2x",
 		  	cmd->afu_name, event->cmd_flag, event->size, event->addr, client->fd);
-		if (put_bytes(client->fd, 12, buffer, cmd->dbg_fp,
+		if (put_bytes(client->fd, 13, buffer, cmd->dbg_fp,
 		      cmd->dbg_id, client->context) < 0) 
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		}
@@ -1436,15 +1444,16 @@ void handle_touch(struct cmd *cmd)
 	if (event->command == AFU_CMD_XLATE_RELEASE) {
 	//	event->form_flag = (event->form_flag | 0x4); //this is a posted cmd, no response sent back to afu
 		// Send xlate touch request to client
-		buffer = (uint8_t *) malloc(11);
+		buffer = (uint8_t *) malloc(12);
 		buffer[0] = (uint8_t) OCSE_XLATE_RELEASE;
-		addr = (uint64_t *) & (buffer[1]);
+		buffer[1] = (uint8_t) event->form_flag;
+		addr = (uint64_t *) & (buffer[2]);
 		*addr = htonll(event->addr);
-		buffer[9] = 0;  //no cmd_flag here, but leave byte to make xfer size same (could be used for stream_id if libocxl wants it)
-		buffer[10] = event->cmd_pg_size;
+		buffer[10] = 0;  //no cmd_flag here, but leave byte to make xfer size same (could be used for stream_id if libocxl wants it)
+		buffer[11] = event->cmd_pg_size;
 		debug_msg("%s:XLATE RELEASE  afutag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
 			   event->afutag, event->addr);
-		if (put_bytes(client->fd, 11, buffer, cmd->dbg_fp, cmd->dbg_id,
+		if (put_bytes(client->fd, 12, buffer, cmd->dbg_fp, cmd->dbg_id,
 			      event->context) < 0) {
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		}
