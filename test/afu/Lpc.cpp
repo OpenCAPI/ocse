@@ -60,11 +60,16 @@ void
 Lpc::read_lpc_mem(uint64_t addr, uint16_t size, uint8_t *data) {
     uint32_t i;
     printf("Lpc: read memory at addr = 0x%lx\n", addr);
+    printf("Lpc: offset = 0x%x\n", addr & 0x00000FFC);
+    printf("Lpc: size = 0x%x\n", size);
     if(lpc_addr_exist(addr)) {
-	addr = addr & 0x0000000000000FC0;
+	   addr = addr & 0x0000000000000FC0;
+    printf("data = 0x");
 	for(i=0; i< size; i++) {
 	    data[i] = lpc_memory[addr+i];
+        printf("%02x", data[i]);
 	}
+    printf("\n");
 	//memcpy(&data, (uint8_t*)addr, size);
     }
     else {
@@ -80,7 +85,7 @@ Lpc::write_lpc_mem(uint64_t addr, uint16_t size, uint8_t *data) {
     if(lpc_addr_exist(addr)) {
 	printf("Lpc: will overwrite data at this address\n");
     }
-    offset = (uint32_t)addr & 0x00000FC0;
+    offset = (uint32_t)addr & 0x00000FFC;
     printf("Lpc: offset = 0x%x\n", offset);
     printf("Lpc: lpc memory size = 0x%x\n", lpc_memory.size());
     printf("Lpc: data = 0x");
@@ -88,6 +93,7 @@ Lpc::write_lpc_mem(uint64_t addr, uint16_t size, uint8_t *data) {
 	lpc_memory[offset+i] = data[i];
 	printf("%02x", data[i]);
     }
+    printf("\n");
     //memcpy((uint8_t*)lpc_memory[addr], data, size);
 }
 

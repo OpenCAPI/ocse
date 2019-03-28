@@ -1,5 +1,5 @@
 /*
- * Copyright 2014,2017 International Business Machines
+ * Copyright 2014,2018 International Business Machines
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@
  *  send_mmio() which will drive the oldest pending MMIO command event to the AFU.
  *  That event is put in PENDING state which blocks the OCL from sending any
  *  further MMIO until this MMIO event completes.  When the ocl code detects
- *  the MMIO response it will call handle_mmio_ack().  This function moves
+ *  the MMIO response it will call handle_ap_resp().  This function moves
  *  the list head to the next event so that the next MMIO request can be sent.
  *  However, the event still lives and the client will still point to it.  When
  *  the ocl code next calls handle_mmio_done for that client it will return the
@@ -175,6 +175,7 @@ static struct mmio_event *_add_mem_event(struct mmio *mmio, struct client *clien
 	if (!event)
 		return event;
 	event->cfg = 0;
+	event->cmd_opcode = 0; // don't get this confused with amo cmds!
 	event->rnw = rnw;
 	event->be_valid = be_valid;
 	event->dw = 0;
@@ -319,9 +320,10 @@ static struct mmio_event *_read_afu_descriptor(struct mmio *mmio, uint64_t addr,
 int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 {
 	debug_msg("read_afu_config: and WON'T BE ABLE TO SEND CMD UNTIL AFU GIVES US INITIAL CREDIT!!");
-	uint8_t   afu_tlx_cmd_credits_available;
+	uint8_t   afu_tlx_vc1_credits_available;
+	uint8_t   afu_tlx_vc2_credits_available;
 	uint8_t   cfg_tlx_credits_available;
-	uint8_t   afu_tlx_resp_credits_available;
+	uint8_t   afu_tlx_vc0_credits_available;
 
 	struct mmio *mmio;
 	mmio = ocl->mmio;
@@ -329,17 +331,14 @@ int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 	#define AFU_DESC_DATA_VALID 0x80000000
 
 	debug_msg("read_afu_config: before read initial credits");
-	//if ( afu_tlx_read_initial_credits( mmio->afu_event, &afu_tlx_cmd_credits_available,
-	//                                   &afu_tlx_resp_credits_available ) != TLX_SUCCESS )
-	//	printf("NO CREDITS FROM AFU!!\n");
-	while ( afu_tlx_read_initial_credits( mmio->afu_event, &afu_tlx_cmd_credits_available,
-					      &cfg_tlx_credits_available, &afu_tlx_resp_credits_available) != TLX_SUCCESS ){
+	while ( afu_tlx_read_initial_credits( mmio->afu_event, &afu_tlx_vc0_credits_available, &afu_tlx_vc1_credits_available,
+					      &afu_tlx_vc2_credits_available, &cfg_tlx_credits_available) != TLX_SUCCESS ){
 	  //infinite loop
 	  sleep(1);
 	} 
-	info_msg("read_afu_config: afu_tlx_cmd_credits_available= %d, cfg_tlx_credits_available= %d, afu_tlx_resp_credits_available= %d",
-		afu_tlx_cmd_credits_available, cfg_tlx_credits_available,
-		afu_tlx_resp_credits_available);
+	info_msg("read_afu_config: afu_tlx_vc0_credits_available= %d, afu_tlx_vc1_credits_available= %d, afu_tlx_vc2_credits_available= %d, cfg_tlx_credits_available= %d",
+		afu_tlx_vc0_credits_available, afu_tlx_vc1_credits_available, afu_tlx_vc2_credits_available,
+		cfg_tlx_credits_available);
 
         uint64_t cmd_pa_bus ; // the base physical address of the bus we are working on
         uint64_t cmd_pa_fcn ; // bus + function offset
@@ -721,6 +720,7 @@ int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 // modify to check command and use size, dl dp and stuff...
 // Send pending MMIO event to AFU; use config_read or config_write for descriptor
 // for MMIO use cmd_pr_rd_mem or cmd_pr_wr_mem
+// also supports amo_rd, amo_rw and amo_wr TODO HP MAKE SURE this will work for amo_rd, etc and the new fields cmd_flg, endian, etc
 void send_mmio(struct mmio *mmio)
 {
 	struct mmio_event *event;
@@ -728,10 +728,8 @@ void send_mmio(struct mmio *mmio)
 	//unsigned char ddata[17];
 	unsigned char null_buff[256] = {0};
 	unsigned char tdata_bus[256];
+	uint8_t *dptr = tdata_bus;
 	char data[17];
-#ifdef TLX4
-	uint8_t cmd_os;
-#endif
 	uint16_t  cmd_byte_cnt;
 	uint64_t offset;
 
@@ -754,13 +752,13 @@ void send_mmio(struct mmio *mmio)
 
 	event->ack = OCSE_MMIO_ACK;
 	if (event->cfg) {
-	        //debug_msg( "ocse:send_mmio:mmio to config space" );
+	        // debug_msg( "ocse:send_mmio:mmio to config space" );
 		sprintf(type, "CFG");
 		// Attempt to send config_rd or config_wr to AFU
 		if (event->rnw) { //for config reads, no data to send
 			if ( tlx_afu_send_cfg_cmd_and_data(mmio->afu_event,
-			TLX_CMD_CONFIG_READ, 0xdead, 2, 0, event->cmd_PA,
-			0,0) == TLX_SUCCESS) {
+							   TLX_CMD_CONFIG_READ, 0xdead, 2, 0, event->cmd_PA,
+							   0,0) == TLX_SUCCESS) {
 				debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type,
 			  	 	event->dw ? 64 : 32, event->cmd_PA);
 				debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
@@ -771,217 +769,280 @@ void send_mmio(struct mmio *mmio)
 			// restricted by spec to pL of 1, 2, or 4 bytes HOWEVER
 			// We now have to offset the data into a 32B buffer and send it
 			memcpy(tdata_bus, null_buff, 32); //not sure if we always have to do this, but better safe than...
-			uint8_t * dptr = tdata_bus;;
-			 offset = event->cmd_PA & 0x0000000000000003 ;
-			memcpy(dptr +offset, &(event->cmd_data), 4);
-			if ( tlx_afu_send_cfg_cmd_and_data(mmio->afu_event,
-				TLX_CMD_CONFIG_WRITE, 0xbeef, 2, 0, event->cmd_PA,
-				0,dptr) == TLX_SUCCESS) {
-						sprintf(data, "%08" PRIx32, (uint32_t) event->cmd_data);
+			offset = event->cmd_PA & 0x0000000000000003 ;
+			memcpy(dptr + offset, &(event->cmd_data), 4);
+			if ( tlx_afu_send_cfg_cmd_and_data( mmio->afu_event,
+							    TLX_CMD_CONFIG_WRITE, 0xbeef, 2, 0, event->cmd_PA,
+							    0,dptr) == TLX_SUCCESS) {
+			                sprintf(data, "%08" PRIx32, (uint32_t) event->cmd_data);
 					debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s offset=0x%x",
-						mmio->afu_name, type,  32,
-			  			event->cmd_PA, data, offset);
+						  mmio->afu_name, type,  32,
+						  event->cmd_PA, data, offset);
 					debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg,
-						event->rnw, event->dw, event->cmd_PA);
+							event->rnw, event->dw, event->cmd_PA);
 					event->state = OCSE_PENDING;
-				}
 			}
+		}
+		return;
+       	}  
 
-       	}  else   {  // if not a CONFIG, then must be memory access MMIO rd/wr
-	        if ( event->size == 0 ) {
-                      // we have the old mmio style
-		      // debug_msg( "ocse:send_mmio:mmio to mmio space" );
-		      sprintf(type, "MMIO");
+	// if not a CONFIG, then must be memory access MMIO rd/wr
+	if ( event->size == 0 ) {
+	      // we have the old mmio style
+	      debug_msg( "ocse:send_mmio:mmio to mmio space" );
+	      sprintf(type, "MMIO");
+	      
+	      event->cmd_dL = 0;
+	      event->cmd_dP = 0;
 
-		      event->cmd_dL = 0;
-		      event->cmd_dP = 0;
+	      // calculate event->pL from event->dw
+	      // calculate cmd_byte_cnt from event->dw
+	      if (event->dw == 1) {
+		     // pl = 3 ::= 8 bytes
+		     event->cmd_pL = 3;
+		     cmd_byte_cnt = 8;
+	      } else {
+		     // pl = 2 ::= 4 bytes
+		     event->cmd_pL = 2;
+		     cmd_byte_cnt = 4;
+	      }
 
-		      // calculate event->pL from event->dw
-		      // calculate cmd_byte_cnt from event->dw
-		      if (event->dw == 1) {
-			// pl = 3 ::= 8 bytes
-			event->cmd_pL = 3;
-			cmd_byte_cnt = 8;
-		      } else {
-			// pl = 2 ::= 4 bytes
-			event->cmd_pL = 2;
-			cmd_byte_cnt = 4;
-		      }
+	      // fix the data pointer for the write command later
+	      // ???
+	      event->data = (uint8_t *)&(event->cmd_data);
 
-		      // fix the data pointer for the write command later
-		      // ???
-		      event->data = (uint8_t *)&(event->cmd_data);
-
-		} else {
-		      // we have the new general memory style
-		      // debug_msg( "ocse:send_mmio:mmio to LPC space" );
-		      sprintf(type, "MEM");
-		      event->ack = OCSE_LPC_ACK;
-
-		      // calculate event->pL, dL, and dP from event->dw
-		      // calculate cmd_byte_cnt from event->size
-		      cmd_byte_cnt = event->size;
-		      event->cmd_pL = 0;
-		      event->cmd_dL = 0;
-		      event->cmd_dP = 0;
-		      switch (event->size) {
-		      case 1:
-			break;
-		      case 2:
-			event->cmd_pL = 1;
-			break;
-		      case 4:
-			event->cmd_pL = 2;
-			break;
-		      case 8:
-			event->cmd_pL = 3;
-			break;
-		      case 16:
-			event->cmd_pL = 4;
-			break;
-		      case 32:
-			event->cmd_pL = 5;
-			break;
-		      case 64:
-			event->cmd_dL= 1;
-			break;
-		      case 128:
-			event->cmd_dL= 2;
-			break;
-		      case 256:
-			event->cmd_dL= 3;
-			break;
-		      default:
-			warn_msg( "send_mmio: Invalid size given %d", event->size );
-		      }
+	} else {
+	      // we have the new general memory style
+	      debug_msg( "ocse:send_mmio:mmio to LPC space" );
+	      sprintf(type, "MEM");
+	      event->ack = OCSE_LPC_ACK;
+	      
+	      // calculate event->pL, dL, and dP from event->dw
+	      // calculate cmd_byte_cnt from event->size
+	      cmd_byte_cnt = event->size;
+	      event->cmd_pL = 0;
+	      event->cmd_dL = 0;
+	      event->cmd_dP = 0;
+	      switch (event->size) {
+	      case 1:
+		    break;
+	      case 2:
+		    event->cmd_pL = 1;
+		    break;
+	      case 4:
+		    if (( event->cmd_flg >= 8 ) & ( event->cmd_flg <= 10 )) {
+		      event->cmd_pL = 0x6;
+		    } else {
+		      event->cmd_pL = 0x2;
+		    }
+		    break;
+	      case 8:
+		    if (( event->cmd_flg >= 8 ) & ( event->cmd_flg <= 10 )) {
+		      event->cmd_pL = 0x7;
+		    } else {
+		      event->cmd_pL = 0x3;
+		    }
+		    break;
+	      case 16:
+		    event->cmd_pL = 4;
+		    break;
+	      case 32:
+		    event->cmd_pL = 5;
+		    break;
+	      case 64:
+		    event->cmd_dL= 1;
+		    break;
+	      case 128:
+		    event->cmd_dL= 2;
+		    break;
+	      case 256:
+		    event->cmd_dL= 3;
+		    break;
+	      default:
+		    warn_msg( "send_mmio: Invalid size given %d", event->size );
+	      }
 		      
-		}
-		
-		if (event->rnw) { // read
-		  if (cmd_byte_cnt < 64) { // partial
-		    if (tlx_afu_send_cmd(mmio->afu_event,
-					 TLX_CMD_PR_RD_MEM, 0xcafe, event->cmd_dL, event->cmd_pL, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
-		      debug_msg("%s:%s READ%d word=0x%05x", mmio->afu_name, type, event->dw ? 64 : 32, event->cmd_PA);
-		      debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw, event->cmd_PA);
-		      event->state = OCSE_PENDING;
-		    }
-		  } else { // full
-		    if (tlx_afu_send_cmd(mmio->afu_event,
-					 TLX_CMD_RD_MEM, 0xefac, event->cmd_dL, event->cmd_pL, 0, 0, event->cmd_PA) == TLX_SUCCESS) {
-		      debug_msg("%s:%s READ size=%d offset=0x%05x", mmio->afu_name, type, cmd_byte_cnt, event->cmd_PA);
-		      debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw, event->cmd_PA);
-		      event->state = OCSE_PENDING;
-		    }
-		  }
-		  debug_msg("send_mmio: sent read command, now wait for resp from AFU \n"); 
-		} else { // write - 2 part operation
-		  // this part (part 2) was moved to be handled by the afu_driver code linked into the event simulator
-		  /* if (event->state == OCSE_RD_RQ_PENDING) { // part 2 - send the data */
-		  /*   // we can send 1, 2, 4, 8, 16, 32, 64, 128, or 256 bytes of data */
-		  /*   // sizes less that 64 are embedded in a 64 byte value at the offset implied by cmd_PA */
-		  /*   // sizes greater than 64 are not yet supported, but the idea is they would either be sent in a number of 64 byte */
-		  /*   // packets or as a total packet to be dispursed by tlx_interface somehow... */
-		  /*   // init a 64 byte space */
-		  /*   memcpy(tdata_bus, null_buff, 64); //not sure if we always have to do this, but better safe than... */
-		  /*   uint8_t * dptr = tdata_bus; */
-		  /*   uint8_t BDI = 0; */
-
-		  /*   offset = event->cmd_PA & 0x000000000000003F ;  // this works for addresses >= 64 too */
-		  /*   memcpy( dptr+offset, event->data, cmd_byte_cnt);  // copy the data to the tdata buffer */
-	  	  /*   // TODO finish this bid_resp_err code in sprinti */
-		  /*   //if ( allow_bdi_resp_err(event->cmd->parms)) { */
-		  /*   //		debug_msg("send_mmio: we've decided to BDI the cmd data  \n"); */
-		  /*   //		BDI = 1; */
-		  /*   //} else */
-		  /* 	BDI = 0; */
-
-
-		  /*   if (tlx_afu_send_cmd_data(mmio->afu_event, 64, BDI, dptr) == TLX_SUCCESS) { */
-		  /*     /\* if (event->dw) *\/ */
-		  /*     /\* 	sprintf(data, "%016" PRIx64, event->cmd_data); *\/ */
-		  /*     /\* else *\/ */
-		  /*     /\* 	sprintf(data, "%08" PRIx32, (uint32_t) event->cmd_data); *\/ */
-		  /*     /\* debug_msg("%s:%s WRITE%d word=0x%05x data=0x%s offset=0x%x", *\/ */
-		  /*     /\* 		mmio->afu_name, type, event->dw ? 64 : 32, *\/ */
-		  /*     /\* 		event->cmd_PA, data, offset); *\/ */
-		  /*     debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, */
-		  /* 		      event->rnw, event->dw, event->cmd_PA); */
-		  /*     event->state = OCSE_PENDING; */
-		  /*     debug_msg("send_mmio: got rd_req and sent data, now wait for cmd resp from AFU");  */
-		  /*   } */
-		  /* } else { // part 1 - send the command */
-		    if (cmd_byte_cnt < 64) { // partial
-		      uint8_t * dptr = tdata_bus;
-		      offset = event->cmd_PA & 0x000000000000003F ;  // this works for addresses >= 64 too */
-		      memcpy(tdata_bus, null_buff, 64); // clear tdata_bus
-		      memcpy( dptr+offset, event->data, cmd_byte_cnt);  // copy the data to the proper offset in tdata buffer */
-#ifdef DEBUG
-		      printf("send_mmio: data = 0x" );
-		      for ( i=0; i<cmd_byte_cnt; i++ ) {
-			printf( "%02x", tdata_bus[i] );
-		      }
-		      printf( "\n" );
-#endif
-		      if (tlx_afu_send_cmd_and_data( mmio->afu_event,
-						     TLX_CMD_PR_WR_MEM, 
-						     0xbead, 
-						     event->cmd_dL, 
-						     event->cmd_pL, 
-						     0, 
-						     0, 
-						     event->cmd_PA,
-						     0, // always good data for now
-						     tdata_bus ) == TLX_SUCCESS) {
-			event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
-		      }
-		    } else { // full
-		      memcpy( tdata_bus, event->data, cmd_byte_cnt);  // copy the data to the proper offset in tdata buffer */
-#ifdef DEBUG
-		      printf("send_mmio: data = 0x" );
-		      for ( i=0; i<cmd_byte_cnt; i++ ) {
-			printf( "%02x", tdata_bus[i] );
-		      }
-		      printf( "\n" );
-#endif
-		      if (event->be_valid == 0) {
-			if (tlx_afu_send_cmd_and_data( mmio->afu_event,
-						       TLX_CMD_WRITE_MEM, // opcode
-						       0xdaeb,            // capp tag
-						       event->cmd_dL,     // dL
-						       event->cmd_pL,     // pL
-						       0,                 // be
-						       0,                 // end
-						       event->cmd_PA,
-						       0, // always good data for now
-						       tdata_bus ) == TLX_SUCCESS) {
-			  event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
-			}
-		      } else {
-			if (tlx_afu_send_cmd_and_data( mmio->afu_event,
-						       TLX_CMD_WRITE_MEM_BE, 
-						       0xbebe, 
-						       event->cmd_dL, 
-						       event->cmd_pL, 
-						       event->be, 
-						       0, 
-						       event->cmd_PA,
-						       0, // always good data for now
-						       tdata_bus ) == TLX_SUCCESS) {
-			  event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
-			}
-		      }
-		    }
-		    debug_msg("send_mmio: sent write command, now wait for resp from AFU \n"); 
-		  /* } */
-		}
-		// Attempt to send mmio to AFU
-		if (!event->rnw) { // MMIO write - two part operation
-		}
 	}
+		
+	// need to be a little more clever here.  an amo_rw comes over as a read, but also has to send data
+	// we should perhaps do this section based on event->opcode (which is the OCSE cmd form)
+	// amo needs special handling, we can tell these from cmd_opcode
+	// but other lpc commands did not send along the cmd_opcode.  
+	
+	switch ( event->cmd_opcode ) {
+	case OCSE_AFU_AMO_RD:
+	      // we know size < 64
+	      debug_msg("%s:%s AMO_RD %d word=0x%05x", mmio->afu_name, type, event->dw ? 64 : 32, event->cmd_PA);
+	      if ( tlx_afu_send_cmd_vc1( mmio->afu_event,
+					 TLX_CMD_AMO_RD, 
+					 0, 0xcafe, event->cmd_PA, 0, 0, 0, 
+					 event->cmd_pL, 0, 0, 0, event->cmd_flg, 0 ) == TLX_SUCCESS ) {
+  		    debug_msg("%s:%s AMO_RD %d word=0x%05x", mmio->afu_name, type, event->dw ? 64 : 32, event->cmd_PA);
+		    debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw,event->cmd_PA );
+		    event->state = OCSE_PENDING;
+	      }
+	      break;
+	case OCSE_AFU_AMO_WR:
+	      // we know size < 64
+	      debug_msg("%s:%s AMO_WR %d word=0x%05x", mmio->afu_name, type, event->dw ? 64 : 32, event->cmd_PA);
+	      offset = event->cmd_PA & 0x000000000000003F ;  // this works for addresses >= 64 too */
+	      memcpy(tdata_bus, null_buff, 64); // clear tdata_bus
+	      memcpy( dptr+offset, event->data, cmd_byte_cnt);  // copy the data to the proper offset in tdata buffer */
+#ifdef DEBUG
+	      printf("send_mmio: data = 0x" );
+	      for ( i=0; i<cmd_byte_cnt; i++ ) {
+		printf( "%02x", tdata_bus[i] );
+	      }
+	      printf( "\n" );
+#endif
+	      if (tlx_afu_send_cmd_vc1_and_dcp1( mmio->afu_event,
+						 TLX_CMD_AMO_W, 0,
+						 0xbead, 
+						 event->cmd_PA,
+						 event->cmd_dL,0,0, 
+						 event->cmd_pL, 
+						 0, 0,0,event->cmd_flg,0,
+						 0, // always good data for now
+						 tdata_bus ) == TLX_SUCCESS) {
+		    event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
+	      }
+	      break;
+	case OCSE_AFU_AMO_RW:
+	      // we know size < 64
+	      debug_msg("%s:%s AMO_RW %d word=0x%05x", mmio->afu_name, type, event->dw ? 64 : 32, event->cmd_PA);
+	      offset = event->cmd_PA & 0x000000000000003F ;  // this works for addresses >= 64 too */
+	      memcpy( tdata_bus, null_buff, 64); // clear tdata_bus
+	      memcpy( dptr + offset, event->data, cmd_byte_cnt);  // copy the data to the proper offset in tdata buffer */
+	      // need to add the dataw to the proper offset into the 64 byte tdata_bus...
+	      if (event->cmd_flg > 7) {
+	      offset = event->cmd_PA & 0x000000000000000F ;
+	      offset = offset + 8 ; // add 8
+	      offset = offset & 0x000000000000000F ; // clear the carry if any
+	      offset = ( event->cmd_PA & 0x0000000000000030 ) | offset; 
+	      memcpy( dptr + offset, event->dataw, cmd_byte_cnt);  // copy the dataw to the proper offset in tdata buffer */
+#ifdef DEBUG
+	      printf("send_mmio: data = 0x" );
+	      for ( i=0; i<cmd_byte_cnt; i++ ) {
+		printf( "%02x", tdata_bus[i] );
+	      }
+	      printf( "\n" );
+#endif
+	      }
+	      if (tlx_afu_send_cmd_vc1_and_dcp1( mmio->afu_event,
+						 TLX_CMD_AMO_RW, 0,
+						 0xbead, 
+						 event->cmd_PA,
+						 event->cmd_dL, 0, 0, 
+						 event->cmd_pL, 
+						 0, 0, 0, event->cmd_flg, 0,
+						 0, // always good data for now
+						 tdata_bus ) == TLX_SUCCESS) {
+		    event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
+	      }
+	      break;
+	default:
+	      // use rnw and size (or cmd_byte_cnt) to sort out the rest
+	      if (event->rnw) {
+		    debug_msg("%s:%s READ %d word=0x%05x", mmio->afu_name, type, event->dw ? 64 : 32, event->cmd_PA);
+		    if (cmd_byte_cnt < 64) { // partial
+		          //TODO update event struct with new cmd fields if needed
+		          if ( tlx_afu_send_cmd_vc1( mmio->afu_event,
+						     TLX_CMD_PR_RD_MEM, 
+						     0, 0xcafe, event->cmd_PA, 0, 0, 0, 
+						     event->cmd_pL, 0, 0, 0, event->cmd_flg, 0 ) == TLX_SUCCESS ) {
+			        debug_msg("%s:%s READ size=%d word=0x%05x", mmio->afu_name, type, event->dw ? 64 : 32, event->cmd_PA);
+				debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw,event->cmd_PA );
+				event->state = OCSE_PENDING;
+			  }
+		    } else { // full
+		          //TODO update event struct with new cmd fields if needed
+		          if ( tlx_afu_send_cmd_vc1( mmio->afu_event,
+						     TLX_CMD_RD_MEM, 
+						     0, 0xefac, event->cmd_PA, event->cmd_dL, 0, 0, 
+						     event->cmd_pL, 0, 0, 0, event->cmd_flg, 0 ) == TLX_SUCCESS ) {
+			        debug_msg("%s:%s READ size=%d offset=0x%05x", mmio->afu_name, type, cmd_byte_cnt, event->cmd_PA);
+				debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw, event->cmd_PA);
+				event->state = OCSE_PENDING;
+			  }
+		    }
+		    debug_msg("send_mmio: sent read command, now wait for resp from AFU \n"); 
+	      } else {
+		    debug_msg("%s:%s WRITE %d word=0x%05x", mmio->afu_name, type, cmd_byte_cnt, event->cmd_PA);
+		    if (cmd_byte_cnt < 64) { 
+		          // partial
+		          debug_msg("%s:%s partial WRITE %d word=0x%05x", mmio->afu_name, type, event->dw ? 64 : 32, event->cmd_PA);
+		          offset = event->cmd_PA & 0x000000000000003F ;  // this works for addresses >= 64 too */
+			  memcpy(tdata_bus, null_buff, 64); // clear tdata_bus
+			  memcpy( dptr+offset, event->data, cmd_byte_cnt);  // copy the data to the proper offset in tdata buffer */
+#ifdef DEBUG
+			  printf("send_mmio: data = 0x" );
+			  for ( i=0; i<cmd_byte_cnt; i++ ) {
+			    printf( "%02x", tdata_bus[i] );
+			  }
+			  printf( "\n" );
+#endif
+			  if (tlx_afu_send_cmd_vc1_and_dcp1( mmio->afu_event,
+							     TLX_CMD_PR_WR_MEM, 0,
+							     0xbead, 
+							     event->cmd_PA,
+							     event->cmd_dL,0,0, 
+							     event->cmd_pL, 
+							     0, 0,0,event->cmd_flg,0,
+							     0, // always good data for now
+							     tdata_bus ) == TLX_SUCCESS) {
+			        event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
+			  }
+		    } else { 
+		          // full
+		          memcpy( tdata_bus, event->data, cmd_byte_cnt);  // copy the data to the proper offset in tdata buffer */
+#ifdef DEBUG
+			  printf("send_mmio: data = 0x" );
+			  for ( i=0; i<cmd_byte_cnt; i++ ) {
+			    printf( "%02x", tdata_bus[i] );
+			  }
+			  printf( "\n" );
+#endif
+			  if (event->be_valid == 0){
+			        debug_msg("%s:%s full WRITE %d word=0x%05x", mmio->afu_name, type, event->dw ? 64 : 32, event->cmd_PA);
+			        if (tlx_afu_send_cmd_vc1_and_dcp1( mmio->afu_event,
+								   TLX_CMD_WRITE_MEM, 0, // opcode and afutag
+								   0xdaeb,            // capp tag
+								   event->cmd_PA,
+								   event->cmd_dL, 0, 0,    // dL, dp, be
+								   event->cmd_pL,     // pL
+								   0, 0, 0, event->cmd_flg, 0,     // endian, co , os, cmdflag, mad
+								   0, // always good data for now
+								   tdata_bus ) == TLX_SUCCESS) {
+				  event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
+				  debug_msg("send_mmio: sent write command, now wait for resp from AFU \n"); 
+				}
+			  } else {
+			        debug_msg("%s:%s full WRITE BE %d word=0x%05x", mmio->afu_name, type, event->dw ? 64 : 32, event->cmd_PA);
+   			        if (tlx_afu_send_cmd_vc1_and_dcp1( mmio->afu_event,
+								   TLX_CMD_WRITE_MEM_BE, 0,
+								   0xbebe, 
+								   event->cmd_PA,
+								   event->cmd_dL,0,
+								   event->be, 
+								   event->cmd_pL, 
+								   0, 0, 0, event->cmd_flg, 0, 
+								   0, // always good data for now
+								   tdata_bus ) == TLX_SUCCESS) {
+				  event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
+				  debug_msg("send_mmio: sent write be command, now wait for resp from AFU \n"); 
+				}
+			  }
+		    }
+	      }
+	      break;
+	}
+	
+	
+	return;
 }
 
 // Handle ap response data beats coming from the afu
-// this will include responses to mmio requests, and lpc memory requests
+// this will include responses to mmio requests, amo cmds and lpc memory requests
 void handle_ap_resp_data(struct mmio *mmio)
 {
 	int rc;
@@ -1018,7 +1079,7 @@ void handle_ap_resp_data(struct mmio *mmio)
 	  return;
 	} else {
 	  if (mmio->list->rnw) {
-	    rc = afu_tlx_read_resp_data( mmio->afu_event,
+	    rc = afu_tlx_read_resp_dcp0_data( mmio->afu_event,
 					 &resp_data_is_valid, rdata_bus, &rdata_bad);
 	    // debug_msg( "handle_ap_resp_data: not cfg, but a mmio read: attempted a read of resp data: rc = %d", rc );
 	  } else {
@@ -1190,7 +1251,7 @@ int _resp_dldp_is_legal(uint8_t cmd_dl, uint8_t resp_dl, uint8_t resp_dp)
 }
 
 // Handle ap responses coming from the afu
-// this will include responses to config commmands, mmio requests, and lpc memory requests
+// this will include responses to config commmands, mmio requests, amo cmds and lpc memory requests
 void handle_ap_resp(struct mmio *mmio)
 {
 	int rc;
@@ -1231,7 +1292,7 @@ void handle_ap_resp(struct mmio *mmio)
 		}
 	} else {
 	        // we read the response, and prepare to read the data in a subsequent routine.
-	        rc = afu_tlx_read_resp(mmio->afu_event,
+	        rc = afu_tlx_read_resp_vc0(mmio->afu_event,
 				       &afu_resp_opcode, &resp_dl, &resp_capptag, &resp_dp, &resp_code);
 		// debug_msg( "handle_ap_resp: rc from afu_tlx_read_resp = %d", rc );
 	}
@@ -1316,7 +1377,7 @@ void handle_ap_resp(struct mmio *mmio)
 }
 
 // Handle MMIO ack if returned by AFU
-void handle_mmio_ack(struct mmio *mmio)
+/*void handle_mmio_ack(struct mmio *mmio)
 {
 	int rc;
 	char type[7];
@@ -1364,7 +1425,7 @@ void handle_mmio_ack(struct mmio *mmio)
 
 	} else {
 	        // we probably need to split this into afu_tlx_read_resp and afu_tlx_read_resp_data so we can collect data beats.
-	        rc = afu_tlx_read_resp_and_data(mmio->afu_event,
+	        rc = afu_tlx_read_resp_vc0_and_dcp0(mmio->afu_event,
 						&afu_resp_opcode, &resp_dl,
 						&resp_capptag, &resp_dp,
 						&resp_data_is_valid, &resp_code, rdata_bus, &rdata_bad);
@@ -1485,7 +1546,7 @@ void handle_mmio_ack(struct mmio *mmio)
 	      mmio->list = mmio->list->_next;
 	}
 
-}
+} */
 
 // Handle MMIO map request from client
 void handle_mmio_map(struct mmio *mmio, struct client *client)
@@ -1494,27 +1555,6 @@ void handle_mmio_map(struct mmio *mmio, struct client *client)
 	uint8_t *buffer;
 	uint8_t ack = OCSE_MMIO_ACK;
 	int fd = client->fd;
-
-	// flag data is no longer passed for the mmio map request
-	// Check for errors
-	/* if (get_bytes_silent(fd, 4, (uint8_t *) & flags, mmio->timeout, */
-	/* 		     &(client->abort)) < 0) { */
-	/*         debug_msg("%s:handle_mmio_map failed context=%d", */
-	/* 		  mmio->afu_name, client->context); */
-	/* 	client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE); */
-	/* 	warn_msg("Socket failure with client context %d", */
-	/* 		 client->context); */
-	/* 	ack = OCSE_MMIO_FAIL; */
-	/* 	goto map_done; */
-	/* } */
-	// Check flags value and set
-	// For now, we assume that the global and per pasid areas have the same endianness
-	/* if (!mmio->flags) { */
-	/* 	mmio->flags = ntohl(flags); */
-	/* } else if (mmio->flags != ntohl(flags)) { */
-	/* 	warn_msg("Set conflicting mmio endianess for AFU"); */
-	/* 	ack = OCSE_MMIO_FAIL; */
-	/* } */
 
 	if (ack == OCSE_MMIO_ACK) {
 		debug_mmio_map(mmio->dbg_fp, mmio->dbg_id, client->context);
@@ -1661,11 +1701,11 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 	return NULL;
 	}
 
-	if (event->rnw) {
+	if ((event->rnw) || (event->cmd_opcode == OCSE_AFU_AMO_RW)) {
 	      // Return acknowledge with read data
 	      if ( event->size !=0 ) {
    		    // this is an lpc mem request coming back
-		    debug_msg("handle_mmio_done:sending OCSE_LPC_ACK for a READ to client!!!!");
+		    debug_msg("handle_mmio_done:sending OCSE_LPC_ACK for a AMO_R, AMO_RW, or READ to client!!!!");
 		    buffer = (uint8_t *) malloc(event->size + 2);
 		    buffer[0] = event->ack;
 		    buffer[1] = event->resp_code;
@@ -1696,6 +1736,7 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 		    }
 	      }
 	} else {
+
 		// Return acknowledge for write
 		debug_msg("READY TO SEND OCSE_*_ACK for a WRITE to client!!!!");
 		buffer = (uint8_t *) malloc(2);
@@ -1827,4 +1868,193 @@ struct mmio_event *handle_mem(struct mmio *mmio, struct client *client,
 	else
 	        return _handle_mem_write(mmio, client, region, be_valid);
 }
+
+// create a new _add_afu_amo_event function that will use size instead of dw.
+// Add new mmio event for sending amo cmds to afu
+static struct mmio_event *_add_afu_amo_event(struct mmio *mmio, struct client *client,
+				    uint32_t rnw, uint32_t size, int region, uint64_t addr,
+				   uint8_t cmd_flg, uint8_t cmd, uint8_t *data, uint8_t *dataw, uint8_t endian)
+{
+	struct mmio_event *event;
+	struct mmio_event **list;
+	uint8_t fcn; 
+	uint8_t afuid;
+	uint16_t context;
+
+	// Add new event in IDLE state
+	event = (struct mmio_event *)malloc(sizeof(struct mmio_event));
+	if (!event)
+		return event;
+	event->cfg = 0;
+	event->rnw = rnw;
+	event->dw = 0;
+	event->size = size;  // part of the new fields
+	event->data = data;
+	event->dataw = dataw;
+	event->cmd_flg = cmd_flg;
+	event->cmd_endian = endian;
+	event->cmd_opcode = cmd;
+	if (client == NULL)  {
+	  // TODO this should be an error exit or at least return an error
+	  error_msg("WE SHOULD NOT BE HERE in add_afu_amo_cmd with client==NULL");
+	  //event->cmd_PA = addr;
+	} else {
+	  // for OpenCAPI, the memory space is split into LPC, global and per pasid
+	  // the region parm controls how we adjust the offset prior to adding the event
+	  // technically, all of these should be adjusted by the BAR specified in the configuration... ocse assumes a BA of 0
+	  //   region = 0 means we are LPC memory and offset is unadjusted
+	  //   region = 1 means we adjust offset based on the global mmio offset from the configuration
+	  //   region = 2 means we want to send the offset adjusted by the per pasid mmio offset, per pasid mmio stride, and client index
+	  //   for now, we are assuming the client index (context) maps directly to a pasid.  
+	  //        we could be more creative and relocate the pasid base and pasid length supported to 
+	  //        provide more verification coverage
+	  fcn = client->fcn;
+	  afuid = client->afuid;
+
+	  if (region == 0) {
+	    // lpc area
+	    event->cmd_PA = addr;
+	  } else if (region == 1) {
+	    // global mmio offset + offset
+	    event->cmd_PA = mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_offset + addr;
+	  } else {
+	    // per pasid mmio offset + (client context * stride) + offset
+	    event->cmd_PA = 
+	      mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_offset + 
+	      ( mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_stride * client->context) + 
+	      addr;
+	  }
+	}
+	event->state = OCSE_IDLE;
+	event->_next = NULL;
+
+	debug_msg("_add_afu_amo_event: rnw=%d, access word=0x%016lx (0x%016lx) cmd_flg= 0x%x", event->rnw, event->cmd_PA, addr, cmd_flg );
+#ifdef DEBUG
+	printf("_add_afu_amo_event: data = 0x" );
+	int i;
+	for ( i=0; i<size; i++ ) {
+	  printf( "%02x", event->data[i] );
+	}
+	printf( "\n" );
+#endif
+
+	// Add to end of list
+	list = &(mmio->list);
+	while (*list != NULL)
+		list = &((*list)->_next);
+	*list = event;
+	if (event->cfg)
+		context = -1;
+	else
+		context = client->context;
+	debug_mmio_add(mmio->dbg_fp, mmio->dbg_id, context, rnw, size, addr);
+
+	return event;
+}
+
+
+// Handle amo_rw, amo_rw or amo_wr request from client
+struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
+			      int rnw, int region, int cmd)
+{
+	struct mmio_event *event;
+	uint64_t PA;
+	uint32_t offset;
+	uint32_t size;
+	uint8_t cmd_flg;
+	uint8_t *datav;
+	uint8_t *dataw;
+	uint8_t endian;
+	int fd = client->fd;
+
+	uint8_t ack;
+
+	debug_msg( "handle_afu_amo: rnw=%d", rnw );
+
+	// Only allow mem access when client is valid
+	if (client->state != CLIENT_VALID) {
+	        debug_msg( "_handle_afu_amo: invalid client" );
+		ack = OCSE_LPC_FAIL;
+		if (put_bytes(client->fd, 1, &ack, mmio->dbg_fp, mmio->dbg_id,
+			      client->context) < 0) {
+			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		}
+		return NULL;
+	}
+
+
+
+	if (get_bytes_silent(fd, 4, (uint8_t *) &offset, mmio->timeout, &(client->abort)) < 0) {
+		goto amo_fail;
+	}
+	PA = ntohl(offset);
+
+	if (get_bytes_silent(fd, 4, (uint8_t *) &size, mmio->timeout, &(client->abort)) < 0) {
+		goto amo_fail;
+	}
+	size = ntohl(size);
+
+	if (get_bytes_silent(fd, 1, (uint8_t *) &cmd_flg, mmio->timeout, &(client->abort)) < 0) {
+		goto amo_fail;
+	}
+
+	if (get_bytes_silent(fd, 1, (uint8_t *) &endian, mmio->timeout, &(client->abort)) < 0) {
+		goto amo_fail;
+	}
+
+	// data
+	// for an amo_r, just allocate a buffer (datav)
+	// for an amo_w, allocate a buffer and fill it. (datav)
+	// for an amo_rw, it gets tricky. allocate 2 buffers, datav and dataw. v will double as the return buffer
+
+	if ( cmd != OCSE_AFU_AMO_RW ) {
+	  // normal
+	  if (rnw) {
+	    // if a read, allocate the return buffer and build the event
+	    datav = (uint8_t *)malloc( size );
+	    event = _add_afu_amo_event( mmio, client, 1, size, region, PA, cmd_flg, cmd, datav, NULL, endian);
+	  } else {
+	    // if a write, allocate a data buffer, fill it from the socket and build the event
+	    datav = (uint8_t *)malloc( size );
+	    if ( get_bytes_silent( fd, size, datav, mmio->timeout, &(client->abort) ) < 0 ) {
+	      goto amo_fail;
+	    }
+	    event = _add_afu_amo_event( mmio, client, 0, size, region, PA, cmd_flg, cmd, datav, NULL, endian);
+	  }
+	} else {
+	  // special
+	  // cmd_flag 0-10 have a datav
+	  // always allocate datav, fill it in most cases.  always used for return data.
+	  datav = (uint8_t *)malloc( size );
+	  //the if statement below means that clients sending amo_rw cmds with cmd_flg = 0x8 must ALWAYS send NULL ptr for datav 
+	  //otherwise, libocxl will send over datav data on socket, we'll not read it, and ocse will HANG/fail on next socket
+	  //transaction after this one
+	  if ( ( (cmd_flg >= 0) && (cmd_flg <= 7)  ) || 
+	        (cmd_flg == 9) || (cmd_flg == 10)  ) {
+	    if ( get_bytes_silent( fd, size, datav, mmio->timeout, &(client->abort) ) < 0 ) {
+	      goto amo_fail;
+	    }
+	  }
+	  // cmd_flag 8-10 have a dataw
+	  dataw = NULL;
+	  if ( (cmd_flg >= 8) && (cmd_flg <= 10)  ) {
+	  debug_msg(" cmd has a dataw, getting it now size=%d cmd_flag=%d", size, cmd_flg);
+	    dataw = (uint8_t *)malloc( size );
+	    if ( get_bytes_silent( fd, size, dataw, mmio->timeout, &(client->abort) ) < 0 ) {
+	      goto amo_fail;
+	    }
+	  }
+	  event = _add_afu_amo_event( mmio, client, 0, size, region, PA, cmd_flg, cmd, datav, dataw, endian);
+	}
+
+	return event;
+
+ amo_fail:
+	// Socket connection is dead
+	debug_msg("%s:_handle_afu_amo failed context=%d",
+		  mmio->afu_name, client->context);
+	client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	return NULL;
+}
+
 

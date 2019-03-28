@@ -50,7 +50,9 @@ int main(int argc, char *argv[])
     int rc;
     char *rcacheline, *wcacheline;
     char *status;
+    uint64_t result;
     ocxl_afu_h mafu_h;
+    ocxl_mmio_h pp_mmio_h;
     MachineConfig machine_config;
     MachineConfigParam config_param;
 
@@ -90,24 +92,24 @@ int main(int argc, char *argv[])
 
     // align and randomize cacheline
     if (posix_memalign((void**)&rcacheline, CACHELINE, CACHELINE) != 0) {
-	perror("FAILED: posix_memalign for rcacheline");
-	goto done;
+	   perror("FAILED: posix_memalign for rcacheline");
+	   goto done;
     }
     if (posix_memalign((void**)&wcacheline, CACHELINE, CACHELINE) != 0) {
-	perror("FAILED: posix_memalign for wcacheline");
-	goto done;
+	   perror("FAILED: posix_memalign for wcacheline");
+	   goto done;
     }
     if(posix_memalign((void**)&status, 128, 128) != 0) {
-	perror("FAILED: posix_memalign for status");
-	goto done;
+	   perror("FAILED: posix_memalign for status");
+	   goto done;
     }
 
     printf("rcacheline = 0x");
     for(i=0; i<CACHELINE; i++) {
-	rcacheline[i] = rand();
-	wcacheline[i] = 0x0;
-	status[i] = 0x0;
-	printf("%02x", (uint8_t)rcacheline[i]);
+	   rcacheline[i] = rand();
+	   wcacheline[i] = 0x0;
+	   status[i] = 0x0;
+	   printf("%02x", (uint8_t)rcacheline[i]);
     }
     printf("\n");
     
@@ -118,22 +120,22 @@ int main(int argc, char *argv[])
     rc = ocxl_afu_open_specific(NAME, PHYSICAL_FUNCTION, 0, &mafu_h);
     //rc = ocxl_afu_open_from_dev(MDEVICE, &mafu_h);
     if(rc != 0) {
-	perror("cxl_afu_open_dev: "MDEVICE);
-	return -1;
+	   perror("cxl_afu_open_dev: "MDEVICE);
+	   return -1;
     }
     
     // attach device
     printf("Attaching device ...\n");
-    rc = ocxl_afu_attach(mafu_h);
+    rc = ocxl_afu_attach(mafu_h, 0);
     if(rc != 0) {
-	perror("cxl_afu_attach:"MDEVICE);
-	return rc;
+	   perror("cxl_afu_attach:"MDEVICE);
+	   return rc;
     }
 
     printf("Attempt mmio mapping afu registers\n");
-    if (ocxl_mmio_map(mafu_h, OCXL_MMIO_BIG_ENDIAN) != 0) {
-	printf("FAILED: ocxl_mmio_map\n");
-	goto done;
+    if (ocxl_mmio_map(mafu_h, OCXL_PER_PASID_MMIO, &pp_mmio_h) != 0) {
+	   printf("FAILED: ocxl_mmio_map\n");
+	   goto done;
     }
     printf("Attempt Read command\n");
     //status[0] = 0xff;
@@ -149,26 +151,27 @@ int main(int argc, char *argv[])
     printf("rcacheline = 0x%p\n", rcacheline);
     printf("command = 0x%x\n", config_param.command);
     printf("mem base address = 0x%"PRIx64"\n", config_param.mem_base_address);
-    rc = config_enable_and_run_machine(mafu_h, &machine_config, config_param, DIRECTED);
+    rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
     status[0] = 0xff;
     if( rc != -1) {
-	printf("Response = 0x%x\n", rc);
-	printf("config_enable_and_run_machine PASS\n");
+	   printf("Response = 0x%x\n", rc);
+	   printf("config_enable_and_run_machine PASS\n");
     }
     else {
-	printf("FAILED: config_enable_and_run_machine\n");
-	goto done;
+	   printf("FAILED: config_enable_and_run_machine\n");
+	   goto done;
     }
     timeout = 0;
+    printf("Polling read completion status\n");
     while(status[0] != 0x0) {
-	nanosleep(&t, &t);
-	printf("Polling read completion status = 0x%x\n", *status);
+	   nanosleep(&t, &t);
+	   //printf("Polling read completion status = 0x%x\n", *status);
     }
     // clear machine config
-    rc = clear_machine_config(mafu_h, &machine_config, config_param, DIRECTED);
+    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED, &result);
     if(rc != 0) {
-	printf("Failed to clear machine config for read command\n");
-	goto done;
+	   printf("Failed to clear machine config for read command\n");
+	   goto done;
     }
     // Attemp write command
     printf("Attempt Write command\n");
@@ -179,7 +182,7 @@ int main(int argc, char *argv[])
     printf("wcacheline = 0x%p\n", wcacheline);
     printf("command = 0x%x\n",config_param.command);
     printf("wcache address = 0x%"PRIx64"\n", config_param.mem_base_address);
-    rc = config_enable_and_run_machine(mafu_h, &machine_config, config_param, DIRECTED);
+    rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
     //status[0] = 0xff;
     if(rc != -1) {
 	printf("Response = 0x%x\n", rc);
@@ -190,23 +193,25 @@ int main(int argc, char *argv[])
 	goto done;
     }
     status[0] = 0xff;
+    printf("Polling write completion status\n");
     while(status[0] != 0x00) {
-	nanosleep(&t, &t);
-	printf("Polling write completion status = 0x%x\n", *status);
+	   nanosleep(&t, &t);
+	   //printf("Polling write completion status = 0x%x\n", *status);
     }
-    rc = clear_machine_config(mafu_h, &machine_config, config_param, DIRECTED);
+    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED, &result);
     if(rc != 0) {
-	printf("Failed clear machine config for write command\n");
-    	goto done;
+	   printf("Failed clear machine config for write command\n");
+       goto done;
     }
     status[0] = 0x55;	// send test complete status
+    printf("Polling test completion status\n");
     while(status[0] != 0x00) {
-	nanosleep(&t, &t);
-	printf("Polling test completion status\n");
+	   nanosleep(&t, &t);
+	   //printf("Polling test completion status\n");
     } 
     printf("wcacheline = 0x");
     for(i=0; i<CACHELINE; i++) {
-	printf("%02x", (uint8_t)wcacheline[i]);
+	   printf("%02x", (uint8_t)wcacheline[i]);
     }
     printf("\n");
 

@@ -18,6 +18,7 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include "test.h"
 #include "TestAFU_config.h"
 #include "tlx_interface_t.h"
 #include "../../libocxl/libocxl.h"
@@ -32,6 +33,7 @@
 #define CACHELINE 128
 #define FUNCTION1 "/dev/cxl/tlx0.0000:00:00.1.0"
 #define FUNCTION2 "/dev/cxl/tlx0.0000:00:00.2.0"
+
 static int verbose;
 static unsigned int buffer_cl = 64;
 static unsigned int timeout   = 1;
@@ -55,11 +57,12 @@ int main(int argc, char *argv[])
     char *status;
     ocxl_afu_h afu1_h, afu2_h;
     ocxl_irq_h irq_h;
-    //ocxl_irq_h err_irq_h;
+    ocxl_mmio_h pp_mmio_h;
     ocxl_event event;
     MachineConfig machine_config;
     MachineConfigParam config_param;
-    uint64_t irq_id;
+    uint64_t irq_id, result;
+    struct work_element *work_element_descriptor = 0;
 
     static struct option long_options[] = {
 	{"cachelines", required_argument, 0	  , 'c'},
@@ -130,14 +133,14 @@ int main(int argc, char *argv[])
      
     // attach device
     printf("Attaching afu1 device ...\n");
-    rc = ocxl_afu_attach(afu1_h);
+    rc = ocxl_afu_attach(afu1_h, 0);
     if(rc != 0) {
 	perror("cxl_afu_attach:"FUNCTION1);
 	return rc;
     }
 
     printf("Attempt mmio mapping afu registers\n");
-    if (ocxl_mmio_map(afu1_h, OCXL_MMIO_BIG_ENDIAN) != 0) {
+    if (ocxl_mmio_map(afu1_h, OCXL_PER_PASID_MMIO, &pp_mmio_h) != 0) {
 	printf("FAILED: ocxl_mmio_map afu1\n");
 	goto done;
     }
@@ -153,7 +156,7 @@ int main(int argc, char *argv[])
     printf("rcacheline = 0x%p\n", rcacheline);
     printf("command = 0x%x\n", config_param.command);
     printf("mem base address = 0x%"PRIx64"\n", config_param.mem_base_address);
-    rc = config_enable_and_run_machine(afu1_h, &machine_config, config_param, DIRECTED);
+    rc = config_enable_and_run_machine(afu1_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
     printf("set status data = 0xff\n");
     //status[0] = 0xff;
     if( rc != -1) {
@@ -170,7 +173,7 @@ int main(int argc, char *argv[])
 	printf("Polling read completion status = 0x%x\n", *status);
     }
     // clear machine config
-    rc = clear_machine_config(afu1_h, &machine_config, config_param, DIRECTED);
+    rc = clear_machine_config(afu1_h, &machine_config, config_param, DIRECTED, &result);
     if(rc != 0) {
 	printf("Failed to clear machine config afu1\n");
 	goto done;
@@ -184,7 +187,7 @@ int main(int argc, char *argv[])
     printf("command = 0x%x\n",config_param.command);
     printf("wcache address = 0x%"PRIx64"\n", config_param.mem_base_address);
 
-    rc = config_enable_and_run_machine(afu1_h, &machine_config, config_param, DIRECTED);
+    rc = config_enable_and_run_machine(afu1_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
     if(rc != -1) {
 	printf("Response = 0x%x\n", rc);
  	printf("config_enable_and_run_machine afu1 PASS\n");
@@ -202,7 +205,7 @@ int main(int argc, char *argv[])
     }
 
     // clear machine config
-    rc = clear_machine_config(afu1_h, &machine_config, config_param, DIRECTED);
+    rc = clear_machine_config(afu1_h, &machine_config, config_param, DIRECTED, &result);
     if(rc != 0) {
 	printf("Failed to clear machine config afu1\n");
 	goto done;
@@ -227,26 +230,26 @@ int main(int argc, char *argv[])
 	return -1;
     }
     printf("Attaching afu2 device ....\n");
-    rc = ocxl_afu_attach(afu2_h);
+    rc = ocxl_afu_attach(afu2_h, 0);
     if(rc != 0) {
 	perror("cxl_afu_attach: for afu2"FUNCTION2);
 	return -1;
     }
     printf("Attempt mmio map afu2 registers\n");
-    if(ocxl_mmio_map(afu2_h, OCXL_MMIO_BIG_ENDIAN) != 0) {
+    if(ocxl_mmio_map(afu2_h, OCXL_PER_PASID_MMIO, &pp_mmio_h) != 0) {
 	printf("AFILED: ocxl_mmio_map afu2\n");
 	goto done;
     }
 
     rc = ocxl_afu_irq_alloc(afu2_h, NULL, &irq_h);
-    irq_id = ocxl_afu_irq_get_id(afu2_h, irq_h);
+    irq_id = ocxl_afu_irq_get_handle(afu2_h, irq_h);
 
     printf("Set irq id source ea field = 0x%016lx\n", (uint64_t)irq_id);
     printf("Attempt interrupt command\n");
     config_param.context = 0x01;
     config_param.command = AFU_CMD_INTRP_REQ;
     config_param.mem_base_address = (uint64_t)irq_id;
-    rc = config_enable_and_run_machine(afu2_h, &machine_config, config_param, DIRECTED);
+    rc = config_enable_and_run_machine(afu2_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
     if(rc != -1) {
 	printf("Response = 0x%x\n", rc);
  	printf("afu2 config_enable_and_run_machine PASS\n");
@@ -262,7 +265,7 @@ int main(int argc, char *argv[])
 	printf("Polling interrupt completion status = 0x%x\n", *status);
     }
 
-    rc = clear_machine_config(afu2_h, &machine_config, config_param, DIRECTED);
+    rc = clear_machine_config(afu2_h, &machine_config, config_param, DIRECTED, &result);
     if(rc != 0) {
 	printf("Failed to clear machine config afu2\n");
 	goto done;
@@ -274,7 +277,8 @@ int main(int argc, char *argv[])
 	printf("Error retrieving interrupt event %d\n", rc);
 	return -1;
     }
-    ocxl_mmio_write64(afu2_h, ProcessControl_REGISTER, PROCESS_CONTROL_RESTART);
+    ocxl_mmio_write64(afu2_h, WED_REGISTER, OCXL_MMIO_LITTLE_ENDIAN,
+        (uint64_t)work_element_descriptor);
     printf("set status data = 0x55\n");
     status[0] = 0x55;
     while(status[0] != 0x0) {

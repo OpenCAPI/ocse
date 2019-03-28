@@ -18,6 +18,7 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include "test.h"
 #include "TestAFU_config.h"
 #include "tlx_interface_t.h"
 #include "../../libocxl/libocxl.h"
@@ -53,7 +54,8 @@ int main(int argc, char *argv[])
     ocxl_afu_h mafu_h;
     ocxl_irq_h irq_h;
     ocxl_event event;
-
+    ocxl_mmio_h pp_mmio_h;
+    struct work_element *work_element_descriptor = 0;
     MachineConfig machine_config;
     MachineConfigParam config_param;
 
@@ -116,29 +118,17 @@ int main(int argc, char *argv[])
     
     // attach device
     printf("Attaching device ...\n");
-    rc = ocxl_afu_attach(mafu_h);
+    rc = ocxl_afu_attach(mafu_h, 0);
     if(rc != 0) {
 	perror("cxl_afu_attach:"DEVICE);
 	return rc;
     }
 
     printf("Attempt mmio mapping afu registers\n");
-    if (ocxl_mmio_map(mafu_h, OCXL_MMIO_BIG_ENDIAN) != 0) {
+    if (ocxl_mmio_map(mafu_h, OCXL_MMIO_LITTLE_ENDIAN, pp_mmio_h) != 0) {
 	printf("FAILED: ocxl_mmio_map\n");
 	goto done;
     }
-
-    // initialize the error interrupt vector
-//    err_irq_h = ocxl_afu_new_irq( mafu_h );
-//    if(verbose)
-//    	printf("initializing interrupt address = 0x%016lx\n", (uint64_t)err_irq_h);
-//    ocxl_mmio_write64( mafu_h, ProcessInterruptObject_REGISTER, (uint64_t)err_irq_h );
-//    if(verbose)
-//    	printf("initializing interrupt control to intrp_req\n");
-//    ocxl_mmio_write64( mafu_h, ProcessInterruptControl_REGISTER, 0x00);
-//    if(verbose)
-//    	printf("initializing interrupt data (unused by us)\n");
-//    ocxl_mmio_write64( mafu_h, ProcessInterruptData_REGISTER, 0x00000000);
 
     rc = ocxl_afu_irq_alloc(mafu_h, NULL, &irq_h);
     printf("Set irq (source) ea field = 0x%016lx\n", (uint64_t)irq_h);
@@ -158,7 +148,7 @@ int main(int argc, char *argv[])
     printf("mem base address = 0x%"PRIx64"\n", config_param.mem_base_address);
 
     
-    rc = config_enable_and_run_machine(mafu_h, &machine_config, config_param, DIRECTED);
+    rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
     if( rc != -1) {
 	printf("Response = 0x%x\n", rc);
 	printf("config_enable_and_run_machine PASS\n");
@@ -167,10 +157,6 @@ int main(int argc, char *argv[])
 	printf("FAILED: config_enable_and_run_machine\n");
 	goto done;
     }
-//    timeout = 0;
-//    while(status[0] != 0x0) {
-//	printf("Polling read completion status = 0x%x\n", *status);
-//    }
 
     rc = ocxl_afu_event_check(mafu_h, NULL, &event, 1);
     printf("Returned from ocxl_read_event -> there is an interrupt\n");
@@ -180,7 +166,8 @@ int main(int argc, char *argv[])
     }
 
     // when we see the interrupt event, need to write the restart bit of the Process Control Register 0x18[0]
-    ocxl_mmio_write64(mafu_h, ProcessControl_REGISTER, PROCESS_CONTROL_RESTART);
+    ocxl_mmio_write64(mafu_h, WED_REGISTER, OCXL_MMIO_LITTLE_ENDIAN,
+        (uint64_t)work_element_descriptor);
 
 
     while(status[0] != 0x0) {

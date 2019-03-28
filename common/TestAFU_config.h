@@ -19,9 +19,12 @@
  *
  * This file contains Test AFU configuration helper functions.
  */
+#ifndef _TESTAFU_CONFIG_
+#define _TESTAFU_CONFIG_
 
 #pragma once
 #include <inttypes.h>
+#include <pthread.h>
 #include "../libocxl/libocxl.h"
 
 #define DEDICATED 1
@@ -30,13 +33,13 @@
 #define PPPSA_SIZE 0x1000
 
 // Strucure to configure AFU
-typedef struct AFUConfig
+typedef struct MachineConfig
 {
 	uint64_t config[4];
 } MachineConfig;
 
 // Machine Configuration Parameters
-typedef struct ConfigParam
+typedef struct MachineConfigParam
 {
     uint16_t	context;
     uint16_t	command;
@@ -49,6 +52,8 @@ typedef struct ConfigParam
     uint64_t  	mem_dest_address;	// config[3]
     uint16_t	mem_size;		// config[1]
     uint8_t	enable_always;
+    uint8_t     oplength;
+    uint8_t     cmdflag;
 } MachineConfigParam;
 
 // Zero out all machine config registers
@@ -58,23 +63,24 @@ void init_machine(MachineConfig *machine);
 int config_machine(MachineConfig *machine, MachineConfigParam configparam);
 
 // Function to write config to AFU MMIO space
-int enable_machine(ocxl_afu_h afu, MachineConfig *machine, MachineConfigParam param, int mode);
+int enable_machine(ocxl_afu_h afu, ocxl_mmio_h pp_mmio_h, MachineConfig *machine, MachineConfigParam param, int mode);
 
 // Function to clear machine config
-int clear_machine_config(ocxl_afu_h afu, MachineConfig *machine, MachineConfigParam param, int mode);
+int clear_machine_config(ocxl_mmio_h pp_mmio_h, MachineConfig *machine, 
+    MachineConfigParam param, int mode, uint64_t *result);
 
 // Function to set most commonly used elements and write to AFU MMIO space
-int config_and_enable_machine(ocxl_afu_h afu, MachineConfig *machine, MachineConfigParam param, int mode);
+int config_and_enable_machine(ocxl_afu_h afu, ocxl_mmio_h pp_mmio_h, MachineConfig *machine, MachineConfigParam param, int mode);
 
 // Function to read config from AFU
-int poll_machine(ocxl_afu_h afu, MachineConfig *machine, uint16_t context, int mode);
+int poll_machine(ocxl_mmio_h pp_mmio_h, MachineConfig *machine, uint16_t context, int mode);
 
 // Wait for response from AFU machine
-int get_response(ocxl_afu_h afu, MachineConfig *machine, uint16_t context, int mode);
+int get_response(ocxl_mmio_h pp_mmio_h, MachineConfig *machine, uint16_t context, int mode);
 
 // Function to set most commonly used elements, write to AFU MMIO space and
 // wait for command completion
-int config_enable_and_run_machine(ocxl_afu_h afu, MachineConfig *machine, MachineConfigParam param, int mode);
+int config_enable_and_run_machine(ocxl_afu_h afu, ocxl_mmio_h pp_mmio_h, MachineConfig *machine, MachineConfigParam param, int mode);
 
 // Enable always field is bits[0] of double-word 0
 void set_machine_config_enable_always(MachineConfig* machine);
@@ -96,6 +102,12 @@ void set_machine_config_machine_number(MachineConfig* machine, uint16_t machine_
 
 // Status address
 void set_machine_config_status_address(MachineConfig* machine, uint32_t status_address);
+
+// amo cmd flag
+void set_machine_config_cmdflag(MachineConfig* machine, uint8_t cmdflag);
+
+// amo operand length
+void set_machine_config_oplength(MachineConfig* machine, uint8_t oplength);
 
 // Max delay field is the last 16 bits of double-word 0
 //void set_machine_config_max_delay(MachineConfig* machine, uint16_t max_delay);
@@ -185,5 +197,13 @@ void get_machine_config_command_timestamp(MachineConfig *machine, uint16_t* comm
 void get_machine_memory_base_address(MachineConfig *machine, uint64_t* addr);
 
 // Size of the memory space the AFU machine operate in
-void get_machine_memory_size(MachineConfig *machine, uint64_t* size);
+void get_machine_memory_dest_address(MachineConfig *machine, uint64_t* size);
 
+// amo cmd flag
+void get_machine_config_cmdflag(MachineConfig* machine, uint8_t* cmdflag);
+
+// amo op length
+void get_machine_config_oplength(MachineConfig* machine, uint8_t* oplength);
+
+
+#endif

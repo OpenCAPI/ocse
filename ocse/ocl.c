@@ -1,5 +1,5 @@
 /*
- * Copyright 2014,2017 International Business Machines
+ * Copyright 2014,2018 International Business Machines
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -75,7 +75,7 @@ static void _attach(struct ocl *ocl, struct client *client)
 	 }
 	ocl->attached_clients++;
 	ocl->state = OCSE_RUNNING;
-	info_msg( "Attached client context %d: current attached clients = %d: client type = %c\n", client->context, ocl->attached_clients, client->type );
+	info_msg( "Attached client context %d: current attached clients = %d\n", client->context, ocl->attached_clients );
 
 
  	//attach_done:
@@ -200,6 +200,7 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 			break;
 		case OCSE_MMIO_MAP:
 		case OCSE_GLOBAL_MMIO_MAP:
+		case OCSE_LPC_SYSTEM_MAP:
 			handle_mmio_map(ocl->mmio, client);
 			break;
 		case OCSE_GLOBAL_MMIO_WRITE64:
@@ -242,6 +243,13 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 			break;
 		case OCSE_LPC_READ:
 		  mmio = handle_mem(ocl->mmio, client, 1, region, 0);
+			break;
+		case OCSE_AFU_AMO_RD:
+		case OCSE_AFU_AMO_RW:
+		  mmio = handle_afu_amo(ocl->mmio, client, 1, region, buffer[0]);
+			break;
+		case OCSE_AFU_AMO_WR:
+		  mmio = handle_afu_amo(ocl->mmio, client, 0, region, buffer[0]);
 			break;
 		default:
 		  error_msg("Unexpected 0x%02x from client on socket 0x%02x", buffer[0], client->fd);
@@ -517,11 +525,15 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 		   MAX_TLX_AFU_RESP_CREDITS, 
 		   MAX_TLX_AFU_CMD_DATA_CREDITS, 
 		   MAX_TLX_AFU_RESP_DATA_CREDITS );
+	// TODO for now, use same MAX num for every vc and dcp
 	if (tlx_afu_send_initial_credits(ocl->afu_event,
-					 MAX_TLX_AFU_CMD_CREDITS,
 					 MAX_TLX_AFU_RESP_CREDITS,
+					 MAX_TLX_AFU_CMD_CREDITS,
+					 MAX_TLX_AFU_CMD_CREDITS,
+					 MAX_TLX_AFU_CMD_CREDITS,
+					 MAX_TLX_AFU_RESP_DATA_CREDITS,
 					 MAX_TLX_AFU_CMD_DATA_CREDITS,
-					 MAX_TLX_AFU_RESP_DATA_CREDITS) != TLX_SUCCESS) {
+					 MAX_TLX_AFU_CMD_DATA_CREDITS) != TLX_SUCCESS) {
 		warn_msg("ocl_init: Unable to set initial credits");
 		goto init_fail;
 	}
