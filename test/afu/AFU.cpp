@@ -1233,6 +1233,7 @@ AFU::tlx_pr_rd_mem()
 		}
 		printf("A = 0x%x\n", A);
 		printf("A2 = 0x%x\n", A2);
+		printf("V = 0x%x\n", V);
 		// Write A to lpc mem
 		lpc.write_lpc_mem(afu_event.tlx_afu_vc1_pa, data_size, (uint8_t*)&A);
 		if(TagManager::request_tlx_credit(RESP_CREDIT)) {
