@@ -1073,9 +1073,10 @@ AFU::tlx_pr_rd_mem()
 	    break;
 	   case TLX_CMD_AMO_RW:	// 0x38
 	   	printf("AFU: TLX_CMD_AMO_RW 0x38\n");
-	   	if(afu_event.tlx_afu_vc1_pl == 3)
+	   	printf("AFU: tlx_afu_vc1_pl = 0x%x\n", afu_event.tlx_afu_vc1_pl);
+	   	if((afu_event.tlx_afu_vc1_pl & 0x3) == 3)
 	   		data_size = 8;
-	   	else if(afu_event.tlx_afu_vc1_pl == 2)
+	   	else if((afu_event.tlx_afu_vc1_pl & 0x3) == 2)
 	   		data_size = 4;
 	   	break;
 		default:
@@ -1172,6 +1173,11 @@ AFU::tlx_pr_rd_mem()
 					// t <-- A; A <-- W; return t
 				case 8:
 					printf("Fetch and SWAP\n");
+					w_offset = (uint8_t)(afu_event.tlx_afu_vc1_pa & 0x0F) + 0x08;
+					memcpy((uint8_t*)&W, &afu_event.afu_tlx_dcp0_data_bus + w_offset, 
+						data_size);
+					printf("w_offset = 0x%x\n", w_offset);
+					printf("W = 0x%x\n", W);
 					break;
 					// t <-- A; when V=A, then A <--W; return t
 				case 9:
@@ -1179,6 +1185,8 @@ AFU::tlx_pr_rd_mem()
 					w_offset = (uint8_t)(afu_event.tlx_afu_vc1_pa & 0x0F) + 0x08;
 					memcpy((uint8_t*)&W, &afu_event.afu_tlx_dcp0_data_bus + w_offset, 
 						data_size);
+					printf("w_offset = 0x%x\n", w_offset);
+					printf("W = 0x%x\n", W);
 					break;
 					// t <-- A; when V != A, then A <-- W; return t
 				case 10:
@@ -1186,6 +1194,8 @@ AFU::tlx_pr_rd_mem()
 					w_offset = (uint8_t)(afu_event.tlx_afu_vc1_pa & 0x0F) + 0x08;
 					memcpy((uint8_t*)&W, &afu_event.afu_tlx_dcp0_data_bus + w_offset, 
 						data_size);
+					printf("w_offset = 0x%x\n", w_offset);
+					printf("W = 0x%x\n", W);
 					break;
 					// t <-- A; if A !=A2, then A <-- A+1; return t
 				case 12:
@@ -1398,7 +1408,10 @@ AFU::tlx_pr_wr_mem()
 	    			break;
 	    	}
 	    }
-	    memcpy(afu_event.tlx_afu_dcp1_data, (uint8_t*)&A, data_size);
+	    if(afu_event.tlx_afu_vc1_opcode == TLX_CMD_AMO_W) {
+	    	memcpy(afu_event.tlx_afu_dcp1_data, (uint8_t*)&A, data_size);
+	    	printf("A = 0x%x\n", A);
+	    }
 	    lpc.write_lpc_mem(afu_event.tlx_afu_vc1_pa, data_size, afu_event.tlx_afu_dcp1_data);
 	    if(TagManager::request_tlx_credit(RESP_CREDIT)) {
 				if(afu_tlx_send_resp_vc0(&afu_event, afu_resp_opcode, 

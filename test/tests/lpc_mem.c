@@ -231,7 +231,7 @@ int main(int argc, char *argv[])
         printf("%02x", from[i]);
     }
     printf("\n");
-    ocxl_lpc_amo_write(lpc_mmio_h, 0x2, to_i, from, size );
+    ocxl_lpc_amo_write(lpc_mmio_h, 0x1, to_i, from, size );
     printf("Attempting lpc amo read\n");
     printf("from address = %p\n", from);
     size = 4;
@@ -242,10 +242,13 @@ int main(int argc, char *argv[])
     }    
     printf("\n");
     // cmd, offset, *v, *w, *out, size
-    *w = 0x0;
-    printf("w = 0x%x\n", *w);
+    w = 0x04;
+    printf("w[0x%x] = 0x%x\n", &w, w);
     printf("Attempting lpc amo readwrite\n");
-    ocxl_lpc_amo_readwrite(lpc_mmio_h, 0x9, to_i, from, w, to, size);
+    if(ocxl_lpc_amo_readwrite(lpc_mmio_h, 0x9, to_i, from, &w, to, size) != OCXL_OK) {
+        printf("FAILED: ocxl_lpc_amo_readwrite\n");
+        goto done;
+    }
     printf("to = 0x");
     for(i=0; i<4; i++) {
         printf("%02x", to[i]);

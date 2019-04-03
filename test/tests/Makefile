@@ -15,7 +15,7 @@ CHECK_HEADER = $(shell echo \\\#include\ $(1) | $(CC) $(CFLAGS) -E - > /dev/null
 
 misc/ocxl.h:
 ifeq ($(call CHECK_HEADER,"<misc/ocxl.h>"),n)
-	$(call Q,CURL $(COMMON_DIR)/misc/ocxl.h, mkdir $(COMMON_DIR)/misc 2>/dev/null; curl -o $(COMMON_DIR)/misc/ocxl.h -s http://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain/include/uapi/misc/ocxl.h)
+	$(call Q,CURL $(COMMON_DIR)/misc/ocxl.h, mkdir $(COMMON_DIR)/misc 2>/dev/null; curl -o $(COMMON_DIR)/misc/ocxl.h -s https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/plain/include/uapi/misc/ocxl.h)
 endif
 
 .SECONDEXPANSION:
