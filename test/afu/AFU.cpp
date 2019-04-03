@@ -1408,7 +1408,10 @@ AFU::tlx_pr_wr_mem()
 	    			break;
 	    	}
 	    }
-	    memcpy(afu_event.tlx_afu_dcp1_data, (uint8_t*)&A, data_size);
+	    if(afu_event.tlx_afu_vc1_opcode == TLX_CMD_AMO_W) {
+	    	memcpy(afu_event.tlx_afu_dcp1_data, (uint8_t*)&A, data_size);
+	    	printf("A = 0x%x\n", A);
+	    }
 	    lpc.write_lpc_mem(afu_event.tlx_afu_vc1_pa, data_size, afu_event.tlx_afu_dcp1_data);
 	    if(TagManager::request_tlx_credit(RESP_CREDIT)) {
 				if(afu_tlx_send_resp_vc0(&afu_event, afu_resp_opcode, 

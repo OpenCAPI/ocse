@@ -231,7 +231,7 @@ int main(int argc, char *argv[])
         printf("%02x", from[i]);
     }
     printf("\n");
-    ocxl_lpc_amo_write(lpc_mmio_h, 0x2, to_i, from, size );
+    ocxl_lpc_amo_write(lpc_mmio_h, 0x1, to_i, from, size );
     printf("Attempting lpc amo read\n");
     printf("from address = %p\n", from);
     size = 4;

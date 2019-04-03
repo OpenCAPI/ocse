@@ -128,31 +128,31 @@ TagManager::request_tlx_credit(uint8_t type)
 	    break;
 	case RESP_CREDIT:
 	    if(resp_credit > 0) {
-		resp_credit--;
-		debug_msg("TagManager: Request: resp credit = %d", resp_credit);
+				resp_credit--;
+				debug_msg("TagManager: Request: resp credit = %d", resp_credit);
 	    }
 	    else {
-		error_msg("TagManager: No Response credit available");
-		return false;
+				//error_msg("TagManager: No Response credit available");
+				//return false;
 	    }
 	    break;
 	case CMD_DATA_CREDIT:
 	    if(cmd_data_credit > 0) {
-		cmd_data_credit--;
-		debug_msg("TagManager: Request: cmd data credit = %d", cmd_data_credit);
+				cmd_data_credit--;
+				debug_msg("TagManager: Request: cmd data credit = %d", cmd_data_credit);
 	    }
 	    else {
-		error_msg("TagManager: No Command Data credit available");
-		return false;
+				error_msg("TagManager: No Command Data credit available");
+				return false;
 	    }
 	    break;
 	case RESP_DATA_CREDIT:
 	    if(resp_data_credit > 0) {
-		resp_data_credit--;
-		debug_msg("TagManager: Request: resp data credit = %d", resp_data_credit);
+				resp_data_credit--;
+				debug_msg("TagManager: Request: resp data credit = %d", resp_data_credit);
 	    }
 	    else {
-		error_msg("TagManager: No Response Data credit available");
+				error_msg("TagManager: No Response Data credit available");
 	   	return false;
 	    }
 	    break;
