@@ -1804,6 +1804,8 @@ static void *_psl_loop(void *ptr)
 	while (afu->opened) {
 		_delay_1ms();
 		// Send any requests to OCSE over socket
+		// add the potential to randomly generate an kill_xlate
+		// should we do it independent of the various REQ's that we can make?
 		if (afu->int_req.state == LIBOCXL_REQ_REQUEST)
 			_req_max_int(afu);
 		if (afu->attach.state == LIBOCXL_REQ_REQUEST)
@@ -1862,6 +1864,16 @@ static void *_psl_loop(void *ptr)
 				break;
 			}
 		}
+
+		// add random kill_xlate to the socket here.  Summary
+		// select a random ea entry, all eas for this context, or all eas for the afu
+		//   modify parms.c and use it and the ocse.parms file.  read them in during an afu open
+		//   allow_xlate_kill will return a cmd_flag to indicate just the ea, eas in this context, or eas in this afu
+		// genrate the xlate kill message to ocse
+		// allow libocxl to continue so that it can accept afu commands and responses as well as allow user code to contine
+		// the afu *MAY* send xlate_release messages for the addresses it is processing
+		// while we are waiting for the kill xlate done response, the afu may be finishing with a list of .t form commands
+		// eventually the afu will send a kill xlate done response.
 
 		// Process socket input from OCSE
 		rc = bytes_ready(afu->fd, 1000, 0);
@@ -2376,61 +2388,6 @@ static int _ocse_connect(uint16_t * afu_map, int *fd)
 	return -1;
 }
 
-/* static struct ocxl_afu *_new_afu(uint16_t afu_map, uint16_t position, int fd) */
-/* { */
-/* 	uint8_t *buffer; */
-/* 	int size; */
-/* 	struct ocxl_afu *afu_h; */
-/* 	uint16_t afu_mask = 0x8000; */
-/* 	int major = 0; */
-/* 	int minor = 0; */
-
-/* 	if (position == 0) { */
-/* 		errno = ENODEV; */
-/* 		return NULL; */
-/* 	} */
-/* 	while ((position & afu_mask) == 0) { */
-/* 		afu_mask >>= 1; */
-/* 		++major; */
-/* 	} */
-
-/* 	afu_h = (struct ocxl_afu *)calloc(1, sizeof(struct ocxl_afu)); */
-/* 	if (afu_h == NULL) { */
-/* 		errno = ENOMEM; */
-/* 		return NULL; */
-/* 	} */
-
-/* 	if (pipe(afu_h->pipe) < 0) */
-/* 		return NULL; */
-
-/* 	pthread_mutex_init(&(afu_h->event_lock), NULL); */
-/* 	afu_h->fd = fd; */
-/* 	afu_h->map = afu_map; */
-/* 	afu_h->dbg_id = major; */
-/* 	debug_msg("opened host-side socket %d", afu_h->fd); */
-
-/* 	// Send OCSE query */
-/* 	size = 1 + sizeof(uint8_t); */
-/* 	buffer = (uint8_t *) malloc(size); */
-/* 	buffer[0] = OCSE_QUERY; */
-/* 	buffer[1] = afu_h->dbg_id; */
-/* 	if (put_bytes_silent(afu_h->fd, size, buffer) != size) { */
-/* 		free(buffer); */
-/* 		close_socket(&(afu_h->fd)); */
-/* 		errno = ENODEV; */
-/* 		return NULL; */
-/* 	} */
-/* 	free(buffer); */
-
-/* 	afu_h->adapter = major; */
-/* 	afu_h->position = position; */
-/* 	afu_h->id = calloc(7, sizeof(char)); */
-/* 	_all_idle(afu_h); */
-/* 	sprintf(afu_h->id, "afu%d.%d", major, minor); */
-
-/* 	return afu_h; */
-/* } */
-
 ocxl_err _alloc_afu( ocxl_afu_h *afu_out ) 
 {
 	struct ocxl_afu *afu;
@@ -2659,197 +2616,6 @@ ocxl_err _open_afu( struct ocxl_afu *afu_h )
 	free( afu_h );
 	return OCXL_INTERNAL_ERROR;
 }
-
-/* static struct ocxl_afu *_new_afu_bdfa( uint16_t afu_map,  uint8_t bus, uint8_t dev, uint8_t fcn, */
-/* 				       uint8_t afuid, int fd) */
-/* { */
-/* 	uint8_t *buffer; */
-/* 	int size; */
-/* 	struct ocxl_afu *afu_h; */
-
-/* 	afu_h = (struct ocxl_afu *)calloc(1, sizeof(struct ocxl_afu)); */
-/* 	if (afu_h == NULL) { */
-/* 		errno = ENOMEM; */
-/* 		return NULL; */
-/* 	} */
-
-/* 	if (pipe(afu_h->pipe) < 0) */
-/* 		return NULL; */
-
-/* 	pthread_mutex_init(&(afu_h->event_lock), NULL); */
-/* 	afu_h->fd = fd; */
-/* 	afu_h->map = afu_map; */
-/* 	// afu_h->dbg_id = major; */
-/* 	afu_h->bus = bus; */
-/* 	afu_h->dev = dev; */
-/* 	afu_h->fcn = fcn; */
-/* 	afu_h->ocxl_id.afu_index = afuid; */
-/* 	debug_msg("opened host-side socket %d", afu_h->fd); */
-
-/* 	// Send OCSE query */
-/* 	size = 1 + ( 4 * sizeof( uint8_t ) ); */
-/* 	buffer = (uint8_t *) malloc(size); */
-/* 	buffer[0] = OCSE_QUERY; */
-/* 	buffer[1] = bus; */
-/* 	buffer[2] = dev; */
-/* 	buffer[3] = fcn; */
-/* 	buffer[4] = afuid; */
-/* 	if (put_bytes_silent(afu_h->fd, size, buffer) != size) { */
-/* 		free(buffer); */
-/* 		close_socket(&(afu_h->fd)); */
-/* 		errno = ENODEV; */
-/* 		return NULL; */
-/* 	} */
-/* 	free(buffer); */
-
-/* 	afu_h->id = calloc(11, sizeof(char)); */
-/* 	_all_idle(afu_h); */
-/* 	sprintf(afu_h->id, "afu%02x.%02x.%02x.%02x", bus, dev, fcn, afuid); */
-
-/* 	return afu_h; */
-/* } */
-
-//static struct ocxl_afu_h *_ocse_open(int *fd, uint16_t afu_map, uint8_t major,
-/* static struct ocxl_afu *_ocse_open(int *fd, uint16_t afu_map, uint8_t major, */
-/* 				     uint8_t minor) */
-/* { */
-/* 	struct ocxl_afu *afu_h; */
-/* 	uint8_t *buffer; */
-/* 	uint16_t position; */
-
-/* 	if ( !fd ) */
-/* 		fatal_msg( "NULL fd passed to libocxl.c:_ocse_open" ); */
-/* 	position = 0x8000; */
-/* 	//position >>= 4 * major; */
-/* 	//position >>= minor; */
-/* 	position >>= major; */
-/* 	debug_msg("afu_map = 0x%04x", afu_map); */
-/* 	debug_msg("position = 0x%04x", position); */
-/* 	if ((afu_map & position) != position) { */
-/* 		warn_msg("open: AFU not in system"); */
-/* 		close_socket(fd); */
-/* 		errno = ENODEV; */
-/* 		return NULL; */
-/* 	} */
-
-/* 	// Create struct for AFU */
-/* 	afu_h = _new_afu(afu_map, position, *fd); */
-/* 	if (afu_h == NULL) */
-/* 		return NULL; */
-
-/* 	buffer = (uint8_t *) calloc(1, MAX_LINE_CHARS); */
-/* 	buffer[0] = (uint8_t) OCSE_OPEN; */
-/* 	buffer[1] = afu_h->dbg_id; */
-/* 	// buffer[2] = afu_type; */
-/* 	afu_h->fd = *fd; */
-/* 	if (put_bytes_silent(afu_h->fd, 2, buffer) != 2) { */
-/* 		warn_msg("open:Failed to write to socket"); */
-/* 		free(buffer); */
-/* 		goto open_fail; */
-/* 	} */
-/* 	free(buffer); */
-
-/* 	afu_h->irq = NULL; */
-/* 	afu_h->_head = afu_h; */
-/* 	afu_h->adapter = major; */
-/* 	afu_h->id = (char *)malloc(7); */
-/* 	afu_h->open.state = LIBOCXL_REQ_PENDING; */
-
-/* 	// Start thread */
-/* 	if (pthread_create(&(afu_h->thread), NULL, _psl_loop, afu_h)) { */
-/* 		perror("pthread_create"); */
-/* 		close_socket(&(afu_h->fd)); */
-/* 		goto open_fail; */
-/* 	} */
-
-/* 	// Wait for open acknowledgement */
-/* 	while (afu_h->open.state != LIBOCXL_REQ_IDLE)	/\*infinite loop *\/ */
-/* 		_delay_1ms(); */
-
-/* 	if (!afu_h->opened) { */
-/* 		pthread_join(afu_h->thread, NULL); */
-/* 		goto open_fail; */
-/* 	} */
-
-/* 	sprintf(afu_h->id, "tlx%d", major); */
-
-/* 	return afu_h; */
-
-/*  open_fail: */
-/* 	pthread_mutex_destroy(&(afu_h->event_lock)); */
-/* 	free(afu_h); */
-/* 	errno = ENODEV; */
-/* 	return NULL; */
-/* } */
-
-/* static struct ocxl_afu *_ocse_open_bdfa( int *fd, uint16_t afu_map, uint8_t bus, uint8_t dev, uint8_t fcn, */
-/* 					 uint8_t afuid ) */
-/* { */
-/* 	struct ocxl_afu *afu_h; */
-/* 	uint8_t *buffer; */
-/* 	uint16_t position; */
-
-/* 	if ( !fd ) */
-/* 		fatal_msg( "NULL fd passed to libocxl.c:_ocse_open" ); */
-
-/* 	position = 0x8000; */
-/* 	position >>= bus; */
-/* 	debug_msg("afu_map = 0x%04x", afu_map); */
-/* 	debug_msg("position = 0x%04x", position); */
-/* 	if ((afu_map & position) != position) { */
-/* 		warn_msg("open: AFU not in system"); */
-/* 		close_socket(fd); */
-/* 		errno = ENODEV; */
-/* 		return NULL; */
-/* 	} */
-
-/* 	// Create struct for AFU */
-/* 	afu_h = _new_afu_bdfa( afu_map, bus, dev, fcn, afuid, *fd ); */
-/* 	if (afu_h == NULL) */
-/* 		return NULL; */
-
-/* 	buffer = (uint8_t *) calloc(1, MAX_LINE_CHARS); */
-/* 	buffer[0] = (uint8_t) OCSE_OPEN; */
-/* 	buffer[1] = afu_h->bus; */
-/* 	buffer[2] = afu_h->dev; */
-/* 	buffer[3] = afu_h->fcn; */
-/* 	buffer[4] = afu_h->ocxl_id.afu_index; */
-/* 	afu_h->fd = *fd; */
-/* 	if (put_bytes_silent(afu_h->fd, 5, buffer) != 5) { */
-/* 		warn_msg("open:Failed to write to socket"); */
-/* 		free(buffer); */
-/* 		goto open_fail; */
-/* 	} */
-/* 	free(buffer); */
-
-/* 	afu_h->irq = NULL; */
-/* 	// afu_h->_head = afu_h; */
-/* 	afu_h->open.state = LIBOCXL_REQ_PENDING; */
-
-/* 	// Start thread */
-/* 	if (pthread_create(&(afu_h->thread), NULL, _psl_loop, afu_h)) { */
-/* 		perror("pthread_create"); */
-/* 		close_socket(&(afu_h->fd)); */
-/* 		goto open_fail; */
-/* 	} */
-
-/* 	// Wait for open acknowledgement */
-/* 	while (afu_h->open.state != LIBOCXL_REQ_IDLE)	/\*infinite loop *\/ */
-/* 		_delay_1ms(); */
-
-/* 	if (!afu_h->opened) { */
-/* 		pthread_join(afu_h->thread, NULL); */
-/* 		goto open_fail; */
-/* 	} */
-
-/* 	return afu_h; */
-
-/*  open_fail: */
-/* 	pthread_mutex_destroy(&(afu_h->event_lock)); */
-/* 	free(afu_h); */
-/* 	errno = ENODEV; */
-/* 	return NULL; */
-/* } */
 
 void ocxl_enable_messages( uint64_t sources )
 {
@@ -3106,47 +2872,6 @@ ocxl_err ocxl_afu_open_specific( const char *name, const char *physical_function
 
 	return OCXL_OK;
 }
-
-/* ocxl_err ocxl_afu_open_by_id( const char *name, uint8_t card_index, int16_t afu_index, ocxl_afu_h *afu ) { */
-/*   // real code builds the device path name and calls ocxl_afu_open_by_dev */
-/*   // card index is an index into a sorted list of physical_functions that have matching "name" */
-/*   // afu_index may be -1 indicating that any name matching afu within the physical function may be used. */
-/*   // in fact, if the afu it tries is full, we should go to the next one...  We will not do that for now. */
-/*   // need a find_nth routine to find the card index for that name/afu_id */
-/*         warn_msg( "ocxl_afu_open_by_id is not fully tested yet" ); */
-
-/*         uint8_t bus, dev, fcn, afuid; */
-/* 	int rc; */
-/* 	uint16_t afu_map; */
-/* 	int fd; */
-/* 	struct ocxl_afu *my_afu; */
-/* 	// connect */
-/* 	// is there a way to see if this is already done? */
-
-/* 	// allocate afu structure */
-/* 	rc = _alloc_afu( (ocxl_afu_h *)&my_afu ); */
-/* 	if (  rc != 0 ) return rc; */
-
-/* 	if ( _ocse_connect(&afu_map, &fd) < 0 ) return OCXL_NO_DEV; */
-
-/* 	// find name - returns bus, device, function, afu_index */
-/* 	strcpy( (char *)&(my_afu->ocxl_id.afu_name[0]), name ); */
-
-/* 	// new routine here */
-/* 	rc = _find_afu_nth( fd, name, card_index, afu_index, &bus, &dev, &fcn, &afuid ); */
-/* 	if (  rc != 0 ) return rc; */
-
-/* 	// query */
-/* 	rc = _query_afu( my_afu, fd, bus, dev, fcn, afuid ); */
-/* 	if (  rc != 0 ) return rc; */
-
-/* 	// open the "afu" */
-/* 	rc = _open_afu( my_afu ); */
-/* 	if (  rc != 0 ) return rc; */
-
-/* 	*afu = ( ocxl_afu_h )my_afu; */
-/* 	return OCXL_OK; */
-/* } */
 
 void _afu_free( ocxl_afu_h afu )
 {
