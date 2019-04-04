@@ -104,6 +104,7 @@ typedef struct ocxl_ea_area {
         uint64_t pa;        // the physical address in LPC memory - not supported
         uint8_t mh;         // memory hit - not supported
         uint8_t pg_size;    // not supported
+        uint8_t kill_xlate_pending;
         struct ocxl_ea_area *_next;
 } ocxl_ea_area;
 

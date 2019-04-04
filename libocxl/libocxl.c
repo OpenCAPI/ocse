@@ -480,6 +480,152 @@ static void _handle_write(struct ocxl_afu *afu, uint64_t addr, uint16_t size,
 	DPRINTF("WRITE to addr @ 0x%016" PRIx64 "\n", addr);
 }
 
+// this routine will become more random and configurable over time using the 
+// parms from ocse, or creating a libocxl parms routine.
+static int _allow_kill_xlate( uint8_t *cmd_flag )
+{
+  int kill_chance = 10; // constant 80% chance we'll allow kill xlate
+  int kill_context_chance = 5; // constant 5% chance we'll allow kill xlate of all the ea's in a context
+  int kill_afu_chance = 5; // constant 5% chance we'll allow kill xlate all the ea's in an afu
+
+  int allow_kill, allow_context, allow_afu;
+
+  // percent_chance from parms.c
+  allow_kill = rand() % 100 < kill_chance;
+  allow_context = rand() % 100 < kill_context_chance;
+  allow_afu = rand() % 100 < kill_afu_chance;
+
+  if ( allow_kill != 0 ){
+    *cmd_flag = 0;
+    // these questions strenghten cmd_flag
+    if ( allow_context != 0 ) {
+      // should we allow all ea's for this context to be killed
+      *cmd_flag = 0x1;
+    } else if ( allow_afu != 0 ) {
+      // should we allow all ea's for this afu to be killed
+      *cmd_flag = 0xF;
+    }
+  } 
+
+  return allow_kill;
+}
+
+// when we get a kill_xlate_done message
+// go through all the ea's and free the kill_xlate_pending ones
+static void _handle_kill_xlate_done( struct ocxl_afu *afu )
+{
+}
+
+// add random capp kill_xlate command to the socket here.  Summary
+// select a random ea entry, all eas for this context, or all eas for the afu
+//   eventuall modify parms.c and use it and the ocse.parms file.  read them in during _afu_alloc
+//   allow_xlate_kill will return a cmd_flag to indicate just the ea, eas in this context, or eas in this afu
+// generate the xlate kill message to ocse
+// allow libocxl to continue so that it can accept afu commands and responses as well as allow user code to contine
+// the afu *MAY* send xlate_release messages for the addresses it is processing
+// while we are waiting for the kill xlate done response, the afu may be finishing with a list of .t form commands
+// eventually the afu will send a kill xlate done response.
+static void _handle_kill_xlate( struct ocxl_afu *afu )
+{
+        ocxl_ea_area *this_ea;
+        uint8_t cmd_flag = 0;
+	uint64_t ea;
+	uint8_t pg_size;
+	uint16_t bdf;
+	uint32_t pasid;
+	uint8_t buffer[15];
+	int size;
+
+	if (!afu) fatal_msg("NULL afu passed to libocxl.c:_handle_kill_xlate");
+
+	// find an ea to kill
+	this_ea = afu->eas;
+	while (this_ea != NULL ) {
+	  if ( _allow_kill_xlate( &cmd_flag ) != 0 ) {
+	    // found one
+	    // mark it pending
+	    this_ea->kill_xlate_pending = 1;
+	    // set ea, cmd_flag, page size, bdf, and pasid. capptag and opcode will be built by ocse
+	    ea = this_ea->ea;
+	    pg_size = this_ea->pg_size;
+	    pasid = afu->context;
+	    // bdf[15:8]=bus, bdf[7:3]=dev, bdf[2:0]=fcn
+	    bdf = afu->bus;
+	    bdf = bdf << 5;
+	    bdf = bdf + afu->dev;
+	    bdf = bdf << 3;
+	    bdf - bdf + afu->fcn;
+	    break;
+	  }
+	}
+	
+	if ( this_ea == NULL ) {
+	  // decided not to kill any eas
+	  return;
+	}
+
+	// this_ea is the one we want to kill, cmd_flag tells if we are going to strengthen that...
+	// if we strengthen it, mark all ea's pending kill
+	switch ( cmd_flag ) {
+	case 0x0:
+	  break;
+	case 0x1:
+	  // for 0x1, clear ea, page_size
+	  ea = 0;
+	  pg_size = 0;
+	case 0xf:
+	  // for 0xF, also clear bdf, and pasid
+	  bdf = 0;
+	  pasid = 0;
+	  // for 0x1 and 0xF, mark all ea's pending
+	  // done with this_ea so we can reuse it here
+	  this_ea = afu->eas;
+	  while (this_ea != NULL ) {
+	    this_ea->kill_xlate_pending = 1;
+	    this_ea = this_ea->_next;
+	  }
+	  break;
+	default:
+	  warn_msg(" _handle_kill_xlate: invalid/reserved cmd_flag %x generated, kill_xlate not sent", cmd_flag );
+	  return;
+	}
+
+	// build the ocse message and send it
+	size = 0;
+	// 1 OCSE_XLATE_KILL
+	buffer[size] = OCSE_XLATE_KILL;
+	size++;
+
+	// 1 cmd_flag
+	buffer[size] = cmd_flag;
+	size++;
+
+	// 8 ea
+	ea = htonll( ea );
+	memcpy( &buffer[size], &ea, sizeof( ea ) );
+	size = size + sizeof( ea );
+
+	// 1 pg siz
+	buffer[size] = pg_size;
+	size++;
+
+	// 2 bdf
+	bdf = htons( bdf );
+	memcpy( &buffer[size], &bdf, sizeof( bdf ) );
+	size = size + sizeof( bdf );
+
+	// 2 pasid
+	pasid = htons( pasid );
+	memcpy( &buffer[size], &pasid, sizeof( pasid ) );
+	size++;
+
+	if (put_bytes_silent(afu->fd, size, buffer) != 1) {
+		afu->opened = 0;
+		afu->attached = 0;
+	}
+	debug_msg( "KILL XLATE addr @ 0x%016" PRIx64, ntohll( ea ) );
+}
+
 static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 {
         uint64_t addr;
@@ -1865,15 +2011,7 @@ static void *_psl_loop(void *ptr)
 			}
 		}
 
-		// add random kill_xlate to the socket here.  Summary
-		// select a random ea entry, all eas for this context, or all eas for the afu
-		//   modify parms.c and use it and the ocse.parms file.  read them in during an afu open
-		//   allow_xlate_kill will return a cmd_flag to indicate just the ea, eas in this context, or eas in this afu
-		// genrate the xlate kill message to ocse
-		// allow libocxl to continue so that it can accept afu commands and responses as well as allow user code to contine
-		// the afu *MAY* send xlate_release messages for the addresses it is processing
-		// while we are waiting for the kill xlate done response, the afu may be finishing with a list of .t form commands
-		// eventually the afu will send a kill xlate done response.
+		_handle_kill_xlate( afu );
 
 		// Process socket input from OCSE
 		rc = bytes_ready(afu->fd, 1000, 0);
@@ -2244,6 +2382,10 @@ static void *_psl_loop(void *ptr)
 		case OCSE_XLATE_RELEASE:
 			DPRINTF("AFU XLATE RELEASE\n");
 			_handle_xlate( afu, OCSE_XLATE_RELEASE );
+			break;
+		case OCSE_XLATE_KILL_DONE:
+			DPRINTF("AFU XLATE KILL DONE\n");
+			_handle_kill_xlate_done( afu );
 			break;
 		case OCSE_MEMORY_TOUCH:
 			DPRINTF("AFU XLATE TOUCH\n");
