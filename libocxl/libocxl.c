@@ -440,8 +440,6 @@ static void _handle_write_be(struct ocxl_afu *afu, uint64_t addr, uint16_t size,
 		be_copy = be_copy >> 1; // shift be_copy right 1 bit.
 	}
 	
-	memcpy((void *)addr, data, size);
-
 	buffer = OCSE_MEM_SUCCESS;
 	if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
 		afu->opened = 0;
