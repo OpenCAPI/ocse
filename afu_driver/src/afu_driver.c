@@ -136,6 +136,8 @@ uint8_t         c_afu_tlx_vc3_cmdflag;
 uint32_t        c_afu_tlx_vc3_pasid;
 uint16_t        c_afu_tlx_vc3_bdf;
 uint8_t         c_afu_tlx_vc3_mad;
+uint16_t         c_afu_tlx_vc3_capptag;
+uint8_t         c_afu_tlx_vc3_resp_code;
 uint8_t         c_afu_tlx_dcp3_data_valid;
 uint8_t         c_afu_tlx_dcp3_data_bdi;
 uint8_t  	c_afu_tlx_dcp3_data_bus[CACHELINE_BYTES];
@@ -458,6 +460,8 @@ void tlx_bfm(
   const svLogicVecVal   *afu_tlx_vc3_pasid_top,
   const svLogicVecVal   *afu_tlx_vc3_bdf_top,
   const svLogicVecVal   *afu_tlx_vc3_mad_top,
+  const svLogicVecVal   *afu_tlx_vc3_capptag_top,
+  const svLogicVecVal   *afu_tlx_vc3_resp_code_top,
   const svLogic		 afu_tlx_dcp3_data_valid_top,
   const svLogicVecVal   *afu_tlx_dcp3_data_bus_top,
   const svLogic		 afu_tlx_dcp3_data_bdi_top
@@ -850,13 +854,18 @@ void tlx_bfm(
         invalidVal		        += (afu_tlx_vc3_bdf_top->bval) & 0xFFFF;
         c_afu_tlx_vc3_mad	         = (afu_tlx_vc3_mad_top->aval) & 0xFF;
         invalidVal		        += (afu_tlx_vc3_mad_top->bval) & 0xFF;
+        c_afu_tlx_vc3_capptag	         = (afu_tlx_vc3_capptag_top->aval) & 0xFFFF;
+        invalidVal		        += (afu_tlx_vc3_capptag_top->bval) & 0xFFFF;
+        c_afu_tlx_vc3_resp_code	         = (afu_tlx_vc3_resp_code_top->aval) & 0xFF;
+        invalidVal		        += (afu_tlx_vc3_resp_code_top->bval) & 0xFF;
         printf("%08lld: ", (long long) c_sim_time);
         int resp_code = afu_tlx_send_cmd_vc3(&event, 
   		 c_afu_tlx_vc3_opcode, c_afu_tlx_vc3_actag,
   		 c_afu_tlx_vc3_stream_id, c_afu_tlx_vc3_ea_ta_or_obj,
   		 c_afu_tlx_vc3_afutag, c_afu_tlx_vc3_dl, c_afu_tlx_vc3_pl, c_afu_tlx_vc3_os, c_afu_tlx_vc3_be,
   		 c_afu_tlx_vc3_cmdflag, c_afu_tlx_vc3_endian, c_afu_tlx_vc3_bdf, c_afu_tlx_vc3_pasid, 
-                 c_afu_tlx_vc3_pg_size, c_afu_tlx_vc3_mad);
+                 c_afu_tlx_vc3_pg_size, c_afu_tlx_vc3_mad,
+                 c_afu_tlx_vc3_capptag, c_afu_tlx_vc3_resp_code);
         printf(" The AFU to TLX  VC3 response, with opcode: 0x%x, and the method resp code being 0x%02x\n",  c_afu_tlx_vc3_opcode, resp_code);
       }
       if(c_afu_tlx_dcp3_data_valid)

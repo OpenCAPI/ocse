@@ -217,6 +217,7 @@ int afu_tlx_read_cmd_vc3_and_dcp3_data(struct AFU_EVENT *event,
 		    uint64_t * cmd_be, uint8_t * cmd_pl, uint8_t * cmd_os,
 		    uint8_t * cmd_endian, uint8_t * cmd_pg_size, uint8_t * cmd_cmdflag,
 		    uint32_t * cmd_pasid, uint16_t * cmd_bdf, uint8_t * cmd_mad,
+		    uint16_t * cmd_capptag, uint8_t * cmd_resp_code,
   	  	    uint8_t * cmd_data_is_valid,
  		    uint8_t * cdata_bus, uint8_t * cdata_bdi);
 
@@ -226,7 +227,6 @@ int afu_tlx_read_cmd_vc3_and_dcp3_data(struct AFU_EVENT *event,
 int afu_tlx_read_dcp3_data(struct AFU_EVENT *event,
   	  	    uint8_t * cmd_data_is_valid,
  		    uint8_t * cdata_bus, uint8_t * cdata_bdi);
-
 
 
 
@@ -363,7 +363,9 @@ int afu_tlx_send_cmd_vc3(struct AFU_EVENT *event,
   		 uint8_t cmd_pl, uint8_t cmd_os,
   	 	 uint64_t cmd_be,uint8_t cmd_flag,
 		 uint8_t cmd_endian, uint16_t cmd_bdf,
- 		 uint32_t cmd_pasid, uint8_t cmd_pg_size, uint8_t cmd_mad );
+ 		 uint32_t cmd_pasid, uint8_t cmd_pg_size, uint8_t cmd_mad,
+		 uint16_t cmd_capptag, uint8_t cmd_resp_code );
+
 
 
 /* Call this from afu to send command data to ocse via dcp3   assume can only send 64B
@@ -384,6 +386,7 @@ int afu_tlx_send_cmd_vc3_and_dcp3_data(struct AFU_EVENT *event,
   	 	 uint64_t cmd_be,uint8_t cmd_flag,
 		 uint8_t cmd_endian, uint16_t cmd_bdf,
  		 uint32_t cmd_pasid, uint8_t cmd_pg_size, uint8_t cmd_mad,
+		 uint16_t cmd_capptag, uint8_t cmd_resp_code,
 		 uint8_t cdata_bdi, uint8_t * cdata_bus );
 
 

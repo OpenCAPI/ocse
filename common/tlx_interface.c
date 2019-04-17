@@ -1014,6 +1014,7 @@ int afu_tlx_read_cmd_vc3_and_dcp3_data(struct AFU_EVENT *event,
 		    uint64_t * cmd_be, uint8_t * cmd_pl, uint8_t * cmd_os,
 		    uint8_t * cmd_endian, uint8_t * cmd_pg_size, uint8_t * cmd_cmdflag,
 		    uint32_t * cmd_pasid, uint16_t * cmd_bdf, uint8_t * cmd_mad,
+		    uint16_t * cmd_capptag, uint8_t * cmd_resp_code,
   	  	    uint8_t * cmd_data_is_valid,
  		    uint8_t * cdata_bus, uint8_t * cdata_bdi)
 
@@ -1043,6 +1044,8 @@ int afu_tlx_read_cmd_vc3_and_dcp3_data(struct AFU_EVENT *event,
 		*cmd_pasid = event->afu_tlx_vc3_pasid;
 		*cmd_bdf = event->afu_tlx_vc3_bdf;
 		*cmd_mad = event->afu_tlx_vc3_mad;
+		*cmd_capptag = event->afu_tlx_vc3_capptag;
+		*cmd_resp_code = event->afu_tlx_vc3_resp_code;
 		*cmd_data_is_valid = 0;
 		if (event->afu_tlx_dcp3_data_valid) {
 	// should we return some sort of RC other than 0 if there is no data? Should calling function be
@@ -1091,8 +1094,6 @@ int afu_tlx_read_dcp3_data(struct AFU_EVENT *event,
 		return TLX_SUCCESS;
 
 }
-
-
 
 
 /* Call this to send an event to the AFU model after calling one or more of:
@@ -1379,8 +1380,9 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		//printf("event->tbuf[3] is 0x%2x and bp-1 is 0x%2x \n", event->tbuf[3], bp-1);
 		event->afu_tlx_dcp2_data_valid = 0;
 	}
-	if (event->afu_tlx_vc3_valid != 0) { //There are 36 bytes to xfer in this group 
+	if (event->afu_tlx_vc3_valid != 0) { //There are 39 bytes to xfer in this group 
 		printf("      adding afu_tlx_vc3\n");
+		printf("event->tbuf[bp] is 0x%2x and bp is 0x%2x \n", event->tbuf[bp], bp);
 		event->tbuf[0] = event->tbuf[0] | 0x01;  //signal more than just a clk
 		event->tbuf[1] = event->tbuf[1] | 0x80;
 		printf(" afu_tlx_vc3_afutag= 0x%4x\n", event->afu_tlx_vc3_afutag);
@@ -1411,6 +1413,10 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		event->tbuf[bp++] = ((event->afu_tlx_vc3_bdf) >> 8 ) & 0xFF;
 		event->tbuf[bp++] = (event->afu_tlx_vc3_bdf & 0xFF);
 		event->tbuf[bp++] = event->afu_tlx_vc3_mad;
+		event->tbuf[bp++] = ((event->afu_tlx_vc3_capptag) >> 8) & 0xFF;
+		event->tbuf[bp++] = (event->afu_tlx_vc3_capptag & 0xFF);
+		event->tbuf[bp++] = event->afu_tlx_vc3_resp_code;
+		printf("event->tbuf[bp] is 0x%2x and bp is 0x%2x \n", event->tbuf[bp], bp);
 		event->afu_tlx_vc3_valid = 0;
 	}
 	if (event->afu_tlx_dcp3_data_valid != 0) { //There are 65  bytes to xfer
@@ -1657,7 +1663,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 			}
 		if ((event->rbuf[1] & 0x80) != 0) {
 		        debug_msg("      add in  expected vc3 cmd byte count");
-			rbc += 36; 
+			rbc += 39; 
 		}
 
 		if ((event->rbuf[0] & 0x80) != 0) {
@@ -1767,7 +1773,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 	if ((event->rbuf[1] & 0x80) != 0) {
 	        debug_msg("      parsing afu tlx vc3 cmd");
 		event->afu_tlx_vc3_valid = 1;
-		//printf("event->afu_tlx_vc3_valid is 1  and rbc is 0x%2x \n", rbc);
+		printf("event->afu_tlx_vc3_valid is 1  and rbc is 0x%2x \n", rbc);
 		event->tlx_afu_vc3_credit = 1;
 		event->tlx_afu_credit_valid = 1;
 		debug_msg("TLX_GET_AFU_EVENTS setting tlx_afu_vc3_credit = 1");
@@ -1805,6 +1811,10 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		event->afu_tlx_vc3_bdf = event->rbuf[rbc++];
 		event->afu_tlx_vc3_bdf = ((event->afu_tlx_vc3_bdf << 8) | event->rbuf[rbc++]);;
 		event->afu_tlx_vc3_mad = event->rbuf[rbc++];
+		event->afu_tlx_vc3_capptag = event->rbuf[rbc++];
+		event->afu_tlx_vc3_capptag = ((event->afu_tlx_vc3_capptag << 8) | event->rbuf[rbc++]);
+		event->afu_tlx_vc3_resp_code = event->rbuf[rbc++];
+		printf("event->afu_tlx_vc3_valid is 1  and rbc is 0x%2x \n", rbc);
 
 	} else {
 		event->afu_tlx_vc3_valid = 0;
@@ -2688,7 +2698,8 @@ int afu_tlx_send_cmd_vc3(struct AFU_EVENT *event,
   		 uint8_t cmd_pl, uint8_t cmd_os,
   	 	 uint64_t cmd_be,uint8_t cmd_flag,
 		 uint8_t cmd_endian, uint16_t cmd_bdf,
- 		 uint32_t cmd_pasid, uint8_t cmd_pg_size, uint8_t cmd_mad )
+ 		 uint32_t cmd_pasid, uint8_t cmd_pg_size, uint8_t cmd_mad,
+		 uint16_t cmd_capptag, uint8_t cmd_resp_code )
 
 {
         debug_msg("afu_tlx_send_cmd_vc3: tlx_afu_vc3_credits available is %d", event->tlx_afu_vc3_credits_available );
@@ -2734,6 +2745,8 @@ int afu_tlx_send_cmd_vc3(struct AFU_EVENT *event,
 	event->afu_tlx_vc3_pasid = cmd_pasid;
 	event->afu_tlx_vc3_pg_size = cmd_pg_size;
 	event->afu_tlx_vc3_mad = cmd_mad;
+	event->afu_tlx_vc3_capptag = cmd_capptag;
+	event->afu_tlx_vc3_resp_code = cmd_resp_code;
 	return TLX_SUCCESS;
 
 }
@@ -2781,6 +2794,7 @@ int afu_tlx_send_cmd_vc3_and_dcp3_data(struct AFU_EVENT *event,
   	 	 uint64_t cmd_be,uint8_t cmd_flag,
 		 uint8_t cmd_endian, uint16_t cmd_bdf,
  		 uint32_t cmd_pasid, uint8_t cmd_pg_size, uint8_t cmd_mad,
+ 		 uint16_t cmd_capptag, uint8_t cmd_resp_code,
 		 uint8_t cdata_bdi, uint8_t * cdata_bus )
 
 {
@@ -2826,6 +2840,8 @@ int afu_tlx_send_cmd_vc3_and_dcp3_data(struct AFU_EVENT *event,
 		event->afu_tlx_vc3_pasid = cmd_pasid;
 		event->afu_tlx_vc3_pg_size = cmd_pg_size;
 		event->afu_tlx_vc3_mad = cmd_mad;
+		event->afu_tlx_vc3_capptag = cmd_capptag;
+		event->afu_tlx_vc3_resp_code = cmd_resp_code;
 		event->afu_tlx_dcp3_data_bdi = cdata_bdi;
 		// TODO FOR NOW WE ALWAYS COPY 64 BYTES of DATA - AFU ALWAYS
 		// SENDS 64 BYTES

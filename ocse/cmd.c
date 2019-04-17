@@ -180,6 +180,10 @@ static int _incoming_data_expected(struct cmd *cmd)
 	}
 
 }
+/*
+ 		_add_cmd(cmd, context, afutag, cmd_opcode, OCSE_XLATE_KILL_DONE, 0, cmd_capptag, MEM_DONE,
+			 0x00, 0, 0, 0, 0, 0, 0, cmd_resp_code, 0); }
+ * */
 // Add new command to list
 static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 		     uint32_t command, enum cmd_type type,
@@ -209,6 +213,8 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	event->resp_opcode = resp_opcode;
 	event->stream_id = stream_id;  //figure out how to use it later.....
 	event->form_flag = form_flag;
+	if (command == AFU_RSP_KILL_XLATE_DONE) 
+		event->resp_capptag = size;
 	// if size = 0 it doesn't matter what we set, in this case, 1, otherwise find resp_dl from size but resp_dp always 0 
 	if (size <= 64)
 		event->resp_dl = 1;
@@ -322,17 +328,33 @@ static int _aligned(uint64_t addr, uint32_t size)
 	// Check valid size
         // that is, size must be a power of 2
 	if ((size == 0) || (size & (size - 1))) {
-		warn_msg("AFU issued command with invalid size %d", size);
+		info_msg("WARNING: AFU issued command with invalid size %d", size);
 		return 2;
 	}
 	// Check aligned address
 	if (addr & (size - 1)) {
-		warn_msg("AFU issued command with unaligned address %016"
+		info_msg("WARNING: AFU issued command with unaligned address %016"
 			 PRIx64, addr);
 		return 3;
 	}
 
 	return 1;
+}
+
+
+static void _add_kill_xlate_done(struct cmd *cmd, uint16_t actag, uint16_t afutag, uint8_t cmd_opcode,
+			  uint16_t cmd_capptag, uint8_t cmd_resp_code)
+{
+	int32_t context, resp;
+        context = _find_client_by_actag(cmd, actag);
+	if (context == -1) {
+		debug_msg("_add_kill_xlate_done: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
+		return;
+	resp = (uint32_t) cmd_resp_code;
+	// lets overlay some already defined parm to add_cmd for capptag 
+		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_KILL_DONE, 0, cmd_capptag, MEM_DONE,
+			 resp, 0, 0, 0, 0, 0, 0, 0, 0); }
+
 }
 
 
@@ -346,15 +368,15 @@ static int _aligned(uint64_t addr, uint32_t size)
         // convert 68 bit ea/obj to 64 bit addr
         // for ap write commands, ea_or_obj is a 64 bit thing...
         memcpy( (void *)&addr, (void *)&(cmd_ea_ta_or_obj[0]), sizeof(int64_t));
- 	// Check command size and address */
- 	if (_aligned(addr, size) == BAD_OPERAND_SIZE) {
- 		_add_fail(cmd, actag, afutag, cmd_opcode, 0x09, TLX_RSP_TOUCH_RESP);
- 		return;
- 	}
-	else if (_aligned(addr, size) == BAD_ADDR_OFFSET) { //invalid address alignment
- 		_add_fail(cmd, actag, afutag, cmd_opcode,  0x0b, TLX_RSP_TOUCH_RESP);
- 		return;
- 	}
+ 	// Check command size and address 
+// 	if (_aligned(addr, size) == BAD_OPERAND_SIZE) {
+// 		_add_fail(cmd, actag, afutag, cmd_opcode, 0x0e, TLX_RSP_TOUCH_RESP);
+//		return;
+// 	}
+//	else if (_aligned(addr, size) == BAD_ADDR_OFFSET) { //invalid address alignment
+//		_add_fail(cmd, actag, afutag, cmd_opcode,  0x0e, TLX_RSP_TOUCH_RESP);
+//		return;
+// 	}
 	// In future, check to see if cmd_pg_size is a supported value? Send it
 	// over to libocxl?
         int32_t context;
@@ -627,7 +649,9 @@ static void _parse_cmd(struct cmd *cmd,
 #endif
 		       uint64_t cmd_be, uint8_t cmd_flag,
 		       uint8_t cmd_endian, uint16_t cmd_bdf,
-		       uint32_t cmd_pasid, uint8_t cmd_pg_size, uint8_t cmd_data_is_valid,
+		       uint32_t cmd_pasid, uint8_t cmd_pg_size, 
+		       uint16_t cmd_capptag, uint8_t cmd_resp_code,
+		       uint8_t cmd_data_is_valid,
 		       uint8_t *cdata_bus, uint8_t cdata_bad)
 {
 	//uint8_t unlock = 0;
@@ -750,6 +774,12 @@ static void _parse_cmd(struct cmd *cmd,
 		_add_xlate_touch(cmd, cmd_actag, cmd_afutag, cmd_opcode,
 			  cmd_ea_ta_or_obj, cmd_flag, cmd_pg_size, cmd_stream_id);
 		break;
+	case AFU_RSP_KILL_XLATE_DONE:
+		debug_msg("YES! AFU response is KILL XLATE DONE");
+		_add_kill_xlate_done(cmd, cmd_actag, cmd_afutag, cmd_opcode,
+			  cmd_capptag, cmd_resp_code);
+		break;
+
 	default:
 		warn_msg("Unsupported command 0x%04x", cmd_opcode);
 		// TODO this type of error is signaled as "malformed packet error type 0 event" but how??  
@@ -765,9 +795,9 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 	struct cmd_event *event;
 	uint64_t cmd_be;
 	uint32_t cmd_pasid;
-	uint16_t cmd_actag, cmd_afutag, cmd_bdf;
+	uint16_t cmd_actag, cmd_afutag, cmd_bdf, cmd_capptag;
 	uint8_t  cmd_ea_ta_or_obj[9];
-	uint8_t  cmd_opcode, cmd_stream_id, cmd_dl, cmd_pl, cmd_flag, cmd_endian, cmd_pg_size, cmd_mad, cmd_data_is_valid, cdata_bad;
+	uint8_t  cmd_opcode, cmd_stream_id, cmd_dl, cmd_pl, cmd_flag, cmd_endian, cmd_pg_size, cmd_mad, cmd_resp_code, cmd_data_is_valid, cdata_bad;
 #ifdef TLX4
 	uint8_t cmd_os;
 #endif
@@ -792,13 +822,14 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 		    &cmd_os,&cmd_endian, &cmd_pg_size,
 		    &cmd_flag, &cmd_pasid, 
  		     &cmd_bdf, &cmd_mad,
+		     &cmd_capptag, &cmd_resp_code,
   	  	     &cmd_data_is_valid,
  		    dptr, &cdata_bad);
 
 
 
 	// No command ready */
-	if (rc != TLX_SUCCESS)
+	if ((rc != TLX_SUCCESS) || (cmd_opcode == AFU_RSP_KILL_XLATE_DONE))
 		return;
 
 	debug_msg( "%s:COMMAND actag=0x%02x afutag=0x%04x cmd=0x%x cmd_data_is_valid= 0x%x ",
@@ -823,7 +854,7 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 #ifdef TLX4
 		   cmd_os,
 #endif
-		   cmd_be, cmd_flag, cmd_endian, cmd_bdf, cmd_pasid, cmd_pg_size, cmd_data_is_valid, dptr, cdata_bad);
+		   cmd_be, cmd_flag, cmd_endian, cmd_bdf, cmd_pasid, cmd_pg_size, cmd_capptag, cmd_resp_code, cmd_data_is_valid, dptr, cdata_bad);
 }
 
 // Handle randomly selected pending read by either generating early buffer
@@ -1517,6 +1548,53 @@ void handle_touch(struct cmd *cmd)
        	     }
 }
 
+void handle_kill_done(struct cmd *cmd)
+{
+	struct cmd_event *event;
+	struct client *client;
+	uint8_t *buffer;
+	uint16_t *resp_capptag;
+
+	// Make sure cmd structure is valid
+	if (cmd == NULL)
+		return;
+
+	// Randomly select a pending kill_done (or none)
+	event = cmd->list;
+	while (event != NULL) {
+	        if ( ( event->type == CMD_KILL_DONE ) && 
+		     ( event->state == MEM_IDLE ) && 
+		     ( ( event->client_state != CLIENT_VALID ) || !allow_reorder(cmd->parms) ) ) {
+			break;
+		}
+
+		event = event->_next;
+	}
+
+	// Test for client disconnect
+	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
+		return;
+
+	if (event->command == AFU_RSP_KILL_XLATE_DONE) {
+		// Send kill xlate done response to client
+		buffer = (uint8_t *) malloc(4);
+		buffer[0] = (uint8_t) OCSE_XLATE_KILL_DONE;
+		buffer[1] = (uint8_t) event->resp;
+		resp_capptag = (uint16_t *) & (buffer[2]);
+		*resp_capptag = htonll(event->resp_capptag);
+		debug_msg("%s:KILL_XLATE_DONE   capptag=0x%02x resp_code=0x%2x", event->resp_capptag,
+			   event->resp);
+		if (put_bytes(client->fd, 4, buffer, cmd->dbg_fp, cmd->dbg_id,
+			      event->context) < 0) {
+			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		}
+		event->state = MEM_DONE; 
+		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
+        } 
+}
+
+
+
 // Send pending interrupt to client as soon as possible
 void handle_interrupt(struct cmd *cmd)
 {
@@ -1865,6 +1943,9 @@ void handle_response(struct cmd *cmd)
 	struct cmd_event *event;
 	struct client *client;
 	//uint8_t resp_dl, resp_dp;
+	uint8_t *buffer;
+	uint16_t *resp_capptag;
+
 	int rc = 0;
 
 	// debug_msg( "ocse:handle_response:" );
@@ -1900,6 +1981,29 @@ void handle_response(struct cmd *cmd)
 	  // maybe we should free it too???
 	  return;
 	}
+	if (event->command == AFU_RSP_KILL_XLATE_DONE) {
+		// Send kill xlate done response to client
+		buffer = (uint8_t *) malloc(4);
+		buffer[0] = (uint8_t) OCSE_XLATE_KILL_DONE;
+		buffer[1] = (uint8_t) event->resp;
+		resp_capptag = (uint16_t *) & (buffer[2]);
+		*resp_capptag = htonll(event->resp_capptag);
+		debug_msg("%s:KILL_XLATE_DONE   capptag=0x%02x resp_code=0x%2x", event->resp_capptag,
+			   event->resp);
+		if (put_bytes(client->fd, 4, buffer, cmd->dbg_fp, cmd->dbg_id,
+			      event->context) < 0) {
+			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		}
+		debug_cmd_response(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->resp_opcode, event->resp);
+	        debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", free event",
+		    cmd->afu_name, event );
+		*head = event->_next;
+	 	free(event->data);
+	 	free(event);
+		return;
+
+        } 
+
 
 	if (((event->form_flag & 0x2) == 1) && (event->state == MEM_DONE)) { // cmd is posted; no resp needed so free structs
 		debug_msg("%s:RESPONSE event @ 0x%016" PRIx64 ", NO RESPONSE sent for XLATE_RELEASE  afutag=0x%02x code=0x%x", cmd->afu_name,

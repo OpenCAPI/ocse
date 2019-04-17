@@ -554,7 +554,7 @@ static void _handle_kill_xlate( struct ocxl_afu *afu )
 	    bdf = bdf << 5;
 	    bdf = bdf + afu->dev;
 	    bdf = bdf << 3;
-	    bdf - bdf + afu->fcn;
+	    bdf = bdf + afu->fcn;
 	    break;
 	  }
 	}

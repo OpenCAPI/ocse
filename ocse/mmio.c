@@ -720,7 +720,7 @@ int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 // modify to check command and use size, dl dp and stuff...
 // Send pending MMIO event to AFU; use config_read or config_write for descriptor
 // for MMIO use cmd_pr_rd_mem or cmd_pr_wr_mem
-// also supports amo_rd, amo_rw and amo_wr TODO HP MAKE SURE this will work for amo_rd, etc and the new fields cmd_flg, endian, etc
+// For TLX_CMD_KILL_XLATE make sure to use vc2 NOT vc1
 void send_mmio(struct mmio *mmio)
 {
 	struct mmio_event *event;
@@ -786,7 +786,19 @@ void send_mmio(struct mmio *mmio)
 		return;
        	}  
 
-	// if not a CONFIG, then must be memory access MMIO rd/wr
+	// if not a CONFIG, then must be memory access MMIO rd/wr OR maybe kill_xlate
+	if (event->cmd_opcode == TLX_CMD_KILL_XLATE) { //do this first; once it's working maybe integrate in cmd_opcode case below?
+	      debug_msg("%s:%s KILL_XLATE  ea=0x%05x", mmio->afu_name, type,  event->cmd_ea);
+	      if ( tlx_afu_send_cmd_vc2( mmio->afu_event,
+					 TLX_CMD_KILL_XLATE, 
+					 0xcafe, event->cmd_pg_size, event->cmd_ea, event->cmd_flg, 
+					 event->cmd_pasid, event->cmd_bdf ) == TLX_SUCCESS ) {
+		    debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw,event->cmd_ea );
+		    event->state = OCSE_PENDING;
+	      }
+	      return;
+
+	}
 	if ( event->size == 0 ) {
 	      // we have the old mmio style
 	      debug_msg( "ocse:send_mmio:mmio to mmio space" );
@@ -1249,6 +1261,57 @@ int _resp_dldp_is_legal(uint8_t cmd_dl, uint8_t resp_dl, uint8_t resp_dp)
   
   return 1;
 }
+
+// Handle kill_xlate_done responses coming from the afu
+// this only covers responses to client/host initiated kill_xlate commmands (comes back over afu_tlx_vc3 interface, not vc0)
+/*void handle_ap_killdone(struct mmio *mmio,struct client *client)
+{
+	int rc;
+	uint8_t resp_opcode, resp_code;
+	uint16_t resp_capptag;
+	uint16_t cmd_actag, cmd_afutag;
+	uint8_t  cmd_stream_id;
+	uint16_t *respcapptag;
+	uint8_t *buffer;
+	uint8_t ack = OCSE_MMIO_ACK;
+	int fd = client->fd;
+
+
+	if (mmio->list->cmd_opcode !=  TLX_CMD_KILL_XLATE)
+       		return;
+	else {
+	rc =  afu_tlx_read_resp_vc3(mmio->afu_event, 
+  		    &resp_opcode,&cmd_stream_id, 
+		    &cmd_afutag,&cmd_actag,
+		     &resp_capptag, &resp_code);
+
+	// No command ready 
+	if (rc != TLX_SUCCESS)
+		return;
+
+//	debug_msg( "%s:COMMAND actag=0x%02x afutag=0x%04x cmd=0x%x  ",
+//		   cmd->afu_name,
+//		   cmd_actag,
+//		   cmd_afutag,
+//		   cmd_opcode);
+
+
+			// Send kill xlate done response to client
+		buffer = (uint8_t *) malloc(4);
+		buffer[0] = (uint8_t) OCSE_XLATE_KILL_DONE;
+		buffer[1] = (uint8_t) resp_code;
+		respcapptag = (uint16_t *) & (buffer[2]);
+		*respcapptag = htonll(resp_capptag);
+		debug_msg("%s:KILL_XLATE_DONE   capptag=0x%02x resp_code=0x%2x", resp_capptag,
+			   resp_code);
+		if (put_bytes(client->fd, 4, buffer, cmd->dbg_fp, cmd->dbg_id,
+			      event->context) < 0) {
+			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		}
+		mmio->list->state = OCSE_DONE;
+		return;
+	}
+} */
 
 // Handle ap responses coming from the afu
 // this will include responses to config commmands, mmio requests, amo cmds and lpc memory requests
@@ -2057,4 +2120,96 @@ struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
 	return NULL;
 }
 
+// Handle request from client to send kill_xlate request to AFU for specific address
+struct mmio_event *handle_kill_xlate(struct mmio *mmio, struct client *client)
+{
+	struct mmio_event *event;
+	struct mmio_event **list;
+	uint64_t ea;
+	uint16_t bdf;
+	uint16_t pasid;
+	uint8_t cmd_flg;
+	uint8_t pg_size;
+	uint16_t context;
+	int fd = client->fd;
+
+	uint8_t ack;
+
+	debug_msg( "handle_kill_xlate" );
+
+	// Only allow mem access when client is valid
+	if (client->state != CLIENT_VALID) {
+	        debug_msg( "handle_kill_xlate: invalid client" );
+		ack = OCSE_KILL_XLATE_FAIL;
+		if (put_bytes(client->fd, 1, &ack, mmio->dbg_fp, mmio->dbg_id,
+			      client->context) < 0) {
+			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		}
+		return NULL;
+	}
+
+
+
+	if (get_bytes_silent(fd, 1, (uint8_t *) &cmd_flg, mmio->timeout, &(client->abort)) < 0) {
+		goto kill_fail;
+	}
+
+	if (get_bytes_silent(fd, 8, (uint8_t *) &ea, mmio->timeout, &(client->abort)) < 0) {
+		goto kill_fail;
+	}
+	ea = ntohl(ea);
+
+	if (get_bytes_silent(fd, 1, (uint8_t *) &pg_size, mmio->timeout, &(client->abort)) < 0) {
+		goto kill_fail;
+	}
+
+	if (get_bytes_silent(fd, 2, (uint8_t *) &bdf, mmio->timeout, &(client->abort)) < 0) {
+		goto kill_fail;
+	}
+	bdf = ntohl(bdf);
+
+	if (get_bytes_silent(fd, 2, (uint8_t *) &pasid, mmio->timeout, &(client->abort)) < 0) {
+		goto kill_fail;
+	}
+	pasid = ntohl(pasid);
+
+	event = (struct mmio_event *)malloc(sizeof(struct mmio_event));
+	if (!event)
+		return event;
+	event->cmd_opcode = TLX_CMD_KILL_XLATE;
+	event->cfg = 0;
+	event->rnw = 0;
+	event->be_valid = 0;
+	event->dw = 0;
+	event->size = 0;  // part of the new fields
+	event->size_received = 0;  // part of the new fields
+	event->data = 0;
+	event->be = 0;
+
+	event->cmd_flg = cmd_flg;
+	event->cmd_ea = ea;
+	event->cmd_pg_size = pg_size;
+	event->cmd_bdf = bdf;
+	event->cmd_pasid = pasid;
+	event->state = OCSE_IDLE;
+	event->_next = NULL;
+	debug_msg("_handle_kill_xlate: ea=0x%016lx  cmd_flg= 0x%x", event->cmd_ea,  event->cmd_flg );
+		// Add to end of list
+	list = &(mmio->list);
+	while (*list != NULL)
+		list = &((*list)->_next);
+	*list = event;
+	context = client->context;
+	debug_mmio_add(mmio->dbg_fp, mmio->dbg_id, context, 0, cmd_flg,  ea);
+
+	return event;
+
+ kill_fail:
+	// Socket connection is dead
+	debug_msg("%s:handle_kill_xlate failed context=%d",
+		  mmio->afu_name, client->context);
+	client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	return NULL;
+
+}
 
