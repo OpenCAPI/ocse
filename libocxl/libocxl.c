@@ -719,7 +719,8 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 		DPRINTF("RELEASE of addr @ 0x%016" PRIx64 "\n", addr);
 	        break;
 	case OCSE_MEMORY_TOUCH:
-	        // if function code is request a ta, 
+	        // Other function codes (0x4=heavy weight touch, 0x2=write access requested, and 0x1=age out) are not supported at this time
+	        // if function code is request a ta 
 	        if ( (function_code & 0x08 ) == 0x08 ) {
 		        // create a translation table entry
 		        // translation table entry contains ea, ta (= ea), pa=0, mem_hit=0
@@ -739,7 +740,7 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 				this->ta = addr;
 				this->pa = 0x0;
 				this->mh = 0;
-				this->pg_size = 0x12; // 4k pages
+				this->pg_size = 0x0C; // 2^12 (4k) pages - this should maybe be random and more likely be 2^16 (0x10) (64K) to represent the linux environment
 				this->_next = afu->eas;
 				afu->eas = this;
 			}
