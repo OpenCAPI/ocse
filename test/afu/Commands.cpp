@@ -52,9 +52,9 @@ OtherCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     uint8_t  cmd_stream_id;
     uint8_t  cmd_dl, cmd_pl;
     uint64_t cmd_be;
-    uint8_t  cmd_flag, cmd_endian, cmd_pg_size;
+    uint8_t  cmd_flag, cmd_endian, cmd_pg_size, cmd_resp_code;
     uint16_t  cmd_bdf, cmd_actag, cmd_afutag;
-    uint16_t cmd_pasid;
+    uint16_t cmd_pasid, cmd_capptag;
     int  rc, i;
     uint8_t  cmd_os, cmd_mad, ea_addr[9];
     uint8_t  cdata_bus[64], cdata_bdi;
@@ -73,9 +73,11 @@ OtherCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     cmd_pasid = afu_event->afu_tlx_vc3_pasid;
     cmd_pg_size = afu_event->afu_tlx_vc3_pg_size;
     cmd_actag = afu_event->afu_tlx_vc3_actag;
+    cmd_capptag = afu_event->afu_tlx_vc3_capptag;
+    cmd_resp_code = afu_event->afu_tlx_vc3_resp_code;
     cmd_afutag = new_tag;
     printf("OtherCommand: sending command = 0x%x\n", Command::code);
-
+    printf("OtherCommand: cmd_flag = 0x%x\n", cmd_flag);
     debug_msg("calling afu_tlx_send_cmd with command = 0x%x and paddress = 0x%x cmd_actag = 0x%x", Command::code, address, cmd_actag);
     debug_msg("ACTAG = 0x%x BDF = 0x%x PASID = 0x%x", cmd_actag, cmd_bdf, cmd_pasid);
     switch(Command::code) {
@@ -86,7 +88,8 @@ OtherCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     	rc = afu_tlx_send_cmd_vc3(afu_event, Command::code, cmd_actag, 
             cmd_stream_id, ea_addr, cmd_afutag, cmd_dl, 
             cmd_pl, cmd_os, cmd_be, cmd_flag, cmd_endian, 
-            cmd_bdf, cmd_pasid, cmd_pg_size, cmd_mad);
+            cmd_bdf, cmd_pasid, cmd_pg_size, cmd_mad,
+            cmd_capptag, cmd_resp_code);
 //    }
 	    break;
 	case AFU_CMD_INTRP_REQ_D:
@@ -99,8 +102,16 @@ OtherCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
  	    rc = afu_tlx_send_cmd_vc3_and_dcp3_data(afu_event, Command::code, 
             cmd_actag, cmd_stream_id, ea_addr, cmd_afutag, cmd_dl, 
             cmd_pl, cmd_os, cmd_be, cmd_flag, cmd_endian, cmd_bdf, 
-            cmd_pasid, cmd_pg_size, cmd_mad, cdata_bdi, cdata_bus);
+            cmd_pasid, cmd_pg_size, cmd_mad, cmd_capptag, cmd_resp_code,
+            cdata_bdi, cdata_bus);
 	    break;
+    case AFU_CMD_XLATE_TOUCH:
+        printf("Commands: Sending AFU_CMD_XLATE_TOUCH\n");
+        rc = afu_tlx_send_cmd_vc3(afu_event, Command::code, 
+            cmd_actag, cmd_stream_id, ea_addr, cmd_afutag, cmd_dl, 
+            cmd_pl, cmd_os, cmd_be, cmd_flag, cmd_endian, cmd_bdf, 
+            cmd_pasid, cmd_pg_size, cmd_mad, cmd_capptag, cmd_resp_code);
+        break;
 	default:
 	    break;
     }
@@ -145,8 +156,8 @@ LoadCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     uint8_t  cmd_stream_id, cmd_os, cmd_mad, cdata_bdi;
     uint8_t  cmd_dl, cmd_pl;
     uint64_t cmd_be;
-    uint8_t  cmd_flag, cmd_endian, cmd_pg_size;
-    uint16_t  cmd_bdf, cmd_actag, cmd_afutag;
+    uint8_t  cmd_flag, cmd_endian, cmd_pg_size, cmd_resp_code;
+    uint16_t  cmd_bdf, cmd_actag, cmd_afutag, cmd_capptag;
     uint16_t cmd_pasid;
     int  rc, i;
     uint8_t  ea_addr[9];
@@ -165,6 +176,8 @@ LoadCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     cmd_pasid = afu_event->afu_tlx_vc3_pasid;
     cmd_pg_size = afu_event->afu_tlx_vc3_pg_size;
     cmd_actag = afu_event->afu_tlx_vc3_actag;
+    cmd_capptag = afu_event->afu_tlx_vc3_capptag;
+    cmd_resp_code = afu_event->afu_tlx_vc3_resp_code;
     //cmd_afutag = afu_event->afu_tlx_cmd_afutag;
     cmd_afutag = new_tag;
     printf("LoadCommand: sending command = 0x%x\n", Command::code);
@@ -187,7 +200,7 @@ LoadCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
         rc = afu_tlx_send_cmd_vc3(afu_event, Command::code, cmd_actag, 
             cmd_stream_id, ea_addr, cmd_afutag, cmd_dl, cmd_pl,
 	       cmd_os, cmd_be, cmd_flag, cmd_endian, cmd_bdf, cmd_pasid, 
-            cmd_pg_size, cmd_mad);
+            cmd_pg_size, cmd_mad, cmd_capptag, cmd_resp_code);
         printf("Commands: rc = 0x%x\n", rc);
     //}
     Command::state = WAITING_DATA;
@@ -234,9 +247,9 @@ StoreCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     uint8_t  cmd_stream_id, cmd_mad, cdata_bdi;
     uint8_t  cmd_dl, cmd_pl, cmd_os;
     uint64_t cmd_be;
-    uint8_t  cmd_flag, cmd_endian, cmd_pg_size, cdata_bad;
+    uint8_t  cmd_flag, cmd_endian, cmd_pg_size, cmd_capptag, cdata_bad;
     uint16_t  cmd_bdf, cmd_actag, cmd_afutag;
-    uint16_t cmd_pasid;
+    uint16_t cmd_pasid, cmd_resp_code;
     int  rc;
 //    uint32_t afutag;
     uint8_t  ea_addr[9], i;
@@ -257,6 +270,8 @@ StoreCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     cmd_pasid = afu_event->afu_tlx_vc3_pasid;
     cmd_pg_size = afu_event->afu_tlx_vc3_pg_size;
     cmd_actag = afu_event->afu_tlx_vc3_actag;
+    cmd_capptag = afu_event->afu_tlx_vc3_capptag;
+    cmd_resp_code = afu_event->afu_tlx_vc3_resp_code;
     //cmd_afutag = afu_event->afu_tlx_cmd_afutag;
     cmd_afutag = new_tag;
     cdata_bad = 0;
@@ -279,8 +294,9 @@ StoreCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     debug_msg("ACTAG = 0x%x BDF = 0x%x PASID = 0x%x", cmd_actag, cmd_bdf, cmd_pasid);
     rc = afu_tlx_send_cmd_vc3_and_dcp3_data(afu_event, Command::code, 
         cmd_actag, cmd_stream_id, ea_addr, cmd_afutag, cmd_dl, cmd_pl,
-	    cmd_os, cmd_be, cmd_flag, cmd_endian, cmd_bdf, cmd_pasid, 
-        cmd_pg_size, cmd_mad, cdata_bdi, afu_event->afu_tlx_dcp3_data_bus);
+	    cmd_os, cmd_be, cmd_flag, cmd_endian, cmd_bdf, cmd_pasid, cmd_capptag, 
+        cmd_resp_code, cmd_pg_size, cmd_mad, cdata_bdi, 
+        afu_event->afu_tlx_dcp3_data_bus);
     printf("Commands: rc = 0x%x\n", rc);
 
     Command::state = WAITING_READ;
