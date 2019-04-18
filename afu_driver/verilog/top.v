@@ -27,22 +27,6 @@ module top (
                                 input             tlx_clock,
                                 input             afu_clock,
                                 input             reset,
-/*
-				// Table 1: TLX to AFU Response Interface
-				inout             tlx_afu_resp_valid_top,
-				inout [7:0]       tlx_afu_resp_opcode_top,
-				inout [15:0]      tlx_afu_resp_afutag_top,
-				inout [3:0]       tlx_afu_resp_code_top,
-				inout [5:0]       tlx_afu_resp_pg_size_top,
-				inout [1:0]       tlx_afu_resp_dl_top,
-				inout [1:0]       tlx_afu_resp_dp_top,
-				inout [23:0]      tlx_afu_resp_host_tag_top,
-				inout [17:0]      tlx_afu_resp_addr_tag_top,
-				inout [3:0]       tlx_afu_resp_cache_state_top,
-				//	Table 2: TLX Response Credit Interface
-				input		  afu_tlx_resp_credit_top,
-				input	[6:0]	  afu_tlx_resp_initial_credit_top,
-*/
                                 // Table 2: TLX to AFU VCO Interface
 				input   [6:0]	  afu_tlx_vc0_initial_credit_top,
 				input		  afu_tlx_vc0_credit_top,
@@ -60,30 +44,12 @@ module top (
 				inout  [23:0]     tlx_afu_vc0_host_tag_top,
 				inout   [3:0]     tlx_afu_vc0_resp_code_top,
 				inout   [2:0]     tlx_afu_vc0_cache_state_top,
-/*
-				//	Table 3: TLX to AFU Command Interface
-				inout             tlx_afu_cmd_valid_top,
-				inout [7:0]       tlx_afu_cmd_opcode_top,
-				inout [15:0]      tlx_afu_cmd_capptag_top,
-				inout [1:0]       tlx_afu_cmd_dl_top,
-				inout [2:0]       tlx_afu_cmd_pl_top,
-				inout [63:0]      tlx_afu_cmd_be_top,
-				inout             tlx_afu_cmd_end_top,
-				inout [63:0]      tlx_afu_cmd_pa_top,
-				inout [3:0]       tlx_afu_cmd_flag_top,
-				inout             tlx_afu_cmd_os_top,
-*/
 				//	Table 3: TLX to AFU DCP0 Data Interface
 				input		  afu_tlx_dcp0_rd_req_top,
 				input   [2:0]	  afu_tlx_dcp0_rd_cnt_top,
 				inout             tlx_afu_dcp0_data_valid_top,
 				inout [511:0]     tlx_afu_dcp0_data_bus_top,
 				inout             tlx_afu_dcp0_data_bdi_top,
-/*
-				//	Table 4: TLX Command Credit Interface
-				input			afu_tlx_cmd_credit_top,
-				input	[6:0]		afu_tlx_cmd_initial_credit_top,
-*/
 				//	Table 4: TLX to AFU VC1 Interface
 				input   [6:0]	  afu_tlx_vc1_initial_credit_top,
 				input		  afu_tlx_vc1_credit_top,
@@ -101,28 +67,12 @@ module top (
 				inout             tlx_afu_vc1_os_top,
 				inout   [3:0]     tlx_afu_vc1_cmdflag_top,
 				inout   [7:0]     tlx_afu_vc1_mad_top,
-/*
-				//	Table 5: TLX to AFU Response Data Interface
-				inout             tlx_afu_resp_data_valid_top,
-				inout [511:0]     tlx_afu_resp_data_bus_top,
-				inout             tlx_afu_resp_data_bdi_top,
-				input			afu_tlx_resp_rd_req_top,
-				input	[2:0]		afu_tlx_resp_rd_cnt_top,
-*/
 				//	Table 5: TLX to AFU DCP1 Data Interface
 				input		  afu_tlx_dcp1_rd_req_top,
 				input   [2:0]	  afu_tlx_dcp1_rd_cnt_top,
 				inout             tlx_afu_dcp1_data_valid_top,
 				inout [511:0]     tlx_afu_dcp1_data_bus_top,
 				inout             tlx_afu_dcp1_data_bdi_top,
-/*
-				//	Table 6: TLX to AFU Command Data Interface
-				inout             tlx_afu_cmd_data_valid_top,
-				inout [511:0]     tlx_afu_cmd_data_bus_top,
-				inout             tlx_afu_cmd_data_bdi_top,
-				input			afu_tlx_cmd_rd_req_top,
-				input	[2:0]		afu_tlx_cmd_rd_cnt_top,
-*/
 				//	Table 6: TLX to AFU VC2 Interface
 				input   [6:0]	  afu_tlx_vc2_initial_credit_top,
 				input		  afu_tlx_vc2_credit_top,
@@ -134,17 +84,6 @@ module top (
 				inout   [3:0]     tlx_afu_vc2_cmdflag_top,
 				inout  [19:0]     tlx_afu_vc2_pasid_top,
 				inout  [15:0]     tlx_afu_vc2_bdf_top,
-/*
-				//	Table 7: TLX Framer credit interface
-				inout             tlx_afu_resp_credit_top,
-				inout             tlx_afu_resp_data_credit_top,
-				inout             tlx_afu_cmd_credit_top,
-				inout             tlx_afu_cmd_data_credit_top,
-				inout [3:0]       tlx_afu_cmd_resp_initial_credit_top,
-				inout [3:0]       tlx_afu_data_initial_credit_top,
-				inout [5:0]       tlx_afu_cmd_data_initial_credit_top,
-				inout [5:0]       tlx_afu_resp_data_initial_credit_top,
-*/
 				//	Table 7: TLX to CFG Interface for Configuration Commands
 				input   [3:0]	  cfg_tlx_initial_credit_top,
 				input		  cfg_tlx_credit_return_top,
@@ -156,59 +95,6 @@ module top (
 				inout             tlx_cfg_t_top,
 				inout  [31:0]     tlx_cfg_data_bus_top,
 				inout             tlx_cfg_data_bdi_top,
-/*
-				//	Table 8: TLX Framer Command Interface
-				input			afu_tlx_cmd_valid_top,
-				input	[7:0]		afu_tlx_cmd_opcode_top,
-				input	[11:0]		afu_tlx_cmd_actag_top,
-				input	[3:0]		afu_tlx_cmd_stream_id_top,
-				input	[67:0]		afu_tlx_cmd_ea_or_obj_top,
-				input	[15:0]		afu_tlx_cmd_afutag_top,
-				input	[1:0]		afu_tlx_cmd_dl_top,
-				input	[2:0]		afu_tlx_cmd_pl_top,
-				input			afu_tlx_cmd_os_top,
-				input	[63:0]		afu_tlx_cmd_be_top,
-				input	[3:0]		afu_tlx_cmd_flag_top,
-				input			afu_tlx_cmd_endian_top,
-				input	[15:0]		afu_tlx_cmd_bdf_top,
-				input	[19:0]		afu_tlx_cmd_pasid_top,
-				input	[5:0]		afu_tlx_cmd_pg_size_top,
-				input	[511:0]		afu_tlx_cdata_bus_top,
-				input			afu_tlx_cdata_bdi_top,// TODO: TLX Ref Design doc lists this as afu_tlx_cdata_bad
-				input			afu_tlx_cdata_valid_top,
-
-				//	Table 9: TLX Framer Response Interface
-				input			afu_tlx_resp_valid_top,
-				input  [7:0]		afu_tlx_resp_opcode_top,
-				input  [1:0]		afu_tlx_resp_dl_top,
-				input  [15:0]		afu_tlx_resp_capptag_top,
-				input  [1:0]		afu_tlx_resp_dp_top,
-				input  [3:0]		afu_tlx_resp_code_top,
-				input			afu_tlx_rdata_valid_top,
-				input  [511:0]		afu_tlx_rdata_bus_top,
-				input			afu_tlx_rdata_bdi_top,
-*/
-				// These signals do not appear on the RefDesign Doc. However it is present
-				// on the TLX spec
-// mcp3 update on 12/Jun/2017 - port is absent				inout             afu_cfg_in_rcv_tmpl_capability_0_top,
-// mcp3 update on 12/Jun/2017 - port is absent				inout             afu_cfg_in_rcv_tmpl_capability_1_top,
-// mcp3 update on 12/Jun/2017 - port is absent				inout             afu_cfg_in_rcv_tmpl_capability_2_top,
-// mcp3 update on 12/Jun/2017 - port is absent				inout             afu_cfg_in_rcv_tmpl_capability_3_top,
-// mcp3 update on 12/Jun/2017 - port is absent				inout [3:0]       afu_cfg_in_rcv_rate_capability_0_top,
-// mcp3 update on 12/Jun/2017 - port is absent				inout [3:0]       afu_cfg_in_rcv_rate_capability_1_top,
-// mcp3 update on 12/Jun/2017 - port is absent				inout [3:0]       afu_cfg_in_rcv_rate_capability_2_top,
-// mcp3 update on 12/Jun/2017 - port is absent				inout [3:0]       afu_cfg_in_rcv_rate_capability_3_top,
-/*
-				inout        		tlx_afu_ready_top,
-    				inout	     		tlx_cfg0_in_rcv_tmpl_capability_0_top,
-    				inout	     		tlx_cfg0_in_rcv_tmpl_capability_1_top,
-    				inout	     		tlx_cfg0_in_rcv_tmpl_capability_2_top,
-    				inout	     		tlx_cfg0_in_rcv_tmpl_capability_3_top,
-    				inout   [3:0]  		tlx_cfg0_in_rcv_rate_capability_0_top,
-    				inout   [3:0] 		tlx_cfg0_in_rcv_rate_capability_1_top,
-    				inout   [3:0]  		tlx_cfg0_in_rcv_rate_capability_2_top,
-    				inout   [3:0]  		tlx_cfg0_in_rcv_rate_capability_3_top,
-*/
 				//	Table 8: TLX Receiver - Template Configuration Ports
     				inout	     	  tlx_cfg_rcv_tmpl_capability_0_top,
     				inout	     	  tlx_cfg_rcv_tmpl_capability_1_top,
@@ -233,9 +119,6 @@ module top (
 				input  [31:0]	  cfg_tlx_rdata_bus_top,
 				input		  cfg_tlx_rdata_bdi_top,
     				inout	     	  tlx_cfg_resp_ack_top,
-/*
-				inout   [4:0]		ro_device_top
-*/
 				//	Table 14: TLX Framer - AFU to TLX  VC0/DCP0 Interface
     				inout   [3:0]  	  tlx_afu_vc0_initial_credit_top,
     				inout   [5:0]  	  tlx_afu_dcp0_initial_credit_top,
@@ -297,6 +180,8 @@ module top (
 				input  [19:0]	  afu_tlx_vc3_pasid_top,
 				input  [15:0]	  afu_tlx_vc3_bdf_top,
 				input   [7:0]	  afu_tlx_vc3_mad_top,
+				input  [15:0]	  afu_tlx_vc3_capptag_top,
+				input   [7:0]	  afu_tlx_vc3_resp_code_top,
 				input             afu_tlx_dcp3_data_valid_top,
 				input [511:0]     afu_tlx_dcp3_data_bus_top,
 				input             afu_tlx_dcp3_data_bdi_top
@@ -343,7 +228,6 @@ module top (
    wire [2:0]       tlx_afu_cmd_pl_top;
    wire [63:0]      tlx_afu_cmd_be_top;
    wire             tlx_afu_cmd_end_top;
-//   reg             tlx_afu_cmd_t_top;
    wire [63:0]      tlx_afu_cmd_pa_top;
    wire [3:0]       tlx_afu_cmd_flag_top;
    wire             tlx_afu_cmd_os_top;
@@ -434,16 +318,6 @@ module top (
    reg  [31:0]    tlx_cfg_data_bus_top;
    reg            tlx_cfg_data_bdi_top;
 
-  // These signals do not appear on the RefDesign Doc. However it is present
-  // on the TLX spec
-// mcp3 release of 12/Jun does not have this port  reg             afu_cfg_in_rcv_tmpl_capability_0_top;
-// mcp3 release of 12/Jun does not have this port  reg             afu_cfg_in_rcv_tmpl_capability_1_top;
-// mcp3 release of 12/Jun does not have this port  reg             afu_cfg_in_rcv_tmpl_capability_2_top;
-// mcp3 release of 12/Jun does not have this port  reg             afu_cfg_in_rcv_tmpl_capability_3_top;
-// mcp3 release of 12/Jun does not have this port  reg [3:0]       afu_cfg_in_rcv_rate_capability_0_top;
-// mcp3 release of 12/Jun does not have this port  reg [3:0]       afu_cfg_in_rcv_rate_capability_1_top;
-// mcp3 release of 12/Jun does not have this port  reg [3:0]       afu_cfg_in_rcv_rate_capability_2_top;
-// mcp3 release of 12/Jun does not have this port  reg [3:0]       afu_cfg_in_rcv_rate_capability_3_top;
    reg       [4:0] ro_device_top;
 
    //	Table 8: TLX Receiver - Template Configuration Ports
@@ -534,6 +408,8 @@ module top (
    reg  [19:0]	  afu_tlx_vc3_pasid_top;
    reg  [15:0]	  afu_tlx_vc3_bdf_top;
    reg   [7:0]	  afu_tlx_vc3_mad_top;
+   reg  [15:0]	  afu_tlx_vc3_capptag_top;
+   reg   [7:0]	  afu_tlx_vc3_resp_code_top;
    reg            afu_tlx_dcp3_data_valid_top;
    reg [511:0]    afu_tlx_dcp3_data_bus_top;
    reg            afu_tlx_dcp3_data_bdi_top;
@@ -585,15 +461,6 @@ module top (
    reg	[511:0]		afu_tlx_rdata_bus_top               ;
    reg			afu_tlx_rdata_bdi_top               ;
 
-//	Table 10: TLX Framer Template Configuration
-// mcp3 release of 12/Jun does not have this port  reg			afu_cfg_xmit_tmpl_config_0_top               ;
-// mcp3 release of 12/Jun does not have this port  reg			afu_cfg_xmit_tmpl_config_1_top               ;
-// mcp3 release of 12/Jun does not have this port  reg			afu_cfg_xmit_tmpl_config_2_top               ;
-// mcp3 release of 12/Jun does not have this port  reg			afu_cfg_xmit_tmpl_config_3_top               ;
-// mcp3 release of 12/Jun does not have this port  reg	[3:0]		afu_cfg_xmit_rate_config_0_top               ;
-// mcp3 release of 12/Jun does not have this port  reg	[3:0]		afu_cfg_xmit_rate_config_1_top               ;
-// mcp3 release of 12/Jun does not have this port  reg	[3:0]		afu_cfg_xmit_rate_config_2_top               ;
-// mcp3 release of 12/Jun does not have this port  reg	[3:0]		afu_cfg_xmit_rate_config_3_top               ;
  // Wires for AFU o/p
 //	Table 2: TLX Response Credit Interface
    wire			afu_tlx_resp_credit               ;
@@ -642,15 +509,6 @@ module top (
    wire	[511:0]		afu_tlx_rdata_bus               ;
    wire			afu_tlx_rdata_bdi               ;
 
-//	Table 10: TLX Framer Template Configuration
-// mcp3 release of 12/Jun does not have this port wire			afu_cfg_xmit_tmpl_config_0               ;
-// mcp3 release of 12/Jun does not have this port wire			afu_cfg_xmit_tmpl_config_1               ;
-// mcp3 release of 12/Jun does not have this port wire			afu_cfg_xmit_tmpl_config_2               ;
-// mcp3 release of 12/Jun does not have this port wire			afu_cfg_xmit_tmpl_config_3               ;
-// mcp3 release of 12/Jun does not have this port wire	[3:0]		afu_cfg_xmit_rate_config_0               ;
-// mcp3 release of 12/Jun does not have this port wire	[3:0]		afu_cfg_xmit_rate_config_1               ;
-// mcp3 release of 12/Jun does not have this port wire	[3:0]		afu_cfg_xmit_rate_config_2               ;
-// mcp3 release of 12/Jun does not have this port wire	[3:0]		afu_cfg_xmit_rate_config_3               ;
 
 // Other wires
    wire            reset_n;
@@ -699,16 +557,6 @@ module top (
    wire [5:0]       tlx_afu_cmd_data_initial_credit;
    wire [5:0]       tlx_afu_resp_data_initial_credit;
 
-  // These signals do not appear on the RefDesign Doc. However it is present
-  // on the TLX spec
-// mcp3 release of 12/Jun does not have this port  wire             afu_cfg_in_rcv_tmpl_capability_0;
-// mcp3 release of 12/Jun does not have this port  wire             afu_cfg_in_rcv_tmpl_capability_1;
-// mcp3 release of 12/Jun does not have this port  wire             afu_cfg_in_rcv_tmpl_capability_2;
-// mcp3 release of 12/Jun does not have this port  wire             afu_cfg_in_rcv_tmpl_capability_3;
-// mcp3 release of 12/Jun does not have this port  wire [3:0]       afu_cfg_in_rcv_rate_capability_0;
-// mcp3 release of 12/Jun does not have this port  wire [3:0]       afu_cfg_in_rcv_rate_capability_1;
-// mcp3 release of 12/Jun does not have this port  wire [3:0]       afu_cfg_in_rcv_rate_capability_2;
-// mcp3 release of 12/Jun does not have this port  wire [3:0]       afu_cfg_in_rcv_rate_capability_3;
    wire             tlx_afu_ready;
    wire             tlx_cfg0_in_rcv_tmpl_capability_0;
    wire             tlx_cfg0_in_rcv_tmpl_capability_1;
@@ -758,17 +606,6 @@ initial begin
     afu_clock				<= 0;
     reset   				<= 1;
 
-  // Table 1: TLX to AFU Response Interface
-  // tlx_afu_resp_valid_top			<= 0;
-  // tlx_afu_resp_opcode_top			<= 8'b0;
-  // tlx_afu_resp_afutag_top			<= 16'b0;
-  // tlx_afu_resp_code_top			<= 4'b0;
-  // tlx_afu_resp_pg_size_top		<= 6'b0;
-  // tlx_afu_resp_dl_top			<= 2'b0;
-  // tlx_afu_resp_dp_top			<= 2'b0;
-  // tlx_afu_resp_host_tag_top		<= 24'b0;
-  // tlx_afu_resp_addr_tag_top		<= 18'b0;
-  // tlx_afu_resp_cache_state_top		<= 4'b0;
   // Table 2: TLX to AFU VCO Interface
      tlx_afu_vc0_valid_top			<= 0;
      tlx_afu_vc0_opcode_top			<= 8'b0;
@@ -785,23 +622,6 @@ initial begin
      tlx_afu_vc0_resp_code_top		<= 4'b0;
      tlx_afu_vc0_cache_state_top		<= 3'b0;
 
-//	Table 3: TLX to AFU Command Interface
-//   tlx_afu_cmd_valid_top			<= 0;
-//   tlx_afu_cmd_opcode_top			<= 8'b0;
-//   tlx_afu_cmd_capptag_top			<= 16'b0;
-//   tlx_afu_cmd_dl_top			<= 2'b0;
-//   tlx_afu_cmd_pl_top			<= 3'b0;
-//   tlx_afu_cmd_be_top			<= 64'b0;
-//   tlx_afu_cmd_end_top			<= 0;
-//    tlx_afu_cmd_t_top			<= 0;
-//   tlx_afu_cmd_pa_top			<= 64'b0;
-//   tlx_afu_cmd_flag_top			<= 4'b0;
-//   tlx_afu_cmd_os_top			<= 0;
-
-//	Table 5: TLX to AFU Response Data Interface
-//   tlx_afu_resp_data_valid_top		<= 0;
-//   tlx_afu_resp_data_bus_top		<= 512'b0;
-//   tlx_afu_resp_data_bdi_top		<= 0;
 //	Table 3: TLX to AFU DCP0 Data Interface
      tlx_afu_dcp0_data_valid_top		<= 0;
      tlx_afu_dcp0_data_bus_top		<= 512'b0;
@@ -822,10 +642,6 @@ initial begin
      tlx_afu_vc1_os_top		<= 1'b0;
      tlx_afu_vc1_cmdflag_top		<= 4'b0;
      tlx_afu_vc1_mad_top		<= 8'b0;
-//	Table 6: TLX to AFU Command Data Interface
-//   tlx_afu_cmd_data_valid_top		<= 0;
-//   tlx_afu_cmd_data_bus_top		<= 512'b0;
-//   tlx_afu_cmd_data_bdi_top		<= 0;
 
 //	Table 5: TLX to AFU DCP1 Data Interface
      tlx_afu_dcp1_data_valid_top	<= 1'b0;
@@ -840,15 +656,6 @@ initial begin
      tlx_afu_vc2_cmdflag_top		<= 4'b0;
      tlx_afu_vc2_pasid_top		<= 20'b0;
      tlx_afu_vc2_bdf_top		<= 16'b0;
-//	Table 7: TLX Framer credit interface
-//    tlx_afu_resp_credit_top			<= 0;
-//    tlx_afu_resp_data_credit_top		<= 0;
-//    tlx_afu_cmd_credit_top			<= 0;
-//    tlx_afu_cmd_data_credit_top		<= 0;
-//    tlx_afu_cmd_resp_initial_credit_top	<= 4'b1000;	// OC3
-//    tlx_afu_data_initial_credit_top	<= 4'b0111;	// OC3
-//    tlx_afu_cmd_data_initial_credit_top		<= 6'b100000;	// OC3
-//    tlx_afu_resp_data_initial_credit_top	<= 6'b100000;	// OC3
 
 //	Table 7: TLX to CFG Interface for Configuration Commands
      tlx_cfg_valid_top			<= 1'b0;
@@ -859,16 +666,6 @@ initial begin
      tlx_cfg_t_top			<= 1'b0;
      tlx_cfg_data_bus_top		<= 32'b0;
      tlx_cfg_data_bdi_top		<= 1'b0;
-  // These signals do not appear on the RefDesign Doc. However it is present
-  // on the TLX spec
-// mcp3 release of 12/Jun does not have this port   afu_cfg_in_rcv_tmpl_capability_0_top	<= 0;
-// mcp3 release of 12/Jun does not have this port   afu_cfg_in_rcv_tmpl_capability_1_top	<= 0;
-// mcp3 release of 12/Jun does not have this port   afu_cfg_in_rcv_tmpl_capability_2_top	<= 0;
-// mcp3 release of 12/Jun does not have this port   afu_cfg_in_rcv_tmpl_capability_3_top	<= 0;
-// mcp3 release of 12/Jun does not have this port   afu_cfg_in_rcv_rate_capability_0_top	<= 4'b0;
-// mcp3 release of 12/Jun does not have this port   afu_cfg_in_rcv_rate_capability_1_top	<= 4'b0;
-// mcp3 release of 12/Jun does not have this port   afu_cfg_in_rcv_rate_capability_2_top	<= 4'b0;
-// mcp3 release of 12/Jun does not have this port   afu_cfg_in_rcv_rate_capability_3_top	<= 4'b0;
 //	Table 8: TLX Receiver - Template Configuration Ports
     tlx_cfg_rcv_tmpl_capability_0_top	<= 0;
     tlx_cfg_rcv_tmpl_capability_1_top	<= 0;
@@ -969,14 +766,6 @@ end
    afu_tlx_rdata_valid_top               <= afu_tlx_rdata_valid;
    afu_tlx_rdata_bus_top                 <= afu_tlx_rdata_bus;
    afu_tlx_rdata_bdi_top                 <= afu_tlx_rdata_bdi;
-// mcp3 release of 12/Jun does not have this port  afu_cfg_xmit_tmpl_config_0_top        <= afu_cfg_xmit_tmpl_config_0;
-// mcp3 release of 12/Jun does not have this port  afu_cfg_xmit_tmpl_config_1_top        <= afu_cfg_xmit_tmpl_config_1;
-// mcp3 release of 12/Jun does not have this port  afu_cfg_xmit_tmpl_config_2_top        <= afu_cfg_xmit_tmpl_config_2;
-// mcp3 release of 12/Jun does not have this port  afu_cfg_xmit_tmpl_config_3_top        <= afu_cfg_xmit_tmpl_config_3;
-// mcp3 release of 12/Jun does not have this port  afu_cfg_xmit_rate_config_0_top        <= afu_cfg_xmit_rate_config_0;
-// mcp3 release of 12/Jun does not have this port  afu_cfg_xmit_rate_config_1_top        <= afu_cfg_xmit_rate_config_1;
-// mcp3 release of 12/Jun does not have this port  afu_cfg_xmit_rate_config_2_top        <= afu_cfg_xmit_rate_config_2;
-// mcp3 release of 12/Jun does not have this port  afu_cfg_xmit_rate_config_3_top        <= afu_cfg_xmit_rate_config_3;
    cfg_tlx_initial_credit_top		<= cfg0_tlx_initial_credit; // new
    cfg_tlx_credit_return_top		<= cfg0_tlx_credit_return;  // new lgt
    cfg_tlx_resp_valid_top               <= cfg0_tlx_resp_valid;
@@ -986,6 +775,8 @@ end
    cfg_tlx_rdata_offset_top             <= cfg0_tlx_rdata_offset;
    cfg_tlx_rdata_bus_top                <= cfg0_tlx_rdata_bus;
    cfg_tlx_rdata_bdi_top                <= cfg0_tlx_rdata_bdi;
+   afu_tlx_vc3_capptag_top		<= 16'b0;	// lpc design still does not have this
+   afu_tlx_vc3_resp_code_top		<= 8'b0;	// lpc design still does not have this
   end
 
     assign 	reset_n		= !reset;
@@ -1095,22 +886,6 @@ end
     #0 tlx_bfm( tlx_clock,
              afu_clock,
              reset,
-/*
-				// Table 1: TLX to AFU Response Interface
-	tlx_afu_resp_valid_top,
-	tlx_afu_resp_opcode_top,
-	tlx_afu_resp_afutag_top,
-	tlx_afu_resp_code_top,
-	tlx_afu_resp_pg_size_top,
-	tlx_afu_resp_dl_top,
-	tlx_afu_resp_dp_top,
-	tlx_afu_resp_host_tag_top,
-	tlx_afu_resp_addr_tag_top,
-	tlx_afu_resp_cache_state_top,
-				//	Table 2: TLX Response Credit Interface
-	afu_tlx_resp_credit_top,
-	afu_tlx_resp_initial_credit_top,
-*/
         // Table 2: TLX to AFU VCO Interface
 	afu_tlx_vc0_initial_credit_top,
 	afu_tlx_vc0_credit_top,
@@ -1128,31 +903,12 @@ end
 	tlx_afu_vc0_host_tag_top,
 	tlx_afu_vc0_resp_code_top,
 	tlx_afu_vc0_cache_state_top,
-/*
-				//	Table 3: TLX to AFU Command Interface
-	tlx_afu_cmd_valid_top,
-	tlx_afu_cmd_opcode_top,
-	tlx_afu_cmd_capptag_top,
-	tlx_afu_cmd_dl_top,
-	tlx_afu_cmd_pl_top,
-	tlx_afu_cmd_be_top,
-	tlx_afu_cmd_end_top,
-//	tlx_afu_cmd_t_top,
-	tlx_afu_cmd_pa_top,
-	tlx_afu_cmd_flag_top,
-	tlx_afu_cmd_os_top,
-*/
         //	Table 3: TLX to AFU DCP0 Data Interface
         afu_tlx_dcp0_rd_req_top,
         afu_tlx_dcp0_rd_cnt_top,
         tlx_afu_dcp0_data_valid_top,
         tlx_afu_dcp0_data_bus_top,
         tlx_afu_dcp0_data_bdi_top,
-/*
-				//	Table 4: TLX Command Credit Interface
-	afu_tlx_cmd_credit_top,
-	afu_tlx_cmd_initial_credit_top,
-*/
 	//	Table 4: TLX to AFU VC1 Interface
 	afu_tlx_vc1_initial_credit_top,
 	afu_tlx_vc1_credit_top,
@@ -1170,28 +926,12 @@ end
 	tlx_afu_vc1_os_top,
 	tlx_afu_vc1_cmdflag_top,
 	tlx_afu_vc1_mad_top,
-/*
-				//	Table 5: TLX to AFU Response Data Interface
-	tlx_afu_resp_data_valid_top,
-	tlx_afu_resp_data_bus_top,
-	tlx_afu_resp_data_bdi_top,
-	afu_tlx_resp_rd_req_top,
-	afu_tlx_resp_rd_cnt_top,
-*/
 	//	Table 5: TLX to AFU DCP1 Data Interface
 	afu_tlx_dcp1_rd_req_top,
 	afu_tlx_dcp1_rd_cnt_top,
 	tlx_afu_dcp1_data_valid_top,
 	tlx_afu_dcp1_data_bus_top,
 	tlx_afu_dcp1_data_bdi_top,
-/*
-				//	Table 6: TLX to AFU Command Data Interface
-	tlx_afu_cmd_data_valid_top,
-	tlx_afu_cmd_data_bus_top,
-	tlx_afu_cmd_data_bdi_top,
-	afu_tlx_cmd_rd_req_top,
-	afu_tlx_cmd_rd_cnt_top,
-*/
 	//	Table 6: TLX to AFU VC2 Interface
 	afu_tlx_vc2_initial_credit_top,
 	afu_tlx_vc2_credit_top,
@@ -1203,17 +943,6 @@ end
 	tlx_afu_vc2_cmdflag_top,
 	tlx_afu_vc2_pasid_top,
 	tlx_afu_vc2_bdf_top,
-/*
-				//	Table 7: TLX Framer credit interface
-	tlx_afu_resp_credit_top,
-	tlx_afu_resp_data_credit_top,
-	tlx_afu_cmd_credit_top,
-	tlx_afu_cmd_data_credit_top,
-	tlx_afu_cmd_resp_initial_credit_top,
-	tlx_afu_data_initial_credit_top,
-	tlx_afu_cmd_data_initial_credit_top,
-	tlx_afu_resp_data_initial_credit_top,
-*/
 	//	Table 7: TLX to CFG Interface for Configuration Commands
 	cfg_tlx_initial_credit_top,
 	cfg_tlx_credit_return_top,
@@ -1225,39 +954,6 @@ end
 	tlx_cfg_t_top,
 	tlx_cfg_data_bus_top,
 	tlx_cfg_data_bdi_top,
-/*
-	//	Table 8: TLX Framer Command Interface
-	afu_tlx_cmd_valid_top,
-	afu_tlx_cmd_opcode_top,
-	afu_tlx_cmd_actag_top,
-	afu_tlx_cmd_stream_id_top,
-	afu_tlx_cmd_ea_or_obj_top,
-	afu_tlx_cmd_afutag_top,
-	afu_tlx_cmd_dl_top,
-	afu_tlx_cmd_pl_top,
-	afu_tlx_cmd_os_top,
-	afu_tlx_cmd_be_top,
-	afu_tlx_cmd_flag_top,
-	afu_tlx_cmd_endian_top,
-	afu_tlx_cmd_bdf_top,
-	afu_tlx_cmd_pasid_top,
-	afu_tlx_cmd_pg_size_top,
-	afu_tlx_cdata_bus_top,
-	afu_tlx_cdata_bdi_top,// TODO: TLX Ref Design doc lists this as afu_tlx_cdata_bad
-	afu_tlx_cdata_valid_top,
-				//	Table 9: TLX Framer Response Interface
-	afu_tlx_resp_valid_top,
-	afu_tlx_resp_opcode_top,
-	afu_tlx_resp_dl_top,
-	afu_tlx_resp_capptag_top,
-	afu_tlx_resp_dp_top,
-	afu_tlx_resp_code_top,
-	afu_tlx_rdata_valid_top,
-	afu_tlx_rdata_bus_top,
-	afu_tlx_rdata_bdi_top,
-
-	tlx_afu_ready_top,
-*/
 	//	Table 8: TLX Receiver - Template Configuration Ports
     	tlx_cfg_rcv_tmpl_capability_0_top,
     	tlx_cfg_rcv_tmpl_capability_1_top,
@@ -1282,9 +978,6 @@ end
 	cfg_tlx_rdata_bus_top,
 	cfg_tlx_rdata_bdi_top,
     	tlx_cfg_resp_ack_top,
-/*
-	ro_device_top
-*/
 	//	Table 14: TLX Framer - AFU to TLX  VC0/DCP0 Interface
     	tlx_afu_vc0_initial_credit_top,
     	tlx_afu_dcp0_initial_credit_top,
@@ -1346,6 +1039,8 @@ end
 	afu_tlx_vc3_pasid_top,
 	afu_tlx_vc3_bdf_top,
 	afu_tlx_vc3_mad_top,
+	afu_tlx_vc3_capptag_top,
+	afu_tlx_vc3_resp_code_top,
 	afu_tlx_dcp3_data_valid_top,
 	afu_tlx_dcp3_data_bus_top,
 	afu_tlx_dcp3_data_bdi_top
