@@ -614,7 +614,7 @@ static void _handle_kill_xlate( struct ocxl_afu *afu )
 	memcpy( &buffer[size], &bdf, sizeof( bdf ) );
 	size = size + sizeof( bdf );
 
-	// 2 pasid
+	// 4 pasid
 	pasid = htons( pasid );
 	memcpy( &buffer[size], &pasid, sizeof( pasid ) );
 	size = size + sizeof( pasid );
