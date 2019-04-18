@@ -53,6 +53,9 @@ struct mmio_event {
 	uint8_t cmd_pL;
         uint8_t cmd_dL;     // dL, dP, and pL are encoded from either size or dw in send_mmio
         uint8_t cmd_dP;
+        uint8_t cmd_pg_size;
+        uint16_t cmd_bdf;
+        uint32_t cmd_pasid;
 	uint8_t cmd_endian;
   // parallel records for general capp commands
         uint16_t partial_index;  // this keeps track of where we are if multiple beats of data are coming with this response
@@ -160,6 +163,8 @@ void handle_ap_resp(struct mmio *mmio);
 void handle_ap_resp_data(struct mmio *mmio);
 
 void handle_mmio_map(struct mmio *mmio, struct client *client);
+
+struct mmio_event *handle_kill_xlate(struct mmio *mmio, struct client *client);
 
 struct mmio_event *handle_mmio(struct mmio *mmio, struct client *client,
 			       int rnw, int dw, int global);

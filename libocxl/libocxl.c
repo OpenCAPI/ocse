@@ -617,7 +617,7 @@ static void _handle_kill_xlate( struct ocxl_afu *afu )
 	// 2 pasid
 	pasid = htons( pasid );
 	memcpy( &buffer[size], &pasid, sizeof( pasid ) );
-	size++;
+	size = size + sizeof( pasid );
 
 	if (put_bytes_silent(afu->fd, size, buffer) != 1) {
 		afu->opened = 0;

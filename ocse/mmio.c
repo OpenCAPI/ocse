@@ -75,7 +75,7 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 
   debug_msg( "_add_event:" );
 	// Add new event in IDLE state
-	event = (struct mmio_event *)malloc(sizeof(struct mmio_event));
+        event = (struct mmio_event *)calloc(1, sizeof(struct mmio_event));
 	if (!event)
 		return event;
 	event->rnw = rnw;
@@ -160,6 +160,47 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 
 // create a new _add_mem_event function that will use size instead of dw.
 // Add new mmio event for general memory transfer
+static struct mmio_event *_add_kill_xlate_event(struct mmio *mmio, struct client *client,
+				     uint64_t ea, uint8_t pg_size, uint8_t cmd_flag, uint16_t bdf,
+				     uint32_t pasid)
+{
+	struct mmio_event *event;
+	struct mmio_event **list;
+	uint16_t context;
+
+	// Add new event in IDLE state
+	event = (struct mmio_event *)calloc(1, sizeof(struct mmio_event));
+
+	if (!event)
+		return event;
+
+	event->cmd_CAPPtag = 0xFFFF;
+	event->cmd_opcode = OCSE_XLATE_KILL ;
+	event->cmd_flg = cmd_flag;
+	event->cmd_PA = ea;  // hopefully cmd_PA will be put on EA during send_mmio
+	event->cmd_bdf = bdf;
+	event->cmd_pg_size = pg_size;
+
+	event->state = OCSE_IDLE;
+	event->_next = NULL;
+
+	//debug_msg("_add_kill_xlate_event: rnw=%d, access word=0x%016lx (0x%016lx)", event->rnw, event->cmd_PA, addr);
+
+	// Add to end of list
+	list = &(mmio->list);
+	while (*list != NULL)
+		list = &((*list)->_next);
+	*list = event;
+	if (event->cfg)
+		context = -1;
+	else
+		context = client->context;
+
+	return event;
+}
+
+// create a new _add_mem_event function that will use size instead of dw.
+// Add new mmio event for general memory transfer
 static struct mmio_event *_add_mem_event(struct mmio *mmio, struct client *client,
 				     uint32_t rnw, uint32_t size, int region, uint64_t addr,
 				     uint8_t *data, uint32_t be_valid, uint64_t be)
@@ -171,7 +212,7 @@ static struct mmio_event *_add_mem_event(struct mmio *mmio, struct client *clien
 	uint16_t context;
 
 	// Add new event in IDLE state
-	event = (struct mmio_event *)malloc(sizeof(struct mmio_event));
+	event = (struct mmio_event *)calloc(1, sizeof(struct mmio_event));
 	if (!event)
 		return event;
 	event->cfg = 0;
@@ -786,7 +827,7 @@ void send_mmio(struct mmio *mmio)
 		return;
        	}  
 
-	// if not a CONFIG, then must be memory access MMIO rd/wr
+	// if not a CONFIG, then must be memory access MMIO rd/wr or a kill_xlate
 	if ( event->size == 0 ) {
 	      // we have the old mmio style
 	      debug_msg( "ocse:send_mmio:mmio to mmio space" );
@@ -870,6 +911,20 @@ void send_mmio(struct mmio *mmio)
 	// but other lpc commands did not send along the cmd_opcode.  
 	
 	switch ( event->cmd_opcode ) {
+	case OCSE_XLATE_KILL:
+	      if ( tlx_afu_send_cmd_vc2( mmio->afu_event,
+					 TLX_CMD_KILL_XLATE, 
+					 event->cmd_CAPPtag, 
+					 event->cmd_pg_size, 
+					 event->cmd_PA, 
+					 event->cmd_flg, 
+					 event->cmd_pasid, 
+					 event->cmd_bdf ) == TLX_SUCCESS ) {
+  		    debug_msg("%s:%s AMO_RD %d word=0x%05x", mmio->afu_name, type, event->dw ? 64 : 32, event->cmd_PA);
+		    debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw,event->cmd_PA );
+		    event->state = OCSE_PENDING;
+	      }
+	      break;
 	case OCSE_AFU_AMO_RD:
 	      // we know size < 64
 	      debug_msg("%s:%s AMO_RD %d word=0x%05x", mmio->afu_name, type, event->dw ? 64 : 32, event->cmd_PA);
@@ -1844,6 +1899,60 @@ static struct mmio_event *_handle_mem_read(struct mmio *mmio, struct client *cli
 	return NULL;
 }
 
+// Handle kill xlate request from client
+struct mmio_event *handle_kill_xlate(struct mmio *mmio, struct client *client)
+{
+
+        //uint8_t ack;
+	uint8_t cmd_flag;
+	uint8_t pg_size;
+	uint16_t bdf;
+	uint32_t pasid;
+	uint64_t ea;
+	// client->fd is the socket that contains the rest of the kill xlate components
+	// build the kill xlate command.
+
+	// get cmd_flag
+	if (get_bytes_silent(client->fd, 1, (uint8_t *) &cmd_flag, mmio->timeout, &(client->abort)) < 0) {
+		goto kill_fail;
+	}
+
+	// get ea
+	if (get_bytes_silent(client->fd, 8, (uint8_t *) &ea, mmio->timeout, &(client->abort)) < 0) {
+		goto kill_fail;
+	}
+	ea = ntohll( ea );
+
+	// get pg_size
+	if (get_bytes_silent(client->fd, 1, (uint8_t *) &pg_size, mmio->timeout, &(client->abort)) < 0) {
+		goto kill_fail;
+	}
+
+	// get bdf
+	if (get_bytes_silent(client->fd, 2, (uint8_t *) &bdf, mmio->timeout, &(client->abort)) < 0) {
+		goto kill_fail;
+	}
+	bdf = ntohs( bdf );
+
+	// get pasid
+	if (get_bytes_silent(client->fd, 4, (uint8_t *) &pasid, mmio->timeout, &(client->abort)) < 0) {
+		goto kill_fail;
+	}
+	pasid = ntohl( pasid );
+
+	debug_msg( "handle_kill_xlate: ea=0x%016xll, pg_size=0x%02x, cmd_flag=0x%1x, bdf=0x%02x, pasid=0x%04x", 
+		   ea, pg_size, cmd_flag, bdf, pasid );
+
+	return _add_kill_xlate_event( mmio, client, ea, pg_size, cmd_flag, bdf, pasid );
+
+ kill_fail:
+	// Socket connection is dead
+	debug_msg("%s:handle_kill_xlate failed context=%d",
+		  mmio->afu_name, client->context);
+	client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	return NULL;
+}
+
 // Handle mem request from client
 struct mmio_event *handle_mem(struct mmio *mmio, struct client *client,
 			      int rnw, int region, int be_valid)
@@ -1882,7 +1991,7 @@ static struct mmio_event *_add_afu_amo_event(struct mmio *mmio, struct client *c
 	uint16_t context;
 
 	// Add new event in IDLE state
-	event = (struct mmio_event *)malloc(sizeof(struct mmio_event));
+	event = (struct mmio_event *)calloc(1, sizeof(struct mmio_event));
 	if (!event)
 		return event;
 	event->cfg = 0;
