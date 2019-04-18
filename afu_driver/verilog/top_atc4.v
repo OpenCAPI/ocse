@@ -180,6 +180,8 @@ module top_atc4 (
 				input  [19:0]	  afu_tlx_vc3_pasid_top,
 				input  [15:0]	  afu_tlx_vc3_bdf_top,
 				input   [7:0]	  afu_tlx_vc3_mad_top,
+				input  [15:0]	  afu_tlx_vc3_capptag_top,
+				input   [7:0]	  afu_tlx_vc3_resp_code_top,
 				input             afu_tlx_dcp3_data_valid_top,
 				input [511:0]     afu_tlx_dcp3_data_bus_top,
 				input             afu_tlx_dcp3_data_bdi_top
@@ -383,6 +385,8 @@ module top_atc4 (
    reg  [19:0]	  afu_tlx_vc3_pasid_top;
    reg  [15:0]	  afu_tlx_vc3_bdf_top;
    reg   [7:0]	  afu_tlx_vc3_mad_top;
+   reg  [15:0]	  afu_tlx_vc3_capptag_top;
+   reg   [7:0]	  afu_tlx_vc3_resp_code_top;
    reg            afu_tlx_dcp3_data_valid_top;
    reg [511:0]    afu_tlx_dcp3_data_bus_top;
    reg            afu_tlx_dcp3_data_bdi_top;
@@ -536,6 +540,8 @@ module top_atc4 (
    wire [ 19:0]    afu_tlx_vc3_pasid                ;
    wire [ 15:0]    afu_tlx_vc3_bdf                  ;
    wire [  7:0]    afu_tlx_vc3_mad                  ;
+   wire [ 15:0]    afu_tlx_vc3_capptag                  ;
+   wire [  7:0]    afu_tlx_vc3_resp_code                  ;
         // --- DCP3 interface from AFU [AP Command Data from AFU to Host - original cmds]
    wire [  5:0]    tlx_afu_dcp3_initial_credit      ;
    wire            tlx_afu_dcp3_credit              ;
@@ -829,6 +835,8 @@ end
    afu_tlx_vc3_pasid_top		<= afu_tlx_vc3_pasid;
    afu_tlx_vc3_bdf_top			<= afu_tlx_vc3_bdf;
    afu_tlx_vc3_mad_top			<= afu_tlx_vc3_mad;
+   afu_tlx_vc3_capptag_top		<= afu_tlx_vc3_capptag;
+   afu_tlx_vc3_resp_code_top		<= afu_tlx_vc3_resp_code;
    afu_tlx_dcp3_data_valid_top		<= afu_tlx_dcp3_data_valid;
    afu_tlx_dcp3_data_bus_top		<= afu_tlx_dcp3_data_bus;
    afu_tlx_dcp3_data_bdi_top		<= afu_tlx_dcp3_data_bdi;
@@ -1123,6 +1131,8 @@ end
 	afu_tlx_vc3_pasid_top,
 	afu_tlx_vc3_bdf_top,
 	afu_tlx_vc3_mad_top,
+	afu_tlx_vc3_capptag_top,
+	afu_tlx_vc3_resp_code_top,
 	afu_tlx_dcp3_data_valid_top,
 	afu_tlx_dcp3_data_bus_top,
 	afu_tlx_dcp3_data_bdi_top
@@ -1276,8 +1286,8 @@ end
     .afu_tlx_vc3_pasid               	(afu_tlx_vc3_pasid),
     .afu_tlx_vc3_bdf               	(afu_tlx_vc3_bdf),
     .afu_tlx_vc3_mad               	(afu_tlx_vc3_mad),
-    .afu_tlx_vc3_capptag               	(),	// o/p left open since afu_driver is not looking for this yet
-    .afu_tlx_vc3_resp_code              (),	// o/p left open since afu_driver is not looking for this yet
+    .afu_tlx_vc3_capptag               	(afu_tlx_vc3_capptag),	
+    .afu_tlx_vc3_resp_code              (afu_tlx_vc3_resp_code),
         // --- DCP3 interface from AFU [AP Command Data from AFU to Host - original cmds]
     .tlx_afu_dcp3_initial_credit        (tlx_afu_dcp3_initial_credit),
     .tlx_afu_dcp3_credit               	(tlx_afu_dcp3_credit),

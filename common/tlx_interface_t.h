@@ -465,6 +465,8 @@ struct AFU_EVENT {
   uint32_t afu_tlx_vc3_pasid;             /* 20 bit PASID */
   uint16_t afu_tlx_vc3_bdf;               /* 16 bit bus device function - obtained during device config n*/
   uint8_t afu_tlx_vc3_mad;                /* 8 bit Memory Address Directive */
+  uint16_t afu_tlx_vc3_capptag;           /* 16 bit capptag for kill_xlate_done */
+  uint8_t afu_tlx_vc3_resp_code;          /* 8 bit response code for kill_xlate_done */
   uint8_t afu_tlx_dcp3_data_valid;        /* 1 bit command data valid */
   unsigned char afu_tlx_dcp3_data_bus[64]; /* 512 bit command data bus */
   uint8_t afu_tlx_dcp3_data_bdi;          /* 1 bit bad command data */

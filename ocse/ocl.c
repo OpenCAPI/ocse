@@ -130,6 +130,7 @@ static void _detach(struct ocl *ocl, struct client *client)
 static void _handle_afu(struct ocl *ocl)
 {
 	if (ocl->mmio->list != NULL) {
+	 // handle_ap_killdone(ocl->mmio);
 	  handle_ap_resp(ocl->mmio);
 	  handle_ap_resp_data(ocl->mmio);
 	}
@@ -138,6 +139,7 @@ static void _handle_afu(struct ocl *ocl)
 	  // handle_response should follow a similar flow to handle_cmd
 	  // that is, the response may need subsequent resp data valid beats to complete the data for a give response, just like a command...
 	  handle_response(ocl->cmd);  // sends response and data (if required)
+	  handle_kill_done(ocl->cmd);  // send back kill_xlate_done response to client
 	  handle_buffer_write(ocl->cmd);  // just finishes up the read command structures
 	  handle_xlate_intrp_pending_sent(ocl->cmd);  // just finishes up an xlate_pending resp
 	  handle_cmd(ocl->cmd, ocl->latency);

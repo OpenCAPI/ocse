@@ -47,6 +47,7 @@ enum cmd_type {
 	CMD_AMO_RW,
 	CMD_AMO_WR,
 	CMD_XLATE_REL, // release TA from CMD_XL_TOUCH
+	CMD_KILL_DONE, 
 	CMD_FAILED,
 	CMD_OTHER
 };
@@ -166,7 +167,8 @@ void handle_write_be_or_amo(struct cmd *cmd);
 
 void handle_xlate_intrp_pending_sent(struct cmd *cmd);
 
-
 int client_cmd(struct cmd *cmd, struct client *client);
+
+void handle_kill_done(struct cmd *cmd);
 
 #endif				/* _CMD_H_ */
