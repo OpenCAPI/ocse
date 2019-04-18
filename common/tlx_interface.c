@@ -1802,6 +1802,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		//printf("event->rbuf[%x] is 0x%2x \n", rbc-1, event->rbuf[rbc-1]);
 		event->afu_tlx_vc3_pg_size = event->rbuf[rbc++];
 		event->afu_tlx_vc3_cmdflag = event->rbuf[rbc++];
+		printf("afu_tlx_vc3_cmdflag= x%2x \n", event->afu_tlx_vc3_cmdflag);
 		event->afu_tlx_vc3_pasid = 0;
 		for (bc = 0; bc < 4; bc++) {
 			event->afu_tlx_vc3_pasid  =
@@ -1814,7 +1815,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		event->afu_tlx_vc3_capptag = event->rbuf[rbc++];
 		event->afu_tlx_vc3_capptag = ((event->afu_tlx_vc3_capptag << 8) | event->rbuf[rbc++]);
 		event->afu_tlx_vc3_resp_code = event->rbuf[rbc++];
-		printf("event->afu_tlx_vc3_valid is 1  and rbc is 0x%2x \n", rbc);
+	//	printf("event->afu_tlx_vc3_valid is 1  and rbc is 0x%2x \n", rbc);
 
 	} else {
 		event->afu_tlx_vc3_valid = 0;
