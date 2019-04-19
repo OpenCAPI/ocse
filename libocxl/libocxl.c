@@ -514,6 +514,34 @@ static int _allow_kill_xlate( uint8_t *cmd_flag )
 // go through all the ea's and free the kill_xlate_pending ones
 static void _handle_kill_xlate_done( struct ocxl_afu *afu )
 {
+      ocxl_ea_area *this_ea;
+      ocxl_ea_area *prev_ea;
+
+      this_ea = afu->eas;
+      prev_ea = NULL;
+      while (this_ea != NULL ) {
+	    if ( this_ea->kill_xlate_pending == 1) {
+	          // free this_ea
+	          // first save the _next pointer
+	          if (prev_ea == NULL) {
+		        afu->eas = this_ea->_next;
+		  } else {
+		        prev_ea->_next = this_ea->_next;
+		  }
+		  
+		  free( this_ea );
+
+		  // advance the pointers
+		  if (prev_ea == NULL) {
+		        this_ea = afu->eas;
+		  } else {
+		        this_ea = prev_ea->_next;
+		  }
+	    } else {
+	          prev_ea = this_ea;
+		  this_ea = this_ea->_next;
+	    }
+      }
 }
 
 // add random capp kill_xlate command to the socket here.  Summary
