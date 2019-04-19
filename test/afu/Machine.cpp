@@ -121,7 +121,7 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
                  command_code_parity, command_tag_parity, buffer_read_parity);
         break;
     case AFU_CMD_PR_RD_WNITC:
-        case AFU_CMD_RD_WNITC:
+    case AFU_CMD_RD_WNITC:
 	   printf("Machine: rd_wnitc pl = 0x%x and dl = 0x%x\n", afu_event->afu_tlx_vc3_pl,
 		afu_event->afu_tlx_vc3_dl);
 	    command = 
@@ -129,6 +129,14 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
 			     command_code_parity, command_tag_parity,
 			     buffer_read_parity);
 	   break;
+    case AFU_CMD_XLATE_TOUCH:   // VC3
+        printf("Machine: Sending AFU_CMD_XLATE_TOUCH\n");
+        command = new OtherCommand(command_code, command_address_parity,
+            command_code_parity, command_tag_parity, buffer_read_parity);
+        break;
+    case AFU_CMD_RD_WNITC_T:
+        printf("Machine: Sending AFU_CMD_RD_WNITC_T\n");
+        break;
     case AFU_CMD_AMO_W:
     printf("Machine: amo_w: pl = 0x%x and cmdflag = 0x%x\n", afu_event->afu_tlx_vc3_pl,
         afu_event->afu_tlx_vc3_cmdflag);

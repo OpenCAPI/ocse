@@ -522,7 +522,8 @@ AFU::request_assign_actag()
   	 	afu_event.afu_tlx_vc3_be, afu_event.afu_tlx_vc3_cmdflag,
   	 	afu_event.afu_tlx_vc3_endian, afu_event.afu_tlx_vc3_bdf,
   	 	afu_event.afu_tlx_vc3_pasid, afu_event.afu_tlx_vc3_pg_size,
-  	 	afu_event.afu_tlx_vc3_mad) != TLX_SUCCESS) {
+  	 	afu_event.afu_tlx_vc3_mad, afu_event.afu_tlx_vc3_capptag,
+  	 	afu_event.afu_tlx_vc3_resp_code) != TLX_SUCCESS) {
 	    printf("FAILED: request_assign_actag\n");
 	}
 	else {
@@ -684,12 +685,13 @@ AFU::resolve_tlx_afu_resp()
 		resp_state = IDLE;
   }
   else {
-    tlx_afu_read_cmd_resp_vc0(&afu_event, &tlx_resp_opcode, &resp_afutag, 
+    if(tlx_afu_read_cmd_resp_vc0(&afu_event, &tlx_resp_opcode, &resp_afutag, 
 		&resp_code, &resp_pg_size, &resp_dl,
 		&resp_host_tag, &resp_cache_state,
 		&resp_ef, &resp_w, &resp_mh, &resp_pa_or_ta,
-		&resp_dp, &resp_capptag);
- 
+		&resp_dp, &resp_capptag) != TLX_SUCCESS){
+    	error_msg("AFU: FAILED tlx_afu_read_cmd_resp_vc0");
+ 		}
 		//	read_resp_completed = 1;	//debug1
   }
 
@@ -699,7 +701,12 @@ AFU::resolve_tlx_afu_resp()
 		case TLX_RSP_RET_TLX_CREDITS:
 	    break;
 		case TLX_RSP_TOUCH_RESP:
+			printf("AFU: received TLX_RSP_READ_RESP\n");
 	    break;
+	  case TLX_RSP_TOUCH_RESP_T:	//vc2
+		  printf("AFU: Received TLX_RSP_TOUCH_RESP_T\n");
+		  printf("AFU: TA address = 0x016ul\n", resp_pa_or_ta);
+		  break;
 		case TLX_RSP_READ_RESP:
 	    read_resp_completed = 1;	// debug1
 	    debug_msg("AFU: received tlx_resp_read_resp: calling afu_tlx_resp_data_read_req");
@@ -766,12 +773,9 @@ AFU::resolve_tlx_afu_resp()
 			case 0xe:
 		    printf("AFU: Interrupt failed\n");
 		    break;
-			default:
+		  default:
 		    break;
 			}
-	    //printf("AFU: write_app_status\n");
-	    //write_app_status(status_address, 0x0);
-	    break;
 		case TLX_RSP_READ_RESP_OW:
 		case TLX_RSP_READ_RESP_XW:
 		case TLX_RSP_WAKE_HOST_RESP:
@@ -1495,6 +1499,8 @@ AFU::write_app_status(uint8_t *address, uint32_t data)
 			afu_event.afu_tlx_vc3_pasid,
 			afu_event.afu_tlx_vc3_pg_size,
 			afu_event.afu_tlx_vc3_mad,
+			afu_event.afu_tlx_vc3_capptag,
+			afu_event.afu_tlx_vc3_resp_code,
 			afu_event.afu_tlx_dcp3_data_bdi,
 			afu_event.afu_tlx_dcp3_data_bus);
 
@@ -1530,7 +1536,9 @@ AFU::read_app_status(uint8_t *address)
 			afu_event.afu_tlx_vc3_bdf,
 			afu_event.afu_tlx_vc3_pasid,
 			afu_event.afu_tlx_vc3_pg_size,
-			afu_event.afu_tlx_vc3_mad);
+			afu_event.afu_tlx_vc3_mad,
+			afu_event.afu_tlx_vc3_capptag,
+			afu_event.afu_tlx_vc3_resp_code);
     
     read_status_resp = 0;	
     return;

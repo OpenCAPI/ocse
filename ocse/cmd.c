@@ -389,8 +389,12 @@ static void _add_kill_xlate_done(struct cmd *cmd, uint16_t actag, uint16_t afuta
 	// We could send request to libocxl for processing, especially for OpenCAPI 4
 	// when a translation address is expected as return
 	form_flag=0;
+	printf("add_xlate_touch: cmd_flag= 0x%x \n", cmd_flag);
 	if (cmd_opcode == AFU_CMD_XLATE_TOUCH_N)
 		form_flag = 0x4;
+	if ((cmd_opcode == AFU_CMD_XLATE_TOUCH_N) || (cmd_opcode == AFU_CMD_XLATE_TOUCH)) {
+		 if (cmd_flag & 0x8 == 0x8)
+		      form_flag |= 0x8; }
 	if (cmd_opcode == AFU_CMD_XLATE_RELEASE) {
 		form_flag = 0x2;
 		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_XLATE_REL, addr, 0, MEM_DONE,
