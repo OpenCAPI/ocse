@@ -726,7 +726,7 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 	        this = afu->eas;
 		prev = NULL;
 	        while (this != NULL) {
-		  if ( this->ta == addr ) break; // found matching ea, use values
+		  if ( this->ta == (addr & (~(uint64_t)0 << (this->pg_size-1))) ) break; // found matching ea, use values
 		  prev = this;
 		  this = this->_next;
 		}
