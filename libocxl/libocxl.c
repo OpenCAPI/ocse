@@ -729,18 +729,18 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 		        // else add list entry to front and use it
 		        this = afu->eas;
 			while (this != NULL) {
-			        if ( this->ea == addr ) break; // found matching ea, use values
+			        if ( this->ea == (addr & (~(uint64_t)0 << (this->pg_size-1))) ) break; // found matching ea, use values; address matching must be based on the based address of a given pg_size
 				this = this->_next;
 			}
 		
 			if (this == NULL ) {
 			        // add entry to head of list
 			        this = (struct ocxl_ea_area *)malloc( sizeof( struct ocxl_ea_area ) );
-				this->ea = addr;
-				this->ta = addr;
+				this->pg_size = 0x10; // 2^16 (64k) pages to represent the linux environment - this should maybe be random
+				this->ea = addr & (~(uint64_t)0 << (this->pg_size-1)); // ea and ta must be truncated to represent the base address of a give pg_size.
+				this->ta = this->ea;
 				this->pa = 0x0;
 				this->mh = 0;
-				this->pg_size = 0x0C; // 2^12 (4k) pages - this should maybe be random and more likely be 2^16 (0x10) (64K) to represent the linux environment
 				this->_next = afu->eas;
 				afu->eas = this;
 			}
