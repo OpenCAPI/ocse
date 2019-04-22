@@ -856,8 +856,8 @@ void tlx_bfm(
         invalidVal		        += (afu_tlx_vc3_mad_top->bval) & 0xFF;
         c_afu_tlx_vc3_capptag	         = (afu_tlx_vc3_capptag_top->aval) & 0xFFFF;
         invalidVal		        += (afu_tlx_vc3_capptag_top->bval) & 0xFFFF;
-        c_afu_tlx_vc3_resp_code	         = (afu_tlx_vc3_resp_code_top->aval) & 0xFF;
-        invalidVal		        += (afu_tlx_vc3_resp_code_top->bval) & 0xFF;
+        c_afu_tlx_vc3_resp_code	         = (afu_tlx_vc3_resp_code_top->aval) & 0x0F;
+        invalidVal		        += (afu_tlx_vc3_resp_code_top->bval) & 0x0F;
         printf("%08lld: ", (long long) c_sim_time);
         int resp_code = afu_tlx_send_cmd_vc3(&event, 
   		 c_afu_tlx_vc3_opcode, c_afu_tlx_vc3_actag,
