@@ -181,7 +181,7 @@ module top_atc4 (
 				input  [15:0]	  afu_tlx_vc3_bdf_top,
 				input   [7:0]	  afu_tlx_vc3_mad_top,
 				input  [15:0]	  afu_tlx_vc3_capptag_top,
-				input   [7:0]	  afu_tlx_vc3_resp_code_top,
+				input   [3:0]	  afu_tlx_vc3_resp_code_top,
 				input             afu_tlx_dcp3_data_valid_top,
 				input [511:0]     afu_tlx_dcp3_data_bus_top,
 				input             afu_tlx_dcp3_data_bdi_top
@@ -386,7 +386,7 @@ module top_atc4 (
    reg  [15:0]	  afu_tlx_vc3_bdf_top;
    reg   [7:0]	  afu_tlx_vc3_mad_top;
    reg  [15:0]	  afu_tlx_vc3_capptag_top;
-   reg   [7:0]	  afu_tlx_vc3_resp_code_top;
+   reg   [3:0]	  afu_tlx_vc3_resp_code_top;
    reg            afu_tlx_dcp3_data_valid_top;
    reg [511:0]    afu_tlx_dcp3_data_bus_top;
    reg            afu_tlx_dcp3_data_bdi_top;
@@ -541,7 +541,7 @@ module top_atc4 (
    wire [ 15:0]    afu_tlx_vc3_bdf                  ;
    wire [  7:0]    afu_tlx_vc3_mad                  ;
    wire [ 15:0]    afu_tlx_vc3_capptag                  ;
-   wire [  7:0]    afu_tlx_vc3_resp_code                  ;
+   wire [  3:0]    afu_tlx_vc3_resp_code                  ;
         // --- DCP3 interface from AFU [AP Command Data from AFU to Host - original cmds]
    wire [  5:0]    tlx_afu_dcp3_initial_credit      ;
    wire            tlx_afu_dcp3_credit              ;

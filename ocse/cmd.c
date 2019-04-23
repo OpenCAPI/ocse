@@ -393,7 +393,7 @@ static void _add_kill_xlate_done(struct cmd *cmd, uint16_t actag, uint16_t afuta
 	if (cmd_opcode == AFU_CMD_XLATE_TOUCH_N)
 		form_flag = 0x4;
 	if ((cmd_opcode == AFU_CMD_XLATE_TOUCH_N) || (cmd_opcode == AFU_CMD_XLATE_TOUCH)) {
-		 if (cmd_flag & 0x8 == 0x8)
+		 if ((cmd_flag & 0x8) == 0x8)
 		      form_flag |= 0x8; }
 	if (cmd_opcode == AFU_CMD_XLATE_RELEASE) {
 		form_flag = 0x2;
