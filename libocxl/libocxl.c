@@ -375,17 +375,84 @@ static int _handle_interrupt(struct ocxl_afu *afu, uint8_t data_is_valid)
 	return i;
 }
 
+static int _xlate_addr(struct ocxl_afu *afu, void *addr, uint8_t form_flag)
+{
+      ocxl_ea_area *this_ea;
 
-static void _handle_read(struct ocxl_afu *afu, uint64_t addr, uint16_t size)
+      if ( (form_flag & 0x80) != 0x80 ) {
+	// addr represents an ea, so just return
+	return 0;
+      }
+
+      return 0; // since we are using ta=ea, we can get away with this while we figure out the real way
+
+      // look for the ta in the translation table list afu->eas
+      this_ea = afu->eas;
+      while ( this_ea != NULL ) {
+	// compare part of addr to ta based on pg_size
+	// if they match, modify the addr that came in to be the ea matching the ta + the extra bits.
+	// grab the offset part of the address
+	// add the offset to the ta
+	// since we are using ta=ea, we should be able to check that the address we calculate equals the address we received.
+      }
+
+      // if we are here, we didn't find a ta
+      // return 0xC to indicate that the ta is not recognized
+      // we don't check write permission yet
+      return 0xC;
+}
+
+static void _handle_read(struct ocxl_afu *afu)
 {
 	uint8_t buffer[MAX_LINE_CHARS];
+	uint64_t addr;
+	uint16_t size;
+	uint8_t form_flag;
+	int rc;
 
+	if ( afu == NULL ) fatal_msg("NULL afu passed to libocxl.c:_handle_read");
+	
+	if (get_bytes_silent(afu->fd, sizeof( size ), buffer, 1000, 0) < 0) {
+	      warn_msg("Socket failure getting memory read size");
+	      _all_idle(afu);
+	      return;
+	}
+	memcpy( (char *)&size, buffer, sizeof( size ) );
+	size = ntohs(size);
+
+	if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
+	      warn_msg("Socket failure getting form_flag ");
+	      _all_idle(afu);
+	      return;
+	}
+	memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
+
+	if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer, -1, 0) < 0) {
+	      warn_msg("Socket failure getting memory read addr");
+	      _all_idle(afu);
+	      return;
+	}
+	memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
+	addr = ntohll(addr);
+	DPRINTF("_handle_read: addr @ 0x%016" PRIx64 ", size = %d, form = %x\n", addr, size, form_flag);
+	
+	// at this point, addr is either an ea, ta, (or eventually pa) depending on the form flag.
+	// so lets call a routine to translate the address if form flag is the right value
+	rc = _xlate_addr( afu, &addr, form_flag );
+	if ( rc == 0xc ) {
+	        // bad translation
+	        // need to add the reason code to the mem failure message
+		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
+		if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
+			afu->opened = 0;
+			afu->attached = 0;
+		}
+	}
+	
 	DPRINTF("_handle_read: addr @ 0x%016" PRIx64 ", size = %d\n", addr, size);
-	if (!afu)
-		fatal_msg("NULL afu passed to libocxl.c:_handle_read");
 	if (!_testmemaddr((uint8_t *) addr)) {
-		if (_handle_dsi(afu, addr) < 0) {
-			perror("DSI Failure");
+	        if (_handle_dsi(afu, addr) < 0) {
+		        perror("DSI Failure");
 			return;
 		}
 		DPRINTF("READ from invalid addr @ 0x%016" PRIx64 "\n", addr);
@@ -396,6 +463,7 @@ static void _handle_read(struct ocxl_afu *afu, uint64_t addr, uint16_t size)
 		}
 		return;
 	}
+
 	buffer[0] = OCSE_MEM_SUCCESS;
 	memcpy(&(buffer[1]), (void *)addr, size);
 	if (put_bytes_silent(afu->fd, size + 1, buffer) != size + 1) {
@@ -2182,35 +2250,7 @@ static void *_psl_loop(void *ptr)
 		}
 		case OCSE_MEMORY_READ:
 			DPRINTF("AFU MEMORY READ\n");
-			if (get_bytes_silent(afu->fd, sizeof( size ), buffer, 1000, 0) < 0) {
-				warn_msg
-				    ("Socket failure getting memory read size");
-				_all_idle(afu);
-				break;
-			}
-			// size = (uint16_t *)buffer;
-			memcpy( (char *)&size, buffer, sizeof( size ) );
-			size = ntohs(size);
-			DPRINTF( "of size=%d \n", size );
-
-			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
-				warn_msg("Socket failure getting form_flag ");
-				_all_idle(afu);
-				break;
-			}
-			memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
-			DPRINTF( " form_flag=%x\n", form_flag);
-			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
-					     -1, 0) < 0) {
-				warn_msg
-				    ("Socket failure getting memory read addr");
-				_all_idle(afu);
-				break;
-			}
-			memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
-			addr = ntohll(addr);
-			DPRINTF("from addr 0x%016" PRIx64 "\n", addr);
-			_handle_read(afu, addr, size);
+			_handle_read( afu );
 			break;
 		case OCSE_MEMORY_WRITE:
 			DPRINTF("AFU MEMORY WRITE\n");
