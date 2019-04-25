@@ -434,7 +434,7 @@ static void _handle_read(struct ocxl_afu *afu)
 	}
 	memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
 	addr = ntohll(addr);
-	DPRINTF("_handle_read: addr @ 0x%016" PRIx64 ", size = %d, form = %x\n", addr, size, form_flag);
+	debug_msg("_handle_read: addr @ 0x%016" PRIx64 ", size = %d, form = %x", addr, size, form_flag);
 	
 	// at this point, addr is either an ea, ta, (or eventually pa) depending on the form flag.
 	// so lets call a routine to translate the address if form flag is the right value
@@ -449,13 +449,13 @@ static void _handle_read(struct ocxl_afu *afu)
 		}
 	}
 	
-	DPRINTF("_handle_read: addr @ 0x%016" PRIx64 ", size = %d\n", addr, size);
+	debug_msg("_handle_read: addr @ 0x%016" PRIx64 ", size = %d", addr, size);
 	if (!_testmemaddr((uint8_t *) addr)) {
 	        if (_handle_dsi(afu, addr) < 0) {
 		        perror("DSI Failure");
 			return;
 		}
-		DPRINTF("READ from invalid addr @ 0x%016" PRIx64 "\n", addr);
+		debug_msg("READ from invalid addr @ 0x%016" PRIx64 "", addr);
 		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
 		if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
 			afu->opened = 0;
@@ -470,7 +470,7 @@ static void _handle_read(struct ocxl_afu *afu)
 		afu->opened = 0;
 		afu->attached = 0;
 	}
-	DPRINTF("READ from addr @ 0x%016" PRIx64 "\n", addr);
+	debug_msg("READ from addr @ 0x%016" PRIx64 "", addr);
 }
 
 static void _handle_write_be(struct ocxl_afu *afu, uint64_t addr, uint16_t size,
@@ -487,7 +487,7 @@ static void _handle_write_be(struct ocxl_afu *afu, uint64_t addr, uint16_t size,
 			perror("DSI Failure");
 			return;
 		}
-		DPRINTF("WRITE to invalid addr @ 0x%016" PRIx64 "\n", addr);
+		debug_msg("WRITE to invalid addr @ 0x%016" PRIx64 "", addr);
 		buffer = OCSE_MEM_FAILURE;
 		if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
 			afu->opened = 0;
@@ -516,7 +516,7 @@ static void _handle_write_be(struct ocxl_afu *afu, uint64_t addr, uint16_t size,
 	//	afu->opened = 0;
 	//	afu->attached = 0;
 	//}
-	DPRINTF("WRITE to addr @ 0x%016" PRIx64 "\n", addr);
+	debug_msg("WRITE to addr @ 0x%016" PRIx64 "", addr);
 }
 
 static void _handle_write(struct ocxl_afu *afu, uint64_t addr, uint16_t size,
@@ -531,7 +531,7 @@ static void _handle_write(struct ocxl_afu *afu, uint64_t addr, uint16_t size,
 			perror("DSI Failure");
 			return;
 		}
-		DPRINTF("WRITE to invalid addr @ 0x%016" PRIx64 "\n", addr);
+		debug_msg("WRITE to invalid addr @ 0x%016" PRIx64 "", addr);
 		buffer = OCSE_MEM_FAILURE;
 		if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
 			afu->opened = 0;
@@ -545,7 +545,7 @@ static void _handle_write(struct ocxl_afu *afu, uint64_t addr, uint16_t size,
 		afu->opened = 0;
 		afu->attached = 0;
 	}
-	DPRINTF("WRITE to addr @ 0x%016" PRIx64 "\n", addr);
+	debug_msg("WRITE to addr @ 0x%016" PRIx64 "", addr);
 }
 
 // this routine will become more random and configurable over time using the 
@@ -726,23 +726,16 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 {
         uint64_t addr;
         uint64_t ta;
-	uint8_t function_code, form_flag;
-	uint8_t cmd_pg_size;
-	uint8_t buffer[11];
-	uint8_t size;
+	uint8_t cmd_flag;
+	uint8_t buffer[10];
+	int size;
 	struct ocxl_ea_area *prev;
 	struct ocxl_ea_area *this;
 
 	if (!afu) fatal_msg("NULL afu passed to libocxl.c:_handle_xlate");
 
+	debug_msg("_handle_xlate");
 	// retrieve additional bytes from socket
-	if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
-		warn_msg("Socket failure getting form_flag ");
-		_all_idle(afu);
-		return;
-	}
-	memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
-	DPRINTF( " form_flag=%x\n", form_flag);
 	if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer, -1, 0) < 0) {
 	        warn_msg("Socket failure getting memory touch addr");
 		_all_idle(afu);
@@ -750,29 +743,28 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 	}
 	memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
 	addr = ntohll(addr);
-	DPRINTF("to addr 0x%016" PRIx64 "\n", addr);
+	debug_msg("  of addr 0x%016" PRIx64, addr);
 
-	if (get_bytes_silent(afu->fd, 2, buffer, -1, 0) < 0) {
-	        warn_msg("Socket failure getting cmd_flag and cmd_pg_size");
+	if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
+		warn_msg("Socket failure getting form_flag ");
 		_all_idle(afu);
 		return;
 	}
-	memcpy( (char *)&function_code, &buffer[0], sizeof( function_code ) );
-	memcpy( (char *)&cmd_pg_size, &buffer[1], sizeof( cmd_pg_size ) );
-	DPRINTF("xlate_touch cmd_flag= 0x%x\n", function_code);
-	DPRINTF("xlate_touch cmd_pg_size= 0x%x\n", cmd_pg_size);
+	memcpy( (char *)&cmd_flag, buffer, sizeof( cmd_flag ) );
+	debug_msg( "  cmd_flag=%x", cmd_flag);
 
 	// TODO check pg size; decide if to fail cmd for various other reasons and send back a fail resp code
 	// this is the routine that now has to look at the function_code (cmd_flag) and do some extra processing
 	// if the touch is requesting a TA, we have to build a translation table entry and return a "TA"
 	// add data to the OCSE_MEM_SUCCESS message
 
+	// add a reason code to the fail message
 	if (!_testmemaddr((uint8_t *) addr)) {
 		if (_handle_dsi(afu, addr) < 0) {
 			perror("DSI Failure");
 			return;
 		}
-		DPRINTF("TOUCH of invalid addr @ 0x%016" PRIx64 "\n", addr);
+		debug_msg("TOUCH of invalid addr @ 0x%016" PRIx64 "", addr);
 		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
 		if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
 			afu->opened = 0;
@@ -781,12 +773,12 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 		return;
 	}
 
+	// if this is a release, search the eas' for a matching address, and free it.
+	// if this is a touch, possibly create an eas 
 	size = 0;
 	buffer[size] = OCSE_MEM_SUCCESS;
 	size++;
-	
-	// if this is a release, search the eas' for a matching address, and free it.
-	// if this is a touch, possibly create an eas 
+
 
 	switch ( ocse_message ) {
 	case OCSE_XLATE_RELEASE:
@@ -812,12 +804,12 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 		}
 		// free this
 		free( this );
-		DPRINTF("RELEASE of addr @ 0x%016" PRIx64 "\n", addr);
+		debug_msg("RELEASE of addr @ 0x%016" PRIx64 "", addr);
 	        break;
 	case OCSE_MEMORY_TOUCH:
 	        // Other function codes (0x4=heavy weight touch, 0x2=write access requested, and 0x1=age out) are not supported at this time
 	        // if function code is request a ta 
-	        if ( (function_code & 0x08 ) == 0x08 ) {
+	        if ( (cmd_flag & 0x08 ) == 0x08 ) {
 		        // create a translation table entry
 		        // translation table entry contains ea, ta (= ea), pa=0, mem_hit=0
 		        // scan list for an matching EA (addr) entry
@@ -848,8 +840,10 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 		
 			buffer[size] = this->pg_size;
 			size++;
+			debug_msg("TOUCH of addr @ 0x%016llx to ta=0x%016llx pgsize=0x%02x, buffer size=%d", addr, this->ta, this->pg_size, size);
 		}
-		DPRINTF("TOUCH of addr @ 0x%016" PRIx64 "\n", addr);
+	        break;
+	default:
 	        break;
 	}
 
@@ -870,7 +864,7 @@ static void _handle_ack(struct ocxl_afu *afu)
 
 	if (!afu)
 		fatal_msg("NULL afu passed to libocxl.c:_handle_ack");
-	DPRINTF("MMIO ACK\n");
+	debug_msg("MMIO ACK");
 
 	if (get_bytes_silent(afu->fd, 1, &resp_code, 1000, 0) < 0) {
 		warn_msg("Socket failure getting resp_code");
@@ -958,7 +952,7 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op, uint8_t op_siz
 			perror("DSI Failure");
 			return;
 		}
-		DPRINTF("READ from invalid addr @ 0x%016" PRIx64 "\n", addr);
+		debug_msg("READ from invalid addr @ 0x%016" PRIx64 "", addr);
 		return;
 	}
 	
@@ -1007,7 +1001,7 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op, uint8_t op_siz
 				// printf(" case 4: op_1 is %08"PRIx32 "\n", op_1);
 				// printf(" case 4: op_2 is %08"PRIx32 "\n", op_2);
 			} else if (op_size == 8) {
-				DPRINTF("INVALID op_size  0x%x for  addr  0x%016" PRIx64 "\n", op_size, addr);
+				debug_msg("INVALID op_size  0x%x for  addr  0x%016" PRIx64 "", op_size, addr);
 				buffer = (uint8_t) OCSE_MEM_FAILURE;
 				if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
 					afu->opened = 0;
@@ -1043,7 +1037,7 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op, uint8_t op_siz
 				// printf(" case c: op_1 is %08"PRIx32 "\n", op_1);
 				// printf(" case c: op_2 is %08"PRIx32 "\n", op_2);
 			} else if (op_size == 8) {
-				DPRINTF("INVALID op_size  0x%x for  addr  0x%016" PRIx64 "\n", op_size, addr);
+				debug_msg("INVALID op_size  0x%x for  addr  0x%016" PRIx64 "", op_size, addr);
 				buffer = (uint8_t) OCSE_MEM_FAILURE;
 				if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
 					afu->opened = 0;
@@ -1069,7 +1063,7 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op, uint8_t op_siz
 	
 	debug_msg("_handle_DMO_OPs:  atomic_op = 0x%2x and atomic_le = 0x%x ", atomic_op, atomic_le);
 
-	DPRINTF("READ from addr @ 0x%016" PRIx64 "\n", addr);
+	debug_msg("READ from addr @ 0x%016" PRIx64 "", addr);
 	if (op_size == 0x4) {
 		memcpy((char *) &lvalue, (void *)addr, op_size);
 		op_A = (uint32_t)(lvalue);
@@ -1089,7 +1083,7 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op, uint8_t op_siz
 	        debug_msg("op_Al is %016"PRIx64 " and op_1l is %016"PRIx64 , op_Al, op_1l);
 	        debug_msg("llvalue read from location -> by addr is %016" PRIx64 " and addr is 0x%016" PRIx64 , llvalue, addr);
 	} else // need else error bc only valid sizes are 4 or 8
-		warn_msg("unsupported op_size of 0x%2x \n", op_size);
+		warn_msg("unsupported op_size of 0x%2x ", op_size);
 
 	switch (atomic_op) {
 			case AMO_WRMWF_ADD:
@@ -1215,7 +1209,7 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op, uint8_t op_siz
 				break;
 			case AMO_ARMWF_CAS_U:
 				if ((amo_op == OCSE_AMO_WR) || (amo_op == OCSE_AMO_RD)) {
-					info_msg("INVALID FUNCTION CODE FOR AMO_WR or AMO_RD - treated as NOP \n");
+					info_msg("INVALID FUNCTION CODE FOR AMO_WR or AMO_RD - treated as NOP ");
 					wb = 0; 
 					break; }
 				if  (op_size == 4) {
@@ -1230,7 +1224,7 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op, uint8_t op_siz
 				break;
 			case AMO_ARMWF_CAS_E:
 				if ((amo_op == OCSE_AMO_WR) || (amo_op == OCSE_AMO_RD)) {
-					info_msg("INVALID FUNCTION CODE FOR AMO_WR or AMO_RD - treated as NOP \n");
+					info_msg("INVALID FUNCTION CODE FOR AMO_WR or AMO_RD - treated as NOP ");
 					wb = 0; 
 					break; }
 				if  (op_size == 4) {
@@ -1253,7 +1247,7 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op, uint8_t op_siz
 				break;
 			case AMO_ARMWF_CAS_NE: //0x0a 
 				if ((amo_op == OCSE_AMO_WR) || (amo_op == OCSE_AMO_RD)) {
-					info_msg("INVALID FUNCTION CODE FOR AMO_WR or AMO_RD - treated as NOP \n");
+					info_msg("INVALID FUNCTION CODE FOR AMO_WR or AMO_RD - treated as NOP ");
 					wb = 0; 
 					break; }
 				if  (op_size == 4) {
@@ -1277,7 +1271,7 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op, uint8_t op_siz
 			case AMO_ARMWF_INC_B: //0xc0
 			//case AMO_W_CAS_T:
 				if (amo_op == OCSE_AMO_RW)  {
-					info_msg("INVALID FUNCTION CODE FOR AMO_RW - treated as NOP \n");
+					info_msg("INVALID FUNCTION CODE FOR AMO_RW - treated as NOP ");
 					wb = 0; 
 					break; }
 				if (amo_op == OCSE_AMO_WR) { //this is the amo_wr store & compare twin
@@ -1331,7 +1325,7 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op, uint8_t op_siz
 				break;
 			case AMO_ARMWF_INC_E:
 				if ((amo_op == OCSE_AMO_WR) || (amo_op == OCSE_AMO_RW)) {
-					info_msg("INVALID FUNCTION CODE FOR AMO_WR or AMO_RW - treated as NOP \n");
+					info_msg("INVALID FUNCTION CODE FOR AMO_WR or AMO_RW - treated as NOP ");
 					wb = 0; 
 					break; }
 				if  (op_size == 4) {
@@ -1362,7 +1356,7 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op, uint8_t op_siz
 				break;
 			case AMO_ARMWF_DEC_B:
 				if ((amo_op == OCSE_AMO_WR) || (amo_op == OCSE_AMO_RW)) {
-					info_msg("INVALID FUNCTION CODE FOR AMO_WR or AMO_RW - treated as NOP \n");
+					info_msg("INVALID FUNCTION CODE FOR AMO_WR or AMO_RW - treated as NOP ");
 					wb = 0; 
 					break; }
 				if  (op_size == 4) {
@@ -1400,19 +1394,19 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op, uint8_t op_siz
 	if (wb != 0xf) {
 		if (op_size == 4) {
 			memcpy ((void *)addr, &op_1, op_size);
-			DPRINTF("WRITE to addr @ 0x%016" PRIx64 " with results of 0x%08" PRIX32 " \n", addr, op_1);
+			debug_msg("WRITE to addr @ 0x%016" PRIx64 " with results of 0x%08" PRIX32 " ", addr, op_1);
 			// if this was STORE TWIN, write op_2 to addr+4
 			if ((atomic_op) == AMO_W_CAS_T) {
 				memcpy ((void *)addr+4, &op_2, op_size);
-				DPRINTF("WRITE to addr+4 @ 0x%016" PRIx64 " with results of 0x%08" PRIX32 " \n", addr+4, op_2);
+				debug_msg("WRITE to addr+4 @ 0x%016" PRIx64 " with results of 0x%08" PRIX32 " ", addr+4, op_2);
 			}
 		} else  {// only other supported size is 8
 			memcpy ((void *)addr, &op_1l, op_size);
-			DPRINTF("WRITE to addr @ 0x%016" PRIx64 " with results of 0x%016" PRIX64 "\n", addr, op_1l);
+			debug_msg("WRITE to addr @ 0x%016" PRIx64 " with results of 0x%016" PRIX64 "", addr, op_1l);
 			// if this was STORE TWIN, write op_2l to addr+8
 			if ((atomic_op) == AMO_W_CAS_T) {
 				memcpy ((void *)addr+8, &op_2l, op_size);
-				DPRINTF("WRITE to addr+8 @ 0x%016" PRIx64 " with results of 0x%016" PRIX64 " \n", addr+8, op_2l);
+				debug_msg("WRITE to addr+8 @ 0x%016" PRIx64 " with results of 0x%016" PRIX64 " ", addr+8, op_2l);
 			}
 		}
 	}
@@ -1435,7 +1429,7 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op, uint8_t op_siz
 					afu->opened = 0;
 					afu->attached = 0;
 				}
-				DPRINTF("READ from addr @ 0x%016" PRIx64 "\n", addr);
+				debug_msg("READ from addr @ 0x%016" PRIx64 "", addr);
 				break;
 			case 2:
 				wbuffer[0] = OCSE_MEM_SUCCESS;
@@ -1446,7 +1440,7 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op, uint8_t op_siz
 					afu->opened = 0;
 					afu->attached = 0;
 				}
-				DPRINTF("READ from addr @ 0x%016" PRIx64 "\n", addr);
+				debug_msg("READ from addr @ 0x%016" PRIx64 "", addr);
 				break;
 
 			default:
@@ -2108,7 +2102,7 @@ static void *_psl_loop(void *ptr)
 			}
 		}
 
-		_handle_kill_xlate( afu );
+		// _handle_kill_xlate( afu );
 
 		// Process socket input from OCSE
 		rc = bytes_ready(afu->fd, 1000, 0);
@@ -2249,11 +2243,11 @@ static void *_psl_loop(void *ptr)
 			break;
 		}
 		case OCSE_MEMORY_READ:
-			DPRINTF("AFU MEMORY READ\n");
+			debug_msg("AFU MEMORY READ");
 			_handle_read( afu );
 			break;
 		case OCSE_MEMORY_WRITE:
-			DPRINTF("AFU MEMORY WRITE\n");
+			debug_msg("AFU MEMORY WRITE");
 			if (get_bytes_silent(afu->fd, sizeof( size ), buffer, 1000, 0) < 0) {
 				warn_msg
 				    ("Socket failure getting memory write size");
@@ -2263,14 +2257,14 @@ static void *_psl_loop(void *ptr)
 			//size = (uint16_t) buffer[0];
 			memcpy( (char *)&size, buffer, sizeof( size ) );
 			size = ntohs(size);
-			DPRINTF( "of size=%d \n", size );
+			debug_msg( "of size=%d ", size );
 			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
 				warn_msg("Socket failure getting form_flag ");
 				_all_idle(afu);
 				break;
 			}
 			memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
-			DPRINTF( " form_flag=%x\n", form_flag);
+			debug_msg( " form_flag=%x", form_flag);
 			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
 						 -1, 0) < 0) {
 				warn_msg
@@ -2280,7 +2274,7 @@ static void *_psl_loop(void *ptr)
 			}
 			memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
 			addr = ntohll(addr);
-			DPRINTF("to addr 0x%016" PRIx64 "\n", addr);
+			debug_msg("to addr 0x%016" PRIx64 "", addr);
 			if (get_bytes_silent(afu->fd, size, buffer, 1000, 0) <
 			    0) {
 				warn_msg
@@ -2294,7 +2288,7 @@ static void *_psl_loop(void *ptr)
 		// need to size, addr and data as above in ocse_memory_write
 	        // and then need to get byte enable in manner similar to addr (maybe)
 		case OCSE_WR_BE:
-			DPRINTF("AFU MEMORY WRITE BE\n");
+			debug_msg("AFU MEMORY WRITE BE");
 			if (get_bytes_silent(afu->fd, sizeof(size), buffer, 1000, 0) < 0) {
 				warn_msg
 				    ("Socket failure getting memory write be size");
@@ -2303,14 +2297,14 @@ static void *_psl_loop(void *ptr)
 			}
 			memcpy( (char *)&size, buffer, sizeof( size ) );
 			size = ntohs(size);
-			DPRINTF( "of size=%d \n", size );
+			debug_msg( "of size=%d ", size );
 			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
 				warn_msg("Socket failure getting form_flag ");
 				_all_idle(afu);
 				break;
 			}
 			memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
-			DPRINTF( " form_flag=%x\n", form_flag);
+			debug_msg( " form_flag=%x", form_flag);
 			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
 					     -1, 0) < 0) {
 				warn_msg
@@ -2320,7 +2314,7 @@ static void *_psl_loop(void *ptr)
 			}
 			memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
 			addr = ntohll(addr);
-			DPRINTF("to addr 0x%016" PRIx64 "\n", addr);
+			debug_msg("to addr 0x%016" PRIx64 "", addr);
 			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
 					     -1, 0) < 0) {
 				warn_msg
@@ -2330,7 +2324,7 @@ static void *_psl_loop(void *ptr)
 			}
 			memcpy((char *)&wr_be, (char *)buffer, sizeof(uint64_t));
 			wr_be = ntohll(wr_be);
-			DPRINTF("byte enable mask= 0x%016" PRIx64 "\n", wr_be);
+			debug_msg("byte enable mask= 0x%016" PRIx64 "", wr_be);
 
 			if (get_bytes_silent(afu->fd, size, buffer, 1000, 0) <
 			    0) {
@@ -2347,9 +2341,9 @@ static void *_psl_loop(void *ptr)
 		case OCSE_AMO_RW:
 			amo_op = buffer[0];
 			if (amo_op == OCSE_AMO_WR)
-				DPRINTF("AFU AMO_WRITE \n");
+				debug_msg("AFU AMO_WRITE ");
 			else
-				DPRINTF("AFU AMO__READ/WRITE\n");
+				debug_msg("AFU AMO__READ/WRITE");
 			if (get_bytes_silent(afu->fd, sizeof(uint8_t), buffer, -1, 0) < 0) {
 				warn_msg
 				    ("Socket failure getting amo_wr or amo_rw size");
@@ -2359,14 +2353,14 @@ static void *_psl_loop(void *ptr)
 			memcpy( (char *)&op_size, buffer, sizeof( uint8_t ) );
 			//memcpy( (char *)&size, buffer, sizeof( size ) );
 			//size = ntohs(size);
-			DPRINTF( "op_size=%d \n", op_size );
+			debug_msg( "op_size=%d ", op_size );
 			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
 				warn_msg("Socket failure getting form_flag ");
 				_all_idle(afu);
 				break;
 			}
 			memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
-			DPRINTF( " form_flag=%x\n", form_flag);
+			debug_msg( " form_flag=%x", form_flag);
 			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
 					     -1, 0) < 0) {
 				warn_msg
@@ -2376,7 +2370,7 @@ static void *_psl_loop(void *ptr)
 			}
 			memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
 			addr = ntohll(addr);
-			DPRINTF("to addr 0x%016" PRIx64 "\n", addr);
+			debug_msg("to addr 0x%016" PRIx64 "", addr);
 			if (get_bytes_silent(afu->fd, 18, buffer,
 				     -1, 0) < 0) {
 				warn_msg
@@ -2385,15 +2379,15 @@ static void *_psl_loop(void *ptr)
 				break;
 			}
 			memcpy( (char *)&function_code, &buffer[0], sizeof( function_code ) );
-			DPRINTF("amo_wr or amo_rw cmd_flag= 0x%x\n", function_code);
+			debug_msg("amo_wr or amo_rw cmd_flag= 0x%x", function_code);
 			memcpy( (char *)&cmd_endian, &buffer[1], sizeof( cmd_endian ) );
-			DPRINTF("amo_wr or amo_rw cmd_endian= 0x%x\n", cmd_endian);
+			debug_msg("amo_wr or amo_rw cmd_endian= 0x%x", cmd_endian);
 
 			// TODO FIX THIS TO CORRECTLY EXTRACT OP_1 and OP_2 if needed !!!
 			memcpy((char *)&op1, (char *)&buffer[2], sizeof(uint64_t));
 			debug_msg("op1 bytes 1-8 are 0x%016" PRIx64, op1);
 			//op1 = ntohll (op1);
-			//printf("op1 bytes 1-8 are 0x%016" PRIx64 " \n", op1);
+			//printf("op1 bytes 1-8 are 0x%016" PRIx64 " ", op1);
 			memcpy((char *)&op2, (char *)&buffer[10], sizeof(uint64_t));
 			debug_msg("op2 bytes 1-8 are 0x%016" PRIx64, op2);
 			//op_size = (uint8_t) size;
@@ -2402,7 +2396,7 @@ static void *_psl_loop(void *ptr)
 			break;
 
 		case OCSE_AMO_RD:
-			DPRINTF("AFU AMO READ \n");
+			debug_msg("AFU AMO READ ");
 			amo_op = buffer[0];
 			if (get_bytes_silent(afu->fd, sizeof(op_size), buffer, -1, 0) < 0) {
 				warn_msg
@@ -2414,14 +2408,14 @@ static void *_psl_loop(void *ptr)
 			//memcpy( (char *)&size, buffer, sizeof( size ) );
 			//size = ntohs(size);
 		//	op_size = (uint8_t) size;
-			DPRINTF( "op_size=%d \n", op_size );
+			debug_msg( "op_size=%d ", op_size );
 			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
 				warn_msg("Socket failure getting form_flag ");
 				_all_idle(afu);
 				break;
 			}
 			memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
-			DPRINTF( " form_flag=%x\n", form_flag);
+			debug_msg( " form_flag=%x", form_flag);
 			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
 					     -1, 0) < 0) {
 				warn_msg
@@ -2431,7 +2425,7 @@ static void *_psl_loop(void *ptr)
 			}
 			memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
 			addr = ntohll(addr);
-			DPRINTF("to addr 0x%016" PRIx64 "\n", addr);
+			debug_msg("to addr 0x%016" PRIx64 "", addr);
 			if (get_bytes_silent(afu->fd, 2, buffer,
 					     -1, 0) < 0) {
 				warn_msg
@@ -2441,23 +2435,23 @@ static void *_psl_loop(void *ptr)
 			}
 			memcpy( (char *)&function_code, &buffer[0], sizeof( function_code ) );
 			memcpy( (char *)&cmd_endian, &buffer[1], sizeof( cmd_endian ) );
-			DPRINTF("amo_rd cmd_flag= 0x%x\n", function_code);
-			DPRINTF("amo_rd cmd_endian= 0x%x\n", cmd_endian);
+			debug_msg("amo_rd cmd_flag= 0x%x", function_code);
+			debug_msg("amo_rd cmd_endian= 0x%x", cmd_endian);
 
 			_handle_DMO_OPs(afu, amo_op, op_size, addr, function_code, 0, 0, cmd_endian);
 			break;
 
 
 		case OCSE_XLATE_RELEASE:
-			DPRINTF("AFU XLATE RELEASE\n");
+			debug_msg("AFU XLATE RELEASE");
 			_handle_xlate( afu, OCSE_XLATE_RELEASE );
 			break;
 		case OCSE_XLATE_KILL_DONE:
-			DPRINTF("AFU XLATE KILL DONE\n");
+			debug_msg("AFU XLATE KILL DONE");
 			_handle_kill_xlate_done( afu );
 			break;
 		case OCSE_MEMORY_TOUCH:
-			DPRINTF("AFU XLATE TOUCH\n");
+			debug_msg("AFU XLATE TOUCH");
 			_handle_xlate( afu, OCSE_MEMORY_TOUCH );
 			break;
 		case OCSE_MMIO_ACK:
@@ -2494,7 +2488,7 @@ static void *_psl_loop(void *ptr)
 		/* 	} */
 		/* 	break; */
 		default:
-			DPRINTF("UNKNOWN CMD IS 0x%2x \n", buffer[0]);
+			debug_msg("UNKNOWN CMD IS 0x%2x ", buffer[0]);
 			break;
 		}
 	}
@@ -2515,7 +2509,7 @@ static int _ocse_connect(uint16_t * afu_map, int *fd)
 	int port;
 
 	// Get hostname and port of OCSE server
-	DPRINTF("AFU CONNECT\n");
+	debug_msg("AFU CONNECT");
 	ocse_server_dat_path = getenv("OCSE_SERVER_DAT");
 	if (!ocse_server_dat_path) ocse_server_dat_path = "ocse_server.dat";
 	fp = fopen(ocse_server_dat_path, "r");
@@ -3159,7 +3153,7 @@ ocxl_err ocxl_afu_attach( ocxl_afu_h afu, __attribute__((unused)) uint64_t flags
 		errno = EINVAL;
 		return OCXL_NO_DEV;
 	}
-	DPRINTF("AFU ATTACH\n");
+	debug_msg("AFU ATTACH");
 	if (!afu->opened) {
 		warn_msg("ocxl_afu_attach: Must open AFU first");
 		errno = ENODEV;

@@ -363,45 +363,39 @@ static void _add_kill_xlate_done(struct cmd *cmd, uint16_t actag, uint16_t afuta
  			   uint8_t cmd_opcode, uint8_t *cmd_ea_ta_or_obj, uint8_t cmd_flag, uint8_t cmd_pg_size, uint8_t cmd_stream_id)
  {
         int64_t addr;
-	//uint32_t size = 64;
 	uint8_t form_flag;
+
         // convert 68 bit ea/obj to 64 bit addr
         // for ap write commands, ea_or_obj is a 64 bit thing...
         memcpy( (void *)&addr, (void *)&(cmd_ea_ta_or_obj[0]), sizeof(int64_t));
- 	// Check command size and address 
-// 	if (_aligned(addr, size) == BAD_OPERAND_SIZE) {
-// 		_add_fail(cmd, actag, afutag, cmd_opcode, 0x0e, TLX_RSP_TOUCH_RESP);
-//		return;
-// 	}
-//	else if (_aligned(addr, size) == BAD_ADDR_OFFSET) { //invalid address alignment
-//		_add_fail(cmd, actag, afutag, cmd_opcode,  0x0e, TLX_RSP_TOUCH_RESP);
-//		return;
-// 	}
-	// In future, check to see if cmd_pg_size is a supported value? Send it
-	// over to libocxl?
+
         int32_t context;
         context = _find_client_by_actag(cmd, actag);
 	if (context == -1) {
 		debug_msg("_add_xlate_touch: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
 		return;
 	   }
+
 	// TODO actually do something. For now, we always send back success for touch_resp (0x00)
 	// We could send request to libocxl for processing, especially for OpenCAPI 4
 	// when a translation address is expected as return
 	form_flag=0;
 	printf("add_xlate_touch: cmd_flag= 0x%x \n", cmd_flag);
+
 	if (cmd_opcode == AFU_CMD_XLATE_TOUCH_N)
 		form_flag = 0x4;
 	if ((cmd_opcode == AFU_CMD_XLATE_TOUCH_N) || (cmd_opcode == AFU_CMD_XLATE_TOUCH)) {
-		 if ((cmd_flag & 0x8) == 0x8)
-		      form_flag |= 0x8; }
+	  if ((cmd_flag & 0x8) == 0x8)
+	    form_flag |= 0x8; 
+	}
+
 	if (cmd_opcode == AFU_CMD_XLATE_RELEASE) {
-		form_flag = 0x2;
-		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_XLATE_REL, addr, 0, MEM_DONE,
-			 0x00, 0, 0, 0, 0, 0, TLX_RSP_TOUCH_RESP, cmd_stream_id, form_flag); }
-	else if (cmd_opcode == AFU_CMD_XLATE_TOUCH || cmd_opcode == AFU_CMD_XLATE_TOUCH_N )
-		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_TOUCH, addr, 0, MEM_DONE,
-			 0x00, 0, 0, 0, 0, 0, TLX_RSP_TOUCH_RESP, cmd_stream_id, form_flag);
+	  form_flag = 0x2;
+	  _add_cmd(cmd, context, afutag, cmd_opcode, CMD_XLATE_REL, addr, 0, MEM_DONE,
+		   0x00, 0, 0, 0, 0, 0, TLX_RSP_TOUCH_RESP, cmd_stream_id, form_flag); 
+	} else if (cmd_opcode == AFU_CMD_XLATE_TOUCH || cmd_opcode == AFU_CMD_XLATE_TOUCH_N )
+	  _add_cmd(cmd, context, afutag, cmd_opcode, CMD_TOUCH, addr, 0, MEM_IDLE,
+		   TLX_RESPONSE_DONE, 0, 0, 0, cmd_flag, 0, TLX_RSP_TOUCH_RESP, cmd_stream_id, form_flag);
 	else if (cmd_opcode == AFU_CMD_XLATE_TO_PA)
 		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_XL_TO_PA, addr, 0, MEM_DONE,
 			 0x00, 0, 0, 0, 0, 0, TLX_RSP_TOUCH_RESP, cmd_stream_id, form_flag);
@@ -773,10 +767,11 @@ static void _parse_cmd(struct cmd *cmd,
 	case AFU_CMD_XLATE_TO_PA:
 	case AFU_CMD_XLATE_RELEASE:
 		debug_msg("YES! AFU cmd is some kind of XLATE_TOUCH or XLATE_RELEASE\n");
-		if (cmd_data_is_valid)
+		if ( cmd_data_is_valid ) {
 		    cmd->afu_event->afu_tlx_dcp3_data_valid = 1;
-		_add_xlate_touch(cmd, cmd_actag, cmd_afutag, cmd_opcode,
-			  cmd_ea_ta_or_obj, cmd_flag, cmd_pg_size, cmd_stream_id);
+		}
+		_add_xlate_touch( cmd, cmd_actag, cmd_afutag, cmd_opcode,
+				  cmd_ea_ta_or_obj, cmd_flag, cmd_pg_size, cmd_stream_id);
 		break;
 	case AFU_RSP_KILL_XLATE_DONE:
 		debug_msg("YES! AFU response is KILL XLATE DONE");
@@ -1457,29 +1452,37 @@ void handle_touch(struct cmd *cmd)
 	uint64_t *addr;
 
 	// Make sure cmd structure is valid
-	if (cmd == NULL)
+	if (cmd == NULL) {
+	        debug_msg( "handle_touch: bad cmd pointer");
 		return;
+	}
 
 	// Randomly select a pending touch (or none)
 	event = cmd->list;
 	while (event != NULL) {
 	  //if (((event->type == AFU_CMD_XLATE_TOUCH) || (event->type == AFU_CMD_XLATE_TOUCH_N))
 	        if ( ( event->type == CMD_TOUCH ) && 
-		     ( event->state == MEM_IDLE ) && 
-		     ( ( event->client_state != CLIENT_VALID ) || !allow_reorder(cmd->parms) ) ) {
+		     ( event->state == MEM_IDLE ) ) /* && 
+						       ( ( event->client_state != CLIENT_VALID ) || !allow_reorder(cmd->parms) ) ) */ {
 			break;
 		}
 
 		event = event->_next;
 	}
 
+	// Test for no event selected - it's ok, just return
+	if ( event == NULL ) return;
+	debug_msg( "handle_touch: we have an event" );
+
 	// Test for client disconnect
-	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
+	if ((client = _get_client(cmd, event)) == NULL) {
+	        debug_msg( "handle_touch: no client found");
 		return;
+	}
 
 	// Check that memory request can be driven to client
-	if (client->mem_access != NULL)
-		return;
+	if (client->mem_access != NULL) return;
+
 	if (event->command == AFU_CMD_XLATE_RELEASE) {
 	//	event->form_flag = (event->form_flag | 0x4); //this is a posted cmd, no response sent back to afu
 		// Send xlate touch request to client
@@ -1502,7 +1505,7 @@ void handle_touch(struct cmd *cmd)
 		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
         } else {
 		debug_msg("%s:XLATE TOUCH cmd_flag=0x%x afutag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
-			  event->cmd_flag, event->afutag, event->addr);
+			  event->form_flag, event->afutag, event->addr);
 		// Check to see if this cmd gets selected for a RETRY or FAILED or PENDING read_failed response
 		if ( allow_retry(cmd->parms)) {
 			event->state = MEM_DONE;
@@ -1533,15 +1536,15 @@ void handle_touch(struct cmd *cmd)
 
 
 		// Send xlate touch request to client
-		buffer = (uint8_t *) malloc(11);
+		buffer = (uint8_t *) malloc(10);
 		buffer[0] = (uint8_t) OCSE_MEMORY_TOUCH;
 		addr = (uint64_t *) & (buffer[1]);
 		*addr = htonll(event->addr);
 		buffer[9] = event->cmd_flag;
-		buffer[10] = event->cmd_pg_size;
+		// buffer[10] = event->cmd_pg_size;
 		debug_msg("%s:XLATE TOUCH cmd_flag=0x%x afutag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
 			  event->cmd_flag, event->afutag, event->addr);
-		if (put_bytes(client->fd, 11, buffer, cmd->dbg_fp, cmd->dbg_id,
+		if (put_bytes(client->fd, 10, buffer, cmd->dbg_fp, cmd->dbg_id,
 		      event->context) < 0) {
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		}
@@ -1713,7 +1716,7 @@ static void _handle_mem_touch(struct cmd *cmd, struct cmd_event *event, int fd)
         uint64_t ta;
         uint8_t pg_size;
 	
-        if ( ( event->cmd_flag & 0x08 ) == 0x00 ) {
+        if ( ( event->form_flag & 0x08 ) == 0x00 ) {
 	  // this is not a translate touch with ta_req
 	  // we can set mem_done and return
 	  event->state = MEM_DONE;
@@ -1723,6 +1726,8 @@ static void _handle_mem_touch(struct cmd *cmd, struct cmd_event *event, int fd)
 	// this is a translate touch with ta_req
 	// pull ta and pg size from the socket adding them to the resp fields as we go
 	// and set the resp opcode to touch resp t
+
+	debug_msg("%s:_handle_mem_touch",cmd->afu_name);
 
 	event->resp_opcode = TLX_RSP_TOUCH_RESP_T;
 
@@ -1752,6 +1757,11 @@ static void _handle_mem_touch(struct cmd *cmd, struct cmd_event *event, int fd)
 	
 	event->resp_w = 1;  // always writeable for now
 	event->resp_mh = 0; // mem hit is a 5.0 feature
+	
+	event->state = MEM_DONE;
+
+	debug_msg("%s:_handle_mem_touch afutag=0x%04x addr=0x%016llx,  translated_addr=0x%016llx, pg_szie=0x%02x",
+		  cmd->afu_name, event->afutag, event->addr, event->resp_ta, event->resp_pg_size);
 }
 
 // Handle data returning from client for memory read
@@ -1920,9 +1930,10 @@ void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd)
 		else
 			event->size = 3;
 	}
-	else if (event->type == CMD_TOUCH)  
+	else if (event->type == CMD_TOUCH) {
+	        debug_msg( "_handle_mem_return: CMD_TOUCH" );
 	        _handle_mem_touch( cmd, event, fd );
-
+	}
 	else if (event->type == CMD_XLATE_REL)
 		//NOTE - this means we expect an ACK back from libocxl for the XLATE_RELEASE
 		event->state = MEM_DONE;

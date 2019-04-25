@@ -1577,14 +1577,17 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 			        debug_msg("tlx_get_afu_events: nothing in socket?");
 				return 0;
 			} else {
+			        warn_msg("tlx_get_afu_events: first unknown socket error");
 				return -1;
 			}
 		}
 	        event->rbp += bc;
 	}
 
-	if (bc == 0)
+	if (bc == 0) {
+	        warn_msg("tlx_get_afu_events: second unknown socket error. socket was shutdown?");
 	        return -1;
+	}
 
 	if (event->rbp != 0) {
 		if ((event->rbuf[0] & 0x10) != 0) {
@@ -1601,18 +1604,18 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		// TODO if this ever changes, or icmd dcps send diff #s, need to add more byte  for each cmd dcp
 		if ( ( bc = recv( event->sockfd, event->rbuf + event->rbp, 5, 0 ) ) == -1 ) {
 			if (errno == EWOULDBLOCK) {
-			  warn_msg("tlx_get_afu_events: not enough byte count data on socket");
+			        warn_msg("tlx_get_afu_events: not enough byte count data on socket");
    			        // there is not enough on the socket
 				return 0;
 			} else {
- 			  warn_msg("tlx_get_afu_events: bad socket");
+ 			        warn_msg("tlx_get_afu_events: bad socket");
    			        // something bad happened to the socket
 				return -1;
 			}
 		}
 		// printf("tlx_get_afu_events: read bc = 0x%04x: more bytes from rbuf\n", bc );
 		if ( bc == 0 ) {
-		        warn_msg("tlx_get_afu_events: bc = 0 after trying to reading data sizes from rbuf" );
+		        warn_msg("tlx_get_afu_events: bc = 0 after trying to reading data sizes from rbuf. socket was shutdown?" );
 			return -1;
 		}
 		// printf("tlx_get_afu_events: bc = 0x%04x: more bytes in rbuf\n", bc );
