@@ -182,6 +182,7 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 			return;
 		}
+		  info_msg("We got 0x%02x from client on socket 0x%02x", buffer[0], client->fd);
 		switch (buffer[0]) {
 		case OCSE_DETACH:
 		        debug_msg("DETACH request from client context %d on socket %d", client->context, client->fd);

@@ -397,7 +397,7 @@ static void _add_kill_xlate_done(struct cmd *cmd, uint16_t actag, uint16_t afuta
 	  _add_cmd(cmd, context, afutag, cmd_opcode, CMD_TOUCH, addr, 0, MEM_IDLE,
 		   TLX_RESPONSE_DONE, 0, 0, 0, cmd_flag, 0, TLX_RSP_TOUCH_RESP, cmd_stream_id, form_flag);
 	else if (cmd_opcode == AFU_CMD_XLATE_TO_PA)
-		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_XL_TO_PA, addr, 0, MEM_DONE,
+		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_XL_TO_PA, addr, 0, MEM_IDLE,
 			 0x00, 0, 0, 0, 0, 0, TLX_RSP_TOUCH_RESP, cmd_stream_id, form_flag);
  }
 
@@ -1461,7 +1461,7 @@ void handle_touch(struct cmd *cmd)
 	event = cmd->list;
 	while (event != NULL) {
 	  //if (((event->type == AFU_CMD_XLATE_TOUCH) || (event->type == AFU_CMD_XLATE_TOUCH_N))
-	        if ( ( event->type == CMD_TOUCH ) && 
+	        if ( (( event->type == CMD_TOUCH ) || (event->type == CMD_XLATE_REL) || (event->type == CMD_XL_TO_PA)) && 
 		     ( event->state == MEM_IDLE ) ) /* && 
 						       ( ( event->client_state != CLIENT_VALID ) || !allow_reorder(cmd->parms) ) ) */ {
 			break;
