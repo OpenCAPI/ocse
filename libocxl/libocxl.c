@@ -405,9 +405,10 @@ static void _handle_read(struct ocxl_afu *afu, uint64_t addr, uint16_t size)
 static void _handle_write_be(struct ocxl_afu *afu, uint64_t addr, uint16_t size,
 			     uint8_t * data, uint64_t be)
 {
-	uint8_t buffer;
-	//uint64_t enable;
-	//uint64_t be_copy;
+        int i;
+        uint8_t buffer;
+	uint64_t enable;
+	uint64_t be_copy;
 
 	if (!afu)
 		fatal_msg("NULL afu passed to libocxl.c:_handle_write_be");
@@ -428,23 +429,22 @@ static void _handle_write_be(struct ocxl_afu *afu, uint64_t addr, uint16_t size,
 	// we'll have to loop through data byte by byte
 	// and if the corresponding bit of be is on, 
 	// write the data byte to the address offset by the loop index
-	// or something like that.
-	// the trick is that be is likely to be little endian
-	// something like this maybe
-	// be_copy = be;
-	// for (i=0;i<64;i++) {
-	//   enable = be_copy && 0x0000000000000001; // mask everything but bit 0
-	//   if (enable) {
-	//     *((char *)addr + i) = data[i];  // add i to addr and deref???
-	//   }
-	//   be_copy = be_copy >> 1; // shift be_copy right 1 bit.
-	// }
-	//memcpy((void *)addr, data, size);
-	//buffer = OCSE_MEM_SUCCESS;
-	//if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
-	//	afu->opened = 0;
-	//	afu->attached = 0;
-	//}
+
+	be_copy = be;
+
+	for ( i=0; i<64; i++ ) {
+	        enable = be_copy && 0x0000000000000001; // mask everything but bit 0
+		if (enable) {
+		          *((char *)addr + i) = data[i];  // add i to addr and deref???
+		}
+		be_copy = be_copy >> 1; // shift be_copy right 1 bit.
+	}
+	
+	buffer = OCSE_MEM_SUCCESS;
+	if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
+		afu->opened = 0;
+		afu->attached = 0;
+	}
 	DPRINTF("WRITE to addr @ 0x%016" PRIx64 "\n", addr);
 }
 
