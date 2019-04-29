@@ -413,7 +413,7 @@ static int _xlate_addr(struct ocxl_afu *afu, uint64_t *addr, uint8_t form_flag)
       // add the offset to the ta
       eaddr = base + offset;
 
-      debug_msg( "_xlate_addr: translated 0x%016llx with base mask 0x%016llx and offset mask 0x%016llx to base 0x%016llx + offset 0x%016llx = 0x%016llx", taddr, base_mask, offset_mask, base, offset, eaddr );
+      debug_msg( "_xlate_addr: translated 0x%016llx with offset mask 0x%016llx to base 0x%016llx + offset 0x%016llx = 0x%016llx", taddr, offset_mask, base, offset, eaddr );
       
       // since we are using ta=ea, we should be able to check that the address we calculate equals the address we received.
       if (taddr != eaddr) return 0xC;
@@ -546,6 +546,7 @@ static void _handle_write(struct ocxl_afu *afu)
 	uint64_t addr;
 	uint16_t size;
 	uint8_t form_flag;
+	int rc;
 
 	if (!afu)
 		fatal_msg("NULL afu passed to libocxl.c:_handle_write");
@@ -582,6 +583,17 @@ static void _handle_write(struct ocxl_afu *afu)
 	  warn_msg("Socket failure getting memory write data");
 	  _all_idle(afu);
 	  return;
+	}
+
+	rc = _xlate_addr( afu, &addr, form_flag );
+	if ( rc == 0xc ) {
+	        // bad translation
+	        // need to add the reason code to the mem failure message
+		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
+		if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
+			afu->opened = 0;
+			afu->attached = 0;
+		}
 	}
 
 	if (!_testmemaddr((uint8_t *) addr)) {
