@@ -18,8 +18,8 @@ LIBOCXL_1 {
 		ocxl_afu_attach;
 		ocxl_afu_close;
 
-		ocxl_afu_irq_alloc;
-		ocxl_afu_irq_get_handle;
+		ocxl_irq_alloc;
+		ocxl_irq_get_handle;
 		ocxl_irq_get_fd;
 		ocxl_afu_event_check_versioned;
 		ocxl_afu_event_check;
