@@ -539,33 +539,71 @@ static void _handle_write_be(struct ocxl_afu *afu, uint64_t addr, uint16_t size,
 	debug_msg("WRITE to addr @ 0x%016" PRIx64 "", addr);
 }
 
-static void _handle_write(struct ocxl_afu *afu, uint64_t addr, uint16_t size,
-			  uint8_t * data)
+static void _handle_write(struct ocxl_afu *afu)
 {
-	uint8_t buffer;
+	uint8_t buffer[MAX_LINE_CHARS];
+	uint64_t addr;
+	uint16_t size;
+	uint8_t form_flag;
 
 	if (!afu)
 		fatal_msg("NULL afu passed to libocxl.c:_handle_write");
+
+	// retrieve additional field from socket
+	if (get_bytes_silent(afu->fd, sizeof( size ), buffer, 1000, 0) < 0) {
+	  warn_msg("Socket failure getting memory write size");
+	  _all_idle(afu);
+	  return;
+	}
+	memcpy( (char *)&size, buffer, sizeof( size ) );
+	size = ntohs(size);
+	debug_msg( "  of size=%d ", size );
+
+	if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
+	  warn_msg("Socket failure getting form_flag ");
+	  _all_idle(afu);
+	  return;
+	}
+	memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
+	debug_msg( "  with form_flag=%x", form_flag);
+
+	if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
+			     -1, 0) < 0) {
+	  warn_msg("Socket failure getting memory write addr");
+	  _all_idle(afu);
+	  return;
+	}
+	memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
+	addr = ntohll(addr);
+	debug_msg("  to addr 0x%016" PRIx64 "", addr);
+
+	if (get_bytes_silent(afu->fd, size, buffer, 1000, 0) < 0) {
+	  warn_msg("Socket failure getting memory write data");
+	  _all_idle(afu);
+	  return;
+	}
+
 	if (!_testmemaddr((uint8_t *) addr)) {
 		if (_handle_dsi(afu, addr) < 0) {
 			perror("DSI Failure");
 			return;
 		}
 		debug_msg("WRITE to invalid addr @ 0x%016" PRIx64 "", addr);
-		buffer = OCSE_MEM_FAILURE;
-		if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
+		buffer[0] = OCSE_MEM_FAILURE;
+		if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
 			afu->opened = 0;
 			afu->attached = 0;
 		}
 		return;
 	}
-	memcpy((void *)addr, data, size);
-	buffer = OCSE_MEM_SUCCESS;
-	if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
+
+	memcpy((void *)addr, buffer, size);
+
+	buffer[0] = OCSE_MEM_SUCCESS;
+	if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
 		afu->opened = 0;
 		afu->attached = 0;
 	}
-	debug_msg("WRITE to addr @ 0x%016" PRIx64 "", addr);
 }
 
 // this routine will become more random and configurable over time using the 
@@ -2272,41 +2310,7 @@ static void *_psl_loop(void *ptr)
 			break;
 		case OCSE_MEMORY_WRITE:
 			debug_msg("AFU MEMORY WRITE");
-			if (get_bytes_silent(afu->fd, sizeof( size ), buffer, 1000, 0) < 0) {
-				warn_msg
-				    ("Socket failure getting memory write size");
-				_all_idle(afu);
-				break;
-			}
-			//size = (uint16_t) buffer[0];
-			memcpy( (char *)&size, buffer, sizeof( size ) );
-			size = ntohs(size);
-			debug_msg( "of size=%d ", size );
-			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
-				warn_msg("Socket failure getting form_flag ");
-				_all_idle(afu);
-				break;
-			}
-			memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
-			debug_msg( " form_flag=%x", form_flag);
-			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
-						 -1, 0) < 0) {
-				warn_msg
-				    ("Socket failure getting memory write addr");
-				_all_idle(afu);
-				break;
-			}
-			memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
-			addr = ntohll(addr);
-			debug_msg("to addr 0x%016" PRIx64 "", addr);
-			if (get_bytes_silent(afu->fd, size, buffer, 1000, 0) <
-			    0) {
-				warn_msg
-				    ("Socket failure getting memory write data");
-				_all_idle(afu);
-				break;
-			}
-			_handle_write(afu, addr, size, buffer);
+			_handle_write( afu );
 			break;
 		// add the case for ocse_memory_be_write
 		// need to size, addr and data as above in ocse_memory_write
