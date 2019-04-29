@@ -375,9 +375,13 @@ static int _handle_interrupt(struct ocxl_afu *afu, uint8_t data_is_valid)
 	return i;
 }
 
-static int _xlate_addr(struct ocxl_afu *afu, void *addr, uint8_t form_flag)
+static int _xlate_addr(struct ocxl_afu *afu, uint64_t *addr, uint8_t form_flag)
 {
       ocxl_ea_area *this_ea;
+      uint64_t base, base_mask;
+      uint64_t offset, offset_mask;
+      uint64_t eaddr;
+      uint64_t taddr;
 
       if ( (form_flag & 0x80) != 0x80 ) {
 	// addr represents an ea, so just return
@@ -390,16 +394,32 @@ static int _xlate_addr(struct ocxl_afu *afu, void *addr, uint8_t form_flag)
       this_ea = afu->eas;
       while ( this_ea != NULL ) {
 	// compare part of addr to ta based on pg_size
-	// if they match, modify the addr that came in to be the ea matching the ta + the extra bits.
-	// grab the offset part of the address
-	// add the offset to the ta
-	// since we are using ta=ea, we should be able to check that the address we calculate equals the address we received.
+	eaddr = *addr;
+	if ( this_ea->ta == ( eaddr & (~(uint64_t)0 << (this_ea->pg_size-1))) ) break; // found matching ea, use this entry
+	
       }
 
-      // if we are here, we didn't find a ta
-      // return 0xC to indicate that the ta is not recognized
+      if ( this_ea == NULL ) return 0xC;  // we didn't find a matching ta; return 0x0C to say the ta is not recognized
+
+      // if we have a match, modify the addr that came in to be the ea matching the ta + the extra bits.
+      // grab the offset part of the address
+      base_mask = ~(uint64_t)0 << (this_ea->pg_size-1);
+      base = eaddr & base_mask;
+
+      offset_mask = ~base_mask;
+      offset = eaddr & (~offset_mask);
+
+      // add the offset to the ta
+      taddr = base + offset;
+
+      debug_msg( "_xlate_addr: translated 0x%016llx with base mask 0x%016llx and offset mask 0x%016llx to base 0x%016llx + offset 0x%016llx = 0x%016llx", eaddr, base_mask, offset_mask, base, offset, taddr );
+      
+      // since we are using ta=ea, we should be able to check that the address we calculate equals the address we received.
+      if (taddr != eaddr) return 0xC;
+
       // we don't check write permission yet
-      return 0xC;
+      *addr = taddr;
+      return 0;
 }
 
 static void _handle_read(struct ocxl_afu *afu)
@@ -745,6 +765,9 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 	addr = ntohll(addr);
 	debug_msg("  of addr 0x%016" PRIx64, addr);
 
+	// release will send pg_size
+	// touch will send cmd_flag
+
 	if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
 		warn_msg("Socket failure getting form_flag ");
 		_all_idle(afu);
@@ -783,6 +806,7 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 	switch ( ocse_message ) {
 	case OCSE_XLATE_RELEASE:
 	        // search ea list for ta matching addr
+   	        // pg_size will also have to match
 	        this = afu->eas;
 		prev = NULL;
 	        while (this != NULL) {
