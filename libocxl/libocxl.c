@@ -390,35 +390,36 @@ static int _xlate_addr(struct ocxl_afu *afu, uint64_t *addr, uint8_t form_flag)
 
       return 0; // since we are using ta=ea, we can get away with this while we figure out the real way
 
+      // we received a taddr, give back the host eaddr
       // look for the ta in the translation table list afu->eas
       this_ea = afu->eas;
       while ( this_ea != NULL ) {
 	// compare part of addr to ta based on pg_size
-	eaddr = *addr;
-	if ( this_ea->ta == ( eaddr & (~(uint64_t)0 << (this_ea->pg_size-1))) ) break; // found matching ea, use this entry
+	taddr = *addr;
+	if ( this_ea->ta == ( taddr & (~(uint64_t)0 << (this_ea->pg_size-1))) ) break; // found matching ea, use this entry
 	
       }
 
       if ( this_ea == NULL ) return 0xC;  // we didn't find a matching ta; return 0x0C to say the ta is not recognized
 
-      // if we have a match, modify the addr that came in to be the ea matching the ta + the extra bits.
+      // if we have a match, modify the ea from this_ea addr that came in to be the ea matching the ta + the extra bits.
+      base = this_ea->ea ;
+
       // grab the offset part of the address
       base_mask = ~(uint64_t)0 << (this_ea->pg_size-1);
-      base = eaddr & base_mask;
-
       offset_mask = ~base_mask;
-      offset = eaddr & (~offset_mask);
+      offset = taddr & (~offset_mask);
 
       // add the offset to the ta
-      taddr = base + offset;
+      eaddr = base + offset;
 
-      debug_msg( "_xlate_addr: translated 0x%016llx with base mask 0x%016llx and offset mask 0x%016llx to base 0x%016llx + offset 0x%016llx = 0x%016llx", eaddr, base_mask, offset_mask, base, offset, taddr );
+      debug_msg( "_xlate_addr: translated 0x%016llx with base mask 0x%016llx and offset mask 0x%016llx to base 0x%016llx + offset 0x%016llx = 0x%016llx", taddr, base_mask, offset_mask, base, offset, eaddr );
       
       // since we are using ta=ea, we should be able to check that the address we calculate equals the address we received.
       if (taddr != eaddr) return 0xC;
 
       // we don't check write permission yet
-      *addr = taddr;
+      *addr = eaddr;
       return 0;
 }
 
