@@ -494,50 +494,107 @@ static void _handle_read(struct ocxl_afu *afu)
 	debug_msg("READ from addr @ 0x%016" PRIx64 "", addr);
 }
 
-static void _handle_write_be(struct ocxl_afu *afu, uint64_t addr, uint16_t size,
-			     uint8_t * data, uint64_t be)
+static void _handle_write_be(struct ocxl_afu *afu)
 {
-	uint8_t buffer;
-	//uint64_t enable;
-	//uint64_t be_copy;
+        uint8_t buffer[2];
+        uint64_t addr;
+	uint16_t size;
+	uint8_t *data;
+	uint64_t be;
+	uint8_t form_flag;
+	uint64_t enable;
+	uint64_t be_copy;
+	int rc, i;
 
-	if (!afu)
-		fatal_msg("NULL afu passed to libocxl.c:_handle_write_be");
+	if (!afu) fatal_msg("NULL afu passed to libocxl.c:_handle_write_be");
+
+	if (get_bytes_silent(afu->fd, sizeof(size), (uint8_t *)&size, 1000, 0) < 0) {
+	  warn_msg("Socket failure getting memory write be size");
+	  _all_idle(afu);
+	  return;
+	}
+	size = ntohs(size);
+	debug_msg( "  of size=%d ", size );
+
+	if (get_bytes_silent(afu->fd, 1, &form_flag, 1000, 0) < 0) {
+	  warn_msg("Socket failure getting form_flag ");
+	  _all_idle(afu);
+	  return;
+	}
+	debug_msg( "  form_flag=%x", form_flag);
+	
+	if (get_bytes_silent(afu->fd, sizeof(uint64_t), (uint8_t *)&addr, -1, 0) < 0) {
+	  warn_msg("Socket failure getting memory write be addr");
+	  _all_idle(afu);
+	  return;
+	}
+	addr = ntohll(addr);
+	debug_msg("  to addr 0x%016" PRIx64 "", addr);
+
+	if (get_bytes_silent(afu->fd, sizeof(uint64_t), (uint8_t *)&be, -1, 0) < 0) {
+	  warn_msg("Socket failure getting memory write be byte enable");
+	  _all_idle(afu);
+	  return;
+	}
+	be = ntohll(be);
+	debug_msg("  with byte enable mask= 0x%016" PRIx64 "", be);
+
+	data = (uint8_t *)malloc( size );
+	if (get_bytes_silent(afu->fd, size, data, 1000, 0) < 0) {
+	  warn_msg("Socket failure getting memory write data");
+	  _all_idle(afu);
+	  free( data );
+	  return;
+	}
+
+	rc = _xlate_addr( afu, &addr, form_flag );
+	if ( rc == 0xc ) {
+	        // bad translation
+	        // need to add the reason code to the mem failure message
+		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
+		if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
+			afu->opened = 0;
+			afu->attached = 0;
+		}
+		free( data );
+		return;
+	}
+
 	if (!_testmemaddr((uint8_t *) addr)) {
 		if (_handle_dsi(afu, addr) < 0) {
 			perror("DSI Failure");
 			return;
 		}
 		debug_msg("WRITE to invalid addr @ 0x%016" PRIx64 "", addr);
-		buffer = OCSE_MEM_FAILURE;
-		if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
+		buffer[0] = OCSE_MEM_FAILURE;
+		if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
 			afu->opened = 0;
 			afu->attached = 0;
 		}
+		free( data );
 		return;
 	}
 
 	// we'll have to loop through data byte by byte
 	// and if the corresponding bit of be is on, 
 	// write the data byte to the address offset by the loop index
-	// or something like that.
-	// the trick is that be is likely to be little endian
-	// something like this maybe
-	// be_copy = be;
-	// for (i=0;i<64;i++) {
-	//   enable = be_copy && 0x0000000000000001; // mask everything but bit 0
-	//   if (enable) {
-	//     *((char *)addr + i) = data[i];  // add i to addr and deref???
-	//   }
-	//   be_copy = be_copy >> 1; // shift be_copy right 1 bit.
-	// }
-	//memcpy((void *)addr, data, size);
-	//buffer = OCSE_MEM_SUCCESS;
-	//if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
-	//	afu->opened = 0;
-	//	afu->attached = 0;
-	//}
-	debug_msg("WRITE to addr @ 0x%016" PRIx64 "", addr);
+
+	be_copy = be;
+
+	for ( i=0; i<64; i++ ) {
+	        enable = be_copy && 0x0000000000000001; // mask everything but bit 0
+		if (enable) {
+		          *((char *)addr + i) = data[i];  // add i to addr and deref???
+		}
+		be_copy = be_copy >> 1; // shift be_copy right 1 bit.
+	}
+	
+	buffer[0] = OCSE_MEM_SUCCESS;
+	if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
+		afu->opened = 0;
+		afu->attached = 0;
+	}
+	free( data );
 }
 
 static void _handle_write(struct ocxl_afu *afu)
@@ -2099,7 +2156,7 @@ static void *_psl_loop(void *ptr)
 	struct ocxl_afu *afu = (struct ocxl_afu *)ptr;
 	uint8_t buffer[MAX_LINE_CHARS];
 	uint8_t op_size, function_code, amo_op, cmd_endian; //, cmd_pg_size;
-	uint64_t addr, wr_be;
+	uint64_t addr;
 	uint16_t size;
 	uint8_t bvalue, form_flag;
 	uint16_t value;
@@ -2330,51 +2387,7 @@ static void *_psl_loop(void *ptr)
 	        // and then need to get byte enable in manner similar to addr (maybe)
 		case OCSE_WR_BE:
 			debug_msg("AFU MEMORY WRITE BE");
-			if (get_bytes_silent(afu->fd, sizeof(size), buffer, 1000, 0) < 0) {
-				warn_msg
-				    ("Socket failure getting memory write be size");
-				_all_idle(afu);
-				break;
-			}
-			memcpy( (char *)&size, buffer, sizeof( size ) );
-			size = ntohs(size);
-			debug_msg( "of size=%d ", size );
-			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
-				warn_msg("Socket failure getting form_flag ");
-				_all_idle(afu);
-				break;
-			}
-			memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
-			debug_msg( " form_flag=%x", form_flag);
-			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
-					     -1, 0) < 0) {
-				warn_msg
-				    ("Socket failure getting memory write be addr");
-				_all_idle(afu);
-				break;
-			}
-			memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
-			addr = ntohll(addr);
-			debug_msg("to addr 0x%016" PRIx64 "", addr);
-			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
-					     -1, 0) < 0) {
-				warn_msg
-				    ("Socket failure getting memory write be byte enable");
-				_all_idle(afu);
-				break;
-			}
-			memcpy((char *)&wr_be, (char *)buffer, sizeof(uint64_t));
-			wr_be = ntohll(wr_be);
-			debug_msg("byte enable mask= 0x%016" PRIx64 "", wr_be);
-
-			if (get_bytes_silent(afu->fd, size, buffer, 1000, 0) <
-			    0) {
-				warn_msg
-				    ("Socket failure getting memory write data");
-				_all_idle(afu);
-				break;
-			}
-			_handle_write_be(afu, addr, size, buffer, wr_be);
+			_handle_write_be(afu);
 			break;
 			
 		// When amo operations appear here, they represent AP amo commands
