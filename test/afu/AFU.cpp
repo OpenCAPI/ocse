@@ -685,6 +685,7 @@ AFU::resolve_tlx_afu_resp()
 		resp_state = IDLE;
   }
   else {
+  	printf("AFU: calling tlx_afu_read_cmd_resp_vc0\n");
     if(tlx_afu_read_cmd_resp_vc0(&afu_event, &tlx_resp_opcode, &resp_afutag, 
 		&resp_code, &resp_pg_size, &resp_dl,
 		&resp_host_tag, &resp_cache_state,
@@ -702,10 +703,12 @@ AFU::resolve_tlx_afu_resp()
 	    break;
 		case TLX_RSP_TOUCH_RESP:
 			printf("AFU: received TLX_RSP_READ_RESP\n");
+			printf("AFU: touch response t address = 0x%x\n", resp_pa_or_ta);
 	    break;
 	  case TLX_RSP_TOUCH_RESP_T:	//vc2
 		  printf("AFU: Received TLX_RSP_TOUCH_RESP_T\n");
-		  printf("AFU: TA address = 0x016ul\n", resp_pa_or_ta);
+		  printf("AFU: TA address = 0x%016u\n", resp_pa_or_ta);
+		  read_resp_completed = 1;
 		  break;
 		case TLX_RSP_READ_RESP:
 	    read_resp_completed = 1;	// debug1

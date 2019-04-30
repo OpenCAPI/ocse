@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
 	   goto done;
     }
 
-    printf("rcacheline = 0x");
+    printf("rcacheline = ");
     for(i=0; i<CACHELINE; i++) {
 	   rcacheline[i] = rand();
 	   wcacheline[i] = 0x0;
@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
 	   printf("FAILED: ocxl_mmio_map\n");
 	   goto done;
     }
-    printf("Attempt Read command with T\n");
+    printf("Attempt xlate touch cmd.\n");
     //status[0] = 0xff;
     config_param.context = 0;
     config_param.enable_always = 1;
@@ -163,7 +163,7 @@ int main(int argc, char *argv[])
 	   goto done;
     }
     timeout = 0;
-    printf("Polling read with t completion status\n");
+    printf("Polling xlate touch cmd completion status\n");
     while(status[0] != 0x0) {
 	   nanosleep(&t, &t);
 	   //printf("Polling read completion status = 0x%x\n", *status);
@@ -177,7 +177,7 @@ int main(int argc, char *argv[])
     // Attemp write command
     printf("Attempt Write command\n");
     //status[0] = 0xff;
-    config_param.command = AFU_CMD_DMA_W;
+    config_param.command = AFU_CMD_RD_WNITC_T;
     config_param.mem_size = 64;
     config_param.mem_base_address = (uint64_t)wcacheline;
     printf("wcacheline = 0x%p\n", wcacheline);
