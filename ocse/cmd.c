@@ -210,8 +210,16 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	event->wr_be = wr_be;
 	event->cmd_flag = cmd_flag;
 	event->cmd_endian = cmd_endian;
-	if ( command == AFU_CMD_XLATE_RELEASE) //overload cmd_endian to pass pg_size 
-	 	event->cmd_pg_size = cmd_endian;
+	switch (command) {
+		case AFU_CMD_XLATE_RELEASE:
+		case AFU_CMD_XLATE_TOUCH:
+		case AFU_CMD_XLATE_TOUCH_N:
+		case AFU_CMD_XLATE_TO_PA:
+			event->cmd_pg_size = cmd_endian;
+			break;
+		default:
+			break;
+	}
 	event->resp_opcode = resp_opcode;
 	event->stream_id = stream_id;  //figure out how to use it later.....
 	event->form_flag = form_flag;
@@ -397,10 +405,10 @@ static void _add_kill_xlate_done(struct cmd *cmd, uint16_t actag, uint16_t afuta
 			 0x00, 0, 0, 0, 0, cmd_pg_size, TLX_RSP_TOUCH_RESP, cmd_stream_id, form_flag); }
 	else if (cmd_opcode == AFU_CMD_XLATE_TOUCH || cmd_opcode == AFU_CMD_XLATE_TOUCH_N )
 		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_TOUCH, addr, 0, MEM_IDLE,
-			 0x00, 0, 0, 0, cmd_flag, 0,TLX_RSP_TOUCH_RESP, cmd_stream_id, form_flag);
+			 0x00, 0, 0, 0, cmd_flag, cmd_pg_size,TLX_RSP_TOUCH_RESP, cmd_stream_id, form_flag);
 	else if (cmd_opcode == AFU_CMD_XLATE_TO_PA)
 		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_XL_TO_PA, addr, 0, MEM_IDLE,
-			 0x00, 0, 0, 0, 0, 0, TLX_RSP_TOUCH_RESP, cmd_stream_id, form_flag);
+			 0x00, 0, 0, 0, 0, cmd_pg_size, TLX_RSP_TOUCH_RESP, cmd_stream_id, form_flag);
  }
 
 
@@ -1483,17 +1491,18 @@ void handle_touch(struct cmd *cmd)
 	}
 
 	// Check that memory request can be driven to client
-	if (client->mem_access != NULL) return;
+	if (client->mem_access != NULL) {
+	        debug_msg( "handle_touch: can't drive memory request to client - TRY LATER");
+		return;
+	}
 
 	if (event->command == AFU_CMD_XLATE_RELEASE) {
-	//	event->form_flag = (event->form_flag | 0x4); //this is a posted cmd, no response sent back to afu
 		// Send xlate touch request to client
 		buffer = (uint8_t *) malloc(11);
 		buffer[0] = (uint8_t) OCSE_XLATE_RELEASE;
 		buffer[1] = (uint8_t) event->form_flag;
 		addr = (uint64_t *) & (buffer[2]);
 		*addr = htonll(event->addr);
-	//	buffer[10] = 0;  //no cmd_flag here, but leave byte to make xfer size same (could be used for stream_id if libocxl wants it)
 		buffer[10] = event->cmd_pg_size;
 		debug_msg("%s:XLATE RELEASE  afutag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
 			   event->afutag, event->addr);
