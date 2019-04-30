@@ -397,7 +397,7 @@ static void _add_kill_xlate_done(struct cmd *cmd, uint16_t actag, uint16_t afuta
 			 0x00, 0, 0, 0, 0, cmd_pg_size, TLX_RSP_TOUCH_RESP, cmd_stream_id, form_flag); }
 	else if (cmd_opcode == AFU_CMD_XLATE_TOUCH || cmd_opcode == AFU_CMD_XLATE_TOUCH_N )
 		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_TOUCH, addr, 0, MEM_IDLE,
-			 0x00, 0, 0, 0, 0, 0, TLX_RSP_TOUCH_RESP, cmd_stream_id, form_flag);
+			 0x00, 0, 0, 0, cmd_flag, 0,TLX_RSP_TOUCH_RESP, cmd_stream_id, form_flag);
 	else if (cmd_opcode == AFU_CMD_XLATE_TO_PA)
 		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_XL_TO_PA, addr, 0, MEM_IDLE,
 			 0x00, 0, 0, 0, 0, 0, TLX_RSP_TOUCH_RESP, cmd_stream_id, form_flag);
@@ -1506,8 +1506,8 @@ void handle_touch(struct cmd *cmd)
 		debug_msg("Setting client->mem_access in handle_touch for handling XLATE_RELEASE");
 		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
         } else {
-		debug_msg("%s:XLATE TOUCH cmd_flag=0x%x afutag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
-			  event->form_flag, event->afutag, event->addr);
+		debug_msg("%s:XLATE TOUCH NOT XLATE_RELEASE cmd_flag=0x%x form_flag= 0x%x afutag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
+			  event->cmd_flag, event->form_flag, event->afutag, event->addr);
 		// Check to see if this cmd gets selected for a RETRY or FAILED or PENDING read_failed response
 		if ( allow_retry(cmd->parms)) {
 			event->state = MEM_DONE;
