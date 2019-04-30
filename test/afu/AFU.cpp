@@ -253,15 +253,15 @@ AFU::start ()
 	    debug_msg("AFU: Received TLX response data");
 	    resolve_tlx_afu_resp();
 	    //afu_event.tlx_afu_dcp0_credit = 1;	// tlx returns resp data credit to afu
-	    info_msg("AFU: afu tlx vc0 credit return");
-	    afu_event.afu_tlx_vc0_credit = 1;
+	    //info_msg("AFU: afu tlx vc0 credit return");
+	    //afu_event.afu_tlx_vc0_credit = 1;
 	    afu_event.tlx_afu_dcp0_data_valid = 0;
 	}
 	//if(afu_event.tlx_afu_resp_data_valid && mem_state != WAITING_FOR_DATA) {
 	if(afu_event.tlx_afu_dcp0_data_valid && resp_state != WAITING_FOR_DATA) {
 	    //afu_event.tlx_afu_dcp0_credit = 1;	// tlx returns resp data credit to afu
-			info_msg("AFU: afu tlx vc0 credit return");
-			afu_event.afu_tlx_vc0_credit = 1;
+			//info_msg("AFU: afu tlx vc0 credit return");
+			//afu_event.afu_tlx_vc0_credit = 1;
 	}
 	// configuration write response
 	//if (afu_event.tlx_afu_cmd_data_valid && config_state == READY) {
