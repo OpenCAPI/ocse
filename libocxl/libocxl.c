@@ -1080,6 +1080,7 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op)
 	uint32_t lvalue, op_A, op_1, op_2;
 	uint64_t llvalue, op_Al, op_1l, op_2l;
 	int op_ptr;
+	int rc;
 	char wb;
 
 	if (!afu) fatal_msg("NULL afu passed to libocxl.c:_handle_DMO_OPs");
@@ -1105,6 +1106,17 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op)
 	}
 	addr = ntohll(addr);
 	debug_msg("  to addr 0x%016" PRIx64 "", addr);
+
+	rc = _xlate_addr( afu, &addr, form_flag );
+	if ( rc == 0xc ) {
+	        // bad translation
+	        // need to add the reason code to the mem failure message
+		buffer = (uint8_t) OCSE_MEM_FAILURE;
+		if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
+			afu->opened = 0;
+			afu->attached = 0;
+		}
+	}
 
 	if (get_bytes_silent(afu->fd, sizeof(uint8_t), (uint8_t *)&function_code, -1, 0) < 0) {
 	  warn_msg("Socket failure getting function_code ");
