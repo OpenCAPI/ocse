@@ -1064,10 +1064,15 @@ static void _handle_ack(struct ocxl_afu *afu)
 }
 
 
-static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op, uint8_t op_size, uint64_t addr,
-			  uint8_t function_code, uint64_t op1, uint64_t op2, uint8_t cmd_endian)
+static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op)
 {
 
+	uint8_t op_size;
+	uint8_t form_flag;
+	uint64_t addr;
+	uint8_t function_code; // aka cmd_flag
+	uint8_t cmd_endian;
+	uint64_t op1, op2;
 	uint8_t atomic_op;
 	uint8_t atomic_le;
 	uint8_t buffer;
@@ -1077,8 +1082,64 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op, uint8_t op_siz
 	int op_ptr;
 	char wb;
 
-	if (!afu)
-		fatal_msg("NULL afu passed to libocxl.c:_handle_DMO_OPs");
+	if (!afu) fatal_msg("NULL afu passed to libocxl.c:_handle_DMO_OPs");
+
+	if (get_bytes_silent(afu->fd, sizeof(uint8_t), (uint8_t *)&op_size, -1, 0) < 0) {
+	  warn_msg("Socket failure getting amo_wr or amo_rw size");
+	  _all_idle(afu);
+	  return;
+	}
+	debug_msg( "  op_size=%d ", op_size );
+
+	if (get_bytes_silent(afu->fd, sizeof(uint8_t), (uint8_t *)&form_flag, -1, 0) < 0) {
+	  warn_msg("Socket failure getting form_flag ");
+	  _all_idle(afu);
+	  return;
+	}
+	debug_msg( "  form_flag=%x", form_flag);
+
+	if (get_bytes_silent(afu->fd, sizeof(uint64_t), (uint8_t *)&addr, -1, 0) < 0) {
+	  warn_msg("Socket failure getting amo_wr or amo_rw addr");
+	  _all_idle(afu);
+	  return;
+	}
+	addr = ntohll(addr);
+	debug_msg("  to addr 0x%016" PRIx64 "", addr);
+
+	if (get_bytes_silent(afu->fd, sizeof(uint8_t), (uint8_t *)&function_code, -1, 0) < 0) {
+	  warn_msg("Socket failure getting function_code ");
+	  _all_idle(afu);
+	  return;
+	}
+	debug_msg( "  function_code=%x", function_code);
+
+	if (get_bytes_silent(afu->fd, sizeof(uint8_t), (uint8_t *)&cmd_endian, -1, 0) < 0) {
+	  warn_msg("Socket failure getting cmd_endian ");
+	  _all_idle(afu);
+	  return;
+	}
+	debug_msg( "  cmd_endian=%x", cmd_endian);
+
+	// If amo op is a read, we don't get op1 and op2 in the socket
+	if (amo_op == OCSE_AMO_RD) {
+	  op1 = 0;
+	  op2 = 0;
+	} else {
+	  if (get_bytes_silent(afu->fd, sizeof(uint64_t), (uint8_t *)&op1, -1, 0) < 0) {
+	    warn_msg("Socket failure getting amo_wr or amo_rw addr");
+	    _all_idle(afu);
+	    return;
+	  }
+	  debug_msg("  op1 0x%016" PRIx64, op1);
+	  
+	  if (get_bytes_silent(afu->fd, sizeof(uint64_t), (uint8_t *)&op2, -1, 0) < 0) {
+	    warn_msg("Socket failure getting amo_wr or amo_rw addr");
+	    _all_idle(afu);
+	    return;
+	  }
+	  debug_msg("  op2 0x%016" PRIx64, op2);
+	}
+
 	if (!_testmemaddr((uint8_t *) addr)) {
 		if (_handle_dsi(afu, addr) < 0) {
 			perror("DSI Failure");
@@ -1096,6 +1157,7 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op, uint8_t op_siz
 	// If we determine op size, can create that and might make it easier for porting existing code
 	// lgt and possibly the endian hint - not coded yet
 	op_ptr = (int) (addr & 0x000000000000000c);
+
 	// at this point, op1 and op2 are memcpy's of the data that sent over ddata
 	// no byte swapping has taken place, however, we have stored them here as little endian 64 bit ints
 	// if we use int ops, we'll get defacto byte swapping as we go.  that might not be what we want
@@ -2155,14 +2217,11 @@ static void *_psl_loop(void *ptr)
 {
 	struct ocxl_afu *afu = (struct ocxl_afu *)ptr;
 	uint8_t buffer[MAX_LINE_CHARS];
-	uint8_t op_size, function_code, amo_op, cmd_endian; //, cmd_pg_size;
-	uint64_t addr;
 	uint16_t size;
-	uint8_t bvalue, form_flag;
+	uint8_t bvalue;
 	uint16_t value;
 	uint32_t lvalue;
 	uint64_t llvalue;
-	uint64_t op1, op2;
 	int rc;
 	int offset;
 
@@ -2393,106 +2452,14 @@ static void *_psl_loop(void *ptr)
 		// When amo operations appear here, they represent AP amo commands
 		case OCSE_AMO_WR:
 		case OCSE_AMO_RW:
-			amo_op = buffer[0];
-			if (amo_op == OCSE_AMO_WR)
-				debug_msg("AFU AMO_WRITE ");
-			else
-				debug_msg("AFU AMO__READ/WRITE");
-			if (get_bytes_silent(afu->fd, sizeof(uint8_t), buffer, -1, 0) < 0) {
-				warn_msg
-				    ("Socket failure getting amo_wr or amo_rw size");
-				_all_idle(afu);
-				break;
-			}
-			memcpy( (char *)&op_size, buffer, sizeof( uint8_t ) );
-			//memcpy( (char *)&size, buffer, sizeof( size ) );
-			//size = ntohs(size);
-			debug_msg( "op_size=%d ", op_size );
-			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
-				warn_msg("Socket failure getting form_flag ");
-				_all_idle(afu);
-				break;
-			}
-			memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
-			debug_msg( " form_flag=%x", form_flag);
-			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
-					     -1, 0) < 0) {
-				warn_msg
-				    ("Socket failure getting amo_wr or amo_rw addr");
-				_all_idle(afu);
-				break;
-			}
-			memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
-			addr = ntohll(addr);
-			debug_msg("to addr 0x%016" PRIx64 "", addr);
-			if (get_bytes_silent(afu->fd, 18, buffer,
-				     -1, 0) < 0) {
-				warn_msg
-			   	 ("Socket failure getting amo_wr or amo_rw cmd_flag, cmd_endian and op1/op2 data");
-				_all_idle(afu);
-				break;
-			}
-			memcpy( (char *)&function_code, &buffer[0], sizeof( function_code ) );
-			debug_msg("amo_wr or amo_rw cmd_flag= 0x%x", function_code);
-			memcpy( (char *)&cmd_endian, &buffer[1], sizeof( cmd_endian ) );
-			debug_msg("amo_wr or amo_rw cmd_endian= 0x%x", cmd_endian);
-
-			// TODO FIX THIS TO CORRECTLY EXTRACT OP_1 and OP_2 if needed !!!
-			memcpy((char *)&op1, (char *)&buffer[2], sizeof(uint64_t));
-			debug_msg("op1 bytes 1-8 are 0x%016" PRIx64, op1);
-			//op1 = ntohll (op1);
-			//printf("op1 bytes 1-8 are 0x%016" PRIx64 " ", op1);
-			memcpy((char *)&op2, (char *)&buffer[10], sizeof(uint64_t));
-			debug_msg("op2 bytes 1-8 are 0x%016" PRIx64, op2);
-			//op_size = (uint8_t) size;
-			
-			_handle_DMO_OPs(afu, amo_op, op_size, addr, function_code, op1, op2, cmd_endian);
+			if ( buffer[0] == OCSE_AMO_WR ) debug_msg("AFU AMO_WRITE ");
+			else debug_msg("AFU AMO__READ/WRITE");
+			_handle_DMO_OPs(afu, buffer[0]);
 			break;
 
 		case OCSE_AMO_RD:
 			debug_msg("AFU AMO READ ");
-			amo_op = buffer[0];
-			if (get_bytes_silent(afu->fd, sizeof(op_size), buffer, -1, 0) < 0) {
-				warn_msg
-				    ("Socket failure getting amo_rd size");
-				_all_idle(afu);
-				break;
-			}
-			memcpy( (char *)&op_size, buffer, sizeof( op_size ) );
-			//memcpy( (char *)&size, buffer, sizeof( size ) );
-			//size = ntohs(size);
-		//	op_size = (uint8_t) size;
-			debug_msg( "op_size=%d ", op_size );
-			if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
-				warn_msg("Socket failure getting form_flag ");
-				_all_idle(afu);
-				break;
-			}
-			memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
-			debug_msg( " form_flag=%x", form_flag);
-			if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer,
-					     -1, 0) < 0) {
-				warn_msg
-				    ("Socket failure getting amo_rd addr");
-				_all_idle(afu);
-				break;
-			}
-			memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
-			addr = ntohll(addr);
-			debug_msg("to addr 0x%016" PRIx64 "", addr);
-			if (get_bytes_silent(afu->fd, 2, buffer,
-					     -1, 0) < 0) {
-				warn_msg
-				    ("Socket failure getting amo_rd cmd_flag and cmd_endian");
-				_all_idle(afu);
-				break;
-			}
-			memcpy( (char *)&function_code, &buffer[0], sizeof( function_code ) );
-			memcpy( (char *)&cmd_endian, &buffer[1], sizeof( cmd_endian ) );
-			debug_msg("amo_rd cmd_flag= 0x%x", function_code);
-			debug_msg("amo_rd cmd_endian= 0x%x", cmd_endian);
-
-			_handle_DMO_OPs(afu, amo_op, op_size, addr, function_code, 0, 0, cmd_endian);
+			_handle_DMO_OPs(afu, buffer[0]);
 			break;
 
 
