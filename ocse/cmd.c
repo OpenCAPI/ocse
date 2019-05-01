@@ -962,11 +962,23 @@ void handle_buffer_write(struct cmd *cmd)
 	//    and so on.
 	if ((event->state == MEM_RECEIVED) && (event->type == CMD_READ)) {
 	  debug_msg( "memory read data received, formulate capp response" );
-	  if ( (event->command == AFU_CMD_PR_RD_WNITC) || (event->command == AFU_CMD_PR_RD_WNITC_N) ) {
-	    // we can just complete the event and let handle_response send the response and 64 bytes of data back
-	    event->resp = TLX_RESPONSE_DONE;
-	    event->state = MEM_DONE;
-	  } else if ( (event->command == AFU_CMD_RD_WNITC) || (event->command == AFU_CMD_RD_WNITC_N) ) {
+	  switch(event->command) {
+	 	case AFU_CMD_PR_RD_WNITC:
+		case AFU_CMD_PR_RD_WNITC_N:
+		case AFU_CMD_PR_RD_WNITC_T:
+		case AFU_CMD_PR_RD_WNITC_T_S: //THIS MAY NEED TO CHANGE 
+	   		 // we can just complete the event and let handle_response send the response and 64 bytes of data back
+	    		event->resp = TLX_RESPONSE_DONE;
+	    		event->state = MEM_DONE;
+	    		break;
+	 	case AFU_CMD_RD_WNITC:
+		case AFU_CMD_RD_WNITC_N:
+		case AFU_CMD_RD_WNITC_T:
+		case AFU_CMD_RD_WNITC_T_S: // THIS MAY NEED TO CHANGE
+	      		event->resp = TLX_RESPONSE_DONE; //Not sure why this is same as above? why not just one case??
+	      		event->state = MEM_DONE;
+	    		break;
+
 	    // we need to send back 1 or more 64B response
 	    // we can:
 	    //    send a complete response, with all the data
@@ -980,11 +992,8 @@ void handle_buffer_write(struct cmd *cmd)
 	    // fifo.  This method actually works for partial read as well as the minimum size of a split response is 64 B.
 	    // it is the afu's responsiblity to manage resp_rd_cnt correctly, and this is not information for us to check
 	    // anything other than an overrun (i.e. resp_rd_req of an empty fifo, or resp_rd_cnt exceeds the amount of data in the fifo)
-	      	event->resp = TLX_RESPONSE_DONE;
-	      	event->state = MEM_DONE;
-	  } 
+  		}
 	}
-
 	debug_msg( "event->state is not MEM_RECEIVED and event->type is not CMD_READ" );
 
         if (event->state == MEM_CAS_RD) {
