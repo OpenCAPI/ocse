@@ -980,9 +980,10 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 	}
 
 	// and send the success or message that has been built
-	if (put_bytes_silent(afu->fd, size, buffer) != 1) {
+	if (put_bytes_silent(afu->fd, size, buffer) != size) {
 		afu->opened = 0;
 		afu->attached = 0;
+		debug_msg("_handle_xlate: some kind of put_bytes_silent failure");
 	}
 
 	return;
@@ -2483,6 +2484,7 @@ static void *_psl_loop(void *ptr)
 		case OCSE_MEMORY_TOUCH:
 			debug_msg("AFU XLATE TOUCH");
 			_handle_xlate( afu, OCSE_MEMORY_TOUCH );
+			debug_msg("AFU XLATE TOUCH done");
 			break;
 		case OCSE_MMIO_ACK:
 			_handle_ack(afu);
