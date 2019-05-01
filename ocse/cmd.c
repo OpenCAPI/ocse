@@ -967,10 +967,6 @@ void handle_buffer_write(struct cmd *cmd)
 		case AFU_CMD_PR_RD_WNITC_N:
 		case AFU_CMD_PR_RD_WNITC_T:
 		case AFU_CMD_PR_RD_WNITC_T_S: //THIS MAY NEED TO CHANGE 
-	   		 // we can just complete the event and let handle_response send the response and 64 bytes of data back
-	    		event->resp = TLX_RESPONSE_DONE;
-	    		event->state = MEM_DONE;
-	    		break;
 	 	case AFU_CMD_RD_WNITC:
 		case AFU_CMD_RD_WNITC_N:
 		case AFU_CMD_RD_WNITC_T:
@@ -978,7 +974,7 @@ void handle_buffer_write(struct cmd *cmd)
 	      		event->resp = TLX_RESPONSE_DONE; //Not sure why this is same as above? why not just one case??
 	      		event->state = MEM_DONE;
 	    		break;
-
+  		}
 	    // we need to send back 1 or more 64B response
 	    // we can:
 	    //    send a complete response, with all the data
@@ -992,7 +988,6 @@ void handle_buffer_write(struct cmd *cmd)
 	    // fifo.  This method actually works for partial read as well as the minimum size of a split response is 64 B.
 	    // it is the afu's responsiblity to manage resp_rd_cnt correctly, and this is not information for us to check
 	    // anything other than an overrun (i.e. resp_rd_req of an empty fifo, or resp_rd_cnt exceeds the amount of data in the fifo)
-  		}
 	}
 	debug_msg( "event->state is not MEM_RECEIVED and event->type is not CMD_READ" );
 
@@ -2082,16 +2077,19 @@ void handle_response(struct cmd *cmd)
 						0,
 						event->resp_dp,
 						0);
-	} else if ( (event->command == AFU_CMD_PR_RD_WNITC) || (event->command == AFU_CMD_PR_RD_WNITC_N) ||
-		    (event->command == AFU_CMD_AMO_RD) || (event->command == AFU_CMD_AMO_RD_N) ||
-		    (event->command == AFU_CMD_AMO_RW) || (event->command == AFU_CMD_AMO_RW_N) ||
-		    (event->command == AFU_CMD_RD_WNITC) || (event->command == AFU_CMD_RD_WNITC_N) ){
+//	} else if ( (event->command == AFU_CMD_PR_RD_WNITC) || (event->command == AFU_CMD_PR_RD_WNITC_N) ||
+//		    (event->command == AFU_CMD_AMO_RD) || (event->command == AFU_CMD_AMO_RD_N) ||
+//		    (event->command == AFU_CMD_AMO_RW) || (event->command == AFU_CMD_AMO_RW_N) ||
+//		    (event->command == AFU_CMD_RD_WNITC) || (event->command == AFU_CMD_RD_WNITC_N) ){
+	} else if ( (event->type == CMD_READ) || (event->type == CMD_AMO_RD) ||
+		    (event->type == CMD_AMO_RW)  ){
 		// if not AMO or PR_RD, check to see if split response is warranted
 		// For this initial implementation, there is a parm called HOST_CL_SIZE that is used to determine max resp length
 		// This could alternatively be thought of as an internal bus transfer restriction. Valid sizes are 64, 128 and 256.
 		// Default is 128. Right now this value is fixed. This could change in the future to be a randomized selection of 64, 
 	        // 128 or 256.
-		if  ((event->command == AFU_CMD_RD_WNITC) || (event->command == AFU_CMD_RD_WNITC_N) ){
+		if  ((event->command == AFU_CMD_RD_WNITC) || (event->command == AFU_CMD_RD_WNITC_N) ||
+		    (event->command == AFU_CMD_RD_WNITC_T) || (event->command == AFU_CMD_RD_WNITC_T_S)) { 
 			if (event->size > cmd->HOST_CL_SIZE)  { // a split resp
 				if (event->resp_bytes_sent != 0) { //continue a split resp
 					debug_msg("handle_response: continue a split read response \n");
@@ -2135,11 +2133,11 @@ void handle_response(struct cmd *cmd)
 							  0, // -resp_data_bdi now used by response
 							  event->data ) ; // data in this case is already at the proper offset in the 64 B data packet
 		}
-		
 	} else { 
 	        //have to send just a response
 	        // Check to see if, for  a dma_wr, a partial response is warranted
-	        if  ((event->command == AFU_CMD_DMA_W) || (event->command == AFU_CMD_DMA_W_N) ){
+	        if  ((event->command == AFU_CMD_DMA_W) || (event->command == AFU_CMD_DMA_W_N) ||
+		    (event->command == AFU_CMD_DMA_W_T_P) || (event->command == AFU_CMD_DMA_W_T_P_S)) { 
 		        if (event->size > cmd->HOST_CL_SIZE)  { // a split resp
 			        if (event->resp_bytes_sent != 0) { //continue a split resp
 				        debug_msg("handle_response: continue a split write response \n");
