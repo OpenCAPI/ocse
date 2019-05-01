@@ -2350,15 +2350,12 @@ static void *_psl_loop(void *ptr)
 			break;
 		case OCSE_MAX_INT:
 			size = sizeof(uint16_t);
-			if (get_bytes_silent(afu->fd, size, buffer, 1000, 0) <
-			    0) {
-				warn_msg
-				    ("Socket failure getting max interrupt acknowledge");
+			if (get_bytes_silent(afu->fd, size, buffer, 1000, 0) < 0) {
+				warn_msg("Socket failure getting max interrupt acknowledge");
 				_all_idle(afu);
 				break;
 			}
-			memcpy((char *)&value, (char *)buffer,
-			       sizeof(uint16_t));
+			memcpy((char *)&value, (char *)buffer, sizeof(uint16_t));
 			// afu->irqs_max = ntohs(value);
 			afu->int_req.state = LIBOCXL_REQ_IDLE;
 			break;
