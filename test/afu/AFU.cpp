@@ -219,16 +219,24 @@ AFU::start ()
 	    info_msg("AFU: Received TLX command 0x%x", afu_event.tlx_afu_vc1_opcode);
 	    info_msg("AFU: Process TLX command");
 	    resolve_tlx_afu_cmd();
+	    info_msg("AFU: return afu tlx vc1 credit");
 	    afu_event.afu_tlx_vc1_credit = 1;	// return a cmd credit to tlx
+	}
+	if(afu_event.tlx_afu_vc2_valid) {
+		info_msg("AFU: return afu tlx vc2 credit");
+		afu_event.afu_tlx_vc2_credit = 1;
 	}
 	// process tlx response
 	if (afu_event.tlx_afu_vc0_valid) {
 		if(afu_event.tlx_afu_vc0_opcode == 0x4)
-	    debug_msg("AFU: Received TLX_RESP_READ_RESP");
+	    debug_msg("AFU: Received TLX read response");
+	  else if (afu_event.tlx_afu_vc0_opcode = 0x8)
+	  	debug_msg("AFU: Received TLX write response");
 	  else
 	  	debug_msg("AFU: Received TLX response 0x%x", afu_event.tlx_afu_vc0_opcode);
 
 	  resolve_tlx_afu_resp();
+	  info_msg("AFU: afu tlx vc0 credit return");
 	  afu_event.afu_tlx_vc0_credit = 1;	// return a resp credit to tlx
 	  afu_event.tlx_afu_vc0_valid = 0;
 	}
@@ -244,12 +252,16 @@ AFU::start ()
 	if(afu_event.tlx_afu_dcp0_data_valid && resp_state == WAITING_FOR_DATA) {
 	    debug_msg("AFU: Received TLX response data");
 	    resolve_tlx_afu_resp();
-	    afu_event.tlx_afu_dcp0_credit = 1;	// tlx returns resp data credit to afu
+	    //afu_event.tlx_afu_dcp0_credit = 1;	// tlx returns resp data credit to afu
+	    //info_msg("AFU: afu tlx vc0 credit return");
+	    //afu_event.afu_tlx_vc0_credit = 1;
 	    afu_event.tlx_afu_dcp0_data_valid = 0;
 	}
 	//if(afu_event.tlx_afu_resp_data_valid && mem_state != WAITING_FOR_DATA) {
 	if(afu_event.tlx_afu_dcp0_data_valid && resp_state != WAITING_FOR_DATA) {
-	    afu_event.tlx_afu_dcp0_credit = 1;	// tlx returns resp data credit to afu
+	    //afu_event.tlx_afu_dcp0_credit = 1;	// tlx returns resp data credit to afu
+			//info_msg("AFU: afu tlx vc0 credit return");
+			//afu_event.afu_tlx_vc0_credit = 1;
 	}
 	// configuration write response
 	//if (afu_event.tlx_afu_cmd_data_valid && config_state == READY) {
@@ -685,6 +697,7 @@ AFU::resolve_tlx_afu_resp()
 		resp_state = IDLE;
   }
   else {
+  	printf("AFU: calling tlx_afu_read_cmd_resp_vc0\n");
     if(tlx_afu_read_cmd_resp_vc0(&afu_event, &tlx_resp_opcode, &resp_afutag, 
 		&resp_code, &resp_pg_size, &resp_dl,
 		&resp_host_tag, &resp_cache_state,
@@ -702,10 +715,12 @@ AFU::resolve_tlx_afu_resp()
 	    break;
 		case TLX_RSP_TOUCH_RESP:
 			printf("AFU: received TLX_RSP_READ_RESP\n");
+			printf("AFU: touch response t address = 0x%x\n", resp_pa_or_ta);
 	    break;
 	  case TLX_RSP_TOUCH_RESP_T:	//vc2
 		  printf("AFU: Received TLX_RSP_TOUCH_RESP_T\n");
-		  printf("AFU: TA address = 0x016ul\n", resp_pa_or_ta);
+		  printf("AFU: TA address = 0x%016u\n", resp_pa_or_ta);
+		  read_resp_completed = 1;
 		  break;
 		case TLX_RSP_READ_RESP:
 	    read_resp_completed = 1;	// debug1
