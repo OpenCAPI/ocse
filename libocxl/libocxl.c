@@ -3026,11 +3026,13 @@ ocxl_err ocxl_mmio_map( ocxl_afu_h afu, ocxl_mmio_type type, ocxl_mmio_h *mmio )
 		goto map_fail;
 	}
 
-	if (!afu->attached) {
-		warn_msg("ocxl_mmio_map: Must attach afu first!");
-		err = OCXL_NO_CONTEXT;
-		goto map_fail;
-	}
+	// It is not necessary to attach the afu before the mmio areas are mapped.
+	// It IS necessary to attach the afu BEFORE an mmio is issued though
+	// if (!afu->attached) {
+	// 	warn_msg("ocxl_mmio_map: Must attach afu first!");
+	//	err = OCXL_NO_CONTEXT;
+	// 	goto map_fail;
+	// } 
 
 	if (afu->mmio_count == afu->mmio_max) {
 		warn_msg("ocxl_mmio_map: insufficient memory to map the new mmio area!");
