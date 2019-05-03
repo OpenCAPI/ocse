@@ -287,7 +287,7 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
         context = _find_client_by_actag(cmd, actag);
 	if (context < 0) warn_msg( "_add_interrupt: actag does not match a client" );
 	if (context == -1) {
-		debug_msg("_add_interrupt: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
+		warn_msg("_add_interrupt: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
 		return;
 	   }
 
@@ -310,7 +310,7 @@ static void _add_fail(struct cmd *cmd, uint16_t actag, uint32_t afutag,
 
         context = _find_client_by_actag(cmd, actag);
 	if (context == -1) {
-		debug_msg("_add_fail: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
+		warn_msg("_add_fail: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
 		return;
 	   }
 	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_FAILED, 0, 0, MEM_DONE,
@@ -360,7 +360,7 @@ static int _aligned(uint64_t addr, uint32_t size)
         int32_t context;
         context = _find_client_by_actag(cmd, actag);
 	if (context == -1) {
-		debug_msg("_add_xlate_touch: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
+		warn_msg("_add_xlate_touch: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
 		return;
 	   }
 	// TODO actually do something. For now, we always send back success for touch_resp (0x00)
@@ -412,7 +412,7 @@ static void _add_read(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 	context = _find_client_by_actag(cmd, actag);
 
 	if (context == -1) {
-		debug_msg("_add_read: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
+		warn_msg("_add_read: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
 		return;
 	   }
 	debug_msg("_add_read:calling _add_cmd context=%d; command=0x%02x; addr=0x%016"PRIx64"; size=0x%04x; afutag=0x%04x",
@@ -499,7 +499,7 @@ static void _add_amo(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 	context = _find_client_by_actag(cmd, actag);
 
 	if (context == -1) {
-		debug_msg("_add_amo: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
+		warn_msg("_add_amo: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
 		return;
 	   }
 	// Command data comes over with the command for amo_rw and amo_w, so now we need to read it from event
@@ -544,7 +544,7 @@ static void _add_write(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 	context = _find_client_by_actag(cmd, actag);
 
 	if (context == -1) {
-		debug_msg("_add_write: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
+		warn_msg("_add_write: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
 		return;
 	   }
 	// Command data comes over with the command, so read it from event and put it in buffer in add_cmd
