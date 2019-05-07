@@ -141,7 +141,9 @@ int main(int argc, char *argv[])
     printf("Attempt rd_wnitc cmd\n");
     config_param.command = AFU_CMD_RD_WNITC;
     config_param.mem_size = 64;
+    config_param.machine_number = 0;
     config_param.mem_base_address = (uint64_t)rcacheline;
+    config_param.status_address = (uint32_t)status;
     printf("rcacheline = 0x%p\n", rcacheline);
     printf("command = 0x%x\n",config_param.command);
     printf("rcache address = 0x%"PRIx64"\n", config_param.mem_base_address);
@@ -175,7 +177,7 @@ int main(int argc, char *argv[])
     //config_param.mem_size = CACHELINE;
     config_param.mem_size = 64;
     config_param.command = AFU_CMD_XLATE_TOUCH;
-    config_param.mem_base_address = (uint64_t)rcacheline;
+    config_param.mem_base_address = (uint64_t)wcacheline;
     config_param.machine_number = 0;
     config_param.status_address = (uint32_t)status;
     config_param.cmdflag = 0x8;
