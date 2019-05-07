@@ -137,6 +137,37 @@ int main(int argc, char *argv[])
 	   printf("FAILED: ocxl_mmio_map\n");
 	   goto done;
     }
+
+    printf("Attempt rd_wnitc cmd\n");
+    config_param.command = AFU_CMD_RD_WNITC;
+    config_param.mem_size = 64;
+    config_param.mem_base_address = (uint64_t)rcacheline;
+    printf("rcacheline = 0x%p\n", rcacheline);
+    printf("command = 0x%x\n",config_param.command);
+    printf("rcache address = 0x%"PRIx64"\n", config_param.mem_base_address);
+    rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
+    //status[0] = 0xff;
+    if(rc != -1) {
+      printf("Response = 0x%x\n", rc);
+      printf("config_enable_and_run_machine PASS\n");
+    }
+    else {
+      printf("FAILED: config_enable_and_run_machine\n");
+      goto done;
+    }
+    status[0] = 0xff;
+    printf("Polling read completion status\n");
+    while(status[0] != 0x00) {
+     nanosleep(&t, &t);
+     //printf("Polling write completion status = 0x%x\n", *status);
+    }
+    printf("clear_machine_config");
+    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED, &result);
+    if(rc != 0) {
+       printf("Failed clear machine config for write command\n");
+       goto done;
+    }
+
     printf("Attempt xlate touch cmd.\n");
     //status[0] = 0xff;
     config_param.context = 0;
@@ -169,13 +200,14 @@ int main(int argc, char *argv[])
 	   //printf("Polling read completion status = 0x%x\n", *status);
     }
     // clear machine config
+    printf("clear_machine_config\n");
     rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED, &result);
     if(rc != 0) {
 	   printf("Failed to clear machine config for read command\n");
 	   goto done;
     }
     // Attemp write command
-    printf("Attempt Write command\n");
+    printf("Attempt AFU_CMD_RD_WNITC_T command\n");
     //status[0] = 0xff;
     config_param.command = AFU_CMD_RD_WNITC_T;
     config_param.mem_size = 64;
@@ -186,12 +218,12 @@ int main(int argc, char *argv[])
     rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
     //status[0] = 0xff;
     if(rc != -1) {
-	printf("Response = 0x%x\n", rc);
- 	printf("config_enable_and_run_machine PASS\n");
+	   printf("Response = 0x%x\n", rc);
+ 	    printf("config_enable_and_run_machine PASS\n");
     }
     else {
-	printf("FAILED: config_enable_and_run_machine\n");
-	goto done;
+	   printf("FAILED: config_enable_and_run_machine\n");
+	   goto done;
     }
     status[0] = 0xff;
     printf("Polling write completion status\n");
@@ -199,9 +231,10 @@ int main(int argc, char *argv[])
 	   nanosleep(&t, &t);
 	   //printf("Polling write completion status = 0x%x\n", *status);
     }
+    printf("clear_machine_config");
     rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED, &result);
     if(rc != 0) {
-	   printf("Failed clear machine config for write command\n");
+	     printf("Failed clear machine config for write command\n");
        goto done;
     }
     status[0] = 0x55;	// send test complete status

@@ -230,15 +230,18 @@ AFU::start ()
 	if (afu_event.tlx_afu_vc0_valid) {
 		if(afu_event.tlx_afu_vc0_opcode == 0x4)
 	    debug_msg("AFU: Received TLX read response");
-	  else if (afu_event.tlx_afu_vc0_opcode = 0x8)
+	  else if (afu_event.tlx_afu_vc0_opcode == 0x8)
 	  	debug_msg("AFU: Received TLX write response");
+	  else if(afu_event.tlx_afu_vc0_opcode == 0x2)
+	  	debug_msg("AFU: Received TLX touch response");
 	  else
 	  	debug_msg("AFU: Received TLX response 0x%x", afu_event.tlx_afu_vc0_opcode);
 
 	  resolve_tlx_afu_resp();
 	  info_msg("AFU: afu tlx vc0 credit return");
+	  afu_event.afu_tlx_credit_req_valid = 1;
 	  afu_event.afu_tlx_vc0_credit = 1;	// return a resp credit to tlx
-	  afu_event.tlx_afu_vc0_valid = 0;
+	  //afu_event.tlx_afu_vc0_valid = 0;
 	}
 	// process tlx config response
 	if (afu_event.tlx_cfg_resp_ack) {
