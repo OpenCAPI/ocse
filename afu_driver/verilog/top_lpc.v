@@ -261,7 +261,7 @@ module top_lpc (
    wire             tlx_afu_resp_data_valid_top;
    wire [511:0]     tlx_afu_resp_data_bus_top;
    wire             tlx_afu_resp_data_bdi_top;
-
+/*
 //	Table 5: TLX to AFU Response Data Interface delays
    reg             tlx_afu_resp_data_valid_dly1;
    reg [511:0]     tlx_afu_resp_data_bus_dly1;
@@ -271,7 +271,7 @@ module top_lpc (
    reg             tlx_afu_resp_data_valid_dly2;
    reg [511:0]     tlx_afu_resp_data_bus_dly2;
    reg             tlx_afu_resp_data_bdi_dly2;
-
+*/
    //	Table 5: TLX to AFU DCP1 Data Interface
    reg		  afu_tlx_dcp1_rd_req_top;
    reg   [2:0]	  afu_tlx_dcp1_rd_cnt_top;
@@ -538,9 +538,9 @@ module top_lpc (
    wire             tlx_afu_cmd_os;
 
 //	Table 5: TLX to AFU Response Data Interface
-   reg             tlx_afu_resp_data_valid;
-   reg [511:0]     tlx_afu_resp_data_bus;
-   reg             tlx_afu_resp_data_bdi;
+   wire             tlx_afu_resp_data_valid;
+   wire [511:0]     tlx_afu_resp_data_bus;
+   wire             tlx_afu_resp_data_bdi;
 
 //	Table 6: TLX to AFU Command Data Interface
    wire             tlx_afu_cmd_data_valid;
@@ -808,11 +808,11 @@ end
     assign 	tlx_afu_cmd_os			= tlx_afu_cmd_os_top;
 
 //	Table 5: TLX to AFU Response Data Interface
-   always @( negedge tlx_clock ) begin
-      tlx_afu_resp_data_valid		<= tlx_afu_resp_data_valid_dly1;
-      tlx_afu_resp_data_bus		<= tlx_afu_resp_data_bus_dly1;
-      tlx_afu_resp_data_bdi		<= tlx_afu_resp_data_bdi_dly1;
-   end
+//   always @( negedge tlx_clock ) begin
+      assign	tlx_afu_resp_data_valid		= tlx_afu_resp_data_valid_top;
+      assign	tlx_afu_resp_data_bus		= tlx_afu_resp_data_bus_top;
+      assign	tlx_afu_resp_data_bdi		= tlx_afu_resp_data_bdi_top;
+//   end
 
 //	Table 6: TLX to AFU Command Data Interface
     assign 	tlx_afu_cmd_data_valid		= tlx_afu_cmd_data_valid_top;
@@ -865,7 +865,7 @@ end
     assign 	flsh_cfg_status				= 8'b0;
     assign 	flsh_cfg_bresp				= 2'b0;
     assign 	flsh_cfg_rresp				= 2'b0;
-
+/*
    // a block to delay the resp_data path 1 cycle
    // todo: variable number of cycles from 1 to n
    always @ ( negedge tlx_clock ) begin
@@ -879,7 +879,7 @@ end
       tlx_afu_resp_data_bus_dly2 <= tlx_afu_resp_data_bus_dly1;
       tlx_afu_resp_data_bdi_dly2 <= tlx_afu_resp_data_bdi_dly1;
    end
-
+*/
   always @ ( tlx_clock ) begin
     simulationTime = $time;
     #0 set_simulation_time(simulationTime);
