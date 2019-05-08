@@ -250,7 +250,7 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 		head = &((*head)->_next);
 	event->_next = *head;
 	*head = event;
-	debug_msg("_add_cmd:created cmd_event @ 0x%016"PRIx64":command=0x%02x, size=0x%04x, type=0x%02x, afutag=0x%04x, state=0x%03x cmd_data_is_valid=0x%x, dot_form=0x%x",
+	debug_msg("_add_cmd:created cmd_event @ 0x%016"PRIx64":command=0x%02x, size=0x%04x, type=0x%02x, afutag=0x%04x, state=0x%03x cmd_data_is_valid=0x%x, form_flag=0x%x",
 		 event, event->command, event->size, event->type, event->afutag, event->state, cmd_data_is_valid, form_flag );
 	debug_cmd_add(cmd->dbg_fp, cmd->dbg_id, afutag, context, command);
 	// Check to see if event->cmd_data_is_valid is, and if so, set event->buffer_data
@@ -396,7 +396,7 @@ static void _add_kill_xlate_done(struct cmd *cmd, uint16_t actag, uint16_t afuta
 		form_flag = 0x4;
 	if ((cmd_opcode == AFU_CMD_XLATE_TOUCH_N) || (cmd_opcode == AFU_CMD_XLATE_TOUCH)) {
 	  if ((cmd_flag & 0x8) == 0x8)
-	    form_flag |= 0x8; 
+	    form_flag |= 0x80; 
 	}
 
 	if (cmd_opcode == AFU_CMD_XLATE_RELEASE) {
@@ -1731,7 +1731,7 @@ static void _handle_mem_touch(struct cmd *cmd, struct cmd_event *event, int fd)
         uint64_t ta;
         uint8_t pg_size;
 	
-        if ( ( event->form_flag & 0x08 ) == 0x00 ) {
+        if ( ( event->form_flag & 0x80 ) == 0x00 ) {
 	  // this is not a translate touch with ta_req
 	  // we can set mem_done and return
 	  event->state = MEM_DONE;
@@ -2035,7 +2035,7 @@ void handle_response(struct cmd *cmd)
         } 
 
 
-	if (((event->form_flag & 0x2) == 1) && (event->state == MEM_DONE)) { // cmd is posted; no resp needed so free structs
+	if (((event->form_flag & 0x2) == 0x2) && (event->state == MEM_DONE)) { // cmd is posted; no resp needed so free structs
 		debug_msg("%s:RESPONSE event @ 0x%016" PRIx64 ", NO RESPONSE sent for POSTED cmd=0x%2x   afutag=0x%02x code=0x%x", cmd->afu_name,
 		    event, event->command, event->afutag, event->resp);
 		debug_cmd_response(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->resp_opcode, event->resp);
