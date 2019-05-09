@@ -436,6 +436,8 @@ int tlx_afu_send_resp_cmd_vc0(struct AFU_EVENT *event,
 		event->tlx_afu_vc0_w = resp_w;
 		event->tlx_afu_vc0_mh = resp_mh;
 		event->tlx_afu_vc0_pa_or_ta = resp_pa_or_ta;
+		if (tlx_resp_opcode == 0xf)
+	            debug_msg( "tlx_afu_send_vc0: tlx_afu_vc0_pa_or_ta =0x%016llx ", event->tlx_afu_vc0_pa_or_ta );
 		event->tlx_afu_vc0_host_tag = resp_host_tag;
 		event->tlx_afu_vc0_cache_state = resp_cache_state;
 		return TLX_SUCCESS;
@@ -2871,6 +2873,7 @@ int tlx_afu_read_cmd_resp_vc0(struct AFU_EVENT *event,
 	if (!event->tlx_afu_vc0_valid) {
 		return TLX_AFU_RESP_NOT_VALID;
 	} else {
+	        debug_msg( "tlx_afu_read_cmd_resp_vc0: tlx_afu_vc0_opcode= 0x%2x " , event->tlx_afu_vc0_opcode );
 		event->tlx_afu_vc0_valid = 0;
 		* tlx_resp_opcode = event->tlx_afu_vc0_opcode;
 		* resp_afutag = event->tlx_afu_vc0_afutag;
@@ -2885,6 +2888,8 @@ int tlx_afu_read_cmd_resp_vc0(struct AFU_EVENT *event,
 		* resp_mh = event->tlx_afu_vc0_mh;
 		* resp_pa_or_ta = event->tlx_afu_vc0_pa_or_ta;
 		* resp_capp_tag = event->tlx_afu_vc0_capptag;
+		//if (event->tlx_afu_vc0_opcode == 0xf)
+	            debug_msg( "tlx_afu_read_cmd_resp_vc0: tlx_afu_vc0_pa_or_ta = 0x%016llx", event->tlx_afu_vc0_pa_or_ta );
 		}
 		return TLX_SUCCESS;
 }
