@@ -114,7 +114,7 @@ int clear_machine_config(ocxl_mmio_h pp_mmio_h, MachineConfig *machine,
   machine_number = param.machine_number;
   machine_config_base_address = _machine_base_address_index(machine_number, mode);
   machine_config_base_address += context * 0x1000;
-  if(param.command == 0x38) {	// AMO_R
+  if(param.command == 0x38 || param.command == 0x78) {	// AMO_R
   	for(i=0; i<4; i++) {
   		if (ocxl_mmio_read64(pp_mmio_h, machine_config_base_address +(i*8), 
   			OCXL_MMIO_LITTLE_ENDIAN, result))

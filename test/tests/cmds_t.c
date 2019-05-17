@@ -208,15 +208,18 @@ int main(int argc, char *argv[])
 	   printf("Failed to clear machine config for read command\n");
 	   goto done;
     }
+    printf("Result = 0x%x\n", result);
     // Attemp write command
     printf("Attempt AFU_CMD_RD_WNITC_T command\n");
     //status[0] = 0xff;
     config_param.command = AFU_CMD_RD_WNITC_T;
     config_param.mem_size = 64;
-    config_param.mem_base_address = (uint64_t)wcacheline;
-    printf("wcacheline = 0x%p\n", wcacheline);
+    config_param.mem_base_address = (uint64_t)result;
+    //config_param.mem_dest_address = (uint64_t)result;
+    printf("rcacheline = %p\n", rcacheline);
+    printf("translated address = %p\n", result);
     printf("command = 0x%x\n",config_param.command);
-    printf("wcache address = 0x%"PRIx64"\n", config_param.mem_base_address);
+    //printf("rcache address = 0x%"PRIx64"\n", config_param.mem_base_address);
     rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
     //status[0] = 0xff;
     if(rc != -1) {
@@ -239,17 +242,49 @@ int main(int argc, char *argv[])
 	     printf("Failed clear machine config for write command\n");
        goto done;
     }
+    printf("Attempt dma w cmd 0x20\n");
+    config_param.command = AFU_CMD_DMA_W;
+    config_param.mem_size = 64;
+    config_param.machine_number = 0;
+    config_param.mem_base_address = (uint64_t)wcacheline;
+    config_param.status_address = (uint32_t)status;
+    printf("rcacheline = 0x%p\n", rcacheline);
+    printf("command = 0x%x\n",config_param.command);
+    printf("rcache address = 0x%"PRIx64"\n", config_param.mem_base_address);
+    rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
+    //status[0] = 0xff;
+    if(rc != -1) {
+      printf("Response = 0x%x\n", rc);
+      printf("config_enable_and_run_machine PASS\n");
+    }
+    else {
+      printf("FAILED: config_enable_and_run_machine\n");
+      goto done;
+    }
+    status[0] = 0xff;
+    printf("Polling dma w completion status\n");
+    while(status[0] != 0x00) {
+     nanosleep(&t, &t);
+     //printf("Polling write completion status = 0x%x\n", *status);
+    }
+    printf("wcacheline = 0x");
+    for(i=0; i<CACHELINE; i++) {
+     printf("%02x", (uint8_t)wcacheline[i]);
+    }
+    printf("\n");
+    printf("clear_machine_config");
+    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED, &result);
+    if(rc != 0) {
+       printf("Failed clear machine config for write command\n");
+       goto done;
+    }
+
     status[0] = 0x55;	// send test complete status
     printf("Polling test completion status\n");
     while(status[0] != 0x00) {
 	   nanosleep(&t, &t);
 	   //printf("Polling test completion status\n");
     } 
-    printf("wcacheline = 0x");
-    for(i=0; i<CACHELINE; i++) {
-	   printf("%02x", (uint8_t)wcacheline[i]);
-    }
-    printf("\n");
 
 done:
     // free device

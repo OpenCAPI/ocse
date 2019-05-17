@@ -47,7 +47,7 @@ typedef struct MachineConfigParam
     uint16_t	machine_number;
 //    uint16_t	max_delay;
     uint32_t	status_address;
-    uint64_t	mem_base_address;
+    uint64_t	mem_base_address;  // config[2]
 //    uint64_t	mem_size;
     uint64_t  	mem_dest_address;	// config[3]
     uint16_t	mem_size;		// config[1]

@@ -278,8 +278,8 @@ StoreCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
 
     printf("StoreCommand: sending command = 0x%x\n", Command::code);
     printf("memory = 0x");
-    for(i=0; i<9; i++) {
-        memory[i] = i;
+    for(i=0; i<64; i++) {
+        //memory[i] = i;
 	   printf("%02x", memory[i]);
     }
     printf("\n");
