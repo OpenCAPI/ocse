@@ -1073,7 +1073,7 @@ void tlx_bfm(
       {
         setDpiSignal32(tlx_afu_vc2_opcode_top, event.tlx_afu_vc2_opcode, 8);
         setDpiSignal32(tlx_afu_vc2_capptag_top, event.tlx_afu_vc2_capptag, 16);
-        setDpiSignal64(tlx_afu_vc2_ea_top, event.tlx_afu_vc2_ea);
+        setDpiSignal64(tlx_afu_vc2_ea_top, event.tlx_afu_vc2_ea >> 12 );  // use the high order bits
         setDpiSignal32(tlx_afu_vc2_pg_size_top, event.tlx_afu_vc2_pg_size, 6);
         setDpiSignal32(tlx_afu_vc2_cmdflag_top, event.tlx_afu_vc2_cmdflag, 4);
         setDpiSignal32(tlx_afu_vc2_pasid_top, event.tlx_afu_vc2_pasid, 20);
