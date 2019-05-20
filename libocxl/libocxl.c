@@ -767,6 +767,11 @@ static void _handle_kill_xlate( struct ocxl_afu *afu )
 	while (this_ea != NULL ) {
 	  if ( _allow_kill_xlate( &cmd_flag ) != 0 ) {
 	    // found one
+	    if ( this_ea->kill_xlate_pending == 1 ) {
+	      // if it is already pending, just return.  Think about skipping this one and looking for another one to kill
+	      return;
+	    }
+	    // no, really, we found one :-)
 	    // mark it pending
 	    this_ea->kill_xlate_pending = 1;
 	    // set ea, cmd_flag, page size, bdf, and pasid. capptag and opcode will be built by ocse
@@ -843,9 +848,10 @@ static void _handle_kill_xlate( struct ocxl_afu *afu )
 	memcpy( &buffer[size], &pasid, sizeof( pasid ) );
 	size = size + sizeof( pasid );
 
-	if (put_bytes_silent(afu->fd, size, buffer) != 1) {
+	if (put_bytes_silent(afu->fd, size, buffer) != size) {
 		afu->opened = 0;
 		afu->attached = 0;
+		debug_msg( "KILL XLATE socket failure" );
 	}
 	debug_msg( "KILL XLATE addr @ 0x%016" PRIx64, ntohll( ea ) );
 }
@@ -2306,7 +2312,7 @@ static void *_psl_loop(void *ptr)
 			}
 		}
 
-		// _handle_kill_xlate( afu );
+		_handle_kill_xlate( afu );
 
 		// Process socket input from OCSE
 		rc = bytes_ready(afu->fd, 1000, 0);

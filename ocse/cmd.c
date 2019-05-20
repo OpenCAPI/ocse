@@ -838,7 +838,7 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 
 
 	// No command ready */
-	if ((rc != TLX_SUCCESS) || (cmd_opcode == AFU_RSP_KILL_XLATE_DONE))
+	if ( rc != TLX_SUCCESS )
 		return;
 
 	debug_msg( "%s:COMMAND actag=0x%02x afutag=0x%04x cmd=0x%x cmd_data_is_valid= 0x%x ",
