@@ -1932,7 +1932,7 @@ void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd)
 	_update_age(cmd, event->addr);
 	if (event->type == CMD_READ)
 		_handle_mem_read(cmd, event, fd);
-	if (event->type == CMD_WRITE)
+	if ((event->type == CMD_WRITE) || (event->type == CMD_AMO_WR))
 		event->state = MEM_DONE;
  	// have to account for AMO RD or RW cmds with returned data
 	else if ((event->type == CMD_AMO_RD) || (event->type == CMD_AMO_RW)) {
