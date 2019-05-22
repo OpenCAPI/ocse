@@ -725,6 +725,7 @@ static void _handle_kill_xlate_done( struct ocxl_afu *afu )
 		        prev_ea->_next = this_ea->_next;
 		  }
 		  
+		  debug_msg( "KILL XLATE DONE done for addr @ 0x%016" PRIx64, this_ea->ea );
 		  free( this_ea );
 
 		  // advance the pointers
@@ -2312,7 +2313,7 @@ static void *_psl_loop(void *ptr)
 			}
 		}
 
-		_handle_kill_xlate( afu );
+		// _handle_kill_xlate( afu );
 
 		// Process socket input from OCSE
 		rc = bytes_ready(afu->fd, 1000, 0);
@@ -2486,6 +2487,7 @@ static void *_psl_loop(void *ptr)
 		case OCSE_XLATE_KILL_DONE:
 			debug_msg("AFU XLATE KILL DONE");
 			_handle_kill_xlate_done( afu );
+			debug_msg("AFU XLATE KILL DONE done");
 			break;
 		case OCSE_MEMORY_TOUCH:
 			debug_msg("AFU XLATE TOUCH");

@@ -224,7 +224,7 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	event->stream_id = stream_id;  //figure out how to use it later.....
 	event->form_flag = form_flag;
 	if (command == AFU_RSP_KILL_XLATE_DONE) 
-		event->resp_capptag = size;
+		event->resp_capptag = afutag;
 	// if size = 0 it doesn't matter what we set, in this case, 1, otherwise find resp_dl from size but resp_dp always 0 
 	if (size <= 64)
 		event->resp_dl = 1;
@@ -360,10 +360,11 @@ static void _add_kill_xlate_done(struct cmd *cmd, uint16_t actag, uint16_t afuta
 	if (context == -1) {
 		debug_msg("_add_kill_xlate_done: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
 		return;
+	}
 	resp = (uint32_t) cmd_resp_code;
 	// lets overlay some already defined parm to add_cmd for capptag 
-		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_KILL_DONE, 0, cmd_capptag, MEM_DONE,
-			 resp, 0, 0, 0, 0, 0, 0, 0, 0); }
+	_add_cmd(cmd, context, cmd_capptag, cmd_opcode, CMD_KILL_DONE, 0, 0, MEM_IDLE,
+			 resp, 0, 0, 0, 0, 0, 0, 0, 0);
 
 }
 
@@ -1575,7 +1576,7 @@ void handle_kill_done(struct cmd *cmd)
 	struct cmd_event *event;
 	struct client *client;
 	uint8_t *buffer;
-	uint16_t *resp_capptag;
+	// uint16_t *resp_capptag;
 
 	// Make sure cmd structure is valid
 	if (cmd == NULL)
@@ -1585,8 +1586,8 @@ void handle_kill_done(struct cmd *cmd)
 	event = cmd->list;
 	while (event != NULL) {
 	        if ( ( event->type == CMD_KILL_DONE ) && 
-		     ( event->state == MEM_IDLE ) && 
-		     ( ( event->client_state != CLIENT_VALID ) || !allow_reorder(cmd->parms) ) ) {
+		     ( event->state == MEM_IDLE ) ) { // && 
+		     // ( ( event->client_state != CLIENT_VALID ) || !allow_reorder(cmd->parms) ) ) { // disable reordering of kill done's
 			break;
 		}
 
@@ -1597,22 +1598,26 @@ void handle_kill_done(struct cmd *cmd)
 	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
 		return;
 
+	debug_msg("handle_kill_done: event selected and client still exists");
+
 	if (event->command == AFU_RSP_KILL_XLATE_DONE) {
 		// Send kill xlate done response to client
 		buffer = (uint8_t *) malloc(4);
 		buffer[0] = (uint8_t) OCSE_XLATE_KILL_DONE;
-		buffer[1] = (uint8_t) event->resp;
-		resp_capptag = (uint16_t *) & (buffer[2]);
-		*resp_capptag = htonll(event->resp_capptag);
-		debug_msg("%s:KILL_XLATE_DONE   capptag=0x%02x resp_code=0x%2x", event->resp_capptag,
-			   event->resp);
-		if (put_bytes(client->fd, 4, buffer, cmd->dbg_fp, cmd->dbg_id,
+		// buffer[1] = (uint8_t) event->resp;
+		// resp_capptag = (uint16_t *) & (buffer[2]);
+		// *resp_capptag = htonll(event->resp_capptag);
+		debug_msg("KILL_XLATE_DONE   capptag=0x%02x resp_code=0x%02x", event->resp_capptag, event->resp);
+		if (put_bytes(client->fd, 1, buffer, cmd->dbg_fp, cmd->dbg_id,
 			      event->context) < 0) {
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		}
 		event->state = MEM_DONE; 
 		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
-        } 
+		free( buffer );
+        } else {
+	  debug_msg( "KILL XLATE DONE was not labeled as AFU_RSP_KILL_XLATE_DONE" );
+	}
 }
 
 
@@ -1973,8 +1978,8 @@ void handle_response(struct cmd *cmd)
 	struct cmd_event *event;
 	struct client *client;
 	//uint8_t resp_dl, resp_dp;
-	uint8_t *buffer;
-	uint16_t *resp_capptag;
+	//uint8_t *buffer;
+	//uint16_t *resp_capptag;
 
 	int rc = 0;
 
@@ -2011,6 +2016,8 @@ void handle_response(struct cmd *cmd)
 	  // maybe we should free it too???
 	  return;
 	}
+
+	/*
 	if (event->command == AFU_RSP_KILL_XLATE_DONE) {
 		// Send kill xlate done response to client
 		buffer = (uint8_t *) malloc(4);
@@ -2018,7 +2025,7 @@ void handle_response(struct cmd *cmd)
 		buffer[1] = (uint8_t) event->resp;
 		resp_capptag = (uint16_t *) & (buffer[2]);
 		*resp_capptag = htonll(event->resp_capptag);
-		debug_msg("%s:KILL_XLATE_DONE   capptag=0x%02x resp_code=0x%2x", event->resp_capptag,
+		debug_msg("KILL_XLATE_DONE   capptag=0x%02x resp_code=0x%2x", event->resp_capptag,
 			   event->resp);
 		if (put_bytes(client->fd, 4, buffer, cmd->dbg_fp, cmd->dbg_id,
 			      event->context) < 0) {
@@ -2033,7 +2040,7 @@ void handle_response(struct cmd *cmd)
 		return;
 
         } 
-
+	*/
 
 	if (((event->form_flag & 0x2) == 0x2) && (event->state == MEM_DONE)) { // cmd is posted; no resp needed so free structs
 		debug_msg("%s:RESPONSE event @ 0x%016" PRIx64 ", NO RESPONSE sent for POSTED cmd=0x%2x   afutag=0x%02x code=0x%x", cmd->afu_name,

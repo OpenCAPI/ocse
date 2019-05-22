@@ -107,7 +107,7 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 	    event->cmd_PA = mmio->fcn_cfg_array[fcn]->bar0 + 
 	                    mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_offset + 
 	                    addr;
-	    debug_msg( "global mmio to fcn/afu %d/%d : offset (0x%016x) + addr (0x%016x) = cmd_pa (0x%016x)", 
+	    debug_msg( "global mmio to fcn/afu %d/%d : offset (0x%016lx) + addr (0x%016lx) = cmd_pa (0x%016lx)", 
 		       fcn, afuid, mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->global_mmio_offset, addr, event->cmd_PA );
 	  } else {
 	    // bar0 + per pasid mmio offset + (client context * stride) + offset
@@ -116,7 +116,7 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 	                    mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_offset + 
 	                    ( mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_stride * client->context ) + 
 	                    addr;
-	    debug_msg( "per pasid mmio to fcn/afu %d/%d : offset (0x%016x) + ( stride (0x%016x) * context (%d) ) + addr (0x%016x) = cmd_pa (0x%016x)", 
+	    debug_msg( "per pasid mmio to fcn/afu %d/%d : offset (0x%016lx) + ( stride (0x%016lx) * context (%d) ) + addr (0x%016lx) = cmd_pa (0x%016lx)", 
 		       fcn, 
 		       afuid, 
 		       mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->pp_mmio_offset, 
@@ -436,7 +436,7 @@ int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 		      mmio->fcn_cfg_array[f]->device_id = device_id;
 		      mmio->fcn_cfg_array[f]->vendor_id = vendor_id;
 					
-		      info_msg("    function %d bar0 = 0x%016x", f, mmio->fcn_cfg_array[f]->bar0 );
+		      info_msg("    function %d bar0 = 0x%016lx", f, mmio->fcn_cfg_array[f]->bar0 );
 
 		      next_capability_offset = 0x100;
 		      while ( next_capability_offset != 0 ) {
@@ -626,7 +626,7 @@ int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 					      eventc = _read_afu_descriptor( mmio, mmio->fcn_cfg_array[f]->afu_information_dvsec_pa + 0x0c, 0x28, lock );
 					      mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->global_mmio_size = eventc->cmd_data ;
 					      free( eventc );
-					      info_msg( "    afu %d global mmio bar = %d, global mmio offset = 0x%016x, global mmio size = 0x%016x", 
+					      info_msg( "    afu %d global mmio bar = %d, global mmio offset = 0x%016lx, global mmio size = 0x%016lx", 
 							afu_index,
 							mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->global_mmio_bar, 
 							mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->global_mmio_offset, 
@@ -644,7 +644,7 @@ int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 					      eventc = _read_afu_descriptor( mmio, mmio->fcn_cfg_array[f]->afu_information_dvsec_pa + 0x0c, 0x38, lock );
 					      mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->pp_mmio_stride = eventc->cmd_data & 0xFFFF0000 ;
 					      free( eventc );
-					      info_msg( "    afu %d per pasid mmio bar = %d, per pasid mmio offset = 0x%016x, per pasid mmio stride = 0x%016x", 
+					      info_msg( "    afu %d per pasid mmio bar = %d, per pasid mmio offset = 0x%016lx, per pasid mmio stride = 0x%016lx", 
 							afu_index,
 							mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->pp_mmio_bar, 
 							mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->pp_mmio_offset, 
@@ -1192,7 +1192,7 @@ void handle_ap_resp_data(struct mmio *mmio)
 		          offset = mmio->list->cmd_PA & 0x000000000000003F ;
 			  memcpy( &mmio->list->cmd_data, &rdata_bus[offset], length );
 			  mmio->list->state = OCSE_DONE;
-			  debug_msg("%s: CMD RESP offset=%d length=%d data=0x%016x", mmio->afu_name, offset, length, mmio->list->cmd_data );
+			  debug_msg("%s: CMD RESP offset=%d length=%d data=0x%016lx", mmio->afu_name, offset, length, mmio->list->cmd_data );
 			  mmio->list = mmio->list->_next;  // the mmio we just processed is pointed to by ...
 			  // debug_msg( "handle_ap_resp_data: removed mmio read from list" );
 		    } else {
@@ -1597,7 +1597,7 @@ void handle_ap_resp(struct mmio *mmio)
 			      length = 8;
 			    }
 			    memcpy( &read_data, &rdata_bus[offset], length );
-			    debug_msg("%s:%s CMD RESP offset=%d length=%d data=0x%016x code=0x%x", mmio->afu_name, type, offset, length, read_data, resp_code );
+			    debug_msg("%s:%s CMD RESP offset=%d length=%d data=0x%016lx code=0x%x", mmio->afu_name, type, offset, length, read_data, resp_code );
 			  } else {
 			    length = mmio->list->size;
 			    memcpy( mem_data, &rdata_bus[offset], length );
@@ -1991,7 +1991,7 @@ struct mmio_event *handle_kill_xlate(struct mmio *mmio, struct client *client)
 	}
 	pasid = ntohl( pasid );
 
-	debug_msg( "handle_kill_xlate: ea=0x%016xll, pg_size=0x%02x, cmd_flag=0x%1x, bdf=0x%02x, pasid=0x%04x", 
+	debug_msg( "handle_kill_xlate: ea=0x%016lx, pg_size=0x%02x, cmd_flag=0x%1x, bdf=0x%02x, pasid=0x%04x", 
 		   ea, pg_size, cmd_flag, bdf, pasid );
 
 	return _add_kill_xlate_event( mmio, client, ea, pg_size, cmd_flag, bdf, pasid );
