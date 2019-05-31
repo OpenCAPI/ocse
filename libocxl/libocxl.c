@@ -388,7 +388,7 @@ static int _xlate_addr(struct ocxl_afu *afu, uint64_t *addr, uint8_t form_flag)
 	return 0;
       }
 
-      return 0; // since we are using ta=ea, we can get away with this while we figure out the real way
+      // return 0; // since we are using ta=ea, we can get away with this while we figure out the real way
 
       // we received a taddr, give back the host eaddr
       // look for the ta in the translation table list afu->eas
@@ -408,7 +408,7 @@ static int _xlate_addr(struct ocxl_afu *afu, uint64_t *addr, uint8_t form_flag)
       // grab the offset part of the address
       base_mask = ~(uint64_t)0 << (this_ea->pg_size-1);
       offset_mask = ~base_mask;
-      offset = taddr & (~offset_mask);
+      offset = taddr & offset_mask;
 
       // add the offset to the ta
       eaddr = base + offset;
@@ -416,7 +416,7 @@ static int _xlate_addr(struct ocxl_afu *afu, uint64_t *addr, uint8_t form_flag)
       debug_msg( "_xlate_addr: translated 0x%016llx with offset mask 0x%016llx to base 0x%016llx + offset 0x%016llx = 0x%016llx", taddr, offset_mask, base, offset, eaddr );
       
       // since we are using ta=ea, we should be able to check that the address we calculate equals the address we received.
-      if (taddr != eaddr) return 0xC;
+      // if (taddr != eaddr) return 0xC;
 
       // we don't check write permission yet
       *addr = eaddr;
@@ -655,6 +655,7 @@ static void _handle_write(struct ocxl_afu *afu)
 
 	if (!_testmemaddr((uint8_t *) addr)) {
 		if (_handle_dsi(afu, addr) < 0) {
+		        debug_msg( "_handle_write: write to invalid addr @ 0x016lx", addr );
 			perror("DSI Failure");
 			return;
 		}
@@ -696,10 +697,10 @@ static int _allow_kill_xlate( uint8_t *cmd_flag )
     // these questions strenghten cmd_flag
     if ( allow_context != 0 ) {
       // should we allow all ea's for this context to be killed
-      *cmd_flag = 0x1;
+      *cmd_flag = 0x0; // 0x1;
     } else if ( allow_afu != 0 ) {
       // should we allow all ea's for this afu to be killed
-      *cmd_flag = 0xF;
+      *cmd_flag = 0x0; // 0xF;
     }
   } 
 
@@ -770,9 +771,11 @@ static void _handle_kill_xlate( struct ocxl_afu *afu )
 	    // found one
 	    if ( this_ea->kill_xlate_pending == 1 ) {
 	      // if it is already pending, just return.  Think about skipping this one and looking for another one to kill
+	      // debug_msg( "_handle_kill_xlate: ea selected 0x%016lx, but it already has a kill pending", this_ea->ea );
 	      return;
 	    }
 	    // no, really, we found one :-)
+	    debug_msg( "_handle_kill_xlate: ea selected 0x%016lx", this_ea->ea );
 	    // mark it pending
 	    this_ea->kill_xlate_pending = 1;
 	    // set ea, cmd_flag, page size, bdf, and pasid. capptag and opcode will be built by ocse
@@ -791,6 +794,7 @@ static void _handle_kill_xlate( struct ocxl_afu *afu )
 	
 	if ( this_ea == NULL ) {
 	  // decided not to kill any eas
+	  debug_msg( "_handle_kill_xlate: NO EA selected" );
 	  return;
 	}
 
@@ -854,7 +858,7 @@ static void _handle_kill_xlate( struct ocxl_afu *afu )
 		afu->attached = 0;
 		debug_msg( "KILL XLATE socket failure" );
 	}
-	debug_msg( "KILL XLATE addr @ 0x%016" PRIx64, ntohll( ea ) );
+	debug_msg( "KILL_XLATE addr @ 0x%016" PRIx64, ntohll( ea ) );
 }
 
 static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
@@ -961,11 +965,12 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 			}
 		
 			if (this == NULL ) {
+			        // we didn't find an existing entry
 			        // add entry to head of list
-			        this = (struct ocxl_ea_area *)malloc( sizeof( struct ocxl_ea_area ) );
-				this->pg_size = 0x10; // 2^16 (64k) pages to represent the linux environment - this should maybe be random
+			        this = (struct ocxl_ea_area *)calloc( 1, sizeof( struct ocxl_ea_area ) );
+				this->pg_size = 0x10; // 2^16 (64k) pages to represent the linux environment - this could maybe be random
 				this->ea = addr & (~(uint64_t)0 << (this->pg_size-1)); // ea and ta must be truncated to represent the base address of a give pg_size.
-				this->ta = this->ea;
+				this->ta = this->ea | (~(uint64_t)0 << 60);
 				this->pa = 0x0;
 				this->mh = 0;
 				this->_next = afu->eas;
@@ -2248,6 +2253,7 @@ static void *_psl_loop(void *ptr)
 	if (!afu)
 		fatal_msg("NULL afu passed to libocxl.c:_psl_loop");
 	afu->opened = 1;
+	//srand( time( 0 ) );
 
 	while (afu->opened) {
 		_delay_1ms();
@@ -2313,7 +2319,7 @@ static void *_psl_loop(void *ptr)
 			}
 		}
 
-		// _handle_kill_xlate( afu );
+		_handle_kill_xlate( afu );
 
 		// Process socket input from OCSE
 		rc = bytes_ready(afu->fd, 1000, 0);

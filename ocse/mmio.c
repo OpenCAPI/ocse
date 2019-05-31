@@ -922,7 +922,7 @@ void send_mmio(struct mmio *mmio)
 					 event->cmd_bdf ) == TLX_SUCCESS ) {
   		    debug_msg("%s:%s AMO_RD %d word=0x%05x", mmio->afu_name, type, event->dw ? 64 : 32, event->cmd_PA);
 		    debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw,event->cmd_PA );
-		    event->state = OCSE_PENDING;
+		    event->state = OCSE_DONE;
 	      }
 	      break;
 	case OCSE_AFU_AMO_RD:
