@@ -2064,6 +2064,9 @@ void handle_response(struct cmd *cmd)
 	*/
 
 	if (((event->form_flag & 0x2) == 0x2) && (event->state == MEM_DONE)) { // cmd is posted; no resp needed so free structs
+		if (event->type == CMD_FAILED)  // print INFO_MSG to let user know error code if debug isn't turned on
+			info_msg("%s:WARNING - ERROR ON POSTED RESPONSE event @ 0x%016" PRIx64 ",  for POSTED cmd=0x%2x   afutag=0x%02x code=0x%x",
+				       	cmd->afu_name,event, event->command, event->afutag, event->resp);
 		debug_msg("%s:RESPONSE event @ 0x%016" PRIx64 ", NO RESPONSE sent for POSTED cmd=0x%2x   afutag=0x%02x code=0x%x", cmd->afu_name,
 		    event, event->command, event->afutag, event->resp);
 		debug_cmd_response(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->resp_opcode, event->resp);
