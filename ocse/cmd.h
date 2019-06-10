@@ -159,7 +159,7 @@ void handle_interrupt(struct cmd *cmd);
 
 void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd);
 
-void handle_aerror(struct cmd *cmd, struct cmd_event *event);
+void handle_aerror(struct cmd *cmd, struct cmd_event *event, int fd);
 
 void handle_response(struct cmd *cmd);
 
