@@ -1799,6 +1799,7 @@ static void _handle_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
 	        	debug_msg("%s:_handle_mem_read failed afutag=0x%04x size=%d addr=0x%016"PRIx64,
 				  cmd->afu_name, event->afutag, event->size, event->addr);
 			event->state = MEM_DONE;
+			event->resp_opcode = TLX_RSP_READ_FAILED;
 			event->type = CMD_FAILED;
 			event->resp = 0x0e;
 			debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->afutag,
@@ -1819,6 +1820,7 @@ static void _handle_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
 	        	debug_msg("%s:_handle_amo_mem_read failed afutag=0x%02x size=%d addr=0x%016"PRIx64,
 				  cmd->afu_name, event->afutag, event->size, event->addr);
 			event->state = MEM_DONE;
+			event->resp_opcode = TLX_RSP_READ_FAILED;
 			event->type = CMD_FAILED;
 			event->resp = 0x0e;
 			debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->afutag,
@@ -1961,14 +1963,33 @@ void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd)
 }
 
 // Mark memory event as address error in preparation for response
-void handle_aerror(struct cmd *cmd, struct cmd_event *event)
+void handle_aerror(struct cmd *cmd, struct cmd_event *event, int fd)
 {
+	uint8_t libocxl_errcode;
   	debug_msg( "ocse:handle_aerror:" );
+	if (get_bytes_silent(fd, 1, &libocxl_errcode, cmd->parms->timeout,
+	    	 event->abort) < 0) {
+			debug_msg("%s:_handle_aerror failed to read libocxl errcode afutag=0x%02x cmd=%x addr=0x%016"PRIx64,
+		  		cmd->afu_name, event->afutag, event->command, event->addr);
+			event->resp = 0x0f; // invalid code but use this for debug anyway
+			}
+	event->resp = libocxl_errcode;
 	event->state = MEM_DONE;
+	switch (event->type){ //figure out which type of failed cmd and specify wr_failed, rd_failed if needed
+		case CMD_READ:
+		case CMD_AMO_RD:
+		case CMD_AMO_RW: event->resp_opcode = TLX_RSP_READ_FAILED;
+				 break;
+		case CMD_WRITE:
+		case CMD_WR_BE:
+		case CMD_AMO_WR: event->resp_opcode = TLX_RSP_WRITE_FAILED;
+				 break;
+		default: break;  // other cmds don't use special FAILED respnses
+			}
 	event->type = CMD_FAILED;
-	event->resp = 0x0e;
 	debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->afutag,
-			 event->context, event->resp);
+		event->context, event->resp);
+	return;
 }
 
 // Send a randomly selected pending response back to AFU

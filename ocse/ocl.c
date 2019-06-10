@@ -193,7 +193,7 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 			break;
 		case OCSE_MEM_FAILURE:
 			if (client->mem_access != NULL)
-				handle_aerror(ocl->cmd, cmd);
+				handle_aerror(ocl->cmd, cmd, client->fd);
 			client->mem_access = NULL;
 			break;
 		case OCSE_MEM_SUCCESS:
