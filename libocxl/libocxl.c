@@ -476,7 +476,7 @@ static void _handle_read(struct ocxl_afu *afu)
 		        perror("DSI Failure");
 			return;
 		}
-		debug_msg("READ from invalid addr @ 0x%016" PRIx64 "", addr);
+		warn_msg("READ from invalid addr @ 0x%016" PRIx64 "", addr);
 		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
 		if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
 			afu->opened = 0;
@@ -565,7 +565,7 @@ static void _handle_write_be(struct ocxl_afu *afu)
 			perror("DSI Failure");
 			return;
 		}
-		debug_msg("WRITE to invalid addr @ 0x%016" PRIx64 "", addr);
+		warn_msg("WRITE to invalid addr @ 0x%016" PRIx64 "", addr);
 		buffer[0] = OCSE_MEM_FAILURE;
 		if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
 			afu->opened = 0;
@@ -659,7 +659,7 @@ static void _handle_write(struct ocxl_afu *afu)
 			perror("DSI Failure");
 			return;
 		}
-		debug_msg("WRITE to invalid addr @ 0x%016" PRIx64 "", addr);
+		warn_msg("WRITE to invalid addr @ 0x%016" PRIx64 "", addr);
 		buffer[0] = OCSE_MEM_FAILURE;
 		if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
 			afu->opened = 0;
@@ -906,7 +906,7 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 			perror("DSI Failure");
 			return;
 		}
-		debug_msg("TOUCH of invalid addr @ 0x%016" PRIx64 "", addr);
+		warn_msg("TOUCH of invalid addr @ 0x%016" PRIx64 "", addr);
 		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
 		if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
 			afu->opened = 0;
@@ -1170,7 +1170,7 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op)
 			perror("DSI Failure");
 			return;
 		}
-		debug_msg("READ from invalid addr @ 0x%016" PRIx64 "", addr);
+		warn_msg("READ from invalid addr @ 0x%016" PRIx64 "", addr);
 		return;
 	}
 	
