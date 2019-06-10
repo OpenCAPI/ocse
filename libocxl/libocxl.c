@@ -385,7 +385,7 @@ static void _handle_read(struct ocxl_afu *afu, uint64_t addr, uint16_t size)
 			perror("DSI Failure");
 			return;
 		}
-		DPRINTF("READ from invalid addr @ 0x%016" PRIx64 "\n", addr);
+		warn_msg("READ from invalid addr @ 0x%016" PRIx64, addr);
 		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
 		if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
 			afu->opened = 0;
@@ -417,7 +417,7 @@ static void _handle_write_be(struct ocxl_afu *afu, uint64_t addr, uint16_t size,
 			perror("DSI Failure");
 			return;
 		}
-		DPRINTF("WRITE to invalid addr @ 0x%016" PRIx64 "\n", addr);
+		warn_msg("WRITE to invalid addr @ 0x%016" PRIx64, addr);
 		buffer = OCSE_MEM_FAILURE;
 		if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
 			afu->opened = 0;
@@ -460,7 +460,7 @@ static void _handle_write(struct ocxl_afu *afu, uint64_t addr, uint16_t size,
 			perror("DSI Failure");
 			return;
 		}
-		DPRINTF("WRITE to invalid addr @ 0x%016" PRIx64 "\n", addr);
+		warn_msg("WRITE to invalid addr @ 0x%016" PRIx64, addr);
 		buffer = OCSE_MEM_FAILURE;
 		if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
 			afu->opened = 0;
@@ -488,7 +488,7 @@ static void _handle_touch(struct ocxl_afu *afu, uint64_t addr, uint8_t function_
 			perror("DSI Failure");
 			return;
 		}
-		DPRINTF("TOUCH of invalid addr @ 0x%016" PRIx64 "\n", addr);
+		warn_msg("TOUCH of invalid addr @ 0x%016" PRIx64, addr);
 		buffer = (uint8_t) OCSE_MEM_FAILURE;
 		if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
 			afu->opened = 0;
@@ -519,7 +519,7 @@ static void _handle_ack(struct ocxl_afu *afu)
 	} 
 
 	if (resp_code !=0) // TODO update this to handle resp code retry requests
-		error_msg ("handle_ack: AFU sent RD or WR FAILED response code = 0x%d ", resp_code);
+		warn_msg ("handle_ack: AFU sent RD or WR FAILED response code = 0x%d ", resp_code);
 
 	if ((afu->mmio.type == OCSE_MMIO_MAP) | (afu->mmio.type == OCSE_GLOBAL_MMIO_MAP) ) {
 	  afu->mmios[afu->mmio_count].afu = afu;
@@ -581,7 +581,7 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op, uint8_t op_siz
 			perror("DSI Failure");
 			return;
 		}
-		DPRINTF("READ from invalid addr @ 0x%016" PRIx64 "\n", addr);
+		warn_msg("READ from invalid addr @ 0x%016" PRIx64 "\n", addr);
 		return;
 	}
 	

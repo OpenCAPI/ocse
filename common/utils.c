@@ -63,12 +63,12 @@ void fatal_msg(const char *format, ...)
 	va_list args;
 
 	fflush(stdout);
-	fprintf(stderr, "FATAL:");
+	fprintf(stdout, "FATAL:");
 	va_start(args, format);
-	vfprintf(stderr, format, args);
+	vfprintf(stdout, format, args);
 	va_end(args);
-	fprintf(stderr, "!\n");
-	fflush(stderr);
+	fprintf(stdout, "!\n");
+	fflush(stdout);
 }
 
 // Display error message
@@ -77,12 +77,12 @@ void error_msg(const char *format, ...)
 	va_list args;
 
 	fflush(stdout);
-	fprintf(stderr, "ERROR:");
+	fprintf(stdout, "ERROR:");
 	va_start(args, format);
-	vfprintf(stderr, format, args);
+	vfprintf(stdout, format, args);
 	va_end(args);
-	fprintf(stderr, "!\n");
-	fflush(stderr);
+	fprintf(stdout, "!\n");
+	fflush(stdout);
 	exit(-1);
 }
 
@@ -92,12 +92,12 @@ void warn_msg(const char *format, ...)
 	va_list args;
 
 	fflush(stdout);
-	fprintf(stderr, "WARNING:");
+	fprintf(stdout, "WARNING:");
 	va_start(args, format);
-	vfprintf(stderr, format, args);
+	vfprintf(stdout, format, args);
 	va_end(args);
-	fprintf(stderr, "!\n");
-	fflush(stderr);
+	fprintf(stdout, "!\n");
+	fflush(stdout);
 }
 
 // Display informational message
