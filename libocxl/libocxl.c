@@ -470,6 +470,7 @@ static void _handle_read(struct ocxl_afu *afu)
 			afu->opened = 0;
 			afu->attached = 0;
 		}
+		return;
 	}
 	
 	debug_msg("_handle_read: addr @ 0x%016" PRIx64 ", size = %d", addr, size);
@@ -657,6 +658,7 @@ static void _handle_write(struct ocxl_afu *afu)
 			afu->opened = 0;
 			afu->attached = 0;
 		}
+		return;
 	}
 
 	if (!_testmemaddr((uint8_t *) addr)) {
@@ -1138,6 +1140,7 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op)
 			afu->opened = 0;
 			afu->attached = 0;
 		}
+		return;
 	}
 
 	if (get_bytes_silent(afu->fd, sizeof(uint8_t), (uint8_t *)&function_code, -1, 0) < 0) {
