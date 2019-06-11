@@ -463,8 +463,10 @@ static void _handle_read(struct ocxl_afu *afu)
 	if ( rc == 0xc ) {
 	        // bad translation
 	        // need to add the reason code to the mem failure message
+		warn_msg("READ from TA that was invalid addr @ 0x%016" PRIx64 "", addr);
 		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
-		if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
+		buffer[1] = (uint8_t) 0xc;
+		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
 			afu->opened = 0;
 			afu->attached = 0;
 		}
@@ -478,7 +480,8 @@ static void _handle_read(struct ocxl_afu *afu)
 		}
 		warn_msg("READ from invalid addr @ 0x%016" PRIx64 "", addr);
 		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
-		if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
+		buffer[1] = 0xc;
+		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
 			afu->opened = 0;
 			afu->attached = 0;
 		}
@@ -552,7 +555,8 @@ static void _handle_write_be(struct ocxl_afu *afu)
 	        // bad translation
 	        // need to add the reason code to the mem failure message
 		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
-		if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
+		buffer[1] = 0xc;
+		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
 			afu->opened = 0;
 			afu->attached = 0;
 		}
@@ -567,7 +571,8 @@ static void _handle_write_be(struct ocxl_afu *afu)
 		}
 		warn_msg("WRITE to invalid addr @ 0x%016" PRIx64 "", addr);
 		buffer[0] = OCSE_MEM_FAILURE;
-		if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
+		buffer[1] = 0xc;
+		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
 			afu->opened = 0;
 			afu->attached = 0;
 		}
@@ -647,7 +652,8 @@ static void _handle_write(struct ocxl_afu *afu)
 	        // bad translation
 	        // need to add the reason code to the mem failure message
 		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
-		if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
+		buffer[1] = 0xc;
+		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
 			afu->opened = 0;
 			afu->attached = 0;
 		}
@@ -661,7 +667,8 @@ static void _handle_write(struct ocxl_afu *afu)
 		}
 		warn_msg("WRITE to invalid addr @ 0x%016" PRIx64 "", addr);
 		buffer[0] = OCSE_MEM_FAILURE;
-		if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
+		buffer[1] = 0xc;
+		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
 			afu->opened = 0;
 			afu->attached = 0;
 		}
@@ -908,7 +915,8 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 		}
 		warn_msg("TOUCH of invalid addr @ 0x%016" PRIx64 "", addr);
 		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
-		if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
+		buffer[1] = 0xc;
+		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
 			afu->opened = 0;
 			afu->attached = 0;
 		}
@@ -1088,7 +1096,7 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op)
 	uint64_t op1, op2;
 	uint8_t atomic_op;
 	uint8_t atomic_le;
-	uint8_t buffer;
+	uint8_t buffer[2];
 	uint8_t wbuffer[9];
 	uint32_t lvalue, op_A, op_1, op_2;
 	uint64_t llvalue, op_Al, op_1l, op_2l;
@@ -1124,8 +1132,9 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op)
 	if ( rc == 0xc ) {
 	        // bad translation
 	        // need to add the reason code to the mem failure message
-		buffer = (uint8_t) OCSE_MEM_FAILURE;
-		if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
+		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
+		buffer[1] = 0xc;
+		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
 			afu->opened = 0;
 			afu->attached = 0;
 		}
@@ -1221,8 +1230,9 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op)
 				// printf(" case 4: op_2 is %08"PRIx32 "\n", op_2);
 			} else if (op_size == 8) {
 				debug_msg("INVALID op_size  0x%x for  addr  0x%016" PRIx64 "", op_size, addr);
-				buffer = (uint8_t) OCSE_MEM_FAILURE;
-				if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
+				buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
+				buffer[1] = 0xb;
+				if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
 					afu->opened = 0;
 					afu->attached = 0;
 				}
@@ -1257,8 +1267,9 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op)
 				// printf(" case c: op_2 is %08"PRIx32 "\n", op_2);
 			} else if (op_size == 8) {
 				debug_msg("INVALID op_size  0x%x for  addr  0x%016" PRIx64 "", op_size, addr);
-				buffer = (uint8_t) OCSE_MEM_FAILURE;
-				if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
+				buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
+				buffer[1] = 0xb;
+				if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
 					afu->opened = 0;
 					afu->attached = 0;
 				}
@@ -1633,8 +1644,8 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op)
 	// only AMO_ARMWF_* commands return back original data from EA, otherwise just MEM ACK
 	switch (wb)  {
 			case 0:
-				buffer = OCSE_MEM_SUCCESS;
-				if (put_bytes_silent(afu->fd, 1, &buffer) != 1) {
+				buffer[0] = OCSE_MEM_SUCCESS;
+				if (put_bytes_silent(afu->fd, 1, buffer) != 1) {
 					afu->opened = 0;
 					afu->attached = 0;
 				}
