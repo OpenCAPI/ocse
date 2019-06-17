@@ -479,7 +479,7 @@ static void _handle_read(struct ocxl_afu *afu)
 		        perror("DSI Failure");
 			return;
 		}
-		warn_msg("READ from invalid addr @ 0x%016" PRIx64 "", addr);
+		warn_msg("READ1 from invalid addr @ 0x%016" PRIx64 "", addr);
 		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
 		buffer[1] = 0xc;
 		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
@@ -1182,7 +1182,13 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op)
 			perror("DSI Failure");
 			return;
 		}
-		warn_msg("READ from invalid addr @ 0x%016" PRIx64 "", addr);
+		warn_msg("READ2 from invalid addr @ 0x%016" PRIx64 "", addr);
+		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
+		buffer[1] = 0xb;
+		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
+			afu->opened = 0;
+			afu->attached = 0;
+		}
 		return;
 	}
 	
