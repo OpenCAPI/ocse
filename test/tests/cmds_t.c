@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
     config_param.machine_number = 0;
     config_param.mem_base_address = (uint64_t)rcacheline;
     config_param.status_address = (uint32_t)status;
-    printf("rcacheline = 0x%p\n", rcacheline);
+    printf("rcacheline = 0x%"PRIx64"\n", rcacheline);
     printf("command = 0x%x\n",config_param.command);
     printf("rcache address = 0x%"PRIx64"\n", config_param.mem_base_address);
     rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
@@ -182,7 +182,7 @@ int main(int argc, char *argv[])
     config_param.status_address = (uint32_t)status;
     config_param.cmdflag = 0x8;
     printf("status address = 0x%p\n", status);
-    printf("rcacheline = 0x%p\n", rcacheline);
+    printf("rcacheline = 0x%"PRIx64"\n", rcacheline);
     printf("command = 0x%x\n", config_param.command);
     printf("mem base address = 0x%"PRIx64"\n", config_param.mem_base_address);
     rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
@@ -216,8 +216,8 @@ int main(int argc, char *argv[])
     config_param.mem_size = 64;
     config_param.mem_base_address = (uint64_t)result;
     //config_param.mem_dest_address = (uint64_t)result;
-    printf("rcacheline = %p\n", rcacheline);
-    printf("translated address = %p\n", result);
+    printf("rcacheline = 0x%"PRIx64"\n", rcacheline);
+    printf("translated address = 0x%"PRIx64"\n", result);
     printf("command = 0x%x\n",config_param.command);
     //printf("rcache address = 0x%"PRIx64"\n", config_param.mem_base_address);
     rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
@@ -248,7 +248,7 @@ int main(int argc, char *argv[])
     config_param.machine_number = 0;
     config_param.mem_base_address = (uint64_t)wcacheline;
     config_param.status_address = (uint32_t)status;
-    printf("rcacheline = 0x%p\n", rcacheline);
+    printf("rcacheline = 0x%"PRIx64"\n", rcacheline);
     printf("command = 0x%x\n",config_param.command);
     printf("rcache address = 0x%"PRIx64"\n", config_param.mem_base_address);
     rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
