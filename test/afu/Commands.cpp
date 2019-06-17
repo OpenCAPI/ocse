@@ -179,6 +179,8 @@ LoadCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     cmd_capptag = afu_event->afu_tlx_vc3_capptag;
     cmd_resp_code = afu_event->afu_tlx_vc3_resp_code;
     //cmd_afutag = afu_event->afu_tlx_cmd_afutag;
+    if(Command::code == 0xb8)   // amo_rd_t
+        cmd_pl = 2;             // 4 bytes
     cmd_afutag = new_tag;
     printf("LoadCommand: sending command = 0x%x\n", Command::code);
     //if (Command::state != IDLE)
