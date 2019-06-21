@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
     config_param.mem_base_address = (uint64_t)rcacheline;
     config_param.machine_number = 0;
     config_param.status_address = (uint32_t)status;
-    config_param.cmdflag = 0x8;
+    config_param.cmdflag = 0xe;
     printf("status address = 0x%p\n", status);
     printf("rcacheline = 0x%p\n", rcacheline);
     printf("command = 0x%x\n", config_param.command);

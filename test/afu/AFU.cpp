@@ -748,6 +748,7 @@ AFU::resolve_tlx_afu_resp()
 	    break;
 		case TLX_RSP_READ_FAILED:
 	    printf("AFU: TLX read response failed\n");
+	    printf("AFU: afutag = 0x%x\n", afu_event.tlx_afu_vc0_afutag);
 	    break;
 		case TLX_RSP_CL_RD_RESP:
 	    break;
