@@ -803,7 +803,8 @@ static void _handle_kill_xlate( struct ocxl_afu *afu )
 	
 	if ( this_ea == NULL ) {
 	  // decided not to kill any eas
-	  debug_msg( "_handle_kill_xlate: NO EA selected" );
+	  // this debug message generates a lot of noise - only turn it on when abolutely necessary
+	  // debug_msg( "_handle_kill_xlate: NO EA selected" );
 	  return;
 	}
 
