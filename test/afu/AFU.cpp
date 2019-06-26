@@ -722,7 +722,7 @@ AFU::resolve_tlx_afu_resp()
 	    break;
 	  case TLX_RSP_TOUCH_RESP_T:	//vc2
 		  printf("AFU: Received TLX_RSP_TOUCH_RESP_T\n");
-		  printf("AFU: TA address = 0x%x\n", resp_pa_or_ta);
+		  printf("AFU: TA address = 0x%llx\n", resp_pa_or_ta);
 		  // write result back to ap offset, data, size
 		  descriptor.set_mmio_mem(3*8, (char*)&resp_pa_or_ta, 8);
 		  read_resp_completed = 1;
@@ -748,6 +748,7 @@ AFU::resolve_tlx_afu_resp()
 	    break;
 		case TLX_RSP_READ_FAILED:
 	    printf("AFU: TLX read response failed\n");
+	    printf("AFU: afutag = 0x%x\n", afu_event.tlx_afu_vc0_afutag);
 	    break;
 		case TLX_RSP_CL_RD_RESP:
 	    break;

@@ -138,38 +138,6 @@ int main(int argc, char *argv[])
 	   goto done;
     }
 
-    printf("Attempt rd_wnitc cmd\n");
-    config_param.command = AFU_CMD_RD_WNITC;
-    config_param.mem_size = 64;
-    config_param.machine_number = 0;
-    config_param.mem_base_address = (uint64_t)rcacheline;
-    config_param.status_address = (uint32_t)status;
-    printf("rcacheline = 0x%"PRIx64"\n", rcacheline);
-    printf("command = 0x%x\n",config_param.command);
-    printf("rcache address = 0x%"PRIx64"\n", config_param.mem_base_address);
-    rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
-    //status[0] = 0xff;
-    if(rc != -1) {
-      printf("Response = 0x%x\n", rc);
-      printf("config_enable_and_run_machine PASS\n");
-    }
-    else {
-      printf("FAILED: config_enable_and_run_machine\n");
-      goto done;
-    }
-    status[0] = 0xff;
-    printf("Polling read completion status\n");
-    while(status[0] != 0x00) {
-     nanosleep(&t, &t);
-     //printf("Polling write completion status = 0x%x\n", *status);
-    }
-    printf("clear_machine_config");
-    rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED, &result);
-    if(rc != 0) {
-       printf("Failed clear machine config for write command\n");
-       goto done;
-    }
-
     printf("Attempt xlate touch cmd.\n");
     //status[0] = 0xff;
     config_param.context = 0;
@@ -177,12 +145,12 @@ int main(int argc, char *argv[])
     //config_param.mem_size = CACHELINE;
     config_param.mem_size = 64;
     config_param.command = AFU_CMD_XLATE_TOUCH;
-    config_param.mem_base_address = (uint64_t)wcacheline;
+    config_param.mem_base_address = (uint64_t)rcacheline;
     config_param.machine_number = 0;
     config_param.status_address = (uint32_t)status;
-    config_param.cmdflag = 0x8;
+    config_param.cmdflag = 0xe;
     printf("status address = 0x%p\n", status);
-    printf("rcacheline = 0x%"PRIx64"\n", rcacheline);
+    printf("rcacheline = 0x%p\n", rcacheline);
     printf("command = 0x%x\n", config_param.command);
     printf("mem base address = 0x%"PRIx64"\n", config_param.mem_base_address);
     rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
@@ -208,47 +176,47 @@ int main(int argc, char *argv[])
 	   printf("Failed to clear machine config for read command\n");
 	   goto done;
     }
-    printf("Result = 0x%x\n", result);
-    // Attemp write command
-    printf("Attempt AFU_CMD_RD_WNITC_T command\n");
-    //status[0] = 0xff;
-    config_param.command = AFU_CMD_RD_WNITC_T;
+    printf("Result = 0x%"PRIx64"\n", result);
+    printf("Attempt amo rd wnitc t cmd\n");
+    config_param.command = AFU_CMD_AMO_RD_T;
+    config_param.cmdflag = 0xc;   // Fetch and Add
     config_param.mem_size = 64;
+    config_param.machine_number = 0;
     config_param.mem_base_address = (uint64_t)result;
-    //config_param.mem_dest_address = (uint64_t)result;
+    config_param.status_address = (uint32_t)status;
     printf("rcacheline = 0x%"PRIx64"\n", rcacheline);
-    printf("translated address = 0x%"PRIx64"\n", result);
     printf("command = 0x%x\n",config_param.command);
-    //printf("rcache address = 0x%"PRIx64"\n", config_param.mem_base_address);
+    printf("t rcache address = 0x%"PRIx64"\n", config_param.mem_base_address);
     rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
     //status[0] = 0xff;
     if(rc != -1) {
-	   printf("Response = 0x%x\n", rc);
- 	    printf("config_enable_and_run_machine PASS\n");
+      printf("Response = 0x%x\n", rc);
+      printf("config_enable_and_run_machine PASS\n");
     }
     else {
-	   printf("FAILED: config_enable_and_run_machine\n");
-	   goto done;
+      printf("FAILED: config_enable_and_run_machine\n");
+      goto done;
     }
     status[0] = 0xff;
-    printf("Polling write completion status\n");
+    printf("Polling read completion status\n");
     while(status[0] != 0x00) {
-	   nanosleep(&t, &t);
-	   //printf("Polling write completion status = 0x%x\n", *status);
+     nanosleep(&t, &t);
+     //printf("Polling write completion status = 0x%x\n", *status);
     }
-    printf("clear_machine_config");
+    printf("clear_machine_config\n");
     rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED, &result);
     if(rc != 0) {
-	     printf("Failed clear machine config for write command\n");
+       printf("Failed clear machine config for write command\n");
        goto done;
     }
+
     printf("Attempt dma w cmd 0x20\n");
     config_param.command = AFU_CMD_DMA_W;
     config_param.mem_size = 64;
     config_param.machine_number = 0;
     config_param.mem_base_address = (uint64_t)wcacheline;
     config_param.status_address = (uint32_t)status;
-    printf("rcacheline = 0x%"PRIx64"\n", rcacheline);
+    printf("wcacheline = 0x%"PRIx64"\n", wcacheline);
     printf("command = 0x%x\n",config_param.command);
     printf("rcache address = 0x%"PRIx64"\n", config_param.mem_base_address);
     rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);

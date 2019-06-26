@@ -160,7 +160,7 @@ LoadCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     uint16_t  cmd_bdf, cmd_actag, cmd_afutag, cmd_capptag;
     uint16_t cmd_pasid;
     int  rc, i;
-    uint8_t  ea_addr[9];
+    uint8_t  ea_addr[8];
 
     memcpy((void*)&ea_addr, (void*) &address, sizeof(uint64_t));
 
@@ -179,6 +179,8 @@ LoadCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     cmd_capptag = afu_event->afu_tlx_vc3_capptag;
     cmd_resp_code = afu_event->afu_tlx_vc3_resp_code;
     //cmd_afutag = afu_event->afu_tlx_cmd_afutag;
+    if(Command::code == 0xb8)   // amo_rd_t
+        cmd_pl = 2;             // 4 bytes
     cmd_afutag = new_tag;
     printf("LoadCommand: sending command = 0x%x\n", Command::code);
     //if (Command::state != IDLE)
@@ -206,7 +208,7 @@ LoadCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     Command::state = WAITING_DATA;
     Command::tag = new_tag;
     printf("data = 0x");
-    for(i=0; i<9; i++)
+    for(i=7; i>=0; i--)
     	printf("%02x",(uint8_t)ea_addr[i]);
     printf("\n");
     printf("Command: exit send load command\n");
