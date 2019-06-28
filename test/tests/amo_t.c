@@ -182,7 +182,8 @@ int main(int argc, char *argv[])
     config_param.cmdflag = 0xc;   // Fetch and Add
     config_param.mem_size = 64;
     config_param.machine_number = 0;
-    config_param.mem_base_address = (uint64_t)result;
+    //config_param.mem_base_address = (uint64_t)result;
+    config_param.mem_base_address = (uint64_t)rcacheline;
     config_param.status_address = (uint32_t)status;
     printf("rcacheline = 0x%"PRIx64"\n", rcacheline);
     printf("command = 0x%x\n",config_param.command);
@@ -198,7 +199,7 @@ int main(int argc, char *argv[])
       goto done;
     }
     status[0] = 0xff;
-    printf("Polling read completion status\n");
+    printf("Polling amo read completion status\n");
     while(status[0] != 0x00) {
      nanosleep(&t, &t);
      //printf("Polling write completion status = 0x%x\n", *status);
