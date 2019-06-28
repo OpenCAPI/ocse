@@ -396,7 +396,7 @@ static int _xlate_addr(struct ocxl_afu *afu, uint64_t *addr, uint8_t form_flag)
       while ( this_ea != NULL ) {
 	// compare part of addr to ta based on pg_size
 	taddr = *addr;
-	if ( this_ea->ta == ( taddr & (~(uint64_t)0 << (this_ea->pg_size-1))) ) break; // found matching ea, use this entry
+	if ( this_ea->ta == ( taddr & (~(uint64_t)0 << this_ea->pg_size)) ) break; // found matching ea, use this entry
 	
       }
 
@@ -406,7 +406,7 @@ static int _xlate_addr(struct ocxl_afu *afu, uint64_t *addr, uint8_t form_flag)
       base = this_ea->ea ;
 
       // grab the offset part of the address
-      base_mask = ~(uint64_t)0 << (this_ea->pg_size-1);
+      base_mask = ~(uint64_t)0 << this_ea->pg_size;
       offset_mask = ~base_mask;
       offset = taddr & offset_mask;
 
@@ -940,7 +940,7 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 	        this = afu->eas;
 		prev = NULL;
 	        while (this != NULL) {
-		  if ( this->ta == (addr & (~(uint64_t)0 << (this->pg_size-1))) ) break; // found matching ea, use values
+		  if ( this->ta == (addr & (~(uint64_t)0 << this->pg_size)) ) break; // found matching ea, use values
 		  prev = this;
 		  this = this->_next;
 		}
@@ -971,7 +971,7 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 		        // else add list entry to front and use it
 		        this = afu->eas;
 			while (this != NULL) {
-			        if ( this->ea == (addr & (~(uint64_t)0 << (this->pg_size-1))) ) break; // found matching ea, use values; address matching must be based on the based address of a given pg_size
+			        if ( this->ea == (addr & (~(uint64_t)0 << this->pg_size)) ) break; // found matching ea, use values; address matching must be based on the based address of a given pg_size
 				this = this->_next;
 			}
 		
@@ -980,7 +980,7 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 			        // add entry to head of list
 			        this = (struct ocxl_ea_area *)calloc( 1, sizeof( struct ocxl_ea_area ) );
 				this->pg_size = 0x10; // 2^16 (64k) pages to represent the linux environment - this could maybe be random
-				this->ea = addr & (~(uint64_t)0 << (this->pg_size-1)); // ea and ta must be truncated to represent the base address of a give pg_size.
+				this->ea = addr & (~(uint64_t)0 << this->pg_size); // ea and ta must be truncated to represent the base address of a give pg_size.
 				this->ta = this->ea | (~(uint64_t)0 << 60);
 				this->pa = 0x0;
 				this->mh = 0;
