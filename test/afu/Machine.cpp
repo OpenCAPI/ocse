@@ -125,7 +125,7 @@
         case AFU_CMD_AMO_RD_T:
             printf("Machine: amo_rd.t pl = 0x%x and cmdflag=0x%x\n", 
                 afu_event->afu_tlx_vc3_pl, afu_event->afu_tlx_vc3_cmdflag);
-            memory_base_address = memory_base_address || 0xF000000000000000LL;
+            memory_base_address = memory_base_address | 0xF000000000000000LL;
             printf("Machine: translated_address = 0x%llx\n", memory_base_address);
             command = new LoadCommand(command_code, command_address_parity,
                 command_code_parity, command_tag_parity,
@@ -144,6 +144,13 @@
         printf("Machine: Sending AFU_CMD_XLATE_TOUCH\n");
         translated_address = memory_base_address & 0x00007FFF;
         printf("translated_address = 0x%x\n", translated_address);
+        command = new OtherCommand(command_code, command_address_parity,
+            command_code_parity, command_tag_parity, buffer_read_parity);
+        break;
+    case AFU_CMD_XLATE_RELEASE: // vc3
+        printf("Machine: sending AFU_CMD_XLATE_RELEASE\n");
+        memory_base_address = memory_base_address | 0xF000000000000000LL;
+        printf("memory_base_address = 0x%llx\n", memory_base_address);
         command = new OtherCommand(command_code, command_address_parity,
             command_code_parity, command_tag_parity, buffer_read_parity);
         break;

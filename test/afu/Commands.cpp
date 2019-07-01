@@ -112,6 +112,17 @@ OtherCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
             cmd_pl, cmd_os, cmd_be, cmd_flag, cmd_endian, cmd_bdf, 
             cmd_pasid, cmd_pg_size, cmd_mad, cmd_capptag, cmd_resp_code);
         break;
+    case AFU_CMD_XLATE_RELEASE:
+        printf("Commands: Sending AFU_CMD_XLATE_RELEASE\n");
+        printf("translated address = 0x");
+        for(i=7; i>=0; i--)
+            printf("%02x",(uint8_t)ea_addr[i]);
+        printf("\n");
+        rc = afu_tlx_send_cmd_vc3(afu_event, Command::code, 
+            cmd_actag, cmd_stream_id, ea_addr, cmd_afutag, cmd_dl, 
+            cmd_pl, cmd_os, cmd_be, cmd_flag, cmd_endian, cmd_bdf, 
+            cmd_pasid, cmd_pg_size, cmd_mad, cmd_capptag, cmd_resp_code);
+        break;    
 	default:
 	    break;
     }
