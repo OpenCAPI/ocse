@@ -923,7 +923,7 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
    	        // pg_size will also have to match
 	        // also need to pull page size
 	        if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
-		  warn_msg("Socket failure getting form_flag ");
+		  warn_msg("Socket failure getting pg_size");
 		  _all_idle(afu);
 		  return;
 		}
@@ -945,7 +945,7 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 		// pg_size should match - but what if it doesn't?  do we silently not release?
 		
 		if ( this->pg_size != pg_size ) {
-		  warn_msg( "RELEASE of ta @ 0x%016lx did not have a matching page size.  expected %d, received %d", addr, this->pg_size, pg_size );
+		  warn_msg( "RELEASE of ta @ 0x%016lx did not have a matching page size.  expected %d, received %d.  releasing anyway", addr, this->pg_size, pg_size );
 		}
 
 		// release this entry
