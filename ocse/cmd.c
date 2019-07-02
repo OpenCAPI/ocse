@@ -1505,9 +1505,9 @@ void handle_touch(struct cmd *cmd)
 		// Send xlate touch request to client
 		buffer = (uint8_t *) malloc(11);
 		buffer[0] = (uint8_t) OCSE_XLATE_RELEASE;
-		buffer[1] = (uint8_t) event->form_flag;
-		addr = (uint64_t *) & (buffer[2]);
+		addr = (uint64_t *) & (buffer[1]);
 		*addr = htonll(event->addr);
+		buffer[9] = (uint8_t) event->form_flag;
 		buffer[10] = event->cmd_pg_size;
 		debug_msg("%s:XLATE RELEASE  afutag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
 			   event->afutag, event->addr);

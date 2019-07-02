@@ -876,6 +876,7 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
         uint64_t addr;
         uint64_t ta;
 	uint8_t cmd_flag;
+	uint8_t pg_size;
 	uint8_t buffer[10];
 	int size;
 	struct ocxl_ea_area *prev;
@@ -885,6 +886,7 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 
 	debug_msg("_handle_xlate");
 	// retrieve additional bytes from socket
+	// touch and release will send addr
 	if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer, -1, 0) < 0) {
 	        warn_msg("Socket failure getting memory touch addr");
 		_all_idle(afu);
@@ -894,9 +896,7 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 	addr = ntohll(addr);
 	debug_msg("  of addr 0x%016" PRIx64, addr);
 
-	// release will send pg_size
-	// touch will send cmd_flag
-
+	// touch and release will send cmd_flag
 	if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
 		warn_msg("Socket failure getting form_flag ");
 		_all_idle(afu);
@@ -937,6 +937,14 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 	case OCSE_XLATE_RELEASE:
 	        // search ea list for ta matching addr
    	        // pg_size will also have to match
+	        // also need to pull page size
+	        if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
+		  warn_msg("Socket failure getting form_flag ");
+		  _all_idle(afu);
+		  return;
+		}
+		memcpy( (char *)&pg_size, buffer, sizeof( pg_size ) );
+		debug_msg( "  pg_size=%x", pg_size);
 	        this = afu->eas;
 		prev = NULL;
 	        while (this != NULL) {
