@@ -50,7 +50,8 @@ int main(int argc, char *argv[])
     int rc;
     char *rcacheline, *wcacheline;
     char *status;
-    uint64_t result, t_address;
+    uint64_t result, t_address, ta_offset;
+    uint8_t t_page_size;
     ocxl_afu_h mafu_h;
     ocxl_mmio_h pp_mmio_h;
     MachineConfig machine_config;
@@ -177,13 +178,18 @@ int main(int argc, char *argv[])
 	   goto done;
     }
     t_address = result;
+    t_page_size = t_address & 0x003F;
+    t_address = t_address & 0xFFFFFFFFFFFFFF00;
+    ta_offset = (uint64_t)rcacheline & 0x0000FFFF;
     printf("Result = 0x%"PRIx64"\n", result);
+    //t_address = t_address + ta_offset;
+    printf("new t_address = 0x%"PRIx64"\n", t_address);
     printf("Attempt amo rd wnitc t cmd\n");
     config_param.command = AFU_CMD_AMO_RD_T;
     config_param.cmdflag = 0xc;   // Fetch and Add
     config_param.mem_size = 64;
     config_param.machine_number = 0;
-    config_param.mem_base_address = result;
+    config_param.mem_base_address = t_address + ta_offset;
     //config_param.mem_base_address = (uint64_t)rcacheline;
     config_param.status_address = (uint32_t)status;
     printf("rcacheline = 0x%"PRIx64"\n", rcacheline);
@@ -253,7 +259,7 @@ int main(int argc, char *argv[])
     config_param.command = AFU_CMD_XLATE_RELEASE;
     config_param.mem_size = 64;
     config_param.machine_number = 0;
-    config_param.mem_base_address = t_address;
+    config_param.mem_base_address = t_address | t_page_size;
     //config_param.mem_base_address = (uint64_t)rcacheline;
     config_param.status_address = (uint32_t)status;
     printf("rcacheline = 0x%"PRIx64"\n", rcacheline);
