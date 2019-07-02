@@ -910,23 +910,7 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 	// if the touch is requesting a TA, we have to build a translation table entry and return a "TA"
 	// add data to the OCSE_MEM_SUCCESS message
 
-	// add a reason code to the fail message
-	if (!_testmemaddr((uint8_t *) addr)) {
-		if (_handle_dsi(afu, addr) < 0) {
-			perror("DSI Failure");
-			return;
-		}
-		warn_msg("TOUCH of invalid addr @ 0x%016" PRIx64 "", addr);
-		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
-		buffer[1] = 0xc;
-		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
-			afu->opened = 0;
-			afu->attached = 0;
-		}
-		return;
-	}
-
-	// if this is a release, search the eas' for a matching address, and free it.
+	// if this is a release, search the eas' for a matching translated address, and free it.
 	// if this is a touch, possibly create an eas 
 	size = 0;
 	buffer[size] = OCSE_MEM_SUCCESS;
@@ -945,10 +929,11 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 		}
 		memcpy( (char *)&pg_size, buffer, sizeof( pg_size ) );
 		debug_msg( "  pg_size=%x", pg_size);
+
 	        this = afu->eas;
 		prev = NULL;
 	        while (this != NULL) {
-		  if ( this->ta == (addr & (~(uint64_t)0 << this->pg_size)) ) break; // found matching ea, use values
+		  if ( this->ta == (addr & (~(uint64_t)0 << this->pg_size)) ) break; // found matching ta, use values
 		  prev = this;
 		  this = this->_next;
 		}
@@ -956,6 +941,13 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 		if ( this == NULL ) {
 		        return;
 		}
+
+		// pg_size should match - but what if it doesn't?  do we silently not release?
+		
+		if ( this->pg_size != pg_size ) {
+		  warn_msg( "RELEASE of ta @ 0x%016lx did not have a matching page size.  expected %d, received %d", addr, this->pg_size, pg_size );
+		}
+
 		// release this entry
 		if ( prev == NULL ) {
 		  // update the afu->eas to point to this->_next
@@ -971,6 +963,22 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 	case OCSE_MEMORY_TOUCH:
 	        // Other function codes (0x4=heavy weight touch, 0x2=write access requested, and 0x1=age out) are not supported at this time
 	        // if function code is request a ta 
+	        // add a reason code to the fail message
+	        if (!_testmemaddr((uint8_t *) addr)) {
+		        if (_handle_dsi(afu, addr) < 0) {
+			        perror("DSI Failure");
+				return;
+			}
+			warn_msg("TOUCH of invalid addr @ 0x%016" PRIx64 "", addr);
+			buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
+			buffer[1] = 0xc;
+			if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
+			  afu->opened = 0;
+			  afu->attached = 0;
+			}
+			return;
+		}
+
 	        if ( (cmd_flag & 0x08 ) == 0x08 ) {
 		        // create a translation table entry
 		        // translation table entry contains ea, ta (= ea), pa=0, mem_hit=0
