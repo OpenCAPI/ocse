@@ -115,6 +115,9 @@ OtherCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     case AFU_CMD_XLATE_RELEASE:
         printf("Commands: Sending AFU_CMD_XLATE_RELEASE\n");
         printf("translated address = 0x");
+        cmd_pg_size = address & 0x003F;
+        address = address & 0xFFFFFFFFFFFFFF00;
+        memcpy((void*)&ea_addr, (void*) &address, sizeof(uint64_t));
         for(i=7; i>=0; i--)
             printf("%02x",(uint8_t)ea_addr[i]);
         printf("\n");

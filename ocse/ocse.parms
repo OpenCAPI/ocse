@@ -38,6 +38,7 @@ SEED:1461247482
 # Lower values introduces delays on responses and allows for greater
 # randomization of response ordering.
 RESPONSE_PERCENT:10,20
+#RESPONSE_PERCENT:55,65
 
 # Percentage chance of OCL responding with PAGED for any command response.
 #PAGED_PERCENT:2,4

@@ -720,9 +720,11 @@ AFU::resolve_tlx_afu_resp()
 			printf("AFU: received TLX_RSP_READ_RESP\n");
 			printf("AFU: touch response t address = 0x%x\n", resp_pa_or_ta);
 	    break;
-	  case TLX_RSP_TOUCH_RESP_T:	//vc2
+	  case TLX_RSP_TOUCH_RESP_T:	//vc0
 		  printf("AFU: Received TLX_RSP_TOUCH_RESP_T\n");
 		  printf("AFU: TA address = 0x%llx\n", resp_pa_or_ta);
+		  printf("AFU: response page size = 0x%x\n", resp_pg_size);
+		  resp_pa_or_ta = resp_pa_or_ta | resp_pg_size;
 		  // write result back to ap offset, data, size
 		  descriptor.set_mmio_mem(3*8, (char*)&resp_pa_or_ta, 8);
 		  read_resp_completed = 1;
