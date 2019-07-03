@@ -100,6 +100,7 @@ struct cmd_event {
 	uint32_t dpartial;
 	uint64_t wr_be;
 	uint16_t resp_bytes_sent;
+	uint16_t service_q_slot;
 	uint8_t cmd_flag;
 	uint8_t cmd_endian;
 	uint8_t cmd_pg_size;

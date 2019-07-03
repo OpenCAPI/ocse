@@ -246,12 +246,16 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	}
 
 	head = &(cmd->list);
-	while ((*head != NULL) && !allow_reorder(cmd->parms))
+	event->service_q_slot=1;
+	if (*head == NULL)  
+		printf ("FOUND THE FIRST CMD; START COUNTING NOW\n");
+	while ((*head != NULL) && !allow_reorder(cmd->parms)){
 		head = &((*head)->_next);
+		event->service_q_slot +=1;}
 	event->_next = *head;
 	*head = event;
-	debug_msg("_add_cmd:created cmd_event @ 0x%016"PRIx64":command=0x%02x, size=0x%04x, type=0x%02x, afutag=0x%04x, state=0x%03x cmd_data_is_valid=0x%x, form_flag=0x%x",
-		 event, event->command, event->size, event->type, event->afutag, event->state, cmd_data_is_valid, form_flag );
+	debug_msg("_add_cmd:created cmd_event @ 0x%016"PRIx64":command=0x%02x, size=0x%04x, type=0x%02x, afutag=0x%04x, state=0x%03x cmd_data_is_valid=0x%x, form_flag=0x%x, service_q_slot=0x%x",
+		 event, event->command, event->size, event->type, event->afutag, event->state, cmd_data_is_valid, form_flag, event->service_q_slot );
 	debug_cmd_add(cmd->dbg_fp, cmd->dbg_id, afutag, context, command);
 	// Check to see if event->cmd_data_is_valid is, and if so, set event->buffer_data
 	// TODO check to see if data is bad...if so, what???
@@ -683,10 +687,11 @@ static void _parse_cmd(struct cmd *cmd,
                 _assign_actag( cmd, cmd_bdf, cmd_pasid, cmd_actag );
 		break;
 		// Memory Reads
+	case AFU_CMD_RD_WNITC_T_S:
+		debug_msg("YES! PreSYNC rd_wnitc_t_s !!");
 	case AFU_CMD_RD_WNITC:
 	case AFU_CMD_RD_WNITC_N:
 	case AFU_CMD_RD_WNITC_T:
-	case AFU_CMD_RD_WNITC_T_S:
 		debug_msg("YES! AFU cmd is some sort of read\n");
 		// calculate size from dl
 		if (cmd_data_is_valid)
@@ -694,10 +699,11 @@ static void _parse_cmd(struct cmd *cmd,
 		_add_read(cmd, cmd_actag, cmd_afutag, cmd_opcode,
 			 cmd_ea_ta_or_obj, dl_to_size( cmd_dl ), cmd_stream_id);
 		break;
+	case AFU_CMD_PR_RD_WNITC_T_S:
+		debug_msg("YES! PreSYNC pr_rd_wnitc_t_s !!");
 	case AFU_CMD_PR_RD_WNITC:
 	case AFU_CMD_PR_RD_WNITC_N:
 	case AFU_CMD_PR_RD_WNITC_T:
-	case AFU_CMD_PR_RD_WNITC_T_S:
 		debug_msg("YES! AFU cmd is some sort of partial read\n");
 		// calculate size from pl
 		if (cmd_data_is_valid)
@@ -706,52 +712,58 @@ static void _parse_cmd(struct cmd *cmd,
 			 cmd_ea_ta_or_obj, pl_to_size( cmd_pl ), cmd_stream_id);
 		break;
 		// Memory Writes
+	case AFU_CMD_DMA_W_T_P_S:
+		debug_msg("YES! PreSYNC dma_w_t_p_s !!");
 	case AFU_CMD_DMA_W:
 	case AFU_CMD_DMA_W_N:
 	case AFU_CMD_DMA_W_T_P:
-	case AFU_CMD_DMA_W_T_P_S:
 		debug_msg("YES! AFU cmd is some sort of write\n");
 		_add_write(cmd, cmd_actag, cmd_afutag, cmd_opcode,
 			  cmd_ea_ta_or_obj, dl_to_size( cmd_dl ), cmd_data_is_valid, 0, cmd_stream_id);
 		break;
+	case AFU_CMD_DMA_PR_W_T_P_S:
+		debug_msg("YES! PreSYNC dma_pr_w_t_p_s !!");
 	case AFU_CMD_DMA_PR_W:
 	case AFU_CMD_DMA_PR_W_N:
 	case AFU_CMD_DMA_PR_W_T_P:
-	case AFU_CMD_DMA_PR_W_T_P_S:
 		debug_msg("YES! AFU cmd is some sort of partial write\n");
 		_add_write(cmd, cmd_actag, cmd_afutag, cmd_opcode,
 			  cmd_ea_ta_or_obj, pl_to_size( cmd_pl ), cmd_data_is_valid, 0, cmd_stream_id);
 		break;
 		// Memory Writes with Byte Enable
+	case AFU_CMD_DMA_W_BE_T_P_S:
+		debug_msg("YES! PreSYNC dma_w_be_t_p_s !!");
 	case AFU_CMD_DMA_W_BE:
 	case AFU_CMD_DMA_W_BE_N:
 	case AFU_CMD_DMA_W_BE_T_P:
-	case AFU_CMD_DMA_W_BE_T_P_S:
 		debug_msg("YES! AFU cmd is some sort of write w/BE\n");
 		_add_write(cmd, cmd_actag, cmd_afutag, cmd_opcode,
 			  cmd_ea_ta_or_obj, 64, cmd_data_is_valid, cmd_be, cmd_stream_id);
 		break;
 		// AMO reads and writes
+	case AFU_CMD_AMO_RD_T_S: 
+		debug_msg("YES! PreSYNC amo_rd_t_s !!");
 	case AFU_CMD_AMO_RD:
 	case AFU_CMD_AMO_RD_N: 
 	case AFU_CMD_AMO_RD_T: 
-	case AFU_CMD_AMO_RD_T_S: 
 		debug_msg("YES! AFU cmd is some sort of AMO read\n");
 		_add_amo(cmd, cmd_actag, cmd_afutag, cmd_opcode, CMD_AMO_RD,
 			  cmd_ea_ta_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag, cmd_endian, cmd_stream_id);
 		break;
+	case AFU_CMD_AMO_RW_T_S:
+		debug_msg("YES! PreSYNC amo_rw_t_s !!");
 	case AFU_CMD_AMO_RW:
 	case AFU_CMD_AMO_RW_N:
 	case AFU_CMD_AMO_RW_T:
-	case AFU_CMD_AMO_RW_T_S:
 		debug_msg("YES! AFU cmd is some sort of AMO read/write w/cmd_pl= 0x%x\n", cmd_pl);
 		_add_amo(cmd, cmd_actag, cmd_afutag, cmd_opcode, CMD_AMO_RW,
 			  cmd_ea_ta_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag, cmd_endian, cmd_stream_id);
 		break;
+	case AFU_CMD_AMO_W_T_P_S:
+		debug_msg("YES! PreSYNC amo_w_t_p_s !!");
 	case AFU_CMD_AMO_W:
 	case AFU_CMD_AMO_W_N:
 	case AFU_CMD_AMO_W_T_P:
-	case AFU_CMD_AMO_W_T_P_S:
 		debug_msg("YES! AFU cmd is some sort of AMO read or write");
 		_add_amo(cmd, cmd_actag, cmd_afutag, cmd_opcode, CMD_AMO_WR,
 			  cmd_ea_ta_or_obj, cmd_pl, cmd_data_is_valid, cmd_flag, cmd_endian, cmd_stream_id);
@@ -762,10 +774,11 @@ static void _parse_cmd(struct cmd *cmd,
 		_add_interrupt(cmd, cmd_actag, cmd_afutag, cmd_opcode,
 			  cmd_ea_ta_or_obj, pl_to_size( cmd_pl), cmd_data_is_valid, cmd_flag, cmd_stream_id);
 		break;
-	case AFU_CMD_INTRP_REQ:
 	case AFU_CMD_INTRP_REQ_S:
-	case AFU_CMD_WAKE_HOST_THRD:
 	case AFU_CMD_WAKE_HOST_THRD_S:
+		debug_msg("YES! PreSYNC intr_req_s OR wake_host_thread_s !!");
+	case AFU_CMD_INTRP_REQ:
+	case AFU_CMD_WAKE_HOST_THRD:
 		debug_msg("YES! AFU cmd is either INTRPT REQ or WAKE HOST THREAD");
 		_add_interrupt(cmd, cmd_actag, cmd_afutag, cmd_opcode,
 			  cmd_ea_ta_or_obj, 0, cmd_data_is_valid, cmd_flag, cmd_stream_id);
@@ -2025,9 +2038,8 @@ void handle_response(struct cmd *cmd)
 	event = *head;
 
 	// Randomly decide not to drive response yet - skip this for now
-	// if ( ( event == NULL ) || ( ( event->client_state == CLIENT_VALID ) &&
+	//	if ( ( event == NULL ) || ( ( event->client_state == CLIENT_VALID ) &&
 	// 			    ( !allow_resp(cmd->parms) ) ) ) {
-	//      debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 "skipped because suppressed by allow_resp", cmd->afu_name, event );
 	// 	return;
 	// }
 
@@ -2037,31 +2049,11 @@ void handle_response(struct cmd *cmd)
 	  // maybe we should free it too???
 	  return;
 	}
-
-	/*
-	if (event->command == AFU_RSP_KILL_XLATE_DONE) {
-		// Send kill xlate done response to client
-		buffer = (uint8_t *) malloc(4);
-		buffer[0] = (uint8_t) OCSE_XLATE_KILL_DONE;
-		buffer[1] = (uint8_t) event->resp;
-		resp_capptag = (uint16_t *) & (buffer[2]);
-		*resp_capptag = htonll(event->resp_capptag);
-		debug_msg("KILL_XLATE_DONE   capptag=0x%02x resp_code=0x%2x", event->resp_capptag,
-			   event->resp);
-		if (put_bytes(client->fd, 4, buffer, cmd->dbg_fp, cmd->dbg_id,
-			      event->context) < 0) {
-			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
-		}
-		debug_cmd_response(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->resp_opcode, event->resp);
-	        debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", free event",
-		    cmd->afu_name, event );
-		*head = event->_next;
-	 	free(event->data);
-	 	free(event);
-		return;
-
-        } 
-	*/
+	// FIXME UNCOMMENT THE FOLLOWING 4 LINES TO RETURN RESPONSES OUT OF ORDER TO AFU 
+ 	//if (!allow_resp(cmd->parms)) {
+	//  debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 " skipped because !allow_resp", cmd->afu_name, event );
+	//  return;
+	//}
 
 	if (((event->form_flag & 0x2) == 0x2) && (event->state == MEM_DONE)) { // cmd is posted; no resp needed so free structs
 		if (event->type == CMD_FAILED)  // print INFO_MSG to let user know error code if debug isn't turned on
@@ -2081,10 +2073,11 @@ void handle_response(struct cmd *cmd)
 
 	//`drive_resp:
 	// debug - dump the event we picked...
-	debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", command=0x%x, afutag=0x%08x, type=0x%02x, state=0x%02x, resp=0x%x",
+	debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", command=0x%x, resp_opcode= 0x%x, afutag=0x%08x, type=0x%02x, state=0x%02x, resp=0x%x",
 		   cmd->afu_name,
 		   event,
 		   event->command,
+		   event->resp_opcode,
 		   event->afutag,
 		   event->type,
 		   event->state,
