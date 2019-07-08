@@ -211,6 +211,10 @@ int main(int argc, char *argv[])
      nanosleep(&t, &t);
      //printf("Polling write completion status = 0x%x\n", *status);
     }
+    printf("rcacheline = 0x");
+    for(i=0; i<8; i++)
+        printf("%02x", (uint8_t)rcacheline[i]);
+    printf("\n");
     printf("clear_machine_config\n");
     rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED, &result);
     if(rc != 0) {
@@ -218,12 +222,13 @@ int main(int argc, char *argv[])
        goto done;
     }
 
-    printf("Attempt dma w cmd 0x20\n");
-    config_param.command = AFU_CMD_DMA_W;
+    printf("Attempt amo w t cmd 0xCA\n");
+    config_param.command = AFU_CMD_AMO_W_T_P;
     config_param.mem_size = 64;
     config_param.machine_number = 0;
-    config_param.mem_base_address = (uint64_t)wcacheline;
+    config_param.mem_base_address = t_address + ta_offset;
     config_param.status_address = (uint32_t)status;
+    config_param.cmdflag = 0;
     printf("wcacheline = 0x%"PRIx64"\n", wcacheline);
     printf("command = 0x%x\n",config_param.command);
     printf("rcache address = 0x%"PRIx64"\n", config_param.mem_base_address);
@@ -238,14 +243,14 @@ int main(int argc, char *argv[])
       goto done;
     }
     status[0] = 0xff;
-    printf("Polling dma w completion status\n");
+    printf("Polling amo w t completion status\n");
     while(status[0] != 0x00) {
      nanosleep(&t, &t);
      //printf("Polling write completion status = 0x%x\n", *status);
     }
-    printf("wcacheline = 0x");
-    for(i=0; i<CACHELINE; i++) {
-     printf("%02x", (uint8_t)wcacheline[i]);
+    printf("rcacheline = 0x");
+    for(i=0; i<8; i++) {
+     printf("%02x", (uint8_t)rcacheline[i]);
     }
     printf("\n");
     printf("clear_machine_config\n");
@@ -275,12 +280,12 @@ int main(int argc, char *argv[])
       printf("FAILED: config_enable_and_run_machine\n");
       goto done;
     }
-    status[0] = 0xff;
-    printf("Polling dma w completion status\n");
-    while(status[0] != 0x00) {
-     nanosleep(&t, &t);
+    //status[0] = 0xff;
+    //printf("Polling xlate release completion status\n");
+    //while(status[0] != 0x00) {
+    // nanosleep(&t, &t);
      //printf("Polling write completion status = 0x%x\n", *status);
-    }
+    //}
     status[0] = 0x55;	// send test complete status
     printf("Polling test completion status\n");
     while(status[0] != 0x00) {
