@@ -768,7 +768,7 @@ static void _handle_kill_xlate( struct ocxl_afu *afu )
 	uint8_t pg_size;
 	uint16_t bdf;
 	uint32_t pasid;
-	uint8_t buffer[15];
+	uint8_t buffer[17];
 	int size;
 
 	if (!afu) fatal_msg("NULL afu passed to libocxl.c:_handle_kill_xlate");
