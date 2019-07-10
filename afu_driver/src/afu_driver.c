@@ -633,36 +633,38 @@ void tlx_bfm(
       invalidVal = 0;
       c_afu_tlx_dcp0_rd_req  	= (afu_tlx_dcp0_rd_req_top & 0x2) ? 0 : (afu_tlx_dcp0_rd_req_top & 0x1);
       invalidVal		+= afu_tlx_dcp0_rd_req_top & 0x2;
-      c_tlx_dcp0_data_pending_d2 = c_tlx_dcp0_data_pending_d1;
+      c_tlx_dcp0_data_pending_d2 = c_tlx_dcp0_data_pending_d2 + c_tlx_dcp0_data_pending_d1;
       c_tlx_dcp0_data_pending_d1 = c_tlx_dcp0_data_pending;
       if(c_afu_tlx_dcp0_rd_req)
       {
         c_afu_tlx_dcp0_rd_cnt	= (afu_tlx_dcp0_rd_cnt_top->aval) & 0x7;
         invalidVal		+= (afu_tlx_dcp0_rd_cnt_top->bval) & 0x7;
-	event.dcp0_data_rd_cnt = event.dcp0_data_rd_cnt + decode_rd_cnt( c_afu_tlx_dcp0_rd_cnt );
+        c_tlx_dcp0_data_pending	= decode_rd_cnt( c_afu_tlx_dcp0_rd_cnt );
         printf("%08lld: ", (long long) c_sim_time);
         int resp_code = afu_tlx_dcp0_data_read_req(&event, 
                             c_afu_tlx_dcp0_rd_req, c_afu_tlx_dcp0_rd_cnt);
         printf(" The AFU to DCP0 Data Request -- with the method resp code as 0x%02x \n", resp_code);
-        c_tlx_dcp0_data_pending	= 1;
+      } else {
+        c_tlx_dcp0_data_pending	= 0;
       }
 
       // Table 5: TLX Receiver ¿ TLX to AFU DCP1 Data Interface
       invalidVal = 0;
       c_afu_tlx_dcp1_rd_req  	= (afu_tlx_dcp1_rd_req_top & 0x2) ? 0 : (afu_tlx_dcp1_rd_req_top & 0x1);
       invalidVal		+= afu_tlx_dcp1_rd_req_top & 0x2;
-      c_tlx_dcp1_data_pending_d2 = c_tlx_dcp1_data_pending_d1;
+      c_tlx_dcp1_data_pending_d2 = c_tlx_dcp1_data_pending_d2 + c_tlx_dcp1_data_pending_d1;
       c_tlx_dcp1_data_pending_d1 = c_tlx_dcp1_data_pending;
       if(c_afu_tlx_dcp1_rd_req)
       {
         c_afu_tlx_dcp1_rd_cnt	= (afu_tlx_dcp1_rd_cnt_top->aval) & 0x7;
         invalidVal		+= (afu_tlx_dcp1_rd_cnt_top->bval) & 0x7;
-	event.dcp1_data_rd_cnt = event.dcp1_data_rd_cnt + decode_rd_cnt( c_afu_tlx_dcp1_rd_cnt );
+        c_tlx_dcp1_data_pending	= decode_rd_cnt( c_afu_tlx_dcp1_rd_cnt );
         printf("%08lld: ", (long long) c_sim_time);
         int resp_code = afu_tlx_dcp1_data_read_req(&event, 
                             c_afu_tlx_dcp1_rd_req, c_afu_tlx_dcp1_rd_cnt);
         printf(" The AFU to DCP1 Data Request -- with the method resp code as 0x%02x \n", resp_code);
-        c_tlx_dcp1_data_pending	= 1;
+      }else {
+        c_tlx_dcp1_data_pending	= 0;
       }
 
       // Table 13: TLX Framer - AFU to TLX  AP  Configuration Response Interface (VCO, DCP0)
@@ -917,7 +919,7 @@ void tlx_bfm(
 	  // the afu will issue afu_tlx_dcp0_rd_req later to tell us to start to pump the data out
 	  // imbed the check for tlx_afu_dcp0_data_valid in here to grab the data, if any.
 	  // event->tlx_afu_dcp0_data has all the data
-	  // use dl to create dl 64 B enties in a fifo linked list dcp0_data_head, dcp0_data_tail, dcp0_data_rd_cnt
+	  // use dl to create dl 64 B enties in a fifo linked list dcp0_data_head, dcp0_data_tail
 	  // cdata_pkt contain _next, and 64 B of cdata
           if(event.tlx_afu_vc0_dl == 0) {
             new_line_cnt = 1;
@@ -954,19 +956,13 @@ void tlx_bfm(
       }
 
       // Table 3: TLX to AFU DCP0 Data Interface
-      if(c_tlx_dcp0_data_pending_d2 && (event.dcp0_data_rd_cnt > 0))
+      if(c_tlx_dcp0_data_pending_d2 )
       {
         *tlx_afu_dcp0_data_bdi_top     = (event.tlx_afu_dcp0_data_bdi) & 0x1;
         setMyCacheLine( tlx_afu_dcp0_data_bus_top, event.dcp0_data_head->data );
         *tlx_afu_dcp0_data_valid_top = 1;
         clk_tlx_dcp0_data_val = CLOCK_EDGE_DELAY;
-        event.dcp0_data_rd_cnt = event.dcp0_data_rd_cnt - 1;
-        if(event.dcp0_data_rd_cnt == 0)
-        {
-          c_tlx_dcp0_data_pending = 0;
-          c_tlx_dcp0_data_pending_d1 = 0;
-          c_tlx_dcp0_data_pending_d2 = 0;
-        }
+	--c_tlx_dcp0_data_pending_d2;
 	old_vc0data_pkt = event.dcp0_data_head;
 	event.dcp0_data_head = event.dcp0_data_head->_next;
 	free( old_vc0data_pkt ); // DANGER - if this is the last one, tail will point to unallocated memory
@@ -1006,7 +1002,7 @@ void tlx_bfm(
 	  // the afu will issue afu_tlx_dcp1_rd_req later to tell us to start to pump the data out
 	  // imbed the check for tlx_afu_dcp1_data_valid in here to grab the data, if any.
 	  // event->tlx_afu_dcp1_data has all the data
-	  // use dl to create dl 64 B enties in a fifo linked list dcp1_data_head, dcp1_data_tail, dcp1_data_rd_cnt
+	  // use dl to create dl 64 B enties in a fifo linked list dcp1_data_head, dcp1_data_tail
 	  // cdata_pkt contain _next, and 64 B of cdata
           if(event.tlx_afu_vc1_dl == 0) {
             new_line_cnt = 1;
@@ -1043,19 +1039,13 @@ void tlx_bfm(
       }
 
       // Table 5: TLX Receiver - TLX to AFU DCP1 Data Interface
-      if(c_tlx_dcp1_data_pending_d2 || (event.dcp1_data_rd_cnt > 0))
+      if ( c_tlx_dcp1_data_pending_d2 ) 
       {
         *tlx_afu_dcp1_data_bdi_top     = (event.tlx_afu_dcp1_data_bdi) & 0x1;
         setMyCacheLine( tlx_afu_dcp1_data_bus_top, event.dcp1_data_head->data );
         *tlx_afu_dcp1_data_valid_top = 1;
         clk_tlx_dcp1_data_val = CLOCK_EDGE_DELAY;
-        event.dcp1_data_rd_cnt = event.dcp1_data_rd_cnt - 1;
-        if(event.dcp1_data_rd_cnt == 0)
-        {
-          c_tlx_dcp1_data_pending = 0;
-          c_tlx_dcp1_data_pending_d1 = 0;
-          c_tlx_dcp1_data_pending_d2 = 0;
-        }
+	--c_tlx_dcp1_data_pending_d2;
 	old_vc1data_pkt = event.dcp1_data_head;
 	event.dcp1_data_head = event.dcp1_data_head->_next;
 	free( old_vc1data_pkt ); // DANGER - if this is the last one, tail will point to unallocated memory

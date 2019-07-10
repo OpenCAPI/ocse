@@ -2050,10 +2050,10 @@ void handle_response(struct cmd *cmd)
 	  return;
 	}
 	// FIXME UNCOMMENT THE FOLLOWING 4 LINES TO RETURN RESPONSES OUT OF ORDER TO AFU 
- 	//if (!allow_resp(cmd->parms)) {
-	//  debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 " skipped because !allow_resp", cmd->afu_name, event );
-	//  return;
-	//}
+        if (!allow_resp(cmd->parms)) {
+	  debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 " skipped because !allow_resp", cmd->afu_name, event );
+	  return;
+	}
 
 	if (((event->form_flag & 0x2) == 0x2) && (event->state == MEM_DONE)) { // cmd is posted; no resp needed so free structs
 		if (event->type == CMD_FAILED)  // print INFO_MSG to let user know error code if debug isn't turned on
