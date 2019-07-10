@@ -122,6 +122,20 @@
         command = new StoreCommand (command_code, command_address_parity,
                  command_code_parity, command_tag_parity, buffer_read_parity);
         break;
+        case AFU_CMD_AMO_RW_T:
+            printf("Machine: amo_rw_t pl = 0x%x and cmdflag = 0x%x\n", 
+                afu_event->afu_tlx_vc3_pl,
+                afu_event->afu_tlx_vc3_cmdflag);
+            command = new StoreCommand(command_code, command_address_parity, 
+                command_code_parity, command_tag_parity, buffer_read_parity);
+            break;
+        case AFU_CMD_AMO_W_T_P:
+            printf("Machine: amo_w_t_p pl=0x%x and cmdflag=0x%x\n",
+                afu_event->afu_tlx_vc3_pl,
+                afu_event->afu_tlx_vc3_cmdflag);
+            command = new StoreCommand(command_code, command_address_parity,
+                command_code_parity, command_tag_parity, buffer_read_parity);
+            break;
         case AFU_CMD_AMO_RD_T:
             printf("Machine: amo_rd.t pl = 0x%x and cmdflag=0x%x\n", 
                 afu_event->afu_tlx_vc3_pl, afu_event->afu_tlx_vc3_cmdflag);
