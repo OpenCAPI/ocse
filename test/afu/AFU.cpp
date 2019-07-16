@@ -224,6 +224,7 @@ AFU::start ()
 	}
 	if(afu_event.tlx_afu_vc2_valid) {
 		info_msg("AFU: return afu tlx vc2 credit");
+		resolve_tlx_vc2_cmd();
 		afu_event.afu_tlx_vc2_credit = 1;
 	}
 	// process tlx response
@@ -547,6 +548,38 @@ AFU::request_assign_actag()
 	}
 }
 
+void
+AFU::resolve_tlx_vc2_cmd()
+{
+	uint8_t cmd_opcode;
+  uint16_t cmd_capptag, cmd_bdf;
+  int rc;
+  uint8_t  cmd_pg_size, cmd_flag;
+  uint32_t cmd_pasid;
+  uint64_t  cmd_pa;
+ 
+  printf("AFU: resolve_tlx_vc2_cmd\n");   
+
+  if (rc = tlx_afu_read_cmd_vc2(&afu_event, &cmd_opcode,
+    	&cmd_capptag, &cmd_pa, &cmd_pg_size, &cmd_flag, 
+    	&cmd_pasid, &cmd_bdf) != TLX_SUCCESS) {
+			error_msg("Failed: tlx_afu_read_cmd_vc1 rc = %d", rc);
+  }
+  printf("cmd_flag=0x%x\n", cmd_flag);
+  printf("pasid=0x%x bdf=0x%x\n", cmd_pasid, cmd_bdf);
+  switch(cmd_opcode) {
+  case TLX_CMD_KILL_XLATE:
+  	printf("receive kill xlate cmd\n");
+  	printf("sending xlate release cmd\n");
+
+  	break;
+  case TLX_CMD_XLATE_DONE:
+  	printf("receive kill xlate done cmd\n");
+  	break;
+  default:
+  	break;
+  }
+}
 // process commands from ocse to AFU
 void 
 AFU::resolve_tlx_afu_cmd()
