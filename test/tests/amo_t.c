@@ -280,12 +280,7 @@ int main(int argc, char *argv[])
       printf("FAILED: config_enable_and_run_machine\n");
       goto done;
     }
-    //status[0] = 0xff;
-    //printf("Polling xlate release completion status\n");
-    //while(status[0] != 0x00) {
-    // nanosleep(&t, &t);
-     //printf("Polling write completion status = 0x%x\n", *status);
-    //}
+    
     status[0] = 0x55;	// send test complete status
     printf("Polling test completion status\n");
     while(status[0] != 0x00) {

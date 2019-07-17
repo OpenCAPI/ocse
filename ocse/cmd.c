@@ -249,7 +249,8 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	event->service_q_slot=1;
 	if (*head == NULL)  
 		printf ("FOUND THE FIRST CMD; START COUNTING NOW\n");
-	while ((*head != NULL) && !allow_reorder(cmd->parms)){
+	//while ((*head != NULL) && !allow_reorder(cmd->parms)){
+	while (*head != NULL) {
 		head = &((*head)->_next);
 		event->service_q_slot +=1;}
 	event->_next = *head;
@@ -920,6 +921,11 @@ void handle_buffer_write(struct cmd *cmd)
 	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
 		return;
 
+	// FIXME UNCOMMENT THE FOLLOWING 4 LINES TO DELAY PROCESSING READ COMMANDS  
+ 	if (!allow_resp(cmd->parms)) {
+	  debug_msg( "%s:HANDLE BUFFER WRITE event @ 0x%016" PRIx64 " skipped because !allow_resp", cmd->afu_name, event );
+	  return;
+	}
 
 	debug_msg( "handle_buffer_write: we've picked a non-NULL event and the client is still there" );
 
@@ -1163,6 +1169,13 @@ void handle_afu_tlx_write_cmd(struct cmd *cmd)
 		debug_msg("client->mem_access NOT NULL so can't send MEMORY write for afutag=0x%x yet!!!!!", event->afutag);
 		return;
 	}
+	// FIXME UNCOMMENT THE FOLLOWING 4 LINES TO DELAY PROCESSING WRITE COMMANDS  
+ 	//if (!allow_resp(cmd->parms)) {
+	//  debug_msg( "%s:HANDLE AFU_TLX_WRITE_CMD event @ 0x%016" PRIx64 " skipped because !allow_resp", cmd->afu_name, event );
+	//  return;
+	//}
+
+
 	debug_msg("entering HANDLE_AFU_TLX_WRITE_CMD");
 	// Check to see if this cmd gets selected for a RETRY or FAILED or PENDING read_failed response
 	if ( allow_retry(cmd->parms)) {
@@ -2069,8 +2082,18 @@ void handle_response(struct cmd *cmd)
 	 	free(event);
 		return;
 	}
-
-
+	if ((event->command == AFU_RSP_KILL_XLATE_DONE) && (event->state == MEM_DONE)) { // not really a cmd; no resp needed so free structs
+	debug_msg("%s:RESPONSE event @ 0x%016" PRIx64 ", NO RESPONSE sent for AFU_RSP_KILL_XLATE_DONE cmd=0x%2x   afutag=0x%02x code=0x%x", cmd->afu_name,
+		    event, event->command, event->afutag, event->resp);
+		debug_cmd_response(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->resp_opcode, event->resp);
+	            debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", free event",
+		    cmd->afu_name, event );
+		*head = event->_next;
+	 	free(event->data);
+	 	free(event);
+		return;
+	}
+	
 	//`drive_resp:
 	// debug - dump the event we picked...
 	debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", command=0x%x, resp_opcode= 0x%x, afutag=0x%08x, type=0x%02x, state=0x%02x, resp=0x%x",

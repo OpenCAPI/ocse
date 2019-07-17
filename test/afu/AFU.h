@@ -78,6 +78,7 @@ private:
     int reset_delay;
 
     void resolve_tlx_afu_cmd();
+    void resolve_tlx_vc2_cmd();
     void resolve_tlx_afu_resp();
     void resolve_cfg_cmd();
     void tlx_afu_config_read();
