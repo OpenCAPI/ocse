@@ -261,8 +261,13 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 		  error_msg("Unexpected 0x%02x from client on socket 0x%02x", buffer[0], client->fd);
 		}
 
-		if (mmio)
-			client->mmio_access = (void *)mmio;
+		if (mmio) {
+		        if ( client->mmio_access == NULL ) {
+			        client->mmio_access = (void *)mmio;
+			} else {
+			        debug_msg( "mmio access already in progress...  keeping the original access in place" );
+			}
+		}
 
 		if (client->state == CLIENT_VALID)
 			client->idle_cycles = TLX_IDLE_CYCLES;

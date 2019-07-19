@@ -34,7 +34,7 @@ module top_atc4 (
 				inout   [7:0]     tlx_afu_vc0_opcode_top,
 				inout  [15:0]     tlx_afu_vc0_afutag_top,
 				inout  [15:0]     tlx_afu_vc0_capptag_top,
-				inout  [51:0]     tlx_afu_vc0_pa_or_ta_top,	// Address 63:12
+				inout  [63:0]     tlx_afu_vc0_pa_or_ta_top,	// Address 63:12
 				inout   [1:0]     tlx_afu_vc0_dl_top,
 				inout   [1:0]     tlx_afu_vc0_dp_top,
 				inout             tlx_afu_vc0_ef_top,
@@ -198,7 +198,7 @@ module top_atc4 (
    reg   [7:0]     tlx_afu_vc0_opcode_top;
    reg  [15:0]     tlx_afu_vc0_afutag_top;
    reg  [15:0]     tlx_afu_vc0_capptag_top;
-   reg  [51:0]     tlx_afu_vc0_pa_or_ta_top;	// Address 63:12
+   reg  [63:0]     tlx_afu_vc0_pa_or_ta_top;	// Address 63:12
    reg   [1:0]     tlx_afu_vc0_dl_top;
    reg   [1:0]     tlx_afu_vc0_dp_top;
    reg             tlx_afu_vc0_ef_top;
@@ -429,7 +429,7 @@ module top_atc4 (
    wire   [7:0] tlx_afu_vc0_opcode               ;
    wire  [15:0] tlx_afu_vc0_afutag               ;
    wire  [15:0] tlx_afu_vc0_capptag              ;
-   wire [63:12] tlx_afu_vc0_pa_or_ta             ;
+   wire [63:0] tlx_afu_vc0_pa_or_ta             ;
    wire   [1:0] tlx_afu_vc0_dl                   ;
    wire   [1:0] tlx_afu_vc0_dp                   ;
    wire         tlx_afu_vc0_ef                   ;
@@ -646,7 +646,7 @@ initial begin
      tlx_afu_vc0_opcode_top			<= 8'b0;
      tlx_afu_vc0_afutag_top			<= 16'b0;
      tlx_afu_vc0_capptag_top			<= 16'b0;
-     tlx_afu_vc0_pa_or_ta_top			<= 52'b0;
+     tlx_afu_vc0_pa_or_ta_top			<= 64'b0;
      tlx_afu_vc0_dl_top			<= 2'b0;
      tlx_afu_vc0_dp_top			<= 2'b0;
      tlx_afu_vc0_ef_top			<= 0;
@@ -1175,7 +1175,8 @@ end
     .tlx_afu_vc0_opcode               	(tlx_afu_vc0_opcode),
     .tlx_afu_vc0_afutag               	(tlx_afu_vc0_afutag),
     .tlx_afu_vc0_capptag               	(tlx_afu_vc0_capptag),
-    .tlx_afu_vc0_pa_or_ta               (tlx_afu_vc0_pa_or_ta),
+    .tlx_afu_vc0_cmdflag                (4'b0),                 // lgt
+    .tlx_afu_vc0_pa_ta_or_obj           (tlx_afu_vc0_pa_or_ta), // lgt
     .tlx_afu_vc0_dl               	(tlx_afu_vc0_dl),
     .tlx_afu_vc0_dp               	(tlx_afu_vc0_dp),
     .tlx_afu_vc0_ef               	(tlx_afu_vc0_ef),
@@ -1204,7 +1205,7 @@ end
     .tlx_afu_vc1_be               	(tlx_afu_vc1_be),
     .tlx_afu_vc1_pl               	(tlx_afu_vc1_pl),
     .tlx_afu_vc1_endian               	(tlx_afu_vc1_endian),
-    .tlx_afu_vc1_co               	(tlx_afu_vc1_co),
+    .tlx_afu_vc1_co               	( {1'b0,tlx_afu_vc1_co} ), //lgt
     .tlx_afu_vc1_os               	(tlx_afu_vc1_os),
     .tlx_afu_vc1_cmdflag               	(tlx_afu_vc1_cmdflag),
     .tlx_afu_vc1_mad               	(tlx_afu_vc1_mad),
