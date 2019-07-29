@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
 	   goto done;
     }
 
-    printf("Attempt rd_wnitc cmd\n");
+    printf("Attempt rd_wnitc cmd 0x10\n");
     config_param.command = AFU_CMD_RD_WNITC;
     config_param.mem_size = 64;
     config_param.machine_number = 0;
@@ -166,14 +166,14 @@ int main(int argc, char *argv[])
      nanosleep(&t, &t);
      //printf("Polling write completion status = 0x%x\n", *status);
     }
-    printf("clear_machine_config");
+    printf("clear_machine_config\n");
     rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED, &result);
     if(rc != 0) {
        printf("Failed clear machine config for write command\n");
        goto done;
     }
 
-    printf("Attempt xlate touch cmd for t read.\n");
+    printf("Attempt xlate touch cmd 0x78 for t read.\n");
     //status[0] = 0xff;
     config_param.context = 0;
     config_param.enable_always = 1;
@@ -217,7 +217,7 @@ int main(int argc, char *argv[])
     t_read = t_read & 0xFFFFFFFFFFFFFF00;
     tr_offset = (uint64_t)rcacheline & 0x0000FFFF;
     // Attemp write command
-    printf("Attempt AFU_CMD_RD_WNITC_T command\n");
+    printf("Attempt AFU_CMD_RD_WNITC_T command 0x90\n");
     //status[0] = 0xff;
     config_param.command = AFU_CMD_RD_WNITC_T;
     config_param.mem_size = 64;
@@ -243,13 +243,13 @@ int main(int argc, char *argv[])
 	   nanosleep(&t, &t);
 	   //printf("Polling write completion status = 0x%x\n", *status);
     }
-    printf("clear_machine_config");
+    printf("clear_machine_config\n");
     rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED, &result);
     if(rc != 0) {
 	     printf("Failed clear machine config for write command\n");
        goto done;
     }
-        printf("Attempt xlate touch cmd for t write.\n");
+        printf("Attempt xlate touch cmd 0x78 for t write.\n");
     //status[0] = 0xff;
     config_param.context = 0;
     config_param.enable_always = 1;
