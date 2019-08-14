@@ -324,7 +324,7 @@ int main(int argc, char *argv[])
      printf("%02x", (uint8_t)wcacheline[i]);
     }
     printf("\n");
-    printf("clear_machine_config");
+    printf("clear_machine_config\n");
     rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED, &result);
     if(rc != 0) {
        printf("Failed clear machine config for write command\n");
