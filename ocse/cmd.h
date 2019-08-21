@@ -114,7 +114,9 @@ struct cmd_event {
 	enum cmd_type type;
 	enum mem_state state;
 	enum client_state client_state;
+	uint16_t presyncq[24];
 	struct cmd_event *_next;
+	struct cmd_event *_prev;
 };
 
 struct cmd {
