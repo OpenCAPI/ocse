@@ -1772,7 +1772,7 @@ void handle_kill_done(struct cmd *cmd, struct mmio *mmio)
 
 	while (cmd_event != NULL) {
 	        if ( ( cmd_event->type == CMD_KILL_DONE ) && 
-		     ( cmd_event->state == MEM_IDLE ) ) && 
+		     ( cmd_event->state == MEM_IDLE ) && 
 		     ( ( cmd_event->client_state != CLIENT_VALID ) || !allow_reorder(cmd->parms) ) ) { // disable reordering of kill done's
 			break;
 		}
