@@ -27,13 +27,13 @@
 #include "parms.h"
 #include "../common/utils.h"
 
-
 struct ocl {
 	struct AFU_EVENT *afu_event;
 	pthread_t thread;
 	pthread_mutex_t *lock;
 	FILE *dbg_fp;
 	struct client **client;
+        struct actag *actag_array;
 	struct cmd *cmd;
 	struct mmio *mmio;
 	struct ocl **head;
@@ -48,6 +48,7 @@ struct ocl {
 	int port;
 	int idle_cycles;
         int max_clients;                 // this is the sum of the max_pasids in each functions pasid dvsec
+        int max_actags;
 	int attached_clients;
 	int timeout;
 	int has_been_reset;

@@ -165,8 +165,10 @@ static struct mmio_event *_add_kill_xlate_event(struct mmio *mmio, struct client
 				     uint32_t pasid)
 {
 	struct mmio_event *event;
-	struct mmio_event **list;
-	uint16_t context;
+	struct mmio_event *this_mmio;
+	//struct mmio_event **list;
+
+	debug_msg("_add_kill_xlate_event: entered for 0x%016lx", ea);
 
 	// Add new event in IDLE state
 	event = (struct mmio_event *)calloc(1, sizeof(struct mmio_event));
@@ -174,28 +176,37 @@ static struct mmio_event *_add_kill_xlate_event(struct mmio *mmio, struct client
 	if (!event)
 		return event;
 
-	event->cmd_CAPPtag = 0xFFFF;
-	event->cmd_opcode = OCSE_XLATE_KILL ;
+	event->cmd_CAPPtag = mmio->CAPPtag_next++;
+	event->cmd_opcode = OCSE_KILL_XLATE ;
 	event->cmd_flg = cmd_flag;
 	event->cmd_PA = ea;  // hopefully cmd_PA will be put on EA during send_mmio
 	event->cmd_bdf = bdf;
+	event->cmd_pasid = pasid;
 	event->cmd_pg_size = pg_size;
 
 	event->state = OCSE_IDLE;
 	event->_next = NULL;
 
-	//debug_msg("_add_kill_xlate_event: rnw=%d, access word=0x%016lx (0x%016lx)", event->rnw, event->cmd_PA, addr);
+	// Add to end of list.
+	if (mmio->list == NULL) {
+	  debug_msg("_add_kill_xlate_event: mmio->list = event");
+	  mmio->list = event;
+	} else {
+	  this_mmio = mmio->list;
+	  debug_msg("_add_kill_xlate_event: scanning mmio->list");
+	  while (this_mmio->_next != NULL) {
+	    debug_msg("_add_kill_xlate_event: this_mmio = this_mmio->_next");
+	    this_mmio = this_mmio->_next;
+	  }
+	  debug_msg("_add_kill_xlate_event: this_mmio->_next = event");
+	  this_mmio->_next = event;
+	}
+	//list = &(mmio->list);
+	//while (*list != NULL)
+	//	list = &((*list)->_next);
+	//*list = event;
 
-	// Add to end of list
-	list = &(mmio->list);
-	while (*list != NULL)
-		list = &((*list)->_next);
-	*list = event;
-	if (event->cfg)
-		context = -1;
-	else
-		context = client->context;
-
+	debug_msg("_add_kill_xlate_event: @0x%016lx added KILL_XLATE with CAPPtag=0x%04x for 0x%016lx", event, event->cmd_CAPPtag, event->cmd_PA);
 	return event;
 }
 
@@ -386,7 +397,7 @@ int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
         uint64_t cmd_pa_ec ;  // bus + function offset + next_capability offset
 	uint64_t next_capability_offset;
 	uint64_t bar, bar0; // , bar1, bar2;
-	uint64_t actag;
+	// uint64_t actag;
 	uint64_t pasid;
 	uint16_t device_id, vendor_id;
 	uint16_t ec_id;
@@ -395,6 +406,7 @@ int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 	struct mmio_event *eventa, *eventb, *eventc;
 
 	ocl->max_clients = 0;
+	ocl->max_actags = 0;
 
 	cmd_pa_bus = (uint64_t)bus << 24; // shift the bus number to the proper location in the pa
 
@@ -408,7 +420,6 @@ int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 	// it is NOT calculated based on the the memory usage profile that can be obtained by walking the
 	// config space.  The initial value used in Power is 4 TB (the LPC size reserved by the OS)
 	bar = 0x0000040000000000; // 4 TB
-	actag = 0;
 
 	for (f = 0; f < 8; f++ ) {
   	        // reset the high water mark for pasid
@@ -544,7 +555,7 @@ int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 		      
 						     // repeat for bar1 and bar2 eventually 
 					       
-						     mmio->fcn_cfg_array[f]->function_actag_base = actag;
+						     mmio->fcn_cfg_array[f]->function_actag_base = ocl->max_actags;
 								
 						     // one or more afu's are present, so set the memory space bit in the configuration space header
 						     eventc  = _add_cfg(mmio, 0, 0, cmd_pa_fcn + 0x04, 0x00000002 );
@@ -694,7 +705,7 @@ int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 					      free( eventc );
 					      
 					      // actag base...  
-					      mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->actag_base = actag;
+					      mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->actag_base = ocl->max_actags;
 					      eventc = _add_cfg( mmio, 0, 0, cmd_pa_ec + 0x1c, mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->actag_base ); 
 					      _wait_for_done( &(eventc->state), lock );
 					      free( eventc );
@@ -706,7 +717,7 @@ int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 							mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->actag_length_enabled );
 
 					      // add the actag length enabled to the actag high water mark
-					      actag = actag + mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->actag_length_enabled;
+					      ocl->max_actags = ocl->max_actags + mmio->fcn_cfg_array[f]->afu_cfg_array[afu_index]->actag_length_enabled;
 
 					      //   rwrite afu_control_dvsec(0x0c) enable afu - can I really do this here?
 					      eventc = _add_cfg(mmio, 0, 0, cmd_pa_ec + 0x0c, 0x01000000);
@@ -754,7 +765,7 @@ int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock)
 		} // end of if valid config space header
   	
 	} // end of read function csh loop
-
+	
 	return 0;
 }
 
@@ -911,7 +922,7 @@ void send_mmio(struct mmio *mmio)
 	// but other lpc commands did not send along the cmd_opcode.  
 	
 	switch ( event->cmd_opcode ) {
-	case OCSE_XLATE_KILL:
+	case OCSE_KILL_XLATE:
 	      if ( tlx_afu_send_cmd_vc2( mmio->afu_event,
 					 TLX_CMD_KILL_XLATE, 
 					 event->cmd_CAPPtag, 
@@ -922,7 +933,7 @@ void send_mmio(struct mmio *mmio)
 					 event->cmd_bdf ) == TLX_SUCCESS ) {
   		    debug_msg("%s:%s XLATE_KILL %d word=0x%05x", mmio->afu_name, type, event->dw ? 64 : 32, event->cmd_PA);
 		    debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw,event->cmd_PA );
-		    event->state = OCSE_DONE;
+		    event->state = OCSE_PENDING;  // waiting for a kill_xlate_done *command* from the afu. 
 	      }
 	      break;
 	case OCSE_AFU_AMO_RD:
@@ -1839,18 +1850,25 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 		          client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 			}
 		}
-	} else if (event->cmd_opcode == OCSE_XLATE_KILL) {
-	        // if the command was KILL_XLATE, do not send a message back to the host.
-		buffer = (uint8_t *) malloc(2);
-		debug_msg("KILL XLATE SENT to AFU.  NO ACK message sent to host!!!!");
+	} else if (event->cmd_opcode == OCSE_KILL_XLATE) {
+	        // use the ea from the command to send back a resp based on receiving a kill_xlate_done
+	        // ack(1), ea(8), resp_code(1)
+		buffer = (uint8_t *) malloc(10);
+		buffer[0] = event->ack;
+		data64 = htonll( event->cmd_PA ); // ea
+		memcpy( &(buffer[1]), &data64, 8 );		
+		buffer[9] = event->resp_code;
+		if (put_bytes(fd, 10, buffer, mmio->dbg_fp, mmio->dbg_id, client->context) < 0) {
+		        client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		}
+		debug_msg("handle_mmio_done: KILL XLATE DONE SENT to HOST!!!!");
 	} else {
 	        // Return acknowledge for write
-		debug_msg("READY TO SEND OCSE_*_ACK for a WRITE to client!!!!");
+		// debug_msg("READY TO SEND OCSE_*_ACK for a WRITE to client!!!!");
 		buffer = (uint8_t *) malloc(2);
 		buffer[0] = event->ack;
 		buffer[1] = event->resp_code;
-		if (put_bytes(fd, 2, buffer, mmio->dbg_fp, mmio->dbg_id,
-			      client->context) < 0) {
+		if (put_bytes(fd, 2, buffer, mmio->dbg_fp, mmio->dbg_id, client->context) < 0) {
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		}
 		debug_msg("SENT OCSE_*_ACK for a WRITE to client!!!!");
@@ -1862,7 +1880,8 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 	free(event);
 	free(buffer);
 
-	return next_event;
+	//return next_event;
+	return NULL;
 }
 
 // Add mem write event to offset in memory space

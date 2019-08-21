@@ -117,6 +117,12 @@ struct cmd_event {
 	struct cmd_event *_next;
 };
 
+struct actag {
+        uint8_t valid;
+        uint32_t pasid;
+        struct client *client;
+};
+
 struct cmd {
 	struct AFU_EVENT *afu_event;
 	struct cmd_event *list;
@@ -124,6 +130,7 @@ struct cmd {
 	struct mmio *mmio;
 	struct parms *parms;
 	struct client **client;
+	struct actag *actag_array;
 	struct pages page_entries;
 	volatile enum ocse_state *ocl_state;
 	char *afu_name;
@@ -132,6 +139,7 @@ struct cmd {
 	uint64_t lock_addr;
 	//uint64_t res_addr;
 	int max_clients;
+        int max_actags;
 	uint32_t pagesize;
 	uint32_t HOST_CL_SIZE;
 	uint16_t irq;
@@ -170,6 +178,6 @@ void handle_xlate_intrp_pending_sent(struct cmd *cmd);
 
 int client_cmd(struct cmd *cmd, struct client *client);
 
-void handle_kill_done(struct cmd *cmd);
+void handle_kill_done(struct cmd *cmd, struct mmio *mmio);
 
 #endif				/* _CMD_H_ */

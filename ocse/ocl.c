@@ -99,12 +99,13 @@ static void _detach(struct ocl *ocl, struct client *client)
 
 	// DEBUG
 	debug_context_remove(ocl->dbg_fp, ocl->dbg_id, client->context);
-	info_msg("%s client disconnect from %s context %d", client->ip,
-		 ocl->name, client->context);
+	info_msg("%s client disconnect from %s context %d", client->ip, ocl->name, client->context);
+
 	close_socket(&(client->fd));
 	if (client->ip)
 		free(client->ip);
 	client->ip = NULL;
+
 	mem_access = (struct cmd_event *)client->mem_access;
 	if (mem_access != NULL) {
 		if (mem_access->state != MEM_DONE) {
@@ -112,12 +113,22 @@ static void _detach(struct ocl *ocl, struct client *client)
 			mem_access->state = MEM_DONE;
 		}
 	}
+
 	client->mem_access = NULL;
 	client->mmio_access = NULL;
 	client->state = CLIENT_NONE;
 
+	// find client pointer in actag_array and invalidate the entry
+	// the client pointer can exist in multiple actag_array entries
+	int pasid;
+	for ( pasid=0; pasid < ocl->max_actags; pasid++ ) {
+	  if ( ocl->actag_array[pasid].client == client ) {
+	    ocl->actag_array[pasid].valid = 0;
+	  }
+	}
 	ocl->attached_clients--;
 	info_msg( "Detatched a client: current attached clients = %d\n", ocl->attached_clients );
+
 	//  we *really* free the client struct and it's contents back in ocl_loop
 	if (ocl->attached_clients == 0) {
 	  ocl->state = OCSE_IDLE;
@@ -133,13 +144,13 @@ static void _handle_afu(struct ocl *ocl)
 	 // handle_ap_killdone(ocl->mmio);
 	  handle_ap_resp(ocl->mmio);
 	  handle_ap_resp_data(ocl->mmio);
+	  handle_kill_done(ocl->cmd, ocl->mmio);  // send back kill_xlate_done response to client
 	}
 
 	if (ocl->cmd != NULL) {
 	  // handle_response should follow a similar flow to handle_cmd
 	  // that is, the response may need subsequent resp data valid beats to complete the data for a give response, just like a command...
 	  handle_response(ocl->cmd);  // sends response and data (if required)
-	  handle_kill_done(ocl->cmd);  // send back kill_xlate_done response to client
 	  handle_buffer_write(ocl->cmd);  // just finishes up the read command structures
 	  handle_xlate_intrp_pending_sent(ocl->cmd);  // just finishes up an xlate_pending resp
 	  handle_cmd(ocl->cmd, ocl->latency);
@@ -254,7 +265,7 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 		case OCSE_AFU_AMO_WR:
 		  mmio = handle_afu_amo(ocl->mmio, client, 0, region, buffer[0]);
 			break;
-		case OCSE_XLATE_KILL:
+		case OCSE_KILL_XLATE:
 		  mmio = handle_kill_xlate(ocl->mmio, client);
 			break;
 		default:
@@ -598,13 +609,21 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 
 	// ocl->max_clients = 4; // this is set in read_afu_config now
 	if (ocl->max_clients == 0) {
-		error_msg("AFU programming model is invalid");
+		error_msg("AFU programming model is invalid - no clients available");
 		goto init_fail;
 	}
 	ocl->client = (struct client **)calloc(ocl->max_clients,
 					       sizeof(struct client *));
 	ocl->cmd->client = ocl->client;
 	ocl->cmd->max_clients = ocl->max_clients;
+
+	if (ocl->max_actags == 0) {
+		error_msg("AFU programming model is invalid - no actags available");
+		goto init_fail;
+	}
+	ocl->actag_array = (struct actag *)calloc( ocl->max_actags, sizeof(struct actag) );
+	ocl->cmd->actag_array = ocl->actag_array;
+	ocl->cmd->max_actags = ocl->max_actags;
 
 	return location;
 

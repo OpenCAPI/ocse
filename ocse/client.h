@@ -48,7 +48,7 @@ struct client {
   uint8_t dev;
   uint8_t fcn;
   uint8_t afuid;
-	uint16_t actag;
+  // uint16_t actag;
 	uint32_t mmio_offset;
 	uint32_t mmio_size;
 	void *mem_access;

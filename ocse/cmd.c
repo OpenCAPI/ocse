@@ -108,21 +108,41 @@ static struct client *_find_client_by_pasid_and_bdf(struct cmd *cmd, uint16_t cm
 // find a client that has a matching actag.  return pointer to client
 static int32_t _find_client_by_actag(struct cmd *cmd, uint16_t cmd_actag)
 {
+  // old
   // search the client array in cmd for a matching pasid and bdf
   // return -1 for no matching client
   // cmd->client[i]->pasid and bdr, right?
-  int32_t i;
+  // new
+  // check the actag array for a valid entry at the cmd_actag index.
+  // return -1 for no matching client
+  // cmd->actag_arrat[cmd_actag].pasid and bdr, right?
+  // int32_t i;
 
-  debug_msg("_find_client_by_actag: seeking client in %d potential clients with actag=0x%04x", cmd->max_clients, cmd_actag );
-  for (i = 0; i < cmd->max_clients; i++) {
-    if (cmd->client[i] != NULL) {
-  	  debug_msg("_find_client_by_actag:  cmd->client[i]->actag=0x%04x; i=0x%x", cmd->client[i]->actag, i );
-      if ( cmd->client[i]->actag == cmd_actag ) {
-  	  debug_msg("_find_client_by_actag:  client with actag=0x%04x; i=0x%x", cmd_actag, i );
-	  return i;
-      }
-    }
+  debug_msg("_find_client_by_actag: seeking client in %d potential actags with actag=0x%04x", cmd->max_actags, cmd_actag );
+  /* for (i = 0; i < cmd->max_clients; i++) { */
+  /*   if (cmd->client[i] != NULL) { */
+  /* 	  debug_msg("_find_client_by_actag:  cmd->client[i]->actag=0x%04x; i=0x%x", cmd->client[i]->actag, i ); */
+  /*     if ( cmd->client[i]->actag == cmd_actag ) { */
+  /* 	  debug_msg("_find_client_by_actag:  client with actag=0x%04x; i=0x%x", cmd_actag, i ); */
+  /* 	  return i; */
+  /*     } */
+  /*   } */
+  /* } */
+
+  // check cmd_actag < cmd->max_actags
+  if ( cmd_actag >= cmd->max_actags ) {
+    error_msg("_find_client_by_actag: actag out of bounds: command actag = 0x%04x; max actag = 0x%04x", cmd_actag, cmd->max_actags );
+    return -1;
   }
+
+  // check cmd->actag_array[cmd_actag].valid  --  return pasid?
+  if ( cmd->actag_array[cmd_actag].valid != 1 ) {
+    warn_msg("_find_client_by_actag: actag does not have a valid context: command actag = 0x%04x; max actag = 0x%04x", cmd_actag );
+    return -1;
+  }
+
+  return cmd->actag_array[cmd_actag].pasid;
+
   return -1;
 }
 
@@ -263,28 +283,28 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	//if ((event->command >= 0x20) && (event->command <= 0x2f) && (cmd_data_is_valid == 1)) {
 	if (cmd_data_is_valid) {
 		if (_incoming_data_expected( cmd)  == 0) {
-		cmd->buffer_read = event;
-		debug_msg("Ready to copy first 64B of write data to buffer, add=0x%016"PRIx64" , size=0x%x , afutag= 0x%x.\n",
-		 	event->addr, size, event->afutag);
-		// alway copy 64 bytes... TODO for now just reading vc3 & dcp3 cmd channels
-		memcpy((void *)&(event->data[0]), (void *)&(cmd->afu_event->afu_tlx_dcp3_data_bus), 64);
-		// for type = cmd_interrupt, event->state is already correctly set to MEM_IDLE
-		if (event->type != CMD_INTERRUPT) {
-		  if (size > 64) {
-		    // but if size is greater that 64, we have to gather more data
-		    event->dpartial =64;
-		    event->state = MEM_BUFFER;
-		  } else {
-		    event->state = MEM_RECEIVED;
-		    event->dpartial =0;
-		debug_msg("FINISHED copy first 64B of write data to buffer, add=0x%016"PRIx64" , size=0x%x , afutag= 0x%x, event->state= %d.\n",
-		 	event->addr, size, event->afutag, event->state);
-		  	}
-		}
-
-  	   } else  {
-		cmd->afu_event->afu_tlx_dcp3_data_valid = 1;
-		debug_msg("SAVING DATA FOR READ CMD DATA TO FIND LATER");
+		        cmd->buffer_read = event;
+			debug_msg("Ready to copy first 64B of write data to buffer, add=0x%016"PRIx64" , size=0x%x , afutag= 0x%x.\n",
+				  event->addr, size, event->afutag);
+			// alway copy 64 bytes... TODO for now just reading vc3 & dcp3 cmd channels
+			memcpy((void *)&(event->data[0]), (void *)&(cmd->afu_event->afu_tlx_dcp3_data_bus), 64);
+			// for type = cmd_interrupt, event->state is already correctly set to MEM_IDLE
+			if (event->type != CMD_INTERRUPT) {
+			  if (size > 64) {
+			    // but if size is greater that 64, we have to gather more data
+			    event->dpartial =64;
+			    event->state = MEM_BUFFER;
+			  } else {
+			    event->state = MEM_RECEIVED;
+			    event->dpartial =0;
+			    debug_msg("FINISHED copy first 64B of write data to buffer, add=0x%016"PRIx64" , size=0x%x , afutag= 0x%x, event->state= %d.\n",
+				      event->addr, size, event->afutag, event->state);
+			  }
+			}
+			
+		} else  {
+		  cmd->afu_event->afu_tlx_dcp3_data_valid = 1;
+		  debug_msg("SAVING DATA FOR READ CMD DATA TO FIND LATER");
 		}
 	}
 }
@@ -363,7 +383,7 @@ static void _add_kill_xlate_done(struct cmd *cmd, uint16_t actag, uint16_t afuta
 	int32_t context, resp;
         context = _find_client_by_actag(cmd, actag);
 	if (context == -1) {
-		debug_msg("_add_kill_xlate_done: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
+		warn_msg("_add_kill_xlate_done: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
 		return;
 	}
 	resp = (uint32_t) cmd_resp_code;
@@ -429,7 +449,12 @@ static void _assign_actag(struct cmd *cmd, uint16_t cmd_bdf, uint32_t cmd_pasid,
     debug_msg("_assign_actag: client not found with bdf=0x%04x; pasid=0x%08x", cmd_bdf, cmd_pasid );
     return;
   }
-  client->actag = actag;
+
+  // client->actag = actag;
+  cmd->actag_array[actag].valid = 1;
+  cmd->actag_array[actag].pasid = cmd_pasid;
+  cmd->actag_array[actag].client = client;
+
   return;
 }
 
@@ -1597,52 +1622,61 @@ void handle_touch(struct cmd *cmd)
        	     }
 }
 
-void handle_kill_done(struct cmd *cmd)
+void handle_kill_done(struct cmd *cmd, struct mmio *mmio)
 {
-	struct cmd_event *event;
+	struct cmd_event *cmd_event;
+	struct mmio_event *mmio_event;
 	struct client *client;
-	uint8_t *buffer;
-	// uint16_t *resp_capptag;
 
 	// Make sure cmd structure is valid
 	if (cmd == NULL)
 		return;
 
-	// Randomly select a pending kill_done (or none)
-	event = cmd->list;
-	while (event != NULL) {
-	        if ( ( event->type == CMD_KILL_DONE ) && 
-		     ( event->state == MEM_IDLE ) ) { // && 
+	// find the first pending kill_xlate_done (or none)
+	cmd_event = cmd->list;
+
+	while (cmd_event != NULL) {
+	        if ( ( cmd_event->type == CMD_KILL_DONE ) && 
+		     ( cmd_event->state == MEM_IDLE ) ) { // && 
 		     // ( ( event->client_state != CLIENT_VALID ) || !allow_reorder(cmd->parms) ) ) { // disable reordering of kill done's
 			break;
 		}
 
-		event = event->_next;
+		cmd_event = cmd_event->_next;
 	}
 
 	// Test for client disconnect
-	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
+	if ((cmd_event == NULL) || ((client = _get_client(cmd, cmd_event)) == NULL))
 		return;
 
 	debug_msg("handle_kill_done: event selected and client still exists");
 
-	if (event->command == AFU_RSP_KILL_XLATE_DONE) {
-		// Send kill xlate done response to client
-		buffer = (uint8_t *) malloc(4);
-		buffer[0] = (uint8_t) OCSE_XLATE_KILL_DONE;
-		// buffer[1] = (uint8_t) event->resp;
-		// resp_capptag = (uint16_t *) & (buffer[2]);
-		// *resp_capptag = htonll(event->resp_capptag);
-		debug_msg("KILL_XLATE_DONE   capptag=0x%02x resp_code=0x%02x", event->resp_capptag, event->resp);
-		if (put_bytes(client->fd, 1, buffer, cmd->dbg_fp, cmd->dbg_id,
-			      event->context) < 0) {
-			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	if (cmd_event->command == AFU_RSP_KILL_XLATE_DONE) {
+	        // locate the corresponding mmio_event in the mmio list.  it should be first since we only send one mmio at a time.
+	        // eventually want to scan mmio->list for mmio_event that has a matching capptag
+	        mmio_event = mmio->list;
+
+		// it is an error if we don't have a kill_xlate in the mmio list.
+	        if (mmio_event->cmd_opcode !=  OCSE_KILL_XLATE) {
+		        warn_msg("matching kill_xlate not found for kill_xlate_done");
+			cmd_event->state = MEM_DONE; 
+		        return;
 		}
-		event->state = MEM_DONE; 
-		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
-		free( buffer );
+
+	        // fill in the mmio event response
+	        // set state to OCSE_DONE
+	        // handle_mmio_done will actually send the message to libocxl
+		mmio_event->ack = OCSE_KILL_XLATE_DONE;
+		mmio_event->resp_code = cmd_event->resp;
+		mmio_event->state = OCSE_DONE; // trigger handle_mmio_done to send the message back to libocxl
+		
+		// and we are also ready to let the cmd response to be generated (if any)
+		cmd_event->state = MEM_DONE; 
+
+		debug_msg("KILL_XLATE_DONE cmd translated to mmio response capptag=0x%02x resp_code=0x%02x", cmd_event->resp_capptag, cmd_event->resp);
+		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, cmd_event->afutag, cmd_event->context); 
         } else {
-	  debug_msg( "KILL XLATE DONE was not labeled as AFU_RSP_KILL_XLATE_DONE" );
+	        debug_msg( "KILL XLATE DONE was not labeled as AFU_RSP_KILL_XLATE_DONE" );
 	}
 }
 

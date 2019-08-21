@@ -102,6 +102,9 @@ static struct ocl *_find_ocl(uint8_t id, uint8_t * major)
 			break;
 		ocl = ocl->_next;
 	}
+	if (ocl == NULL) {
+	  error_msg("_find_ocl: could not find a link with a matching major number = 0x%x", id );
+	}
 	return ocl;
 }
 
@@ -371,6 +374,7 @@ static void _query(struct client *client)
 	}
 
 	// use bus for id into _find_ocl for now - the pointers to all of the following values will change later.
+	debug_msg("_query: locating ocl for bus 0x%02x", bus);
 	ocl = _find_ocl(bus, &major);
 	client->bus = bus;
 	client->dev = dev;

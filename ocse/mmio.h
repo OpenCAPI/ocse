@@ -144,6 +144,7 @@ struct mmio {
 	FILE *dbg_fp;
 	uint8_t dbg_id;
 	uint32_t flags;
+        uint16_t CAPPtag_next;
 	int timeout;
 };
 
