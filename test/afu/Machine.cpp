@@ -301,19 +301,20 @@
 
     if ((!command || command->is_completed ()) && delay == 0) {
         debug_msg("Machine::attempt_new_command: read_machine_config");
-    read_machine_config (afu_event);
+        read_machine_config (afu_event);
 
         // randomly generates address within the range
         uint64_t
         address_offset =
             (rand () % (memory_size - (command_size - 1))) & ~(command_size -
                     1);
-    debug_msg("Machine::attempt_new_command: command->send_command with tag = 0x%x", tag);
+        debug_msg("Machine::attempt_new_command: command->send_command with tag = 0x%x", 
+            tag);
         command->send_command (afu_event, tag,
                                memory_base_address,
                                command_size, abort, context);
-
-    resend_command = command;
+        
+        resend_command = command;
         record_command (error_state, cycle);
         clear_response ();
 

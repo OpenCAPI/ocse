@@ -124,6 +124,10 @@ int clear_machine_config(ocxl_mmio_h pp_mmio_h, MachineConfig *machine,
   		}
   		printf("mmio read config[%d] = 0x%"PRIx64"\n", i, *result);
   	}
+  	if(ocxl_mmio_write64(pp_mmio_h, machine_config_base_address, OCXL_MMIO_LITTLE_ENDIAN, 0x0)) {
+			printf("Failed to clear machine config\n");
+			return -1;
+		}
   }
   else {
 		if(ocxl_mmio_write64(pp_mmio_h, machine_config_base_address, OCXL_MMIO_LITTLE_ENDIAN, 0x0)) {

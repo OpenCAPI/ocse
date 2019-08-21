@@ -220,11 +220,13 @@ AFU::start ()
 	    info_msg("AFU: Process TLX command");
 	    resolve_tlx_afu_cmd();
 	    info_msg("AFU: return afu tlx vc1 credit");
+	    afu_event.afu_tlx_credit_req_valid =1;
 	    afu_event.afu_tlx_vc1_credit = 1;	// return a cmd credit to tlx
 	}
 	if(afu_event.tlx_afu_vc2_valid) {
 		info_msg("AFU: return afu tlx vc2 credit");
 		resolve_tlx_vc2_cmd();
+		afu_event.afu_tlx_credit_req_valid = 1;
 		afu_event.afu_tlx_vc2_credit = 1;
 	}
 	// process tlx response
