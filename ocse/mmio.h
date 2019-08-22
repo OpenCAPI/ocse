@@ -72,6 +72,7 @@ struct mmio_event {
         uint8_t *dataw;  // used for capp amo_rw commands only
         uint64_t be;  // if be_valid, use this as the byte enable in the command
 	enum ocse_state state;
+        struct client *client;
 	struct mmio_event *_next;
 };
 

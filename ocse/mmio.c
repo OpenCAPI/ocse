@@ -129,6 +129,7 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 	// event->addr = addr;
 	event->cfg = cfg;
 	event->cmd_data = data;
+	event->client = client;
 	event->state = OCSE_IDLE;
 	event->_next = NULL;
 
@@ -184,6 +185,7 @@ static struct mmio_event *_add_kill_xlate_event(struct mmio *mmio, struct client
 	event->cmd_pasid = pasid;
 	event->cmd_pg_size = pg_size;
 
+	event->client = client; 
 	event->state = OCSE_IDLE;
 	event->_next = NULL;
 
@@ -266,6 +268,7 @@ static struct mmio_event *_add_mem_event(struct mmio *mmio, struct client *clien
 	      addr;
 	  }
 	}
+	event->client = client;
 	event->state = OCSE_IDLE;
 	event->_next = NULL;
 
@@ -1786,7 +1789,8 @@ struct mmio_event *handle_mmio(struct mmio *mmio, struct client *client,
 // Handle MMIO done
 struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 {
-	struct mmio_event *event;
+	struct mmio_event *this_event;
+	struct mmio_event *prev_event = NULL;
 	struct mmio_event *next_event = NULL;
 	uint64_t data64;
 	uint32_t data32;
@@ -1794,47 +1798,47 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 	int fd = client->fd;
 
 	// Is there an MMIO event pending?
-	event = (struct mmio_event *)client->mmio_access;
-	if (event == NULL)
+	this_event = (struct mmio_event *)client->mmio_access;
+	if (this_event == NULL)
 		return NULL;
 
-	// MMIO event not done yet
-	if (event->state != OCSE_DONE)
-		return event;
+	// Is the MMIO event this client is waiting for done yet?
+	if (this_event->state != OCSE_DONE)
+		return this_event;
 
 	// we are assuming that host commands complete (become DONE) in order...
 
 	// if AFU sent a mem_rd_fail or mem_wr_fail response, send them on to libocxl so it can interpret the resp_code
 	// and retry if needed, or fail simulation 
-	if (((event->resp_opcode == 0x02) || (event->resp_opcode == 0x04)) && (event->resp_code != 0))  {
+	if (((this_event->resp_opcode == 0x02) || (this_event->resp_opcode == 0x04)) && (this_event->resp_code != 0))  {
 	      debug_msg("handle mmio_done: sending OCSE_ACK for failed READ or WRITE to client");
 	      buffer = (uint8_t *) malloc(2);
-	      buffer[0] = event->ack;
-	      buffer[1] = event->resp_code;
+	      buffer[0] = this_event->ack;
+	      buffer[1] = this_event->resp_code;
 	      if (put_bytes(fd, 2, buffer, mmio->dbg_fp, mmio->dbg_id,
 			      client->context) < 0) {
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 	      }
 	      debug_mmio_return(mmio->dbg_fp, mmio->dbg_id, client->context);
-	} else if ((event->rnw) || (event->cmd_opcode == OCSE_AFU_AMO_RW)) {
+	} else if ((this_event->rnw) || (this_event->cmd_opcode == OCSE_AFU_AMO_RW)) {
 	        // Return acknowledge with read data
-	        if ( event->size !=0 ) {
+	        if ( this_event->size !=0 ) {
 		        // this is an lpc mem request coming back
 		        debug_msg("handle_mmio_done:sending OCSE_LPC_ACK for a AMO_R, AMO_RW, or READ to client!!!!");
-			buffer = (uint8_t *) malloc(event->size + 2);
-			buffer[0] = event->ack;
-			buffer[1] = event->resp_code;
-			memcpy( &(buffer[2]), event->data, event->size );
-			if (put_bytes(fd, event->size + 2, buffer, mmio->dbg_fp, mmio->dbg_id, client->context) < 0) {
+			buffer = (uint8_t *) malloc(this_event->size + 2);
+			buffer[0] = this_event->ack;
+			buffer[1] = this_event->resp_code;
+			memcpy( &(buffer[2]), this_event->data, this_event->size );
+			if (put_bytes(fd, this_event->size + 2, buffer, mmio->dbg_fp, mmio->dbg_id, client->context) < 0) {
 		          client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 			}
-			free( event->data );
-		} else if ( event->dw ) {
+			free( this_event->data );
+		} else if ( this_event->dw ) {
 		        debug_msg("handle_mmio_done:sending OCSE_MMIO_ACK for a dw READ to client!!!!");
 			buffer = (uint8_t *) malloc(10);
-			buffer[0] = event->ack;
-			buffer[1] = event->resp_code;
-			data64 = htonll(event->cmd_data);
+			buffer[0] = this_event->ack;
+			buffer[1] = this_event->resp_code;
+			data64 = htonll(this_event->cmd_data);
 			memcpy(&(buffer[2]), &data64, 8);
 			if (put_bytes(fd, 10, buffer, mmio->dbg_fp, mmio->dbg_id, client->context) < 0) {
 		          client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
@@ -1842,22 +1846,22 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 		} else {
 		        debug_msg("handle_mmio_done:sending OCSE_MMIO_ACK for a READ to client!!!!");
 			buffer = (uint8_t *) malloc(6);
-			buffer[0] = event->ack;
-			buffer[1] = event->resp_code;
-			data32 = htonl(event->cmd_data);
+			buffer[0] = this_event->ack;
+			buffer[1] = this_event->resp_code;
+			data32 = htonl(this_event->cmd_data);
 			memcpy(&(buffer[2]), &data32, 4);
 			if (put_bytes(fd, 6, buffer, mmio->dbg_fp, mmio->dbg_id, client->context) < 0) {
 		          client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 			}
 		}
-	} else if (event->cmd_opcode == OCSE_KILL_XLATE) {
+	} else if (this_event->cmd_opcode == OCSE_KILL_XLATE) {
 	        // use the ea from the command to send back a resp based on receiving a kill_xlate_done
 	        // ack(1), ea(8), resp_code(1)
 		buffer = (uint8_t *) malloc(10);
-		buffer[0] = event->ack;
-		data64 = htonll( event->cmd_PA ); // ea
+		buffer[0] = this_event->ack;
+		data64 = htonll( this_event->cmd_PA ); // ea
 		memcpy( &(buffer[1]), &data64, 8 );		
-		buffer[9] = event->resp_code;
+		buffer[9] = this_event->resp_code;
 		if (put_bytes(fd, 10, buffer, mmio->dbg_fp, mmio->dbg_id, client->context) < 0) {
 		        client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		}
@@ -1866,22 +1870,59 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 	        // Return acknowledge for write
 		// debug_msg("READY TO SEND OCSE_*_ACK for a WRITE to client!!!!");
 		buffer = (uint8_t *) malloc(2);
-		buffer[0] = event->ack;
-		buffer[1] = event->resp_code;
+		buffer[0] = this_event->ack;
+		buffer[1] = this_event->resp_code;
 		if (put_bytes(fd, 2, buffer, mmio->dbg_fp, mmio->dbg_id, client->context) < 0) {
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		}
 		debug_msg("SENT OCSE_*_ACK for a WRITE to client!!!!");
 	}
 
-	next_event = event->_next;
-
-	debug_mmio_return(mmio->dbg_fp, mmio->dbg_id, client->context);
-	free(event);
+	// locate the pointer to this event in mmio->list and adjust the pointer to this events _next
+	if (mmio->list != NULL) {
+	  if (mmio->list == this_event) {
+	    // event is the first in the list, update mmio_list to point to event->_next
+	    mmio->list = this_event->_next;
+	  } else {
+	    //scan list for this event, and update the prev event _next pointer to skip this event
+	    prev_event = mmio->list;
+	    while (prev_event->_next != NULL) {
+	      if (prev_event->_next == this_event) {
+		prev_event->_next = this_event->_next;
+	      }
+	      prev_event = prev_event->_next;
+	    }
+	  }
+	  // this_event is no longer in mmio->list
+	}
+	
+	// free this_event and buffer
+	free(this_event);
 	free(buffer);
 
-	//return next_event;
-	return NULL;
+	// scan the list again, this time looking for another mmio that points back to this client
+	next_event = NULL;
+	if (mmio->list != NULL) {
+	  if (mmio->list->client == client) {
+	    // the first mmio event belongs to this client
+	    next_event = mmio->list;
+	  } else {
+	    // scan the list
+	    this_event = mmio->list;
+	    while (this_event->_next != NULL) {
+	      if (this_event->_next->client == client) {
+		next_event = this_event->_next;
+		break;
+	      }
+	      this_event = this_event->_next;
+	    }
+	  }
+	}
+	
+	debug_mmio_return(mmio->dbg_fp, mmio->dbg_id, client->context);
+
+	return next_event; // the mmio_event that we found in the list that points back to this client
+	// return NULL;
 }
 
 // Add mem write event to offset in memory space
