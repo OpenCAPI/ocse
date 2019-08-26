@@ -732,7 +732,7 @@ static void _handle_kill_xlate_done( struct ocxl_afu *afu )
 	  return;
 	}
       ea = ntohll(ea);
-      debug_msg( "  of addresse=0x%016xll", ea );
+      debug_msg( "  of addresse=0x%016x", ea );
 
       if (get_bytes_silent(afu->fd, sizeof( code ), &code, 1000, 0) < 0) {
 	  warn_msg("_handle_kill_xlate_done: Socket failure getting kill_xlate_done address");
@@ -752,29 +752,28 @@ static void _handle_kill_xlate_done( struct ocxl_afu *afu )
 	    if ( this_ea->kill_xlate_pending == 1) {
 	          // does this_ea ea match the ea we are done with?
 	          if ( this_ea->ea == ea ) {
-		        // free this_ea
+		        // we found the ea that we want to free
 		        // first save the _next pointer
 		        if (prev_ea == NULL) {
 			      afu->eas = this_ea->_next;
 			} else {
 			      prev_ea->_next = this_ea->_next;
 			}
-		  }
-		  
-		  debug_msg( "KILL XLATE DONE done for addr @ 0x%016" PRIx64, this_ea->ea );
-		  free( this_ea );
 
-		  // advance the pointers
-		  if (prev_ea == NULL) {
-		        this_ea = afu->eas;
-		  } else {
-		        this_ea = prev_ea->_next;
+			debug_msg( "KILL XLATE DONE done for addr @ 0x%016" PRIx64, this_ea->ea );
+			free( this_ea );
+			
+			// we should only have one entry in the ea's list so we can leave now
+			// or we have to figure out how to set pointers so that the advance code below is correct.
+			return;
 		  }
-	    } else {
-	          prev_ea = this_ea;
-		  this_ea = this_ea->_next;
 	    }
+	    
+	    // normal advance of the pointers
+	    prev_ea = this_ea;
+	    this_ea = this_ea->_next;
       }
+      return;
 }
 
 // add random capp kill_xlate command to the socket here.  Summary
@@ -3227,7 +3226,6 @@ ocxl_err ocxl_afu_close( ocxl_afu_h afu )
 {
         struct ocxl_afu *my_afu;
 	struct ocxl_irq *irq;
-	struct ocxl_ea_area *this_ea;
 	int i;
 
 	my_afu = (struct ocxl_afu *)afu;
@@ -3248,9 +3246,6 @@ ocxl_err ocxl_afu_close( ocxl_afu_h afu )
 	// free eas - actually just wait some time for the afu to respond to the kill_xlate's that are pending
 	while (afu->eas != NULL) {
 		_delay_1ms();
-		// this_ea = afu->eas;
-		// afu->eas = this_ea->_next;
-		// free( this_ea );
 	}
 
 	_afu_free( afu );
