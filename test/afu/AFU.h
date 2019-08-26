@@ -48,7 +48,7 @@ private:
     std::map < uint16_t, MachineController * >context_to_mc;
     std::map < uint16_t,
         MachineController * >::iterator highest_priority_mc;
-
+    std::vector<uint64_t> t_address_v;
     MachineController *machine_controller;
 
     AFU_State state;

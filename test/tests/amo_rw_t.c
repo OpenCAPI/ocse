@@ -289,7 +289,7 @@ int main(int argc, char *argv[])
         }
         printf("\n");
     }
-
+/*
     printf("Attempt xlate release cmd 0x51\n");
     config_param.command = AFU_CMD_XLATE_RELEASE;
     config_param.mem_size = 64;
@@ -310,7 +310,7 @@ int main(int argc, char *argv[])
       printf("FAILED: config_enable_and_run_machine\n");
       goto done;
     }
-    
+*/ 
     status[0] = 0x55;   // send test complete status
     printf("Polling test completion status\n");
     while(status[0] != 0x00) {
