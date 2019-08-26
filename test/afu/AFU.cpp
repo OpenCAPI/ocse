@@ -63,6 +63,7 @@ uint16_t gBDF = 0;
 uint16_t gACTAG = 0;
 uint16_t gDUT = 0;
 uint16_t other_resp_completed = 0;
+uint8_t kill_xlate_flag = 0;
 
 AFU::AFU (int port, string filename, bool parity, bool jerror):
   descriptor (filename),
@@ -367,6 +368,23 @@ AFU::start ()
 		    }
 		    else if(status_data[0] == 0x55) {
 					printf("AFU: status data = 0x%x\n", status_data[0]);
+					if(kill_xlate_flag) {
+						printf("clear kill xlate release flag\n");
+						kill_xlate_flag = 0;
+						printf("write kill xlate release command to config\n");
+						//change_machine_config(i, machine_number, data);
+						mc->change_machine_config(0, 0, 0x8051000000000000);
+						mc->change_machine_config(1, 0, 0x01a15300000e0040);
+						mc->change_machine_config(2, 0, t_address_v.back());
+						printf("Sending kill xlate release command\n");
+						highest_priority_mc--;
+						if(highest_priority_mc->second->send_command(&afu_event, cycle)) {
+							++highest_priority_mc;
+						}
+
+					}
+					printf("write app status 0x0\n");
+					write_app_status(status_address, 0x0);
 					printf("AFU: test is done\n");
 					printf("AFU: set AFU state to READY\n");
 					write_app_status(status_address, 0x00);
@@ -760,9 +778,12 @@ AFU::resolve_tlx_afu_resp()
 		  printf("AFU: TA address = 0x%llx\n", resp_pa_or_ta);
 		  printf("AFU: response page size = 0x%x\n", resp_pg_size);
 		  resp_pa_or_ta = resp_pa_or_ta | resp_pg_size;
+		  t_address_v.push_back(resp_pa_or_ta);
 		  // write result back to ap offset, data, size
 		  descriptor.set_mmio_mem(3*8, (char*)&resp_pa_or_ta, 8);
 		  read_resp_completed = 1;
+		  // set kill_xlate_flag
+		  kill_xlate_flag = 1;
 		  break;
 		case TLX_RSP_READ_RESP:
 	    read_resp_completed = 1;	// debug1
