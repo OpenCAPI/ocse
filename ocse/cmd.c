@@ -283,7 +283,7 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	// start of new code
 	qitem = &(event->presyncq[0]);
 	*qitem = (uint16_t)0;
-	if (((event->form_flag & 0x01) == 1) && (event->service_q_slot > 1)) { // this is .s form cmd 
+	if ((((event->form_flag & 0x01) == 1) || (event->command == AFU_RSP_KILL_XLATE_DONE)) && (event->service_q_slot > 1)) { // this is .s form cmd OR a kill_xlate_done
 		// and there are cmds in fromt of it that have not started/completed yet.
 		head = &(cmd->list);
 		for (n=0; n< event->service_q_slot; n++) { // list all afutags ahead of .s cmd (TODO add check for stream id)
@@ -296,7 +296,7 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 			else {
 				qitem = &(event->presyncq[n]);
 				*qitem = 0; 
-				debug_msg("HMP prior cmd not in this context, it is  0x%04x and .s cmd is  0x%04x", cmd_b4me->context, event->context); }
+				debug_msg("HMP prior cmd not in this context, it is  0x%04x and .s cmd or kill_xlate_done is  0x%04x", cmd_b4me->context, event->context); }
 			head = &((*head)->_next);
 		}
 	}
@@ -945,7 +945,7 @@ void handle_buffer_write(struct cmd *cmd)
 	uint8_t buffer[12];  // 1 message byte + 2 size bytes + 8 address bytesa + 1 form_flag
 	uint64_t *addr;
 	uint16_t *size;
-	int n, clear;
+	int m, n, clear;
 	//int quadrant, byte;
 
 	// Make sure cmd structure is valid
@@ -978,6 +978,7 @@ void handle_buffer_write(struct cmd *cmd)
 	if (((event->form_flag & 0x01) == 1) && (event->service_q_slot > 1)) { // this is a .s form cmd
 		// and there were cmds ahead of us in service q that might not yet be retired, so check
 		debug_msg("HMP: handle_buffer_write: Found a .s cmd form and need to check presyncq");
+		m = 0;
 		n = 0;
 		clear = 1;  // present this to indicate no pending cmds
 		while (event->presyncq[n] != event->afutag) { // list all afutags ahead of .s cmd (TODO add stream_id check)
@@ -985,15 +986,17 @@ void handle_buffer_write(struct cmd *cmd)
 				clear = 1;
 				clist = cmd->list;
 				while (clist != NULL) {
-					if (clist->afutag == event->presyncq[n])
+					if (clist->afutag == event->presyncq[m])
 							clear = 0; // cmd still exists; hasn't completed yet
 					clist = clist->_next;
 				}
 				if (clear == 1)
 					event->presyncq[n] = 0;
-				n++;
-				debug_msg("HMP LOOK event->presyncq[%d]=0x%04x ", n, event->presyncq[n]);
+				m++;
 			}
+
+			n++;
+			debug_msg("HMP LOOK event->presyncq[%d]=0x%04x ", n, event->presyncq[n]);
 		}
 		if (clear == 0) {
 			debug_msg("HMP can't execute cmd; presyncq not empty! HANDLE BUFFER WRITE event @ 0x%016" PRIx64 ,  event );
@@ -1365,7 +1368,7 @@ void handle_write_be_or_amo(struct cmd *cmd)
 	uint64_t *addr, *wr_be;
 	uint16_t *size;
 	uint8_t *buffer;
-	int n, clear;
+	int m, n, clear;
 
 	// debug_msg( "ocse:handle_write_be_or_amo:" );
 	// Check that cmd struct is valid
@@ -1402,6 +1405,7 @@ void handle_write_be_or_amo(struct cmd *cmd)
 	if (((event->form_flag & 0x01) == 1) && (event->service_q_slot > 1)) { // this is a .s form cmd
 		// and there were cmds ahead of us in service q that might not yet be retired, so check
 		debug_msg("HMP: handle_write_be_or_amo: Found a .s cmd form and need to check presyncq");
+		m = 0;
 		n = 0;
 		clear = 1;  // present this to indicate no pending cmds
 		while (event->presyncq[n] != event->afutag) { // list all afutags ahead of .s cmd (TODO add stream_id check)
@@ -1409,15 +1413,16 @@ void handle_write_be_or_amo(struct cmd *cmd)
 				clear = 1;
 				clist = cmd->list;
 				while (clist != NULL) {
-					if (clist->afutag == event->presyncq[n])
+					if (clist->afutag == event->presyncq[m])
 							clear = 0; // cmd still exists; hasn't completed yet
 					clist = clist->_next;
 				}
 				if (clear == 1)
 					event->presyncq[n] = 0;
-				n++;
-				debug_msg("HMP LOOK event->presyncq[%d]=0x%04x ", n, event->presyncq[n]);
+				m++;
 			}
+			n++;
+			debug_msg("HMP LOOK event->presyncq[%d]=0x%04x ", n, event->presyncq[n]);
 		}
 		if (clear == 0) {
 			debug_msg("HMP can't execute cmd; presyncq not empty! HANDLE WRITE BE OR AMO event @ 0x%016" PRIx64 ,  event );
@@ -1760,8 +1765,10 @@ void handle_touch(struct cmd *cmd)
 void handle_kill_done(struct cmd *cmd, struct mmio *mmio)
 {
 	struct cmd_event *cmd_event;
+	struct cmd_event *clist;
 	struct mmio_event *mmio_event;
 	struct client *client;
+	int n, m, clear;
 
 	// Make sure cmd structure is valid
 	if (cmd == NULL)
@@ -1773,7 +1780,8 @@ void handle_kill_done(struct cmd *cmd, struct mmio *mmio)
 	while (cmd_event != NULL) {
 	        if ( ( cmd_event->type == CMD_KILL_DONE ) && 
 		     ( cmd_event->state == MEM_IDLE ) && 
-		     ( ( cmd_event->client_state != CLIENT_VALID ) || !allow_reorder(cmd->parms) ) ) { // disable reordering of kill done's
+		     (  cmd_event->client_state != CLIENT_VALID  ) ) { // disable reordering of kill done's
+		     //( ( cmd_event->client_state != CLIENT_VALID ) || !allow_reorder(cmd->parms) ) ) { // disable reordering of kill done's
 			break;
 		}
 
@@ -1785,6 +1793,42 @@ void handle_kill_done(struct cmd *cmd, struct mmio *mmio)
 		return;
 
 	debug_msg("handle_kill_done: event selected and client still exists");
+
+	// start of new code
+	if (cmd_event->service_q_slot > 1) { // there were cmds ahead of us in service q that might not yet be retired, so check
+		debug_msg("HMP: handle_kill_done: Need to check presyncq");
+		n = 0;
+		m = 0;
+		clear = 1;  // present this to indicate no pending cmds
+		while (cmd_event->presyncq[n] != cmd_event->afutag) { // list all afutags ahead of this kill_xlate_done (TODO add stream_id check)
+			if (cmd_event->presyncq[n] != 0) {
+				clear = 1;
+				clist = cmd->list;
+				while (clist != NULL) {
+					if (clist->afutag == cmd_event->presyncq[m])
+							clear = 0; // cmd still exists; hasn't completed yet
+					clist = clist->_next;
+				}
+				if (clear == 1)
+					cmd_event->presyncq[n] = 0;
+				m++;
+				debug_msg("HMP LOOK event->presyncq[%d]=0x%04x ", n, cmd_event->presyncq[n]);
+			}
+			debug_msg("HMP LOOK event->presyncq[%d]=0x%04x ", n, cmd_event->presyncq[n]);
+			n++;
+		}
+		if (clear == 0) {
+			debug_msg("HMP can't return kill_xlate_done; presyncq not empty! HANDLE KILL DONE event @ 0x%016" PRIx64 ,  cmd_event );
+			return;}
+		else 
+			debug_msg("HMP return kill_xlate_done; presyncq is empty! HANDLE KILL DONE event @ 0x%016" PRIx64 ,  cmd_event );
+	
+	}	
+	else
+		debug_msg("HMP: handle_kill_done: NO NEED to check presyncq");
+	// end of new code
+
+
 
 	if (cmd_event->command == AFU_RSP_KILL_XLATE_DONE) {
 	        // locate the corresponding mmio_event in the mmio list.  it should be first since we only send one mmio at a time.
@@ -1827,7 +1871,7 @@ void handle_interrupt(struct cmd *cmd)
 	uint64_t offset;
 	uint16_t byte_count;
 	uint8_t buffer[45];
-	int n, clear;
+	int m, n, clear;
 
 	// debug_msg( "ocse:handle_interrupt:" );
 
@@ -1854,6 +1898,7 @@ void handle_interrupt(struct cmd *cmd)
 	if (((event->form_flag & 0x01) == 1) && (event->service_q_slot > 1)) { // this is a .s form cmd
 		// and there were cmds ahead of us in service q that might not yet be retired, so check
 		debug_msg("HMP: handle_interrupt: Found a .s cmd form and need to check presyncq");
+		m = 0;
 		n = 0;
 		clear = 1;  // present this to indicate no pending cmds
 		while (event->presyncq[n] != event->afutag) { // list all afutags ahead of .s cmd (TODO add stream_id check)
@@ -1861,15 +1906,16 @@ void handle_interrupt(struct cmd *cmd)
 				clear = 1;
 				clist = cmd->list;
 				while (clist != NULL) {
-					if (clist->afutag == event->presyncq[n])
+					if (clist->afutag == event->presyncq[m])
 							clear = 0; // cmd still exists; hasn't completed yet
 					clist = clist->_next;
 				}
 				if (clear == 1)
 					event->presyncq[n] = 0;
-				n++;
-				debug_msg("HMP LOOK event->presyncq[%d]=0x%04x ", n, event->presyncq[n]);
+				m++;
 			}
+			n++;
+			debug_msg("HMP LOOK event->presyncq[%d]=0x%04x ", n, event->presyncq[n]);
 		}
 		if (clear == 0) {
 			debug_msg("HMP can't execute cmd; presyncq not empty! HANDLE INTERRUPT event @ 0x%016" PRIx64 ,  event );
