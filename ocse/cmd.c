@@ -849,6 +849,9 @@ static void _parse_cmd(struct cmd *cmd,
 		break;
 	case AFU_RSP_KILL_XLATE_DONE:
 		debug_msg("YES! AFU response is KILL XLATE DONE");
+		if ( cmd_data_is_valid ) {
+		    cmd->afu_event->afu_tlx_dcp3_data_valid = 1;
+		}
 		_add_kill_xlate_done(cmd, cmd_actag, cmd_afutag, cmd_opcode,
 			  cmd_capptag, cmd_resp_code);
 		break;
