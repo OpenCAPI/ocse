@@ -1291,40 +1291,43 @@ void handle_afu_tlx_write_cmd(struct cmd *cmd)
 
 	debug_msg("entering HANDLE_AFU_TLX_WRITE_CMD");
 	// Check to see if this cmd gets selected for a RETRY or FAILED or PENDING read_failed response
-	if ( allow_retry(cmd->parms)) {
-		event->state = MEM_DONE;
-		event->type = CMD_FAILED;
-		event->resp_opcode = TLX_RSP_WRITE_FAILED;
-		event->resp = 0x02;
-		debug_msg("handle_afu_tlx_write_cmd: RETRY this cmd =0x%x \n", event->command);
-		return;
-	}
-	if ( allow_failed(cmd->parms)) {
-		event->state = MEM_DONE;
-		event->type = CMD_FAILED;
-		event->resp_opcode = TLX_RSP_WRITE_FAILED;
-		event->resp = 0x0e;
-		debug_msg("handle_afu_tlx_write_cmd: FAIL this cmd =0x%x \n", event->command);
-		return;
-	}
-	if ( allow_derror(cmd->parms)) {
-		event->state = MEM_DONE;
-		event->type = CMD_FAILED;
-		event->resp_opcode = TLX_RSP_WRITE_FAILED;
-		event->resp = 0x08;
-		debug_msg("handle_afu_tlx_write_cmd: DERROR this cmd =0x%x \n", event->command);
-		return;
-	}
+	// do NOT generate a response message if the command is a .p (posted) form
+	if ( ( event->form_flag & 0x2 ) != 0x2 ) { // cmd is not posted; "failed" response is permitted
+	        if ( allow_retry(cmd->parms)) {
+		        event->state = MEM_DONE;
+			event->type = CMD_FAILED;
+			event->resp_opcode = TLX_RSP_WRITE_FAILED;
+			event->resp = 0x02;
+			debug_msg("handle_afu_tlx_write_cmd: RETRY this cmd =0x%x \n", event->command);
+			return;
+		}
+		if ( allow_failed(cmd->parms)) {
+		        event->state = MEM_DONE;
+			event->type = CMD_FAILED;
+			event->resp_opcode = TLX_RSP_WRITE_FAILED;
+			event->resp = 0x0e;
+			debug_msg("handle_afu_tlx_write_cmd: FAIL this cmd =0x%x \n", event->command);
+			return;
+		}
+		if ( allow_derror(cmd->parms)) {
+		        event->state = MEM_DONE;
+			event->type = CMD_FAILED;
+			event->resp_opcode = TLX_RSP_WRITE_FAILED;
+			event->resp = 0x08;
+			debug_msg("handle_afu_tlx_write_cmd: DERROR this cmd =0x%x \n", event->command);
+			return;
+		}
 
-	// for xlate_pending response, ocse has to THEN follow up with an xlate_done response
-	// (at some unknown time later) and that will "complete" the original cmd (no rd/write )
-	if ( allow_pending(cmd->parms)) {
-		event->state = MEM_XLATE_PENDING;
-		event->type = CMD_FAILED;
-		event->resp_opcode = TLX_RSP_WRITE_FAILED;
-		event->resp = 0x04;
-		debug_msg("handle_afu_tlx_write_cmd: send XLATE_PENDING for this cmd =0x%x \n", event->command);
-		return;
+		// for xlate_pending response, ocse has to THEN follow up with an xlate_done response
+		// (at some unknown time later) and that will "complete" the original cmd (no rd/write )
+		if ( allow_pending(cmd->parms)) {
+		        event->state = MEM_XLATE_PENDING;
+			event->type = CMD_FAILED;
+			event->resp_opcode = TLX_RSP_WRITE_FAILED;
+			event->resp = 0x04;
+			debug_msg("handle_afu_tlx_write_cmd: send XLATE_PENDING for this cmd =0x%x \n", event->command);
+			return;
+		}
 	}
 
 	// Send buffer read request to AFU.  Setting cmd->buffer_read
@@ -1439,52 +1442,54 @@ void handle_write_be_or_amo(struct cmd *cmd)
 	// end of new code for .s cmds
 
 	// Check to see if this cmd gets selected for a RETRY or FAILED or PENDING read_failed response
-	if ( allow_retry(cmd->parms)) {
-		event->state = MEM_DONE;
-		if ((event->type == CMD_AMO_RD) || (event->type == CMD_AMO_RW))
-			event->resp_opcode = TLX_RSP_READ_FAILED;
-		else	
-			event->resp_opcode = TLX_RSP_WRITE_FAILED;
-		event->type = CMD_FAILED;
-		event->resp = 0x02;
-		debug_msg("handle_write_be_or_amo: RETRY this cmd =0x%x \n", event->command);
-		return;
-	}
-	if ( allow_failed(cmd->parms)) {
-		event->state = MEM_DONE;
-		if ((event->type == CMD_AMO_RD) || (event->type == CMD_AMO_RW))
-			event->resp_opcode = TLX_RSP_READ_FAILED;
-		else	
-			event->resp_opcode = TLX_RSP_WRITE_FAILED;
-		event->type = CMD_FAILED;
-		event->resp = 0x0e;
-		debug_msg("handle_write_be_or_amo: FAIL this cmd =0x%x \n", event->command);
-		return;
-	}
-	if ( allow_derror(cmd->parms)) {
-		event->state = MEM_DONE;
-		if ((event->type == CMD_AMO_RD) || (event->type == CMD_AMO_RW))
-			event->resp_opcode = TLX_RSP_READ_FAILED;
-		else	
-			event->resp_opcode = TLX_RSP_WRITE_FAILED;
-		event->type = CMD_FAILED;
-		event->resp = 0x08;
-		debug_msg("handle_write_be_or_amo: DERROR this cmd =0x%x \n", event->command);
-		return;
-	}
+	if ( ( event->form_flag & 0x2 ) != 0x2 ) { // cmd is not posted; "failed" response is permitted
+	        if ( allow_retry(cmd->parms)) {
+		        event->state = MEM_DONE;
+			if ((event->type == CMD_AMO_RD) || (event->type == CMD_AMO_RW))
+			        event->resp_opcode = TLX_RSP_READ_FAILED;
+			else	
+			        event->resp_opcode = TLX_RSP_WRITE_FAILED;
+			event->type = CMD_FAILED;
+			event->resp = 0x02;
+			debug_msg("handle_write_be_or_amo: RETRY this cmd =0x%x \n", event->command);
+			return;
+		}
+		if ( allow_failed(cmd->parms)) {
+		        event->state = MEM_DONE;
+			if ((event->type == CMD_AMO_RD) || (event->type == CMD_AMO_RW))
+			        event->resp_opcode = TLX_RSP_READ_FAILED;
+			else	
+			        event->resp_opcode = TLX_RSP_WRITE_FAILED;
+			event->type = CMD_FAILED;
+			event->resp = 0x0e;
+			debug_msg("handle_write_be_or_amo: FAIL this cmd =0x%x \n", event->command);
+			return;
+		}
+		if ( allow_derror(cmd->parms)) {
+		        event->state = MEM_DONE;
+			if ((event->type == CMD_AMO_RD) || (event->type == CMD_AMO_RW))
+			        event->resp_opcode = TLX_RSP_READ_FAILED;
+			else	
+			        event->resp_opcode = TLX_RSP_WRITE_FAILED;
+			event->type = CMD_FAILED;
+			event->resp = 0x08;
+			debug_msg("handle_write_be_or_amo: DERROR this cmd =0x%x \n", event->command);
+			return;
+		}
 
-	// for xlate_pending response, ocse has to THEN follow up with an xlate_done response 
-	// (at some unknown time later) and that will "complete" the original cmd (no rd/write )
-	if ( allow_pending(cmd->parms)) {
-		event->state = MEM_XLATE_PENDING;
-		if ((event->type == CMD_AMO_RD) || (event->type == CMD_AMO_RW))
-			event->resp_opcode = TLX_RSP_READ_FAILED;
-		else	
-			event->resp_opcode = TLX_RSP_WRITE_FAILED;
-		event->type = CMD_FAILED;
-		event->resp = 0x04;
-		debug_msg("handle_write_be_or_amo: send XLATE_PENDING for this cmd =0x%x \n", event->command);
-		return;
+		// for xlate_pending response, ocse has to THEN follow up with an xlate_done response 
+		// (at some unknown time later) and that will "complete" the original cmd (no rd/write )
+		if ( allow_pending(cmd->parms)) {
+		        event->state = MEM_XLATE_PENDING;
+			if ((event->type == CMD_AMO_RD) || (event->type == CMD_AMO_RW))
+			        event->resp_opcode = TLX_RSP_READ_FAILED;
+			else	
+			        event->resp_opcode = TLX_RSP_WRITE_FAILED;
+			event->type = CMD_FAILED;
+			event->resp = 0x04;
+			debug_msg("handle_write_be_or_amo: send XLATE_PENDING for this cmd =0x%x \n", event->command);
+			return;
+		}
 	}
 
 	// Send cmd & data (if available) to client/libocxl to process
