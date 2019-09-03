@@ -99,19 +99,24 @@ Descriptor::parse_descriptor_file (string filename)
 		//vsec_offset = strtoul(field.c_str(), NULL, 16);
 		vsec_data = strtoul(s_value.c_str(), NULL, 16);
 	    	vsec[vsec_offset] = vsec_data;
-		//printf("vsec offset = 0x%x vsec data = 0x%08x\n", vsec_offset, vsec[vsec_offset]);
+		  printf("store vsec offset = 0x%x vsec data = 0x%08x\n", 
+            vsec_offset, vsec[vsec_offset]);
 	    } 
 	    // configuration header 1
 	    else if((vsec_offset >= 0x10000) && (vsec_offset < 0x10700)) {
 		vsec_data = strtoul(s_value.c_str(), NULL, 16);
 		vsec_offset = ~0x00010000 & vsec_offset;
 		vsec1[vsec_offset] = vsec_data;
+        printf("store vsec1 offset = 0x%x vsec1 data = 0x%08x\n",
+            vsec_offset, vsec1[vsec_offset]);
 	    }
 	    // configuration header 2
 	    else if((vsec_offset >= 0x20000) && (vsec_offset < 0x20700)) {
 		vsec_data = strtoul(s_value.c_str(), NULL, 16);
 		vsec_offset = ~0x00020000 & vsec_offset;
 		vsec2[vsec_offset] = vsec_data;
+        printf("store vsec2 offset = 0x%x vsec2 data = 0x%08x\n",
+            vsec_offset, vsec2[vsec_offset]);
 	    }
 	    debug_msg("Store vsec[0x%x] = 0x%08x", vsec_offset, vsec_data);
 	    //else if(vsec_offset >0xFFF) {

@@ -932,27 +932,27 @@ AFU::tlx_afu_config_read()
     if(resp_pl == 0x00) {
 	data_size = 1;
 	switch(vsec_offset) {
-	    case 0:
-		vsec_data = 0x000000FF & vsec_data;
-		break;
-	    case 1:
-		vsec_data = 0x0000FF00 & vsec_data;
-		vsec_data = vsec_data >> 8;
-		break;
-	    case 2:
-		vsec_data = 0x00FF0000 & vsec_data;
-		vsec_data = vsec_data >> 16;
-		break;
-	    case 3:
-		vsec_data = 0xFF000000 & vsec_data;
-		vsec_data = vsec_data >> 24;
-		break;
-	    default:
-		error_msg("Configuration read offset is not supported 0x%x", vsec_offset);
-		break;
+	  case 0:
+			vsec_data = 0x000000FF & vsec_data;
+			break;
+	  case 1:
+			vsec_data = 0x0000FF00 & vsec_data;
+			vsec_data = vsec_data >> 8;
+			break;
+	  case 2:
+			vsec_data = 0x00FF0000 & vsec_data;
+			vsec_data = vsec_data >> 16;
+			break;
+	  case 3:
+			vsec_data = 0xFF000000 & vsec_data;
+			vsec_data = vsec_data >> 24;
+			break;
+	  default:
+			error_msg("Configuration read offset is not supported 0x%x", vsec_offset);
+			break;
 	}
-    }
-    else if(resp_pl == 0x01) {
+  }
+  else if(resp_pl == 0x01) {
 	data_size = 2;
 	switch(vsec_offset) {
 	    case 0:
