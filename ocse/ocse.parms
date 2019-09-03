@@ -24,7 +24,8 @@
 #PAGESIZE:4
 
 # Host CacheLinse size. Default is 128. Valid values are 64, 128 & 256
-HOST_CL_SIZE:256
+#HOST_CL_SIZE:256
+HOST_CL_SIZE:128
 
 
 # Randomization seed.  Set this to force reproducible sequence of event
