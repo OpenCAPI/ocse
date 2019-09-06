@@ -371,30 +371,40 @@ AFU::start ()
 					if(kill_xlate_flag) {
 						printf("clear kill xlate release flag\n");
 						kill_xlate_flag = 0;
-						printf("write kill xlate release command to config\n");
-						//change_machine_config(i, machine_number, data);
-						mc->change_machine_config(0, 0, 0x8051000000000000);
-						mc->change_machine_config(1, 0, 0x01a15300000e0040);
-						mc->change_machine_config(2, 0, t_address_v.back());
-						printf("Sending kill xlate release command\n");
-						highest_priority_mc--;
-						if(highest_priority_mc->second->send_command(&afu_event, cycle)) {
-							++highest_priority_mc;
+						
+						printf("sending kill xlate done on vc3\n");
+						uint64_t temp_address;
+						temp_address = t_address_v.back();
+						printf("temp_address = 0x%llx\n", temp_address);
+						
+						if(afu_tlx_send_cmd_vc3(&afu_event,
+							0x0C,		// kill xlate opcode
+							afu_event.afu_tlx_vc3_actag, afu_event.afu_tlx_vc3_stream_id,
+							(uint8_t*)&temp_address, afu_event.afu_tlx_vc3_afutag,
+							afu_event.afu_tlx_vc3_dl, afu_event.afu_tlx_vc3_pl,
+							afu_event.afu_tlx_vc3_os, afu_event.afu_tlx_vc3_be,
+							afu_event.afu_tlx_vc3_cmdflag, afu_event.afu_tlx_vc3_endian,
+							afu_event.afu_tlx_vc3_bdf, afu_event.afu_tlx_vc3_pasid,
+							afu_event.afu_tlx_vc3_pg_size, afu_event.afu_tlx_vc3_mad,
+							afu_event.afu_tlx_vc3_capptag, afu_event.afu_tlx_vc3_resp_code
+							) != TLX_SUCCESS) {
+							printf("FAILED: sending kill xlate done\n");
 						}
-
-					}
-					printf("write app status 0x0\n");
-					write_app_status(status_address, 0x0);
-					printf("AFU: test is done\n");
-					printf("AFU: set AFU state to READY\n");
-					write_app_status(status_address, 0x00);
-					state = READY;
-		    }
-			}
+						
+					}		// end kill_xlate_flag
+					else {
+						printf("writing app status 0x0\n");
+						write_app_status(status_address, 0x0);	
+						printf("AFU: test is done\n");
+						printf("AFU: set AFU state to READY\n");
+						state = READY;
+		    	}
+		    }	// end status_data = 0x55
 			else {
 		  	debug_msg("AFU: waiting for new cmd from app");
 			}
-	  }
+		}	// read_status_resp
+	}	// next_cmd
     else if(cmd_ready) {
 			cmd_ready = 0;
 			if(context_to_mc.size () != 0) {
