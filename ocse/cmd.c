@@ -417,6 +417,20 @@ static void _add_kill_xlate_done(struct cmd *cmd, uint16_t actag, uint16_t afuta
 
 }
 
+static void _add_sync(struct cmd *cmd, uint16_t actag, uint16_t afutag, uint8_t cmd_opcode,
+			  uint8_t cmd_flag, uint8_t stream_id)
+{
+	int32_t context;
+        context = _find_client_by_actag(cmd, actag);
+	if (context == -1) {
+		warn_msg("_add_sync: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
+		return;
+	}
+        _add_cmd(cmd, context, afutag, cmd_opcode, CMD_SYNC,
+		     0, 0, MEM_IDLE,0, 0 , 0, 0, cmd_flag, 0, 0, stream_id, 0);
+
+}
+
 
 // Format and add memory xlate touch, xlate_to_pa or xlate_release to command list
  static void _add_xlate_touch(struct cmd *cmd, uint16_t actag, uint16_t afutag,
@@ -847,8 +861,16 @@ static void _parse_cmd(struct cmd *cmd,
 		_add_xlate_touch( cmd, cmd_actag, cmd_afutag, cmd_opcode,
 				  cmd_ea_ta_or_obj, cmd_flag, cmd_pg_size, cmd_stream_id);
 		break;
+	case AFU_CMD_SYNC:
+		debug_msg("YES! AFU cmd is SYNC");
+		if ( cmd_data_is_valid ) {
+		    cmd->afu_event->afu_tlx_dcp3_data_valid = 1;
+		}
+		_add_sync(cmd, cmd_actag, cmd_afutag, cmd_opcode,
+			  cmd_flag, cmd_stream_id);
+		break;
 	case AFU_RSP_KILL_XLATE_DONE:
-		debug_msg("YES! AFU response is KILL XLATE DONE");
+		debug_msg("YES! AFU response is KILL XLATE DONE and capptag= 0x%x", cmd_capptag);
 		if ( cmd_data_is_valid ) {
 		    cmd->afu_event->afu_tlx_dcp3_data_valid = 1;
 		}
@@ -1839,9 +1861,18 @@ void handle_kill_done(struct cmd *cmd, struct mmio *mmio)
 
 
 	if (cmd_event->command == AFU_RSP_KILL_XLATE_DONE) {
-	        // locate the corresponding mmio_event in the mmio list.  it should be first since we only send one mmio at a time.
-	        // eventually want to scan mmio->list for mmio_event that has a matching capptag
+	        // locate the corresponding mmio_event in the mmio list.
+	        // scan mmio->list for mmio_event that has a matching capptag
 	        mmio_event = mmio->list;
+		while (mmio_event != NULL) {
+			if (mmio_event->cmd_CAPPtag == cmd_event->resp_capptag)
+				break;
+
+			mmio_event = mmio_event->_next;
+		} 
+		// it is a FATAL error if we don't have a capp_tag match in the mmio list.
+		if (mmio_event == NULL)
+			error_msg("DID NOT FIND MATCH FOR capp_tag= 0x%x", cmd_event->resp_capptag);
 
 		// it is an error if we don't have a kill_xlate in the mmio list.
 	        if (mmio_event->cmd_opcode !=  OCSE_KILL_XLATE) {
