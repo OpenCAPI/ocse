@@ -24,6 +24,7 @@
 #PAGESIZE:4
 
 # Host CacheLinse size. Default is 128. Valid values are 64, 128 & 256
+#HOST_CL_SIZE:256
 HOST_CL_SIZE:128
 
 
@@ -37,16 +38,17 @@ SEED:1461247482
 # those responses will be in order.
 # Lower values introduces delays on responses and allows for greater
 # randomization of response ordering.
-RESPONSE_PERCENT:100
+#RESPONSE_PERCENT:100
 #RESPONSE_PERCENT:10,15
 #RESPONSE_PERCENT:20,25
-#RESPONSE_PERCENT:55,65
+RESPONSE_PERCENT:55,65
 
 # Percentage chance of OCL reordering  pending commands in a clock cycle.
 # Higher values mean greater chance of reorder
 #REORDER_PERCENT:10,15
 #REORDER_PERCENT:80,90
-REORDER_PERCENT:0
+#REORDER_PERCENT:0
+REORDER_PERCENT:40,60
 
 # Percentage chance of OCL responding with PAGED for any command response.
 #PAGED_PERCENT:2,4
@@ -89,10 +91,6 @@ BDI_RESP_ERR_PERCENT:0
 
 # Percentage chance of OCL setting bdi for any cmd data sent to AFU.
 BDI_CMD_ERR_PERCENT:0
-
-# Percentage chance of OCL reordering the execution of commands.
-# Percentage chance of OCL reordering the execution of commands.
-#REORDER_PERCENT:40,60
 
 # Percentage chance of OCL generating extra buffer read/write activity.
 # BUFFER_PERCENT:80,90

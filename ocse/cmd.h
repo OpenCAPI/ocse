@@ -49,6 +49,7 @@ enum cmd_type {
 	CMD_XLATE_REL, // release TA from CMD_XL_TOUCH
 	CMD_KILL_DONE, 
 	CMD_FAILED,
+	CMD_SYNC,
 	CMD_OTHER
 };
 

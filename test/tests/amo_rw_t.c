@@ -239,7 +239,7 @@ int main(int argc, char *argv[])
 
     //printf("Attempt AMO RW commands\n");
     for(j=0; j<1; j++) {
-        printf("Attempt AMO RW and %s\n", amo_rw[j].name);
+        printf("Attempt AMO RW c0 and %s\n", amo_rw[j].name);
         config_param.context = 0;
         config_param.enable_always = 1;
         config_param.mem_size = CACHELINE;
