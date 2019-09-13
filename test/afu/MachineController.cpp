@@ -52,19 +52,20 @@ bool MachineController::send_command (AFU_EVENT * afu_event, uint32_t cycle)
 
     // attempt to send a command with the allocated tag
     for (uint32_t i = 0; i < machines.size (); ++i) {
-        if (try_send && machines[i]->is_enabled ()
-                && machines[i]->attempt_new_command (afu_event, tag,
-                        flushed_state, (uint16_t) (cycle & 0x7FFF)))
-        {
-            debug_msg
-            ("MachineController::send_command: machine id %d sent new command", i);
-            try_send = false;
-            tag_to_machine[tag] = machines[i];
-	    resend_machine = machines[i];
+      if (try_send && machines[i]->is_enabled ()
+            && machines[i]->attempt_new_command (afu_event, tag,
+            flushed_state, (uint16_t) (cycle & 0x7FFF)))
+      {
+        debug_msg("MachineController::send_command: machine id %d sent new command", i);
+        try_send = false;
+        tag_to_machine[tag] = machines[i];
+	      resend_machine = machines[i];
   	    resend_tag = tag;
-	    memcpy(&resend_afu_event, afu_event, sizeof(resend_afu_event));
-	    debug_msg("MachineController::send_command tag = 0x%x machine = 0x%x", tag, machines[i]);
-        }
+        printf("MC: resend_machine = 0x%x\n", resend_machine);
+        printf("MC: machine = 0x%x\n", machines[i]);
+	      //memcpy(&resend_afu_event, afu_event, sizeof(resend_afu_event));
+	      debug_msg("MachineController::send_command tag = 0x%x machine = 0x%x", tag, machines[i]);
+      }
 
         // regardless if a command is sent, notify machine to advanced one cycle in delaying phase
         machines[i]->advance_cycle ();
@@ -83,7 +84,8 @@ MachineController::resend_command(AFU_EVENT *afu_event, uint32_t cycle)
     bool try_send = true;
 
     debug_msg("MachineController::resend_command");
-    resend_machine->attempt_resend_command(&resend_afu_event, resend_tag, flushed_state, 
+    printf("MC: resend_machine = 0x%x\n", resend_machine);
+    resend_machine->attempt_resend_command(afu_event, resend_tag, flushed_state, 
 			(uint16_t)(cycle & 0x7FFF));
     return try_send;     
 }

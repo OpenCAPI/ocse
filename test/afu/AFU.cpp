@@ -168,216 +168,210 @@ AFU::start ()
       break;
     }
 
-	// get TLX initial cmd and data credits run once
-	if(initial_credit_flag == 0) {
+	  // get TLX initial cmd and data credits run once
+	  if(initial_credit_flag == 0) {
 	    debug_msg("AFU: afu read initial credit");
 	    if(tlx_afu_read_initial_credits(&afu_event, 
-	    	&tlx_afu_vc0_initial_credit, &tlx_afu_vc1_initial_credit,
-	    	&tlx_afu_vc2_initial_credit, &tlx_afu_vc3_initial_credit, 
-	    	&tlx_afu_dcp0_initial_credit, &tlx_afu_dcp2_initial_credit,
-	    	&tlx_afu_dcp3_initial_credit) != TLX_SUCCESS) {
-		error_msg("AFU: Failed tlx_afu_read_initial_credits");
+	      &tlx_afu_vc0_initial_credit, &tlx_afu_vc1_initial_credit,
+	      &tlx_afu_vc2_initial_credit, &tlx_afu_vc3_initial_credit, 
+	      &tlx_afu_dcp0_initial_credit, &tlx_afu_dcp2_initial_credit,
+	      &tlx_afu_dcp3_initial_credit) != TLX_SUCCESS) {
+				  error_msg("AFU: Failed tlx_afu_read_initial_credits");
 	    }
 	    TagManager::reset_tlx_credit(tlx_afu_cmd_max_credit, tlx_afu_data_max_credit);
 	    info_msg("AFU: Receive TLX cmd and data initial credits");
-    	    debug_msg("AFU:  tlx_afu_vc0_initial_credit = %d", tlx_afu_vc0_initial_credit);
-    	    debug_msg("AFU:  tlx_afu_vc1_initial_credit = %d", tlx_afu_vc1_initial_credit);
+    	debug_msg("AFU:  tlx_afu_vc0_initial_credit = %d", tlx_afu_vc0_initial_credit);
+    	debug_msg("AFU:  tlx_afu_vc1_initial_credit = %d", tlx_afu_vc1_initial_credit);
 	    initial_credit_flag = 1;
-	}
+	  }
 
-	// no new events to be processed
-  if (rc <= 0)		
-    continue;
+	  // no new events to be processed
+    if (rc <= 0)		
+      continue;
 	
-	// tlx returing a response credit to afu
-	if(afu_event.tlx_afu_vc0_credit) {
+	  // tlx returing a response credit to afu
+	  if(afu_event.tlx_afu_vc0_credit) {
 	    TagManager::release_tlx_credit(RESP_CREDIT);
 	    //afu_event.tlx_afu_resp_credit = 0;
-	}
-	// tlx returning a response data credit to afu
-	if(afu_event.tlx_afu_dcp0_credit) {
+	  }
+	  // tlx returning a response data credit to afu
+	  if(afu_event.tlx_afu_dcp0_credit) {
 	    TagManager::release_tlx_credit(RESP_DATA_CREDIT);
 	    //afu_event.tlx_afu_resp_data_credit = 0;
-	}
-	// tlx returning a command credit to afu
-	if(afu_event.tlx_afu_vc1_credit) {
+	  }
+	  // tlx returning a command credit to afu
+	  if(afu_event.tlx_afu_vc1_credit) {
 	    TagManager::release_tlx_credit(CMD_CREDIT);
 	    //afu_event.tlx_afu_cmd_credit = 0;
-	}
-	// tlx returning a command data credit
-	if(afu_event.tlx_afu_dcp3_credit) {
+	  }
+	  // tlx returning a command data credit
+	  if(afu_event.tlx_afu_dcp3_credit) {
 	    TagManager::release_tlx_credit(CMD_DATA_CREDIT);
 	    //afu_event.tlx_afu_cmd_data_credit = 0;
-	}
-	// process config commands
-	if (afu_event.tlx_cfg_valid) {
+	  }
+	  // process config commands
+	  if (afu_event.tlx_cfg_valid) {
 	    debug_msg("AFU: Received config command 0x%x", afu_event.tlx_cfg_opcode);
 	    resolve_cfg_cmd();
 	    //afu_event.cfg_tlx_credit_return = 1;
-	}
-	// process tlx commands
-	if (afu_event.tlx_afu_vc1_valid || afu_event.tlx_cfg_valid) {
+	  }
+	  // process tlx commands
+	  if (afu_event.tlx_afu_vc1_valid || afu_event.tlx_cfg_valid) {
 	    info_msg("AFU: Received TLX command 0x%x", afu_event.tlx_afu_vc1_opcode);
 	    info_msg("AFU: Process TLX command");
 	    resolve_tlx_afu_cmd();
 	    info_msg("AFU: return afu tlx vc1 credit");
 	    afu_event.afu_tlx_credit_req_valid =1;
 	    afu_event.afu_tlx_vc1_credit = 1;	// return a cmd credit to tlx
-	}
-	if(afu_event.tlx_afu_vc2_valid) {
-		info_msg("AFU: return afu tlx vc2 credit");
-		resolve_tlx_vc2_cmd();
-		afu_event.afu_tlx_credit_req_valid = 1;
-		afu_event.afu_tlx_vc2_credit = 1;
-	}
-	// process tlx response
-	if (afu_event.tlx_afu_vc0_valid) {
-		if(afu_event.tlx_afu_vc0_opcode == 0x4)
-	    debug_msg("AFU: Received TLX read response");
-	  else if (afu_event.tlx_afu_vc0_opcode == 0x8)
-	  	debug_msg("AFU: Received TLX write response");
-	  else if(afu_event.tlx_afu_vc0_opcode == 0x2)
-	  	debug_msg("AFU: Received TLX touch response");
-	  else
-	  	debug_msg("AFU: Received TLX response 0x%x", afu_event.tlx_afu_vc0_opcode);
+	  }
+	  if(afu_event.tlx_afu_vc2_valid) {
+		  info_msg("AFU: return afu tlx vc2 credit");
+		  resolve_tlx_vc2_cmd();
+		  afu_event.afu_tlx_credit_req_valid = 1;
+		  afu_event.afu_tlx_vc2_credit = 1;
+	  }
+	  // process tlx response
+	  if (afu_event.tlx_afu_vc0_valid) {
+		  if(afu_event.tlx_afu_vc0_opcode == 0x4)
+	      debug_msg("AFU: Received TLX read response");
+	    else if (afu_event.tlx_afu_vc0_opcode == 0x8)
+	  	  debug_msg("AFU: Received TLX write response");
+	    else if(afu_event.tlx_afu_vc0_opcode == 0x2)
+	  	  debug_msg("AFU: Received TLX touch response");
+	    else
+	  	  debug_msg("AFU: Received TLX response 0x%x", afu_event.tlx_afu_vc0_opcode);
 
-	  resolve_tlx_afu_resp();
-	  info_msg("AFU: afu tlx vc0 credit return");
-	  afu_event.afu_tlx_credit_req_valid = 1;
-	  afu_event.afu_tlx_vc0_credit = 1;	// return a resp credit to tlx
-	  //afu_event.tlx_afu_vc0_valid = 0;
-	}
+	    resolve_tlx_afu_resp();
+	    info_msg("AFU: afu tlx vc0 credit return");
+	    afu_event.afu_tlx_credit_req_valid = 1;
+	    afu_event.afu_tlx_vc0_credit = 1;	// return a resp credit to tlx
+	  }  // process tlx response
 	// process tlx config response
-	if (afu_event.tlx_cfg_resp_ack) {
+	  if (afu_event.tlx_cfg_resp_ack) {
 	    debug_msg("AFU: Received TLX config response 0x%x", afu_event.tlx_afu_vc0_opcode);
 	    afu_event.cfg_tlx_credit_return = 1;	
 	    afu_event.afu_tlx_credit_req_valid = 1;	
 	    afu_event.tlx_cfg_resp_ack = 0;
-	}
+	  }
 	// process tlx response data
-	//if(afu_event.tlx_afu_resp_data_valid && mem_state == WAITING_FOR_DATA) {
-	if(afu_event.tlx_afu_dcp0_data_valid && resp_state == WAITING_FOR_DATA) {
+	  if(afu_event.tlx_afu_dcp0_data_valid && resp_state == WAITING_FOR_DATA) {
 	    debug_msg("AFU: Received TLX response data");
 	    resolve_tlx_afu_resp();
-	    //afu_event.tlx_afu_dcp0_credit = 1;	// tlx returns resp data credit to afu
-	    //info_msg("AFU: afu tlx vc0 credit return");
-	    //afu_event.afu_tlx_vc0_credit = 1;
 	    afu_event.tlx_afu_dcp0_data_valid = 0;
-	}
-	//if(afu_event.tlx_afu_resp_data_valid && mem_state != WAITING_FOR_DATA) {
-	if(afu_event.tlx_afu_dcp0_data_valid && resp_state != WAITING_FOR_DATA) {
+	  }
+	//
+	  if(afu_event.tlx_afu_dcp0_data_valid && resp_state != WAITING_FOR_DATA) {
 	    //afu_event.tlx_afu_dcp0_credit = 1;	// tlx returns resp data credit to afu
 			//info_msg("AFU: afu tlx vc0 credit return");
 			//afu_event.afu_tlx_vc0_credit = 1;
-	}
-	// configuration write response
-	//if (afu_event.tlx_afu_cmd_data_valid && config_state == READY) {
-	if (afu_event.tlx_cfg_resp_ack && config_state == READY) {
+	  }
+	  // configuration write response
+	  if (afu_event.tlx_cfg_resp_ack && config_state == READY) {
 	    info_msg("AFU: calling tlx_afu_config_write");
 	    tlx_afu_config_write();
-	}
+	  }
 
 	// partial write mem response
-	if (afu_event.tlx_afu_dcp1_data_valid && mem_state == READY) {
+	  if (afu_event.tlx_afu_dcp1_data_valid && mem_state == READY) {
 	    info_msg("AFU: calling tlx_pr_wr_mem");
 	    tlx_pr_wr_mem();
- 	}
+ 	  }
 
-	//printf("checking afu reset bit\n");
-	//  reset AFU
-	if(afu_enable_reset) {
-	    if(afu_is_reset()) {
-	    	debug_msg("AFU is resetting");
-		afu_enable_reset = 0;
-	    }
-	}
-	// enable AFU
-	if(state == IDLE) {
+	  //printf("checking afu reset bit\n");
+	  //  reset AFU
 	  if(afu_enable_reset) {
-	   	printf("checking afu enable bit\n");
-	   	if(afu_is_enabled()) {
-	      debug_msg("AFU is enabled");
-	      debug_msg("AFU: set state = READY");
-	      state = READY;
-		    afu_enable_reset = 0;
+	    if(afu_is_reset()) {
+	      debug_msg("AFU is resetting");
+			  afu_enable_reset = 0;
 	    }
 	  }
-	}
-	// get machine context and create new MachineController
-	else if(state == READY) {
-	  if(get_machine_context()) {
-			if(gDUT==1) {
-		    printf("gDUT = %d\n", gDUT);
-		    gBDF = 1;
-		    gACTAG++;
-			}
-			else if(gDUT == 2) {
-		    printf("gDUT = %d\n", gDUT);
-		    gBDF++;
-		    gACTAG++;
-	  	}
-			printf("AFU: gBDF = %d gACTAG = %d\n", gBDF, gACTAG);
-			afu_event.afu_tlx_vc3_bdf = gBDF;
-			afu_event.afu_tlx_vc3_actag = gACTAG;
-			afu_event.afu_tlx_vc3_opcode = AFU_CMD_ASSIGN_ACTAG;
-			printf("AFU: request afu assign actag\n");
-			request_assign_actag();
-	    printf("AFU: set state = RUNNING\n");
-	    state = RUNNING;
-			//debug1
-			read_resp_completed = 0;
-			write_resp_completed = 0;
-			other_resp_completed = 0;
+	  // enable AFU
+	  if(state == IDLE) {
+	    if(afu_enable_reset) {
+	   	  printf("checking afu enable bit\n");
+	   	  if(afu_is_enabled()) {
+	        debug_msg("AFU is enabled");
+	        debug_msg("AFU: set state = READY");
+	        state = READY;
+		      afu_enable_reset = 0;
+	      }
+	    }
 	  }
-	}
+	  // get machine context and create new MachineController
+	  else if(state == READY) {
+	    if(get_machine_context()) {
+			  if(gDUT==1) {
+		      printf("gDUT = %d\n", gDUT);
+		      gBDF = 1;
+		      gACTAG++;
+			  }
+			  else if(gDUT == 2) {
+		      printf("gDUT = %d\n", gDUT);
+		      gBDF++;
+		      gACTAG++;
+	  	  }
+			  printf("AFU: gBDF = %d gACTAG = %d\n", gBDF, gACTAG);
+			  afu_event.afu_tlx_vc3_bdf = gBDF;
+			  afu_event.afu_tlx_vc3_actag = gACTAG;
+			  afu_event.afu_tlx_vc3_opcode = AFU_CMD_ASSIGN_ACTAG;
+			  printf("AFU: request afu assign actag\n");
+			  request_assign_actag();
+	      printf("AFU: set state = RUNNING\n");
+	      state = RUNNING;
+			  //debug1
+			  read_resp_completed = 0;
+			  write_resp_completed = 0;
+			  other_resp_completed = 0;
+	    }
+	  }  // state == READY
   // generate commands, initial read_resp_completed=0; write_resp_completed=0
 	// initial cmd_ready=1; next_cmd=0, other_resp_competed=0;
-  else if (state == RUNNING) {
-		if((read_resp_completed ||  write_resp_completed || other_resp_completed) &&
-			!(next_cmd) && !(cmd_ready)) {
-			printf("AFU: writing app status\n");
-			printf("AFU: read resp = %d write resp = %d other resp = %d\n", read_resp_completed,
-			write_resp_completed, other_resp_completed);
-			write_app_status(status_address, 0x0);
-			read_resp_completed = 0;
-			write_resp_completed = 0;
-			other_resp_completed = 0;
-			next_cmd = 1;
-	  }
-	  else if(next_cmd) {
-	 		if(write_status_resp) {
-		    debug_msg("AFU: reading app status");	
-		    read_app_status(status_address);
-		    write_status_resp = 0;
-			}
-			else if(read_status_resp) {
-		    if(status_data[0] == 0xff) {
-					printf("AFU: status data = 0x%x\n", status_data[0]);
-		    	debug_msg("AFU: get next cmd from app");
-		    	next_cmd = 0;
-		    	cmd_ready = 1;
-					read_status_resp = 0;
-					read_resp_completed = 0; //debug1
-		    	get_machine_context();
-		    }
-		    else if(status_data[0] == 0x0) {
-					printf("AFU: status data = 0x%x\n", status_data[0]);
-					debug_msg("AFU: reading app status");
-					read_app_status(status_address);
-					printf("AFU: waiting for read resp\n");
-		    }
-		    else if(status_data[0] == 0x55) {
-					printf("AFU: status data = 0x%x\n", status_data[0]);
-					if(kill_xlate_flag) {
-						printf("clear kill xlate release flag\n");
-						kill_xlate_flag = 0;
+    else if (state == RUNNING) {
+		  if((read_resp_completed ||  write_resp_completed || other_resp_completed) &&
+			  !(next_cmd) && !(cmd_ready)) {
+			  printf("AFU: writing app status\n");
+			  printf("AFU: read resp = %d write resp = %d other resp = %d\n", read_resp_completed,
+			  write_resp_completed, other_resp_completed);
+			  write_app_status(status_address, 0x0);
+			  read_resp_completed = 0;
+			  write_resp_completed = 0;
+			  other_resp_completed = 0;
+			  next_cmd = 1;
+	    }
+	    else if(next_cmd) {
+	 		  if(write_status_resp) {
+		      debug_msg("AFU: reading app status");	
+		      read_app_status(status_address);
+		      write_status_resp = 0;
+			  }
+			  else if(read_status_resp) {
+		      if(status_data[0] == 0xff) {
+					  printf("AFU: status data = 0x%x\n", status_data[0]);
+		    	  debug_msg("AFU: get next cmd from app");
+		    	  next_cmd = 0;
+		    	  cmd_ready = 1;
+					  read_status_resp = 0;
+					  read_resp_completed = 0; //debug1
+		    	  get_machine_context();
+		      }
+		      else if(status_data[0] == 0x0) {
+					  printf("AFU: status data = 0x%x\n", status_data[0]);
+					  debug_msg("AFU: reading app status");
+					  read_app_status(status_address);
+					  printf("AFU: waiting for read resp\n");
+		      }
+		      else if(status_data[0] == 0x55) {
+					  printf("AFU: status data = 0x%x\n", status_data[0]);
+					  if(kill_xlate_flag) {
+						  printf("clear kill xlate release flag\n");
+						  kill_xlate_flag = 0;
 						
-						printf("sending kill xlate done on vc3\n");
-						uint64_t temp_address;
-						temp_address = t_address_v.back();
-						printf("temp_address = 0x%llx\n", temp_address);
-						
-						if(afu_tlx_send_cmd_vc3(&afu_event,
+						  printf("sending kill xlate done on vc3\n");
+						  uint64_t temp_address;
+						  temp_address = t_address_v.back();
+						  printf("temp_address = 0x%llx\n", temp_address);
+						  int rc;
+						  rc = afu_tlx_send_cmd_vc3(&afu_event,
 							0x0C,		// kill xlate opcode
 							afu_event.afu_tlx_vc3_actag, afu_event.afu_tlx_vc3_stream_id,
 							(uint8_t*)&temp_address, afu_event.afu_tlx_vc3_afutag,
@@ -387,28 +381,32 @@ AFU::start ()
 							afu_event.afu_tlx_vc3_bdf, afu_event.afu_tlx_vc3_pasid,
 							afu_event.afu_tlx_vc3_pg_size, afu_event.afu_tlx_vc3_mad,
 							afu_event.afu_tlx_vc3_capptag, afu_event.afu_tlx_vc3_resp_code
-							) != TLX_SUCCESS) {
-							printf("FAILED: sending kill xlate done\n");
-						}
-						
-					}		// end kill_xlate_flag
-					else {
-						printf("writing app status 0x0\n");
-						write_app_status(status_address, 0x0);	
-						printf("AFU: test is done\n");
-						printf("AFU: set AFU state to READY\n");
-						state = READY;
-		    	}
-		    }	// end status_data = 0x55
-			else {
-		  	debug_msg("AFU: waiting for new cmd from app");
-			}
-		}	// read_status_resp
-	}	// next_cmd
-    else if(cmd_ready) {
-			cmd_ready = 0;
-			if(context_to_mc.size () != 0) {
-				printf("AFU: context to mc size = %d\n", (int)context_to_mc.size());
+							); 
+						  if (rc == TLX_SUCCESS) {
+							  printf("AFU: kill xlate done cmd success\n");
+						  }
+						  else if(rc == 0x2) {
+							  printf("FAILED: sending retry kill xlate done\n");
+							  retry_cmd = 1;
+						  }
+					  }		// end kill_xlate_flag
+					  else {
+						  printf("writing app status 0x0\n");
+						  write_app_status(status_address, 0x0);	
+						  printf("AFU: test is done\n");
+						  printf("AFU: set AFU state to READY\n");
+						  state = READY;
+		    	  }
+		      }	// end status_data = 0x55
+			    else {
+		  	    debug_msg("AFU: waiting for new cmd from app");
+			    }
+		    }	// read_status_resp
+	    }	// next_cmd
+      else if(cmd_ready) {
+			  cmd_ready = 0;
+			  if(context_to_mc.size () != 0) {
+				  printf("AFU: context to mc size = %d\n", (int)context_to_mc.size());
           std::map < uint16_t, MachineController * >::iterator prev = highest_priority_mc;
           do {
               if(highest_priority_mc == context_to_mc.end ())
@@ -423,44 +421,47 @@ AFU::start ()
               }
               ++highest_priority_mc;
           } while (++highest_priority_mc != prev);
-			}
+			  }
+      } // cmd_ready
+	    else if(retry_cmd) {
+			  printf("AFU: attempt retry command\n");
+        --highest_priority_mc;
+        printf("AFU: context = %d mc = 0x%x\n", highest_priority_mc->first,
+        highest_priority_mc->second);
+			  highest_priority_mc->second->resend_command(&afu_event, cycle);
+			  retry_cmd = 0;
+	    }
     }
-	  else if(retry_cmd) {
-			printf("AFU: attempt retry command\n");
-			highest_priority_mc->second->resend_command(&afu_event, cycle);
-			retry_cmd = 0;
-	  }
-  }
-        else if (state == RESET) {
+    else if (state == RESET) {
 	    debug_msg("AFU: resetting");
 	    debug_msg("AFU: set AFU state = READY");
-      	    reset ();
+      reset ();
 	    state = READY;
-	}
-  else if (state == WAITING_FOR_LAST_RESPONSES) {
-    //debug_msg("AFU: waiting for last responses");
-    bool all_machines_completed = true;
-	  uint32_t  response;
-	  uint32_t  offset;
+	  }
+    else if (state == WAITING_FOR_LAST_RESPONSES) {
+      //debug_msg("AFU: waiting for last responses");
+      bool all_machines_completed = true;
+	    uint32_t  response;
+	    uint32_t  offset;
 	  
-	  response = 0x00000000;
-	  offset  = 0x1008 + 0x1000 * afu_event.afu_tlx_vc3_pasid;
-	  descriptor.set_mmio_mem(offset, (char*)&response, 4);
-    for (std::map < uint16_t, MachineController * >::iterator it =
-      context_to_mc.begin (); it != context_to_mc.end (); ++it)
-    {
-      if (!(it->second)->all_machines_completed ())
+	    response = 0x00000000;
+	    offset  = 0x1008 + 0x1000 * afu_event.afu_tlx_vc3_pasid;
+	    descriptor.set_mmio_mem(offset, (char*)&response, 4);
+      for (std::map < uint16_t, MachineController * >::iterator it =
+        context_to_mc.begin (); it != context_to_mc.end (); ++it)
+      {
+        if (!(it->second)->all_machines_completed ())
             all_machines_completed = false;
-    }
+      }
 
-    if (all_machines_completed) {
-      debug_msg ("AFU: machine completed");
-      reset_machine_controllers ();        
-      state = HALT;
-			debug_msg("AFU: state = HALT");
-    }
-  }
-}
+      if (all_machines_completed) {
+        debug_msg ("AFU: machine completed");
+        reset_machine_controllers ();        
+        state = HALT;
+			  debug_msg("AFU: state = HALT");
+      }
+    } // RUNNING
+  }   // while
 }
 
 AFU::~AFU ()
@@ -782,6 +783,11 @@ AFU::resolve_tlx_afu_resp()
 		case TLX_RSP_TOUCH_RESP:
 			printf("AFU: received TLX_RSP_READ_RESP\n");
 			printf("AFU: touch response t address = 0x%x\n", resp_pa_or_ta);
+			printf("AFU: touch resp opcode = 0x%x\n", tlx_resp_opcode);
+			if(tlx_resp_opcode == 0x2) {
+				printf("AFU: set retry_cmd flag\n");
+				retry_cmd = 1;
+			}
 	    break;
 	  case TLX_RSP_TOUCH_RESP_T:	//vc0
 		  printf("AFU: Received TLX_RSP_TOUCH_RESP_T\n");

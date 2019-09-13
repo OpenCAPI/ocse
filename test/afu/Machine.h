@@ -99,7 +99,6 @@ public:
     uint32_t atomic_op;
 #endif
     Machine (uint16_t context);
-
     /* configures the machine when AFU receives an MMIO write, only modifies
      * the config array, machine reads the config right before the command
      * is sent */

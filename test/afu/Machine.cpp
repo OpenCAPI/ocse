@@ -19,6 +19,7 @@
 
     #include <stdlib.h>
     static uint64_t translated_address;
+    static Command *resend_holder;
 
     MachineController::Machine::Machine (uint16_t c)
     {
@@ -315,6 +316,10 @@
                                command_size, abort, context);
         
         resend_command = command;
+        resend_holder = command;
+        printf("M: resend_command = 0x%x\n", resend_command);
+        printf("M: command = 0x%x\n", command);
+        printf("M: resend_holder = 0x%x\n", resend_holder);
         record_command (error_state, cycle);
         clear_response ();
 
@@ -328,15 +333,20 @@
     return false;
     }
 
-    bool
-    MachineController::Machine::attempt_resend_command(AFU_EVENT *afu_event, uint32_t tag, 
-    	bool error_state, uint16_t cycle)
-    {
-    debug_msg("Machine::attempt_resend_command with afutag = 0x%x", tag);
-    resend_command->send_command(afu_event, tag, memory_base_address, command_size, abort, context);
-
-    return true;
-    }
+bool
+MachineController::Machine::attempt_resend_command(AFU_EVENT *afu_event, uint32_t tag, 
+  bool error_state, uint16_t cycle)
+{
+  debug_msg("Machine::attempt_resend_command with afutag = 0x%x", tag);
+  //resend_command = resend_holder;
+  read_machine_config (afu_event);
+  //printf("M: resend_command = 0x%x\n", resend_command);
+  resend_command->send_command(afu_event, tag, 
+                              memory_base_address, 
+                              command_size, abort, context);
+  
+  return true;
+}
 
     void
     MachineController::Machine::advance_cycle ()
