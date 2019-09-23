@@ -426,7 +426,7 @@ struct AFU_EVENT {
   uint8_t afu_tlx_vc1_opcode;             /* 8 bit opcode */
   uint8_t afu_tlx_vc1_stream_id;          /* 4 bit stream identifier used by afu (AP)  */
   uint16_t afu_tlx_vc1_afutag;            /* 16 bit command tag */
-  uint64_t afu_tlx_vc1_pa;                /* 58 bit physical address  bits [63:6]*/
+  unsigned char afu_tlx_vc1_pa[8];           /* 58 bit physical address  bits [63:6]*/
   uint8_t afu_tlx_vc1_dl;                 /* 2 bits encoded data length */  
 
   // TLX Framer - AFU to TLX VC2/DCP2 Interface (table 16) AFU sends AP commands and data to TLX

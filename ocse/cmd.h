@@ -50,6 +50,7 @@ enum cmd_type {
 	CMD_KILL_DONE, 
 	CMD_FAILED,
 	CMD_SYNC,
+	CMD_CACHE,
 	CMD_OTHER
 };
 
@@ -67,6 +68,7 @@ enum mem_state {
 	MEM_RECEIVED,
 	AMO_MEM_RESP,
 	DMA_MEM_RESP,
+	MEM_SYNC,
 	MEM_DONE
 };
 
@@ -91,8 +93,8 @@ struct cmd_event {
 	uint32_t resp_dp;
 	uint32_t resp_opcode;
         uint64_t resp_ta;
-        uint32_t resp_host_tag;
-        uint8_t resp_cache_state;
+        uint32_t host_tag;
+        uint8_t cache_state;
         uint8_t resp_ef;
         uint8_t resp_w;
         uint8_t resp_mh;
@@ -102,6 +104,7 @@ struct cmd_event {
 	uint64_t wr_be;
 	uint16_t resp_bytes_sent;
 	uint16_t service_q_slot;
+	uint8_t sync_b4me;
 	uint8_t cmd_flag;
 	uint8_t cmd_endian;
 	uint8_t cmd_pg_size;
@@ -153,7 +156,9 @@ struct cmd *cmd_init(struct AFU_EVENT *afu_event, struct parms *parms,
 		     struct mmio *mmio, volatile enum ocse_state *state,
 		     char *afu_name, FILE * dbg_fp, uint8_t dbg_id);
 
-void handle_cmd(struct cmd *cmd,  uint32_t latency);
+void handle_vc1_cmd(struct cmd *cmd,  uint32_t latency);
+void handle_vc2_cmd(struct cmd *cmd,  uint32_t latency);
+void handle_vc3_cmd(struct cmd *cmd,  uint32_t latency);
 
 //void handle_buffer_data(struct cmd *cmd);
 
@@ -166,6 +171,8 @@ void handle_afu_tlx_cmd_data_read(struct cmd *cmd);
 void handle_afu_tlx_write_cmd(struct cmd *cmd);
 
 void handle_touch(struct cmd *cmd);
+
+void handle_sync(struct cmd *cmd);
 
 void handle_interrupt(struct cmd *cmd);
 

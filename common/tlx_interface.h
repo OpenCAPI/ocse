@@ -189,7 +189,7 @@ int afu_tlx_read_cfg_resp_and_data(struct AFU_EVENT *event,
 
 int afu_tlx_read_cmd_vc1(struct AFU_EVENT *event,
   		    uint8_t * afu_cmd_opcode, uint8_t * cmd_stream_id, 
- 		    uint16_t * cmd_afutag, uint64_t * cmd_pa,
+ 		    uint16_t * cmd_afutag, uint8_t * cmd_pa,
 		    uint8_t * cmd_dl );
 
 
@@ -327,7 +327,7 @@ int afu_cfg_send_resp_and_data(struct AFU_EVENT *event,
 
 int afu_tlx_send_cmd_vc1(struct AFU_EVENT *event,
 		 uint8_t afu_cmd_opcode, uint8_t cmd_stream_id,
-  	 	 uint16_t cmd_afutag, uint64_t cmd_pa,
+  	 	 uint16_t cmd_afutag, uint8_t * cmd_pa,
   		 uint8_t cmd_dl);
 
 
