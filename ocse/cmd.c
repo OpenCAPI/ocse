@@ -19,7 +19,7 @@
  *
  *  This file contains the code for handling commands from the AFU.  This
  *  includes generating buffer writes or reads as well as the final response
- *  for the command.  The handle_cmd() function is periodically called by ocl code.
+ *  for the command.  The handle_vc1_vc2_cmd() and handle_vc3_functions are periodically called by ocl code.
  *  If a command is received from the AFU then _parse_cmd() is called to determine command
  *  type.  Depending on command type either _add_interrupt(), _add_xlate_touch(),
  *  _add_amo(), _add_read(), _add_write() or _add_fail() will be called to
@@ -240,10 +240,14 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 			break;
 	}
 	event->resp_opcode = resp_opcode;
-	event->stream_id = stream_id;  //figure out how to use it later.....
+	event->stream_id = stream_id;  //TODO figure out how to use it later.....
 	event->form_flag = form_flag;
 	if (command == AFU_RSP_KILL_XLATE_DONE) 
 		event->resp_capptag = afutag;
+	if ((command == AFU_CMD_MEM_SYN_DONE) || (command == AFU_CMD_CASTOUT) || (command == AFU_CMD_CASTOUT_PUSH)) {
+		event->host_tag = resp_opcode;
+		event->cache_state = stream_id;
+	}
 	// if size = 0 it doesn't matter what we set, in this case, 1, otherwise find resp_dl from size but resp_dp always 0 
 	if (size <= 64)
 		event->resp_dl = 1;
@@ -266,6 +270,7 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 
 	head = &(cmd->list);
 	event->service_q_slot=1;
+	event->sync_b4me = 0; // always assume there is not a SYNC in the queue, then check later
 	cmd_b4me = NULL;
 	if (*head == NULL)  
 		printf ("FOUND THE FIRST CMD; START COUNTING NOW\n");
@@ -283,29 +288,42 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	// start of new code
 	qitem = &(event->presyncq[0]);
 	*qitem = (uint16_t)0;
-	if ((((event->form_flag & 0x01) == 1) || (event->command == AFU_RSP_KILL_XLATE_DONE)) && (event->service_q_slot > 1)) { // this is .s form cmd OR a kill_xlate_done
+	//if ((((event->form_flag & 0x01) == 1) || (event->command == AFU_RSP_KILL_XLATE_DONE) || (event->command == AFU_CMD_SYNC)) 
+	//		&& (event->service_q_slot > 1)) { // this is .s form cmd OR a kill_xlate_done OR sync cmd
 		// and there are cmds in fromt of it that have not started/completed yet.
+	if (event->service_q_slot > 1) { // for all, check for SYNC cmds ahead; for .s & kill_xlate_done, check for other cmds in same context
 		head = &(cmd->list);
-		for (n=0; n< event->service_q_slot; n++) { // list all afutags ahead of .s cmd (TODO add check for stream id)
+		for (n=0; n< event->service_q_slot; n++) { // list all afutags ahead of this cmd (TODO add check for stream id)
 			cmd_b4me= *head;
-			if (cmd_b4me->context == event->context) { //same context, so add it to the prior cmd list for presyncq
-			qitem = &(event->presyncq[n]);
-			*qitem = (uint16_t)cmd_b4me->afutag;
-			debug_msg("HMP event->presyncq[%d]=0x%04x and form_flag=%x and stream_id=0x%04x and context=0x%04x",
+			// for .s and kill_xlate_done and SYNC need to make list of all cmds ahead
+			if (((((event->form_flag & 0x01) == 1) || (event->command == AFU_RSP_KILL_XLATE_DONE))  && (cmd_b4me->context == event->context))
+					|| (event->command == AFU_CMD_SYNC)) {
+				qitem = &(event->presyncq[n]);
+				*qitem = (uint16_t)cmd_b4me->afutag;
+				debug_msg("event->presyncq[%d]=0x%04x and form_flag=%x and stream_id=0x%04x and context=0x%04x",
 				       	n, event->presyncq[n], form_flag, stream_id, context );}
 			else {
 				qitem = &(event->presyncq[n]);
 				*qitem = 0; 
-				debug_msg("HMP prior cmd not in this context, it is  0x%04x and .s cmd or kill_xlate_done is  0x%04x", cmd_b4me->context, event->context); }
+				debug_msg("prior cmd not in this context, it is  0x%04x and .s cmd or kill_xlate_done is  0x%04x",
+					       	cmd_b4me->context, event->context);
+		       	}
+			// for any cmd with cmds ahead of it, check to see if there is a SYNC cmd in front, if so  set flag
+			if (cmd_b4me->command == AFU_CMD_SYNC) {  //there is a SYNC in front of us, have to wait it out
+				event->sync_b4me = 1;
+				debug_msg("found SYNC cmd in queue ahead  cmd=0x%x ", cmd_b4me->command);
+			}
 			head = &((*head)->_next);
 		}
 	}
-	else debug_msg("HMP  no presyncq needed; service_q_slot= %x and form_flag=%x", event->service_q_slot, form_flag);
+	else  
+		 debug_msg("no presyncq or SYNC check needed; service_q_slot= %x and form_flag=%x", event->service_q_slot, form_flag);
+	
 	// end of new code
 	// Check to see if event->cmd_data_is_valid is, and if so, set event->buffer_data
 	// TODO check to see if data is bad...if so, what???
 	//if ((event->command >= 0x20) && (event->command <= 0x2f) && (cmd_data_is_valid == 1)) {
-	if (cmd_data_is_valid) {
+	if (cmd_data_is_valid) { // TODO make sure this is JUST for dcp3 data!
 		if (_incoming_data_expected( cmd)  == 0) {
 		        cmd->buffer_read = event;
 			debug_msg("Ready to copy first 64B of write data to buffer, add=0x%016"PRIx64" , size=0x%x , afutag= 0x%x.\n",
@@ -715,15 +733,67 @@ static void _add_write(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 			 MEM_IDLE, TLX_RESPONSE_DONE, 0, cmd_data_is_valid, 0, 0, 0, TLX_RSP_WRITE_RESP, stream_id, form_flag);
 }
 
-// Determine what type of command to add to list
-static void _parse_cmd(struct cmd *cmd,
+
+// Determine what type of vc1 or vc2 command to add to list
+static void _parse_vc1_vc2_cmd(	struct cmd *cmd, uint8_t cmd_opcode, uint8_t cmd_stream_id, uint8_t *cmd_pa,
+		       uint16_t cmd_afutag, uint8_t cmd_dl, uint8_t cmd_flag,uint32_t cmd_host_tag,
+		       uint8_t cmd_cache_state, 
+		       uint8_t cmd_data_is_valid,
+		       uint8_t *cdata_bus, uint8_t cdata_bad)
+
+{
+        // Based on the cmd_opcode we have received from the afu, add a cmd_event to the list associated with our cmd struct
+	// TODO these cmds don't have actag, pasid or BDF so  when rest of cache support is developed, need to determine context from host_tag
+	// for now, just use dummy context of 0xca
+	int64_t addr = 0;
+	switch (cmd_opcode) {
+		case AFU_CMD_MEM_PA_FLUSH:
+		case AFU_CMD_MEM_BACK_FLUSH:
+			debug_msg("NO! THESE CMDS are NOT SUPPORTED in OpenCAPI 4!");
+			break;
+
+		case AFU_CMD_MEM_SYN_DONE:
+			debug_msg("YES! AFU response is AFU_CMD_MEM_SYN_DONE and host_tag= 0x%04x", cmd_host_tag);
+			//TODO - will there ever be data on dcp2 that is not part of castout_push? IF SO, 
+			//need to create a special cmd_data_is_valid to signal data on dcp2 NOT dcp3 
+			// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
+			_add_cmd(cmd, 0xca, cmd_afutag, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl), MEM_IDLE, 
+			  	0, 0, 0, 0, cmd_flag, 0, cmd_host_tag, cmd_cache_state, 0);
+			break;
+		case AFU_CMD_CASTOUT:
+			debug_msg("YES! AFU response is AFU_CMD_CASTOUT and host_tag= 0x%04x", cmd_host_tag);
+			//TODO - will there ever be data on dcp2 that is not part of castout_push? IF SO, 
+			//need to create a special cmd_data_is_valid to signal data on dcp2 NOT dcp3 
+			// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
+			_add_cmd(cmd, 0xca, cmd_afutag, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl), MEM_IDLE, 
+			  	0, 0, 0, 0, cmd_flag, 0, cmd_host_tag, cmd_cache_state, 0);
+			break;
+
+
+		case AFU_CMD_CASTOUT_PUSH:
+			debug_msg("YES! AFU response is AFU_CMD_CASTOUT_PUSH and host_tag= 0x%04x", cmd_host_tag);
+       			 // convert 68 bit pa to 64 bit addr
+        		memcpy( (void *)&addr, (void *)&(cmd_pa[0]), sizeof(int64_t));
+
+			// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
+			_add_cmd(cmd, 0xca, cmd_afutag, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl), MEM_IDLE, 
+			  	0, 0, 0, 0, cmd_flag, 0, cmd_host_tag, cmd_cache_state, 0);
+			break;
+		default:
+			warn_msg("Unsupported command 0x%04x", cmd_opcode);
+			// TODO this type of error is signaled as "malformed packet error type 0 event" but how??  
+			_add_fail(cmd, 0xca, cmd_afutag, cmd_opcode, TLX_RESPONSE_FAILED, TLX_RESPONSE_FAILED);
+			break;
+	}
+}
+
+// Determine what type of vc3 command to add to list
+static void _parse_vc3_cmd(struct cmd *cmd,
 		       uint8_t cmd_opcode, uint16_t cmd_actag,
 		       uint8_t cmd_stream_id, uint8_t *cmd_ea_ta_or_obj,
 		       uint16_t cmd_afutag, uint8_t cmd_dl,
 		       uint8_t cmd_pl,
-#ifdef TLX4
 		       uint8_t cmd_os,
-#endif
 		       uint64_t cmd_be, uint8_t cmd_flag,
 		       uint8_t cmd_endian, uint16_t cmd_bdf,
 		       uint32_t cmd_pasid, uint8_t cmd_pg_size, 
@@ -886,9 +956,93 @@ static void _parse_cmd(struct cmd *cmd,
 	}
 }
 
+// See if a vc1 command was sent by AFU and process if so
+// NOTE: the only identified vc1 cmds are OpenCAPI 5, so this shouldn't be used until then
+void handle_vc1_cmd(struct cmd *cmd, uint32_t latency)
+{
+	struct cmd_event *event;
+	uint16_t cmd_afutag;
+	uint8_t  cmd_pa[8];
+	uint8_t  cmd_opcode, cmd_stream_id, cmd_dl;
+	int rc;
 
-// See if a command was sent by AFU and process if so
-void handle_cmd(struct cmd *cmd, uint32_t latency)
+	// debug_msg( "ocse:handle_vc1_cmd:" );
+	if (cmd == NULL)
+		return;
+
+	// Check for command from AFU on vc1 (only a few cache related cmds)
+	rc = afu_tlx_read_cmd_vc1(cmd->afu_event, &cmd_opcode, &cmd_stream_id,
+		    &cmd_afutag, &cmd_pa[0], &cmd_dl);
+
+	// No command ready */
+	if ( rc != TLX_SUCCESS )
+		return;
+
+	debug_msg( "%s:VC1 COMMAND stream_id=0x%02x afutag=0x%04x cmd=0x%x ",
+		   cmd->afu_name,
+		   cmd_stream_id,
+		   cmd_afutag,
+		   cmd_opcode );
+
+
+	// Check for duplicate afutag
+	event = cmd->list;
+	while (event != NULL) {
+		if (event->afutag == cmd_afutag) {
+			error_msg("Duplicate afutag 0x%04x", cmd_afutag);
+			return;
+		}
+		event = event->_next;
+	}
+
+	_parse_vc1_vc2_cmd(cmd, cmd_opcode, cmd_stream_id, cmd_pa, cmd_afutag, cmd_dl,
+		   0, 0, 0, 0, 0, 0);
+}
+
+
+
+
+
+// See if a vc2 command was sent by AFU and process if so
+void handle_vc2_cmd(struct cmd *cmd, uint32_t latency)
+{
+	uint32_t cmd_host_tag;
+	uint8_t  cmd_opcode, cmd_dl, cmd_cache_state, cmd_flag, cmd_data_is_valid, cdata_bad;
+	unsigned char cdata_bus[64];
+	uint8_t * dptr = cdata_bus;
+	int rc;
+
+	// debug_msg( "ocse:handle_vc2_cmd:" );
+	if (cmd == NULL)
+		return;
+
+	// Check for command from AFU on vc2 with data on dcp2 (only a few cache related cmds)
+	rc = afu_tlx_read_cmd_vc2_and_dcp2_data(cmd->afu_event, &cmd_opcode, &cmd_dl,
+  		    &cmd_host_tag, &cmd_cache_state,
+ 		    &cmd_flag, &cmd_data_is_valid, dptr,  &cdata_bad);
+
+	// No command ready */
+	if ( rc != TLX_SUCCESS )
+		return;
+	debug_msg( "%s:VC2 COMMAND host_tag=0x%04x cache_state=0x%02x cmd=0x%x cmd_data_is_valid= 0x%x ",
+		   cmd->afu_name,
+		   cmd_host_tag,
+		   cmd_cache_state,
+		   cmd_opcode,
+		   cmd_data_is_valid );
+
+
+	// Can no longer check for duplicate afutag (not used on vc2)
+	// Use cmd_pasid parm for cmd_host_tag; use cmd_pg_size for cmd_cache_state in _parse_cmd call
+
+	_parse_vc1_vc2_cmd(cmd, cmd_opcode, 0, 0, 0, cmd_dl,
+		   cmd_flag, cmd_host_tag, cmd_cache_state, cmd_data_is_valid, dptr, cdata_bad);
+}
+
+
+
+// See if a vc3 command was sent by AFU and process if so
+void handle_vc3_cmd(struct cmd *cmd, uint32_t latency)
 {
 	struct cmd_event *event;
 	uint64_t cmd_be;
@@ -903,7 +1057,7 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 	uint8_t * dptr = cdata_bus;
 	int rc;
 
-	// debug_msg( "ocse:handle_cmd:" );
+	// debug_msg( "ocse:handle_vc3_cmd:" );
 	if (cmd == NULL)
 		return;
 
@@ -930,7 +1084,7 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 	if ( rc != TLX_SUCCESS )
 		return;
 
-	debug_msg( "%s:COMMAND actag=0x%02x afutag=0x%04x cmd=0x%x cmd_data_is_valid= 0x%x ",
+	debug_msg( "%s:VC3 COMMAND actag=0x%02x afutag=0x%04x cmd=0x%x cmd_data_is_valid= 0x%x ",
 		   cmd->afu_name,
 		   cmd_actag,
 		   cmd_afutag,
@@ -948,10 +1102,7 @@ void handle_cmd(struct cmd *cmd, uint32_t latency)
 		event = event->_next;
 	}
 
-	_parse_cmd(cmd, cmd_opcode, cmd_actag, cmd_stream_id, cmd_ea_ta_or_obj, cmd_afutag, cmd_dl, cmd_pl,
-#ifdef TLX4
-		   cmd_os,
-#endif
+	_parse_vc3_cmd(cmd, cmd_opcode, cmd_actag, cmd_stream_id, cmd_ea_ta_or_obj, cmd_afutag, cmd_dl, cmd_pl, cmd_os,
 		   cmd_be, cmd_flag, cmd_endian, cmd_bdf, cmd_pasid, cmd_pg_size, cmd_capptag, cmd_resp_code, cmd_data_is_valid, dptr, cdata_bad);
 }
 
@@ -1002,7 +1153,7 @@ void handle_buffer_write(struct cmd *cmd)
 	// start of new code for .s cmds
 	if (((event->form_flag & 0x01) == 1) && (event->service_q_slot > 1)) { // this is a .s form cmd
 		// and there were cmds ahead of us in service q that might not yet be retired, so check
-		debug_msg("HMP: handle_buffer_write: Found a .s cmd form and need to check presyncq");
+		debug_msg("handle_buffer_write: Found a .s cmd form and need to check presyncq");
 		m = 0;
 		n = 0;
 		clear = 1;  // present this to indicate no pending cmds
@@ -1021,17 +1172,17 @@ void handle_buffer_write(struct cmd *cmd)
 			}
 
 			n++;
-			debug_msg("HMP LOOK event->presyncq[%d]=0x%04x ", n, event->presyncq[n]);
+			debug_msg("event->presyncq[%d]=0x%04x ", n, event->presyncq[n]);
 		}
 		if (clear == 0) {
-			debug_msg("HMP can't execute cmd; presyncq not empty! HANDLE BUFFER WRITE event @ 0x%016" PRIx64 ,  event );
+			debug_msg("can't execute cmd; presyncq not empty! HANDLE BUFFER WRITE event @ 0x%016" PRIx64 ,  event );
 			return;}
 		else 
-			debug_msg("HMP execute cmd; presyncq is empty! HANDLE BUFFER WRITE event @ 0x%016" PRIx64 ,  event );
+			debug_msg("execute cmd; presyncq is empty! HANDLE BUFFER WRITE event @ 0x%016" PRIx64 ,  event );
 	
 	}	
 	else
-		debug_msg("HMP: handle_buffer_write: NO NEED to check presyncq");
+		debug_msg(" handle_buffer_write: NO NEED to check presyncq");
 	// end of new code for .s cmds
 
 	if ((event->state == MEM_IDLE) && (client->mem_access == NULL)) {
@@ -1280,7 +1431,7 @@ void handle_afu_tlx_write_cmd(struct cmd *cmd)
 	// start of new code
 	if (((event->form_flag & 0x01) == 1) && (event->service_q_slot > 1)) { // this is a .s form cmd
 		// and there were cmds ahead of us in service q that might not yet be retired, so check
-		debug_msg("HMP: handle_afu_tlx_write_cmd: Found a .s cmd form and need to check presyncq");
+		debug_msg("handle_afu_tlx_write_cmd: Found a .s cmd form and need to check presyncq");
 		n = 0;
 		m = 0;
 		clear = 1;  // present this to indicate no pending cmds
@@ -1297,18 +1448,18 @@ void handle_afu_tlx_write_cmd(struct cmd *cmd)
 					event->presyncq[n] = 0;
 				m++;
 			}
-			debug_msg("HMP LOOK event->presyncq[%d]=0x%04x ", n, event->presyncq[n]);
+			debug_msg("event->presyncq[%d]=0x%04x ", n, event->presyncq[n]);
 			n++;
 		}
 		if (clear == 0) {
-			debug_msg("HMP can't execute cmd; presyncq not empty! HANDLE BUFFER WRITE event @ 0x%016" PRIx64 ,  event );
+			debug_msg("can't execute cmd; presyncq not empty! HANDLE BUFFER WRITE event @ 0x%016" PRIx64 ,  event );
 			return;}
 		else 
-			debug_msg("HMP execute cmd; presyncq is empty! HANDLE BUFFER WRITE event @ 0x%016" PRIx64 ,  event );
+			debug_msg("execute cmd; presyncq is empty! HANDLE BUFFER WRITE event @ 0x%016" PRIx64 ,  event );
 	
 	}	
 	else
-		debug_msg("HMP: handle_afu_tlx_write_cmd: NO NEED to check presyncq");
+		debug_msg("handle_afu_tlx_write_cmd: NO NEED to check presyncq");
 	// end of new code
 
 	debug_msg("entering HANDLE_AFU_TLX_WRITE_CMD");
@@ -1432,7 +1583,7 @@ void handle_write_be_or_amo(struct cmd *cmd)
 		// start of new code for .s cmds
 	if (((event->form_flag & 0x01) == 1) && (event->service_q_slot > 1)) { // this is a .s form cmd
 		// and there were cmds ahead of us in service q that might not yet be retired, so check
-		debug_msg("HMP: handle_write_be_or_amo: Found a .s cmd form and need to check presyncq");
+		debug_msg("handle_write_be_or_amo: Found a .s cmd form and need to check presyncq");
 		m = 0;
 		n = 0;
 		clear = 1;  // present this to indicate no pending cmds
@@ -1450,17 +1601,17 @@ void handle_write_be_or_amo(struct cmd *cmd)
 				m++;
 			}
 			n++;
-			debug_msg("HMP LOOK event->presyncq[%d]=0x%04x ", n, event->presyncq[n]);
+			debug_msg("event->presyncq[%d]=0x%04x ", n, event->presyncq[n]);
 		}
 		if (clear == 0) {
-			debug_msg("HMP can't execute cmd; presyncq not empty! HANDLE WRITE BE OR AMO event @ 0x%016" PRIx64 ,  event );
+			debug_msg("can't execute cmd; presyncq not empty! HANDLE WRITE BE OR AMO event @ 0x%016" PRIx64 ,  event );
 			return;}
 		else 
-			debug_msg("HMP execute cmd; presyncq is empty! HANDLE WRITE BE OR AMO event @ 0x%016" PRIx64 ,  event );
+			debug_msg("execute cmd; presyncq is empty! HANDLE WRITE BE OR AMO event @ 0x%016" PRIx64 ,  event );
 	
 	}	
 	else
-		debug_msg("HMP: handle_write_be_or_amo: NO NEED to check presyncq");
+		debug_msg("handle_write_be_or_amo: NO NEED to check presyncq");
 	// end of new code for .s cmds
 
 	// Check to see if this cmd gets selected for a RETRY or FAILED or PENDING read_failed response
@@ -1683,7 +1834,7 @@ void handle_xlate_intrp_pending_sent(struct cmd *cmd)
 	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
 		return;
 
-	debug_msg("!!!!!!!!!!!!!%s:handle xlate_intrp_pending_sent: SELECTED A PENDING MEM OP command= 0x%02x, addr=0x%016"PRIx64, cmd->afu_name, event->command, event->addr);
+	debug_msg("%s:handle xlate_intrp_pending_sent: SELECTED A PENDING MEM OP command= 0x%02x, addr=0x%016"PRIx64, cmd->afu_name, event->command, event->addr);
 
 	// Randomly determine if the xlate_touch in the pending state we selected should get a random kill_xlate command
 	// if we determine that we want to kill this xlate_touch address, build the mmio to send the kill_xlate command
@@ -1692,10 +1843,10 @@ void handle_xlate_intrp_pending_sent(struct cmd *cmd)
 	// also need to test for "interrupt" commands to return intrp_rdy, otherwise return xlate_done
 	// this range includes: intrp_req, intrp_req_s, intrp_req_d, intrp_req_d_s, wake_host_thread, and wake_host_thread_s
 	if ( (event->command >= AFU_CMD_XLATE_TOUCH) && (event->command <= AFU_CMD_XLATE_TOUCH_N) ) {
-	        debug_msg("!!!!!!!!!!!!!%s:handle xlate_intrp_pending_sent: SELECTED A PENDING XLATE_TOUCH OP command= 0x%02x, addr=0x%016"PRIx64, cmd->afu_name, event->command, event->addr);
+	        debug_msg("%s:handle xlate_intrp_pending_sent: SELECTED A PENDING XLATE_TOUCH OP command= 0x%02x, addr=0x%016"PRIx64, cmd->afu_name, event->command, event->addr);
 		int allow;
 		allow = allow_pending_kill_xlate( cmd->parms );
-	        debug_msg("!!!!!!!!!!!!!%s:handle xlate_intrp_pending_sent: ALLOW KILL = 0x%02x", cmd->afu_name, allow );
+	        debug_msg("%s:handle xlate_intrp_pending_sent: ALLOW KILL = 0x%02x", cmd->afu_name, allow );
 	        if ( allow == 1 ) {
 		        debug_msg( "%s:handle_xlate_intrp_pending_sent: XLATE_KILL the address for this cmd =0x%x \n", cmd->afu_name, event->command );
 			// create the mmio event for a kill_xlate command, but point to a NULL client
@@ -1706,15 +1857,15 @@ void handle_xlate_intrp_pending_sent(struct cmd *cmd)
 		}
 	}
 
-	debug_msg("!!!!!!!!!!!!!%s:handle xlate_intrp_pending_sent cmd_flag=0x%x tag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
+	debug_msg("%s:handle xlate_intrp_pending_sent cmd_flag=0x%x tag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
 		  event->cmd_flag, event->afutag, event->addr);
 	// Check to see if this cmd gets selected for a RETRY or FAILED or PENDING read_failed response
 	if ( allow_retry(cmd->parms)) {
 		event->resp = 0x02;
-		debug_msg("!!!!!!!!!!!!!%s:handle_xlate_intrp_pending_sent: RETRY this cmd =0x%x \n", cmd->afu_name, event->command);
+		debug_msg("%s:handle_xlate_intrp_pending_sent: RETRY this cmd =0x%x \n", cmd->afu_name, event->command);
 	} else if ( allow_failed(cmd->parms)) {
 		event->resp = 0x0f;
-		debug_msg("!!!!!!!!!!!!!%s:handle_xlate_intrp_pending_sent: FAIL this cmd =0x%x \n", cmd->afu_name, event->command);
+		debug_msg("%s:handle_xlate_intrp_pending_sent: FAIL this cmd =0x%x \n", cmd->afu_name, event->command);
 		return;
 	} else
 		event->resp = 0x0;  // send completed resp code in the xlate_done cmd
@@ -1729,8 +1880,8 @@ void handle_xlate_intrp_pending_sent(struct cmd *cmd)
 	// These POSTED cmds get sent back over vx0 (resp channel).
 	// TODO why are we using fixed value 0xefac for afutag?
 	if (tlx_afu_send_resp_cmd_vc0( cmd->afu_event,
-				       cmd_to_send, event->afutag, event->resp,0,0,0,0,0,0,0,0,0,0) == TLX_SUCCESS){
-	        debug_msg("!!!!!!!!!!!!!%s:handle_xlate_intrp_pending_sent: CMD event @ 0x%016" PRIx64 ", sent tag=0x%02x code=0x%x cmd=0x%x", cmd->afu_name,
+				       cmd_to_send, event->afutag, event->resp,0,0,0,0,0,0,0,0,0,0) == TLX_SUCCESS) {
+	        debug_msg("%s:handle_xlate_intrp_pending_sent: CMD event @ 0x%016" PRIx64 ", sent tag=0x%02x code=0x%x cmd=0x%x", cmd->afu_name,
 			  event, event->afutag, event->resp, cmd_to_send);
 		*head = event->_next;
 		//start of new code
@@ -1748,9 +1899,117 @@ void handle_xlate_intrp_pending_sent(struct cmd *cmd)
 			}
 		}
 		//end of new code
+		free(event->data);
+		free(event);
+	}
+}
+
+// Handle a sync cmd (this will prevent any future cmds from executing until all prev cmds are retired
+void handle_sync(struct cmd *cmd)
+{
+	struct cmd_event **head;
+	struct cmd_event *event;
+	struct cmd_event *clist;
+	struct cmd_event *next;
+	struct client *client;
+	int n, m, clear;
+
+	// Make sure cmd structure is valid
+	if (cmd == NULL) {
+	        debug_msg( "handle_sync: bad cmd pointer");
+		return;
+	}
+// check to see if there is a sync in progress (event->state == MEM_SYNC) 
+// or if there is a sync ahead of this one (sync_b4me == 1)	
+	event = cmd->list;
+	while (event != NULL) {
+	        if ( (event->type == CMD_SYNC) &&  (event->state == MEM_IDLE) && (event->sync_b4me == 0) ) // no previous SYNC & this one hasn't started yet 
+			break;
+
+	        if ( (event->type == CMD_SYNC) &&  (event->state == MEM_SYNC) ) // this SYNC is in progress 
+			break;
+		event = event->_next;
+	}
+
+	// Test for no event selected - it's ok, just return
+	if ( event == NULL ) return;
+	debug_msg( "handle_sync: we have an event" );
+
+	// Test for client disconnect
+	if ((client = _get_client(cmd, event)) == NULL) {
+	        debug_msg( "handle_sync: no client found");
+		return;
+	}
+// if SYNC hasn't started, start it going (event->state == MEM_SYNC)
+// TODO look at cmd_flag and actually do something different if possible
+	if (event->state == MEM_IDLE) {
+		event->state = MEM_SYNC;
+		debug_msg("handle_sync: SYNC in progress for cmd=0x%x cmd_flag=0x%x", event->command, event->cmd_flag);
+		return;
+	}
+// if SYNC is going, check presync_q to see if all previous cmds have completed
+	if (event->state == MEM_SYNC) {
+		if (event->service_q_slot > 1) { // there were cmds ahead of us in service q that might not yet be retired, so check
+			debug_msg("handle_sync: Need to check presyncq");
+			n = 0;
+			m = 0;
+			clear = 1;  // present this to indicate no pending cmds
+			while (event->presyncq[n] != event->afutag) { // list all afutags ahead of this kill_xlate_done (TODO add stream_id check)
+				if (event->presyncq[n] != 0) {
+					clear = 1;
+					clist = cmd->list;
+					while (clist != NULL) {
+						if (clist->afutag == event->presyncq[m])
+							clear = 0; // cmd still exists; hasn't completed yet
+						clist = clist->_next;
+					}
+					if (clear == 1)
+						event->presyncq[n] = 0;
+					m++;
+					debug_msg("event->presyncq[%d]=0x%04x ", n, event->presyncq[n]);
+				}
+				debug_msg("event->presyncq[%d]=0x%04x ", n, event->presyncq[n]);
+				n++;
+			}
+			if (clear == 0) {
+				debug_msg("can't complete SYNC; presyncq not empty! SYNC event @ 0x%016" PRIx64 ,  event );
+				return;}
+			else 
+				debug_msg("handle_sync; presyncq is empty! SYNC event @ 0x%016" PRIx64 ,  event );
+	
+		}	
+		else
+			debug_msg("handle_sync: NO NEED to check presyncq");
+
+// remove this sync from the cmd_list
+		head = &cmd->list;
+		next = *head;
+		if (event->_next == NULL)
+			debug_msg("event->_next == NULL");
+		else {
+			if (event->_prev == NULL) {
+			debug_msg("handle_sync: event->_prev == NULL AND event->_next != NULL");
+			next->_prev = NULL;
+			}
+		else  {
+			debug_msg("handle_sync: event->_prev != NULL AND event->_next != NULL");
+			next->_prev = event->_prev; 
+			//debug_msg( "event->_next= 0x%016" PRIx64 " event->_prev= 0x%016" PRIx64 " ",  event->_next, event->_prev);		
+			}
+		}
 
 		free(event->data);
 		free(event);
+
+// also, end the SYNC (walk the list and clear all the sync_b4me flags)  
+ 		event = cmd->list;
+		while (event != NULL) {
+	        	if  (event->sync_b4me == 1)  // if previously blocked by SYNC, unblock it 
+				event->sync_b4me = 0;;
+
+			event = event->_next;
+		}
+
 	}
 }
 
@@ -1902,7 +2161,7 @@ void handle_kill_done(struct cmd *cmd, struct mmio *mmio)
 
 	// start of new code
 	if (cmd_event->service_q_slot > 1) { // there were cmds ahead of us in service q that might not yet be retired, so check
-		debug_msg("HMP: handle_kill_done: Need to check presyncq");
+		debug_msg("handle_kill_done: Need to check presyncq");
 		n = 0;
 		m = 0;
 		clear = 1;  // present this to indicate no pending cmds
@@ -1918,20 +2177,20 @@ void handle_kill_done(struct cmd *cmd, struct mmio *mmio)
 				if (clear == 1)
 					cmd_event->presyncq[n] = 0;
 				m++;
-				debug_msg("HMP LOOK event->presyncq[%d]=0x%04x ", n, cmd_event->presyncq[n]);
+				debug_msg("event->presyncq[%d]=0x%04x ", n, cmd_event->presyncq[n]);
 			}
-			debug_msg("HMP LOOK event->presyncq[%d]=0x%04x ", n, cmd_event->presyncq[n]);
+			debug_msg("event->presyncq[%d]=0x%04x ", n, cmd_event->presyncq[n]);
 			n++;
 		}
 		if (clear == 0) {
-			debug_msg("HMP can't return kill_xlate_done; presyncq not empty! HANDLE KILL DONE event @ 0x%016" PRIx64 ,  cmd_event );
+			debug_msg("can't return kill_xlate_done; presyncq not empty! HANDLE KILL DONE event @ 0x%016" PRIx64 ,  cmd_event );
 			return;}
 		else 
-			debug_msg("HMP return kill_xlate_done; presyncq is empty! HANDLE KILL DONE event @ 0x%016" PRIx64 ,  cmd_event );
+			debug_msg("return kill_xlate_done; presyncq is empty! HANDLE KILL DONE event @ 0x%016" PRIx64 ,  cmd_event );
 	
 	}	
 	else
-		debug_msg("HMP: handle_kill_done: NO NEED to check presyncq");
+		debug_msg("handle_kill_done: NO NEED to check presyncq");
 	// end of new code
 
 
@@ -2037,7 +2296,7 @@ void handle_interrupt(struct cmd *cmd)
 	// start of new code for .s cmds
 	if (((event->form_flag & 0x01) == 1) && (event->service_q_slot > 1)) { // this is a .s form cmd
 		// and there were cmds ahead of us in service q that might not yet be retired, so check
-		debug_msg("HMP: handle_interrupt: Found a .s cmd form and need to check presyncq");
+		debug_msg("handle_interrupt: Found a .s cmd form and need to check presyncq");
 		m = 0;
 		n = 0;
 		clear = 1;  // present this to indicate no pending cmds
@@ -2055,17 +2314,17 @@ void handle_interrupt(struct cmd *cmd)
 				m++;
 			}
 			n++;
-			debug_msg("HMP LOOK event->presyncq[%d]=0x%04x ", n, event->presyncq[n]);
+			debug_msg("event->presyncq[%d]=0x%04x ", n, event->presyncq[n]);
 		}
 		if (clear == 0) {
-			debug_msg("HMP can't execute cmd; presyncq not empty! HANDLE INTERRUPT event @ 0x%016" PRIx64 ,  event );
+			debug_msg("can't execute cmd; presyncq not empty! HANDLE INTERRUPT event @ 0x%016" PRIx64 ,  event );
 			return;}
 		else 
-			debug_msg("HMP execute cmd; presyncq is empty! HANDLE INTERRUPT event @ 0x%016" PRIx64 ,  event );
+			debug_msg("execute cmd; presyncq is empty! HANDLE INTERRUPT event @ 0x%016" PRIx64 ,  event );
 	
 	}	
 	else
-		debug_msg("HMP: handle_interrupt: NO NEED to check presyncq");
+		debug_msg("handle_interrupt: NO NEED to check presyncq");
 	// end of new code for .s cmds
 
 	// Check to see if this cmd gets selected for a RETRY or FAILED or PENDING response

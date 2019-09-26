@@ -910,7 +910,7 @@ int afu_tlx_read_resp_dcp0_data( struct AFU_EVENT *event,
 
 int afu_tlx_read_cmd_vc1(struct AFU_EVENT *event,
 		    uint8_t * afu_cmd_opcode, uint8_t * cmd_stream_id,
-		    uint16_t * cmd_afutag, uint64_t * cmd_pa,
+		    uint16_t * cmd_afutag, uint8_t * cmd_pa,
 		    uint8_t * cmd_dl)
 
 {
@@ -921,7 +921,7 @@ int afu_tlx_read_cmd_vc1(struct AFU_EVENT *event,
 		*afu_cmd_opcode = event->afu_tlx_vc1_opcode;
 		*cmd_stream_id = event->afu_tlx_vc1_stream_id;
 		*cmd_afutag = event->afu_tlx_vc1_afutag;
-		*cmd_pa = event->afu_tlx_vc1_pa;
+		memcpy(cmd_pa, event->afu_tlx_vc1_pa, 8);
 		*cmd_dl = event->afu_tlx_vc1_dl;
 
 		event->tlx_afu_vc1_credit = 1;
@@ -1343,9 +1343,12 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		event->tbuf[bp++] = ((event->afu_tlx_vc1_afutag) >> 8) & 0xFF;
 		event->tbuf[bp++] = (event->afu_tlx_vc1_afutag & 0xFF);
 		//printf("event->tbuf[%x] is 0x%2x \n", bp-1, event->tbuf[bp-1]);
+		//for (i = 0; i < 8; i++) {
+		//	event->tbuf[bp++] =
+		//	    ((event->afu_tlx_vc1_pa) >> ((7 - i) * 8)) & 0xFF;
+		//}
 		for (i = 0; i < 8; i++) {
-			event->tbuf[bp++] =
-			    ((event->afu_tlx_vc1_pa) >> ((7 - i) * 8)) & 0xFF;
+			event->tbuf[bp++] = event->afu_tlx_vc1_pa[i];
 		}
 		event->tbuf[bp++] = (event->afu_tlx_vc1_dl & 0x03);
 		//printf("event->tbuf[%x] is 0x%2x \n", bp-1, event->tbuf[bp-1]);
@@ -1726,12 +1729,15 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		event->afu_tlx_vc1_stream_id = event->rbuf[rbc++];
 		event->afu_tlx_vc1_afutag = event->rbuf[rbc++];
 		event->afu_tlx_vc1_afutag = ((event->afu_tlx_vc1_afutag << 8) | event->rbuf[rbc++]);
-		event->afu_tlx_vc1_pa = 0;
-		for (bc = 0; bc < 8; bc++) {
-			event->afu_tlx_vc1_pa  =
-			    ((event->afu_tlx_vc1_pa) << 8) |
-			    event->rbuf[rbc++];
+		//event->afu_tlx_vc1_pa = 0;
+		for (i = 0; i < 8; i++) {
+			event->afu_tlx_vc1_pa[i] = event->rbuf[rbc++];
 		}
+		//for (bc = 0; bc < 8; bc++) {
+		//	event->afu_tlx_vc1_pa  =
+		//	    ((event->afu_tlx_vc1_pa) << 8) |
+		//	    event->rbuf[rbc++];
+		//}
 		event->afu_tlx_vc1_dl = event->rbuf[rbc++];
 	} else {
 		event->afu_tlx_vc1_valid = 0;
@@ -2558,7 +2564,7 @@ int afu_cfg_send_resp_and_data(struct AFU_EVENT *event,
 
 int afu_tlx_send_cmd_vc1(struct AFU_EVENT *event,
 		 uint8_t afu_cmd_opcode, uint8_t cmd_stream_id,
-  	 	 uint16_t cmd_afutag, uint64_t cmd_pa,
+  	 	 uint16_t cmd_afutag, uint8_t * cmd_pa,
   		 uint8_t cmd_dl)
 {
         debug_msg("afu_tlx_send_cmd_vc1: tlx_afu_vc1_credits available is %d", event->tlx_afu_vc1_credits_available );
@@ -2579,7 +2585,7 @@ int afu_tlx_send_cmd_vc1(struct AFU_EVENT *event,
 		event->afu_tlx_vc1_opcode = afu_cmd_opcode;
 		event->afu_tlx_vc1_stream_id = cmd_stream_id;
 		event->afu_tlx_vc1_afutag = cmd_afutag;
-		event->afu_tlx_vc1_pa = cmd_pa;
+		memcpy(event->afu_tlx_vc1_pa,cmd_pa,0x8);
 		event->afu_tlx_vc1_dl = cmd_dl;
 		return TLX_SUCCESS; }
 	else {
