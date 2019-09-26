@@ -30,6 +30,7 @@ struct parms {
 	uint32_t retry_percent;
 	uint32_t failed_percent;
 	uint32_t pending_percent;
+	uint32_t pending_kill_xlate_percent;
 	uint32_t derror_percent;
 	uint32_t int_retry_percent;
 	uint32_t int_failed_percent;
@@ -55,6 +56,9 @@ int allow_failed(struct parms *parms);
 
 // Randomly decide to allow PENDING response
 int allow_pending(struct parms *parms);
+
+// Randomly decide to allow PENDING response
+int allow_pending_kill_xlate(struct parms *parms);
 
 // Randomly decide to allow dERROR response
 int allow_derror(struct parms *parms);

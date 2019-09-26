@@ -1036,7 +1036,7 @@ void handle_buffer_write(struct cmd *cmd)
 
 	if ((event->state == MEM_IDLE) && (client->mem_access == NULL)) {
 	        // Check to see if this cmd gets selected for a RETRY or FAILED or PENDING or DERROR read_failed response
-		if ( allow_retry(cmd->parms)) {
+	        if ( allow_retry(cmd->parms) && !(event->form_flag & 0x80) ) {
 			event->state = MEM_DONE;
 			event->type = CMD_FAILED;
 			event->resp_opcode = TLX_RSP_READ_FAILED;
@@ -1062,7 +1062,7 @@ void handle_buffer_write(struct cmd *cmd)
 		}
 		// for xlate_pending response, ocse has to THEN follow up with an xlate_done response
 		// (at some unknown time later) and that will "complete" the original cmd (no rd/write )
-		if ( allow_pending(cmd->parms)) {
+		if ( allow_pending(cmd->parms) && !(event->form_flag & 0x80) ) {
 		        event->state = MEM_XLATE_PENDING;
 			event->type = CMD_FAILED;
 			event->resp_opcode = TLX_RSP_READ_FAILED;
@@ -1584,7 +1584,7 @@ void handle_write_be_or_amo(struct cmd *cmd)
 
 
 // Handle randomly selected xlate_pending or intrp_pending and send AFU back a xlate_done or intrp_rdy cmd 
-void handle_xlate_intrp_pending_sent(struct cmd *cmd)
+void handle_pending_kill_xlate_sent(struct cmd *cmd)
 {
 	struct cmd_event **head;
 	struct cmd_event *event;
@@ -1596,46 +1596,125 @@ void handle_xlate_intrp_pending_sent(struct cmd *cmd)
 	if (cmd == NULL)
 		return;
 
-	// Randomly select a pending touch (or none)
+	// Randomly select a kill_xlate_sent touch (or none)
 	head = &cmd->list;
 	while (*head != NULL) {
-		// if the state of the event is mem_done, we can potentially stop the loop and send a response for it.
 		// if we not allowing reordering, we'll break the loop and use this event.
-		// don't allow reordering while we sort this out.
-		if ( ( (*head)->state == MEM_PENDING_SENT )  && !allow_reorder(cmd->parms)) {
+		if ( ( (*head)->state == MEM_KILL_XLATE_SENT )  && !allow_reorder(cmd->parms)) {
 		  break;
 		}
-		//debug_msg("handle_xlate_pending_done:  this cmd =0x%x  this state =0x%x \n", (*head)->command, (*head)->state);
+		//debug_msg("handle_pending_kill_xlate_sent:  this cmd =0x%x  this state =0x%x \n", (*head)->command, (*head)->state);
 		head = &((*head)->_next);
 	}
 
 	event = *head;
 
-	// Randomly select a pending touch (or none)
-	/*event = cmd->list;
-	while (event != NULL) {
-		if ((event->state == MEM_PENDING_SENT)
-		    && ((event->client_state != CLIENT_VALID)
-			|| !allow_reorder(cmd->parms))) {
-			break;
-		}
+	// Test for client disconnect
+	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
+		return;
 
-		event = event->_next;
-	} */
+	debug_msg( "%s:handle_pending_kill_xlate_sent: cmd_flag=0x%x tag=0x%02x addr=0x%016"PRIx64, 
+		   cmd->afu_name, event->cmd_flag, event->afutag, event->addr );
+
+	// Check to see if this cmd gets selected for a RETRY or FAILED touch_resp response
+	if ( allow_retry(cmd->parms)) {
+		event->resp = 0x02;
+		debug_msg("handle_pending_kill_xlate_sent: RETRY this cmd =0x%x \n", event->command);
+	} else if ( allow_failed(cmd->parms)) {
+		event->resp = 0x0f;
+		debug_msg("handle_pending_kill_xlate_sent: FAIL this cmd =0x%x \n", event->command);
+		return;
+	} else
+		event->resp = 0x0;  // send completed resp code in the xlate_done cmd
+
+	cmd_to_send = TLX_CMD_XLATE_DONE;
+
+	// These cmds get sent back over vx0 (resp channel).
+	if (tlx_afu_send_resp_cmd_vc0(cmd->afu_event, cmd_to_send, event->afutag, event->resp, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ) == TLX_SUCCESS) {
+	        debug_msg("%s:handle_pending_kill_xlate_sent: CMD event @ 0x%016" PRIx64 ", sent tag=0x%02x code=0x%x cmd=0x%x", cmd->afu_name,
+			  event, event->afutag, event->resp, cmd_to_send);
+		*head = event->_next;
+		next = *head;
+		if (event->_next != NULL) {
+		        if (event->_prev == NULL) {
+			        //debug_msg("handle_pending_kill_xlate_sent: event->_prev == NULL AND event->_next != NULL");
+				next->_prev = NULL;
+			} else {
+			        //debug_msg("handle_pending_kill_xlate_sent: event->_prev != NULL AND event->_next != NULL");
+			        next->_prev = event->_prev; 
+			        //debug_msg( "event->_next= 0x%016" PRIx64 " event->_prev= 0x%016" PRIx64 " ",  event->_next, event->_prev);		
+			}
+		}
+		
+		free(event->data);
+		free(event);
+	}
+}
+
+// Handle randomly selected xlate_pending or intrp_pending and send AFU back a xlate_done or intrp_rdy cmd 
+void handle_xlate_intrp_pending_sent(struct cmd *cmd)
+{
+	struct cmd_event **head;
+	struct cmd_event *event;
+	struct cmd_event *next;
+	struct client *client;
+	struct mmio_event *mmio_event;
+	uint8_t cmd_to_send;
+
+	// Make sure cmd structure is valid
+	if (cmd == NULL)
+		return;
+
+	// Randomly select a pending touch (or none)
+	head = &cmd->list;
+	while (*head != NULL) {
+		// if the state of the event is mem_pending_sent, we can potentially stop the loop and send a response for it.
+		// if we not allowing reordering, we'll break the loop and use this event.
+		if ( ( (*head)->state == MEM_PENDING_SENT )  && !allow_reorder(cmd->parms)) {
+		  break;
+		}
+		//debug_msg("handle_xlate_intrp_pending_sent:  this cmd =0x%x  this state =0x%x \n", (*head)->command, (*head)->state);
+		head = &((*head)->_next);
+	}
+
+	event = *head;
 
 	// Test for client disconnect
 	if ((event == NULL) || ((client = _get_client(cmd, event)) == NULL))
 		return;
 
-	debug_msg("%s:handle xlate_intrp_pending_done cmd_flag=0x%x tag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
+	debug_msg("!!!!!!!!!!!!!%s:handle xlate_intrp_pending_sent: SELECTED A PENDING MEM OP command= 0x%02x, addr=0x%016"PRIx64, cmd->afu_name, event->command, event->addr);
+
+	// Randomly determine if the xlate_touch in the pending state we selected should get a random kill_xlate command
+	// if we determine that we want to kill this xlate_touch address, build the mmio to send the kill_xlate command
+	// if not, send one of the xlate_done "responses" to complete the xlate_touch that is in the pending state.
+	// that is, execute the following (original) code
+	// also need to test for "interrupt" commands to return intrp_rdy, otherwise return xlate_done
+	// this range includes: intrp_req, intrp_req_s, intrp_req_d, intrp_req_d_s, wake_host_thread, and wake_host_thread_s
+	if ( (event->command >= AFU_CMD_XLATE_TOUCH) && (event->command <= AFU_CMD_XLATE_TOUCH_N) ) {
+	        debug_msg("!!!!!!!!!!!!!%s:handle xlate_intrp_pending_sent: SELECTED A PENDING XLATE_TOUCH OP command= 0x%02x, addr=0x%016"PRIx64, cmd->afu_name, event->command, event->addr);
+		int allow;
+		allow = allow_pending_kill_xlate( cmd->parms );
+	        debug_msg("!!!!!!!!!!!!!%s:handle xlate_intrp_pending_sent: ALLOW KILL = 0x%02x", cmd->afu_name, allow );
+	        if ( allow == 1 ) {
+		        debug_msg( "%s:handle_xlate_intrp_pending_sent: XLATE_KILL the address for this cmd =0x%x \n", cmd->afu_name, event->command );
+			// create the mmio event for a kill_xlate command, but point to a NULL client
+			mmio_event = add_kill_xlate_event( cmd->mmio, NULL, event->addr & (~(uint64_t)0 << 0x10), 0x10, 0, client->bdf, client->pasid );
+			// update the this event state to MEM_KILL_XLATE_SENT
+			event->state = MEM_KILL_XLATE_SENT;
+			return;
+		}
+	}
+
+	debug_msg("!!!!!!!!!!!!!%s:handle xlate_intrp_pending_sent cmd_flag=0x%x tag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
 		  event->cmd_flag, event->afutag, event->addr);
 	// Check to see if this cmd gets selected for a RETRY or FAILED or PENDING read_failed response
 	if ( allow_retry(cmd->parms)) {
 		event->resp = 0x02;
-		debug_msg("handle_xlate_intrp_pending_done: RETRY this cmd =0x%x \n", event->command);
+		debug_msg("!!!!!!!!!!!!!%s:handle_xlate_intrp_pending_sent: RETRY this cmd =0x%x \n", cmd->afu_name, event->command);
 	} else if ( allow_failed(cmd->parms)) {
 		event->resp = 0x0f;
-		debug_msg("handle_xlate_intrp_pending_done: FAIL this cmd =0x%x \n", event->command);
+		debug_msg("!!!!!!!!!!!!!%s:handle_xlate_intrp_pending_sent: FAIL this cmd =0x%x \n", cmd->afu_name, event->command);
 		return;
 	} else
 		event->resp = 0x0;  // send completed resp code in the xlate_done cmd
@@ -1649,35 +1728,31 @@ void handle_xlate_intrp_pending_sent(struct cmd *cmd)
 
 	// These POSTED cmds get sent back over vx0 (resp channel).
 	// TODO why are we using fixed value 0xefac for afutag?
-	if (tlx_afu_send_resp_cmd_vc0(cmd->afu_event,
-			cmd_to_send, event->afutag, event->resp,0,0,0,0,0,0,0,0,0,0) == TLX_SUCCESS){
-			debug_msg("%s:XLATE_INTRP_DONE CMD event @ 0x%016" PRIx64 ", sent tag=0x%02x code=0x%x cmd=0x%x", cmd->afu_name,
-			    event, event->afutag, event->resp, cmd_to_send);
-			*head = event->_next;
-			//start of new code
-			next = *head;
-			if (event->_next == NULL)
-				debug_msg("event->_next == NULL");
-			else {
-				if (event->_prev == NULL) {
-				debug_msg("handle_xlate_intrpt_pending: event->_prev == NULL AND event->_next != NULL");
+	if (tlx_afu_send_resp_cmd_vc0( cmd->afu_event,
+				       cmd_to_send, event->afutag, event->resp,0,0,0,0,0,0,0,0,0,0) == TLX_SUCCESS){
+	        debug_msg("!!!!!!!!!!!!!%s:handle_xlate_intrp_pending_sent: CMD event @ 0x%016" PRIx64 ", sent tag=0x%02x code=0x%x cmd=0x%x", cmd->afu_name,
+			  event, event->afutag, event->resp, cmd_to_send);
+		*head = event->_next;
+		//start of new code
+		next = *head;
+		if (event->_next == NULL)
+		        debug_msg("event->_next == NULL");
+		else {
+		        if (event->_prev == NULL) {
+			        debug_msg("!!!!!!!!!!!!!%s:handle_xlate_intrpt_pending_sent: event->_prev == NULL AND event->_next != NULL", cmd->afu_name);
 				next->_prev = NULL;
-				}
-			else  {
-				debug_msg("handle_xlate_intrpt_pending: event->_prev != NULL AND event->_next != NULL");
+			} else {
+			        debug_msg("!!!!!!!!!!!!!%s:handle_xlate_intrpt_pending_sent: event->_prev != NULL AND event->_next != NULL", cmd->afu_name);
 				next->_prev = event->_prev; 
 				//debug_msg( "event->_next= 0x%016" PRIx64 " event->_prev= 0x%016" PRIx64 " ",  event->_next, event->_prev);		
-				}
 			}
-			//end of new code
-
-		 	free(event->data);
-		 	free(event);
 		}
+		//end of new code
+
+		free(event->data);
+		free(event);
 	}
-
-
-
+}
 
 // Handle randomly selected memory touch
 void handle_touch(struct cmd *cmd)
@@ -1797,6 +1872,7 @@ void handle_kill_done(struct cmd *cmd, struct mmio *mmio)
 	struct cmd_event *cmd_event;
 	struct cmd_event *clist;
 	struct mmio_event *mmio_event;
+	struct mmio_event *prev_event;
 	struct client *client;
 	int n, m, clear;
 
@@ -1881,16 +1957,41 @@ void handle_kill_done(struct cmd *cmd, struct mmio *mmio)
 		        return;
 		}
 
-	        // fill in the mmio event response
-	        // set state to OCSE_DONE
-	        // handle_mmio_done will actually send the message to libocxl
-		mmio_event->ack = OCSE_KILL_XLATE_DONE;
-		mmio_event->resp_code = cmd_event->resp;
-		mmio_event->state = OCSE_DONE; // trigger handle_mmio_done to send the message back to libocxl
+		// if the client point in the mmio event is NULL, it was generated by a touch_resp:pending, don't send a message
+		// back to the client, just free the mmio event.
+		if ( mmio_event->client == NULL ) {
+		        // locate the pointer to this event in mmio->list and adjust the pointer to this events _next
+		        if (mmio->list != NULL) {
+			        if (mmio->list == mmio_event) {
+				        // event is the first in the list, update mmio_list to point to event->_next
+				        mmio->list = mmio_event->_next;
+				} else {
+				        //scan list for this event, and update the prev event _next pointer to skip this event
+				        prev_event = mmio->list;
+					while (prev_event->_next != NULL) {
+					        if (prev_event->_next == mmio_event) {
+						        prev_event->_next = mmio_event->_next;
+						}
+						prev_event = prev_event->_next;
+					}
+				}
+				// this_event is no longer in mmio->list
+			}
+			// free this_event
+			free(mmio_event);
+		} else {
+		        // otherwise, let the normal mmio response message generation occur
+		        // fill in the mmio event response
+		        // set state to OCSE_DONE
+		        // handle_mmio_done will actually send the message to libocxl
+		        mmio_event->ack = OCSE_KILL_XLATE_DONE;
+			mmio_event->resp_code = cmd_event->resp;
+			mmio_event->state = OCSE_DONE; // trigger handle_mmio_done to send the message back to libocxl
+		}
 		
-		// and we are also ready to let the cmd response to be generated (if any)
+		// In either case, we are also ready to let the cmd response to be generated (if any)
 		cmd_event->state = MEM_DONE; 
-
+			
 		debug_msg("KILL_XLATE_DONE cmd translated to mmio response capptag=0x%02x resp_code=0x%02x", cmd_event->resp_capptag, cmd_event->resp);
 		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, cmd_event->afutag, cmd_event->context); 
         } else {

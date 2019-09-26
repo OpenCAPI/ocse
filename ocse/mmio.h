@@ -154,6 +154,10 @@ struct mmio *mmio_init(struct AFU_EVENT *afu_event, int timeout, char *afu_name,
 
 int read_afu_config(struct ocl *ocl, uint8_t bus, pthread_mutex_t * lock);
 
+struct mmio_event *add_kill_xlate_event(struct mmio *mmio, struct client *client,
+				     uint64_t ea, uint8_t pg_size, uint8_t cmd_flag, uint16_t bdf,
+				     uint32_t pasid);
+
 struct mmio_event *add_mmio(struct mmio *mmio, uint32_t rnw, uint32_t dw,
 			    uint64_t addr, uint64_t data);
 

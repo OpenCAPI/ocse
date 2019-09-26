@@ -152,6 +152,7 @@ static void _handle_afu(struct ocl *ocl)
 	  // that is, the response may need subsequent resp data valid beats to complete the data for a give response, just like a command...
 	  handle_response(ocl->cmd);  // sends response and data (if required)
 	  handle_buffer_write(ocl->cmd);  // just finishes up the read command structures
+	  handle_pending_kill_xlate_sent(ocl->cmd);  // just finishes up an xlate_pending resp
 	  handle_xlate_intrp_pending_sent(ocl->cmd);  // just finishes up an xlate_pending resp
 	  handle_cmd(ocl->cmd, ocl->latency);
 	  handle_afu_tlx_cmd_data_read(ocl->cmd);  // just fills up the write command structures

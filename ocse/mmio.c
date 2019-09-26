@@ -161,7 +161,7 @@ static struct mmio_event *_add_event(struct mmio *mmio, struct client *client,
 
 // create a new _add_mem_event function that will use size instead of dw.
 // Add new mmio event for general memory transfer
-static struct mmio_event *_add_kill_xlate_event(struct mmio *mmio, struct client *client,
+struct mmio_event *add_kill_xlate_event(struct mmio *mmio, struct client *client,
 				     uint64_t ea, uint8_t pg_size, uint8_t cmd_flag, uint16_t bdf,
 				     uint32_t pasid)
 {
@@ -169,7 +169,7 @@ static struct mmio_event *_add_kill_xlate_event(struct mmio *mmio, struct client
 	struct mmio_event *this_mmio;
 	//struct mmio_event **list;
 
-	debug_msg("_add_kill_xlate_event: entered for 0x%016lx", ea);
+	debug_msg("add_kill_xlate_event: entered for 0x%016lx", ea);
 
 	// Add new event in IDLE state
 	event = (struct mmio_event *)calloc(1, sizeof(struct mmio_event));
@@ -191,16 +191,16 @@ static struct mmio_event *_add_kill_xlate_event(struct mmio *mmio, struct client
 
 	// Add to end of list.
 	if (mmio->list == NULL) {
-	  debug_msg("_add_kill_xlate_event: mmio->list = event");
+	  debug_msg("add_kill_xlate_event: mmio->list = event");
 	  mmio->list = event;
 	} else {
 	  this_mmio = mmio->list;
-	  debug_msg("_add_kill_xlate_event: scanning mmio->list");
+	  debug_msg("add_kill_xlate_event: scanning mmio->list");
 	  while (this_mmio->_next != NULL) {
-	    debug_msg("_add_kill_xlate_event: this_mmio = this_mmio->_next");
+	    debug_msg("add_kill_xlate_event: this_mmio = this_mmio->_next");
 	    this_mmio = this_mmio->_next;
 	  }
-	  debug_msg("_add_kill_xlate_event: this_mmio->_next = event");
+	  debug_msg("add_kill_xlate_event: this_mmio->_next = event");
 	  this_mmio->_next = event;
 	}
 	//list = &(mmio->list);
@@ -208,7 +208,7 @@ static struct mmio_event *_add_kill_xlate_event(struct mmio *mmio, struct client
 	//	list = &((*list)->_next);
 	//*list = event;
 
-	debug_msg("_add_kill_xlate_event: @0x%016lx added KILL_XLATE with CAPPtag=0x%04x for 0x%016lx", event, event->cmd_CAPPtag, event->cmd_PA);
+	debug_msg("add_kill_xlate_event: @0x%016lx added KILL_XLATE with CAPPtag=0x%04x for 0x%016lx", event, event->cmd_CAPPtag, event->cmd_PA);
 	return event;
 }
 
@@ -2058,7 +2058,7 @@ struct mmio_event *handle_kill_xlate(struct mmio *mmio, struct client *client)
 	debug_msg( "handle_kill_xlate: ea=0x%016lx, pg_size=0x%02x, cmd_flag=0x%1x, bdf=0x%02x, pasid=0x%04x", 
 		   ea, pg_size, cmd_flag, bdf, pasid );
 
-	return _add_kill_xlate_event( mmio, client, ea, pg_size, cmd_flag, bdf, pasid );
+	return add_kill_xlate_event( mmio, client, ea, pg_size, cmd_flag, bdf, pasid );
 
  kill_fail:
 	// Socket connection is dead

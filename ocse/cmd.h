@@ -67,6 +67,7 @@ enum mem_state {
 	MEM_RECEIVED,
 	AMO_MEM_RESP,
 	DMA_MEM_RESP,
+	MEM_KILL_XLATE_SENT,
 	MEM_DONE
 };
 
@@ -178,6 +179,8 @@ void handle_response(struct cmd *cmd);
 void handle_write_be_or_amo(struct cmd *cmd);
 
 void handle_xlate_intrp_pending_sent(struct cmd *cmd);
+
+void handle_pending_kill_xlate_sent(struct cmd *cmd);
 
 int client_cmd(struct cmd *cmd, struct client *client);
 

@@ -66,6 +66,12 @@ int allow_pending(struct parms *parms)
 	return percent_chance(parms->pending_percent);
 }
 
+// Randomly decide to allow PENDING response
+int allow_pending_kill_xlate(struct parms *parms)
+{
+	return percent_chance(parms->pending_kill_xlate_percent);
+}
+
 // Randomly decide to allow RETRY response for interrupts
 int allow_int_retry(struct parms *parms)
 {
@@ -159,6 +165,7 @@ struct parms *parse_parms(char *filename, FILE * dbg_fp)
 	parms->retry_percent = 5;
 	parms->failed_percent = 5;
 	parms->pending_percent = 5;
+	parms->pending_kill_xlate_percent = 5;
 	parms->reorder_percent = 20;
 	parms->buffer_percent = 50;
 
@@ -261,6 +268,13 @@ struct parms *parse_parms(char *filename, FILE * dbg_fp)
 				parms->pending_percent = data;
 			debug_parm(dbg_fp, DBG_PARM_PENDING_PERCENT,
 				   parms->pending_percent);
+		} else if (!(strcmp(parm, "PENDING_KILL_XLATE_PERCENT"))) {
+			percent_parm(value, &data);
+			if ((data >= 100) || (data < 0))
+				warn_msg("PENDING_KILL_XLATE_PERCENT must be 0-99");
+			else
+				parms->pending_kill_xlate_percent = data;
+			//debug_parm(dbg_fp, DBG_PARM_PENDING_PERCENT, parms->pending_kill_xlate_percent);
 		} else if (!(strcmp(parm, "DERROR_PERCENT"))) {
 			percent_parm(value, &data);
 			if ((data >= 100) || (data < 0))

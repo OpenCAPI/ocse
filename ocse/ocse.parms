@@ -56,7 +56,7 @@ PAGED_PERCENT:0
 
 # Percentage chance of OCL responding with RETRY for any read or write command response.
 #RETRY_PERCENT:60, 80
-RETRY_PERCENT:50
+RETRY_PERCENT:20
 
 # Percentage chance of OCL responding with FAILED for any read or write command response.
 #FAILED_PERCENT:50, 60
@@ -64,7 +64,11 @@ FAILED_PERCENT:0
 
 # Percentage chance of OCL responding with PENDING for any xlate command response.
 #PENDING_PERCENT:0
-PENDING_PERCENT:50
+PENDING_PERCENT:20
+
+# Percentage chance of OCL responding with KILL_XLATE while in the PENDING state for any xlate command response.
+#PENDING_KILL_XLATE_PERCENT:5
+PENDING_KILL_XLATE_PERCENT:80
 
 # Percentage chance of OCL responding with dERROR for any write command response.
 DERROR_PERCENT:0
