@@ -279,13 +279,21 @@ static void _find(struct client *client)
 
 		    if (ocl->mmio->fcn_cfg_array[fcn]->afu_present == 0) continue;
 
-		    for (afuid = 0; afuid <= ocl->mmio->fcn_cfg_array[fcn]->max_afu_index; afuid++ ) {
-		          debug_msg("_find: afuid %d lop", afuid);
-		          if (ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid] == NULL) continue;
+		    debug_msg("_find: %s in afu 0 to %d", name, ocl->mmio->fcn_cfg_array[fcn]->max_afu_index );
+		    for ( afuid = 0; afuid <= ocl->mmio->fcn_cfg_array[fcn]->max_afu_index; afuid++ ) {
+		          debug_msg("_find:  %s in afuid %d lop", name, afuid);
+		          if (ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid] == NULL) {
+			    //debug_msg("_find:  %s in afuid %d lop, afu_cfg_array[%d] is NULL", name, afuid);
+			    continue;
+			  }
 
 			  // if the name here doesn't match, continue
 		          debug_msg("_find: compare %s to %s", name, ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace);
-			  if ( strcmp( name, ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace ) != 0 ) continue;
+			  if ( strcmp( name, ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace ) != 0 ) {
+			    //debug_msg("_find: compare %s to %s NO MATCH", name, ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace);
+			    continue;
+			  }
+			  //debug_msg("_find: compare %s to %s MATCH", name, ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace);
 
 			  // the names match, so return bus, function, device, and afu_index
 			  size =
@@ -317,7 +325,7 @@ static void _find(struct client *client)
 			    warn_msg( "anomoly in construction of OCSE_FIND_ACK message" );
 			  }
 
-		          debug_msg("_find: found name %s with bus %d, dev %d, fcn %d, afuid &d",
+		          info_msg("_find: found name %s with bus %d, dev %d, fcn %d, afuid %d",
 				    ocl->mmio->fcn_cfg_array[fcn]->afu_cfg_array[afuid]->namespace, ocl->bus, 0, fcn, afuid);
 			  if ( put_bytes( client->fd, size, buffer, ocl->dbg_fp, ocl->dbg_id,
 					  client->context ) < 0) {
@@ -332,7 +340,7 @@ static void _find(struct client *client)
 	}
 
 	// if we are here, we did not find anything
-	debug_msg( "_find: did not find name %s", name );
+	warn_msg( "_find: did not find name %s", name );
 	size = 1;
 	buffer = (uint8_t *) malloc(size);
 	buffer[0] = OCSE_FAILED;
