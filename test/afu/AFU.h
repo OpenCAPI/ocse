@@ -22,6 +22,7 @@
 #include "MachineController.h"
 #include "Commands.h"
 #include "Lpc.h"
+#include "Cache.h"
 
 extern "C" {
 #include "tlx_interface.h"
@@ -50,7 +51,7 @@ private:
         MachineController * >::iterator highest_priority_mc;
     std::vector<uint64_t> t_address_v;
     MachineController *machine_controller;
-
+    Cache   cache;
     AFU_State state;
     AFU_State config_state;
     AFU_State mem_state, resp_state;

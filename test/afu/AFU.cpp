@@ -15,7 +15,6 @@
  */
 
 #include "AFU.h"
-
 #include <string>
 #include <stdio.h>
 #include <iostream>
@@ -124,6 +123,8 @@ AFU::start ()
 {
 	uint32_t cycle = 0;
 	uint8_t  initial_credit_flag = 0;
+  psCache dcache;
+
   //uint16_t index=0;
 
   // afu_status setup
@@ -147,6 +148,7 @@ AFU::start ()
   // printf("Server has attached to afu status shared memory...\n");
   // ShmPTR->status = SDATA_READY;
   // printf("Server afu status data is ready\n");
+  dcache = (psCache)cache.Create(1024, 64, 1);
 
   while (1) {
     fd_set watchset;
@@ -359,6 +361,7 @@ AFU::start ()
 					  debug_msg("AFU: reading app status");
 					  read_app_status(status_address);
 					  printf("AFU: waiting for read resp\n");
+            continue;
 		      }
 		      else if(status_data[0] == 0x55) {
 					  printf("AFU: status data = 0x%x\n", status_data[0]);
