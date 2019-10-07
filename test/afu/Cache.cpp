@@ -1,6 +1,7 @@
 #include "Cache.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <assert.h>
 
 Cache::Cache() { }
@@ -25,7 +26,7 @@ psCache Cache::Create(int cache_size, int block_size, int write_policy)
   pCache->block_size = block_size;
   pCache->cache_size = cache_size;
   pCache->cache_lines = CACHE_SIZE/CACHE_BLOCK_SIZE;
-  // create cache blocks
+  // create cache
   printf("Cache: Create cache with\n");
   printf("Cache: block size = %d\n", block_size);
   printf("Cache: cache lines = %d\n", pCache->cache_lines);
@@ -36,7 +37,7 @@ psCache Cache::Create(int cache_size, int block_size, int write_policy)
   printf("Cache: pointer to cache = 0x%x\n", pCache->ppBlock);
   printf("Cache: create cache blocks\n");
   for(i=0; i<pCache->cache_lines; i++) {
-    // create cache blocks attributes
+    // create cache blocks and attributes
     pCache->ppBlock[i] = (psBlock) malloc(sizeof(sBlock));
     assert(pCache->ppBlock != NULL);
     printf("Cache: address of block[%d] = 0x%x\n", i, &pCache->ppBlock[i]);
@@ -49,8 +50,8 @@ psCache Cache::Create(int cache_size, int block_size, int write_policy)
 }
 
 /*  offset  = 6 bit
-    index   = 4 bits
-    tag     = 22 bits
+    index   = 6 bits
+    tag     = 20 bits
 */
 char* Cache::Read(psCache pCache, int address)
 {
@@ -59,9 +60,10 @@ char* Cache::Read(psCache pCache, int address)
   char* data;
   psBlock block;
 
-  index = (address & 0xFFFFFFC0) >> 6;
+  // tag=[31:12], index=[11:6], offset=[5:0]
+  index = (address & 0x00000FC0) >> 6;
   printf("Cache: index = 0x%x\n", index);
-  tag = (address & 0xFFFFFC00) >> 10;
+  tag = (address & 0xFFFFF000) >> 12;
   printf("Cache: tag = 0x%x\n", tag);
   if(pCache->ppBlock[index]->valid ==1 && 
       (pCache->ppBlock[index]->tag == tag)) {
@@ -76,15 +78,28 @@ char* Cache::Read(psCache pCache, int address)
   return data;
 }
 
-int Cache::Write(psCache pCache, int address)
+int Cache::Write(psCache pCache, int address, char* data)
 {
   int index;
-  psBlock block;
+  int tag;
 
   index=0;
 
-  //calculate address to get the cache block
-  block = pCache->ppBlock[index];
+  // tag=[31:12], index=[11:6], offset=[5:0]
+  index = (address & 0x00000FC0) >> 6;
+  printf("Cache: index = 0x%x\n", index);
+  tag = (address & 0xFFFFF000) >> 12;
+  printf("Cache: tag = 0x%x\n", tag);
+  if(pCache->ppBlock[index]->tag == tag) {
+    memcpy(pCache->ppBlock[index], data, 64);
+    if(pCache->ppBlock[index]->valid==1) {
+      pCache->ppBlock[index]->dirty = 1;
+    }
+  }
+  else {
+    printf("Cache: tag not exist.\n");
+    return 1;
+  }
 
   return 0;
 }
