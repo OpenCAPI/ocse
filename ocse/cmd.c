@@ -285,12 +285,8 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 		 event, event->command, event->size, event->type, event->afutag, event->state, cmd_data_is_valid, form_flag, event->service_q_slot, cmd_b4me, cmd->list );
 	debug_cmd_add(cmd->dbg_fp, cmd->dbg_id, afutag, context, command);
 
-	// start of new code
 	qitem = &(event->presyncq[0]);
 	*qitem = (uint16_t)0;
-	//if ((((event->form_flag & 0x01) == 1) || (event->command == AFU_RSP_KILL_XLATE_DONE) || (event->command == AFU_CMD_SYNC)) 
-	//		&& (event->service_q_slot > 1)) { // this is .s form cmd OR a kill_xlate_done OR sync cmd
-		// and there are cmds in fromt of it that have not started/completed yet.
 	if (event->service_q_slot > 1) { // for all, check for SYNC cmds ahead; for .s & kill_xlate_done, check for other cmds in same context
 		head = &(cmd->list);
 		for (n=0; n< event->service_q_slot; n++) { // list all afutags ahead of this cmd (TODO add check for stream id)
@@ -319,10 +315,8 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	else  
 		 debug_msg("no presyncq or SYNC check needed; service_q_slot= %x and form_flag=%x", event->service_q_slot, form_flag);
 	
-	// end of new code
 	// Check to see if event->cmd_data_is_valid is, and if so, set event->buffer_data
 	// TODO check to see if data is bad...if so, what???
-	//if ((event->command >= 0x20) && (event->command <= 0x2f) && (cmd_data_is_valid == 1)) {
 	if (cmd_data_is_valid) { // TODO make sure this is JUST for dcp3 data!
 		if (_incoming_data_expected( cmd)  == 0) {
 		        cmd->buffer_read = event;
@@ -551,13 +545,60 @@ static void _add_read(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 		form_flag = form_flag | 0x80; //T form
 	if ((cmd_opcode & 0x4) == 0x4)
 		form_flag = form_flag | 0x4; //N form
-	if ((cmd_opcode & 0x1) == 0x1)
-		form_flag = form_flag | 0x1; //S form
+	if ((cmd_opcode & 0x1) == 0x1) { // why did this one instruction have to be different?
+		if ((cmd_opcode != AFU_CMD_READ_MES) && (cmd_opcode != AFU_CMD_READ_MES_T))
+			form_flag = form_flag | 0x1;} //S form 
 	// Reads will be added to the list and will next be processed
 	// in the function handle_buffer_write()
-	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_READ, addr, size,
+	if ((cmd_opcode & 0x60) == 0x60) // special cmd type for cacheable reads
+		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_CACHE_RD, addr, size,
+		 MEM_IDLE, TLX_RESPONSE_DONE, 0, 0, 0, 0, 0, TLX_RSP_CL_RD_RESP, stream_id, form_flag);
+	else
+		_add_cmd(cmd, context, afutag, cmd_opcode, CMD_READ, addr, size,
 		 MEM_IDLE, TLX_RESPONSE_DONE, 0, 0, 0, 0, 0, TLX_RSP_READ_RESP, stream_id, form_flag);
 }
+
+// Add cache upgrade cmds to command list
+
+static void _add_cache_cmd(struct cmd *cmd, uint16_t actag, uint16_t afutag,
+		      uint8_t cmd_opcode, uint8_t *cmd_ea_ta_or_obj, uint32_t size, uint8_t cmd_flag, uint8_t stream_id)
+{
+        int32_t context;
+        int64_t addr;
+	uint8_t form_flag;
+
+	debug_msg("_add_cache_cmd:entered" );
+        // convert 68 bit ea/obj to 64 bit addr
+        // for ap commands, ea_or_obj is a 64 bit thing...
+        memcpy( (void *)&addr, (void *)&(cmd_ea_ta_or_obj[0]), sizeof(int64_t));
+
+	// Check command size and address
+	// TODO do we need these checks here?? Am taking them out bc libocxl will return real fail cmd or syn detected
+ 	/*if (_aligned(addr, size) == BAD_OPERAND_SIZE) {
+ 		_add_fail(cmd, actag, afutag, cmd_opcode, 0x09,TLX_RSP_READ_FAILED );
+ 		return;
+ 	}
+	else if (_aligned(addr, size) == BAD_ADDR_OFFSET) { //invalid address alignment
+ 		_add_fail(cmd, actag, afutag, cmd_opcode,  0x0b, TLX_RSP_READ_FAILED);
+ 		return;
+	}*/
+
+        // convert actag to a context - search the client array contained in cmd for a client with matching actag
+	context = _find_client_by_actag(cmd, actag);
+
+	if (context == -1) {
+		debug_msg("_add_cache_cmd: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
+		return;
+	   }
+	debug_msg("_add_cache_cmd:calling _add_cmd context=%d; command=0x%02x; addr=0x%016"PRIx64"; size=0x%04x; afutag=0x%04x",
+		context, cmd_opcode, addr, size, afutag );
+	form_flag= 0;
+	if ((cmd_opcode & 0x80) == 0x80)
+		form_flag = form_flag | 0x80; //T form
+	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_CACHE, addr, size,
+		 MEM_IDLE, TLX_RESPONSE_DONE, 0, 0, 0, cmd_flag, 0, TLX_RSP_UGRADE_RESP, stream_id, form_flag);
+}
+
 
 // Format and add AMO read or write to command list
 static void _add_amo(struct cmd *cmd, uint16_t actag, uint16_t afutag,
@@ -819,6 +860,29 @@ static void _parse_vc3_cmd(struct cmd *cmd,
 		if (cmd_data_is_valid)
 		    cmd->afu_event->afu_tlx_dcp3_data_valid = 1;
                 _assign_actag( cmd, cmd_bdf, cmd_pasid, cmd_actag );
+		break;
+		// Cache state & flush commands
+	case AFU_CMD_UPGRADE_STATE:
+	case AFU_CMD_UPGRADE_STATE_T:
+		debug_msg("YES! AFU cmd is UPGRADE_STATE\n");
+		if (cmd_data_is_valid)
+		    cmd->afu_event->afu_tlx_dcp3_data_valid = 1;
+		_add_cache_cmd(cmd, cmd_actag, cmd_afutag, cmd_opcode,
+			  cmd_ea_ta_or_obj, dl_to_size( cmd_dl), cmd_flag, cmd_stream_id);
+		break;
+		// Cacheable Memory Reads
+	case AFU_CMD_READ_ME:
+	case AFU_CMD_READ_ME_T:
+	case AFU_CMD_READ_MES:
+	case AFU_CMD_READ_MES_T:
+	case AFU_CMD_READ_S:
+	case AFU_CMD_READ_S_T:
+		debug_msg("YES! AFU cmd is some sort of cacheable read\n");
+		// calculate size from dl
+		if (cmd_data_is_valid)
+		    cmd->afu_event->afu_tlx_dcp3_data_valid = 1;
+		_add_read(cmd, cmd_actag, cmd_afutag, cmd_opcode,
+			 cmd_ea_ta_or_obj, dl_to_size( cmd_dl ), cmd_stream_id);
 		break;
 		// Memory Reads
 	case AFU_CMD_RD_WNITC_T_S:
@@ -1128,13 +1192,13 @@ void handle_buffer_write(struct cmd *cmd)
 	if (cmd == NULL)
 		return;
 
-	// Randomly select a pending read or read_pe (or none)
+	// Randomly select a pending read or read_pr (or none)
 	// lgt: if we want to free the cmd event later, we should find the event with the same method as handle_response...
 	// lgt: decided to put the call to tlx_afu_send_resp_and_data in the handle_response routine since it will also free the cmd event
 	//      so here we just set MEM_DONE and TLX_RESPONSE_DONE for the event that we selected
 	event = cmd->list;
 	while ( event != NULL ) {
-	        if ( ( event->type == CMD_READ ) &&
+	        if ( (( event->type == CMD_CACHE_RD) || ( event->type == CMD_READ )) && // add in test to get cacheable reads too
 		     ( event->state != MEM_DONE ) &&
 		     ( ( event->client_state != CLIENT_VALID ) ) && (!allow_reorder(cmd->parms))) { 
 	  //debug_msg( "%s:HANDLE BUFFER WRITE event @ 0x%016" PRIx64 "  NOT skipped because !allow_reorder", cmd->afu_name, event );
@@ -1170,7 +1234,6 @@ void handle_buffer_write(struct cmd *cmd)
 					event->presyncq[n] = 0;
 				m++;
 			}
-
 			n++;
 			debug_msg("event->presyncq[%d]=0x%04x ", n, event->presyncq[n]);
 		}
@@ -1179,12 +1242,11 @@ void handle_buffer_write(struct cmd *cmd)
 			return;}
 		else 
 			debug_msg("execute cmd; presyncq is empty! HANDLE BUFFER WRITE event @ 0x%016" PRIx64 ,  event );
-	
 	}	
 	else
 		debug_msg(" handle_buffer_write: NO NEED to check presyncq");
 	// end of new code for .s cmds
-
+	//if ((event->type == CMD_READ) && (event->state == MEM_IDLE) && (client->mem_access == NULL)) {// skip this for cacheable reads
 	if ((event->state == MEM_IDLE) && (client->mem_access == NULL)) {
 	        // Check to see if this cmd gets selected for a RETRY or FAILED or PENDING or DERROR read_failed response
 	        if ( allow_retry(cmd->parms) && !(event->form_flag & 0x80) ) {
@@ -1238,7 +1300,7 @@ void handle_buffer_write(struct cmd *cmd)
 	//    and so on.
 	if ((event->state == MEM_RECEIVED) && (event->type == CMD_READ)) {
 	  debug_msg( "memory read data received, formulate capp response" );
-	  switch(event->command) {
+	  switch(event->command) { // might be cleaner if libocxl always returned event->resp for us
 	 	case AFU_CMD_PR_RD_WNITC:
 		case AFU_CMD_PR_RD_WNITC_N:
 		case AFU_CMD_PR_RD_WNITC_T:
@@ -1250,6 +1312,7 @@ void handle_buffer_write(struct cmd *cmd)
 	      		event->resp = TLX_RESPONSE_DONE; //Not sure why this is same as above? why not just one case??
 	      		event->state = MEM_DONE;
 	    		break;
+			//think cacheable read event->resps can be one of three types, let libocxl pass it back.
   		}
 	    // we need to send back 1 or more 64B response
 	    // we can:
@@ -1267,29 +1330,6 @@ void handle_buffer_write(struct cmd *cmd)
 	}
 	debug_msg( "event->state is not MEM_RECEIVED and event->type is not CMD_READ" );
 
-        if (event->state == MEM_CAS_RD) {
-	  	buffer[0] = (uint8_t) OCSE_MEMORY_READ;
-		size = (uint16_t *)&(buffer[1]);
-		*size = htons(event->size);
-		buffer[3] = event->form_flag;
-		addr = (uint64_t *) & (buffer[4]);
-		*addr = htonll(event->addr);
-		event->abort = &(client->abort);
-		debug_msg("%s:MEMORY READ FOR CAS afutag=0x%02x size=%d addr=0x%016"PRIx64" form_flag=0x%x",
-		    cmd->afu_name, event->afutag, event->size, event->addr, event->form_flag);
-		//if (put_bytes(client->fd, 10, buffer, cmd->dbg_fp,
-		if (put_bytes(client->fd, 12, buffer, cmd->dbg_fp,
-			cmd->dbg_id, event->context) < 0) {
-		    client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
-		  }
-		  event->state = MEM_REQUEST;
-		  client->mem_access = (void *)event;
-	        debug_msg("Setting client->mem_access in handle_buffer_write ");
-	        return; //exit immediately
-	}
-
-	debug_msg( "event->state is not MEM_CAS_RD" );
-
 	if (event->state != MEM_IDLE) { //?
 	        debug_msg( "event->state is not equal MEM_IDLE" );
 		return;
@@ -1306,30 +1346,30 @@ void handle_buffer_write(struct cmd *cmd)
 		// accesses to client until data is returned by call
 		// to the _handle_mem_read() function.
                 if (event->type == CMD_READ) {
-		    buffer[0] = (uint8_t) OCSE_MEMORY_READ;
-
-		    size = (uint16_t *)&(buffer[1]);
-		    *size = htons(event->size);
-
-		    buffer[3] = event->form_flag;
-		    addr = (uint64_t *) & (buffer[4]);
-		    *addr = htonll(event->addr);
-
-		    event->abort = &(client->abort);
-
-		    debug_msg("%s:MEMORY READ afutag=0x%04x size=%d addr=0x%016"PRIx64" form_flag=0x%x",
-			    cmd->afu_name, event->afutag, event->size, event->addr, event->form_flag);
-
-		    if (put_bytes(client->fd, 12, buffer, cmd->dbg_fp,
-				cmd->dbg_id, event->context) < 0) {
-		          client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
-		    }
-		    event->state = MEM_REQUEST;
-		    debug_cmd_client( cmd->dbg_fp, cmd->dbg_id, event->afutag,
-				      event->context );
-		    client->mem_access = (void *)event;
-	            debug_msg("Setting client->mem_access in handle_buffer_write 2 for event @ 0x%016" PRIx64 , event);
+		    	buffer[0] = (uint8_t) OCSE_MEMORY_READ;
+		    	debug_msg("%s:MEMORY READ afutag=0x%04x size=%d addr=0x%016"PRIx64" form_flag=0x%x",
+			    	cmd->afu_name, event->afutag, event->size, event->addr, event->form_flag);
 		}
+		else if (event->type == CMD_CACHE_RD) {
+		    	buffer[0] = (uint8_t) OCSE_CA_MEMORY_READ;
+		    	debug_msg("%s:CACHEABLE MEMORY READ afutag=0x%04x size=%d addr=0x%016"PRIx64" form_flag=0x%x",
+			    	cmd->afu_name, event->afutag, event->size, event->addr, event->form_flag);
+		}
+		size = (uint16_t *)&(buffer[1]);
+		*size = htons(event->size);
+		buffer[3] = event->form_flag;
+		addr = (uint64_t *) & (buffer[4]);
+		*addr = htonll(event->addr);
+		event->abort = &(client->abort);
+		if (put_bytes(client->fd, 12, buffer, cmd->dbg_fp,
+			cmd->dbg_id, event->context) < 0) {
+		        client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		}
+		event->state = MEM_REQUEST;
+		    	debug_cmd_client( cmd->dbg_fp, cmd->dbg_id, event->afutag,
+				event->context );
+		client->mem_access = (void *)event;
+	        debug_msg("Setting client->mem_access in handle_buffer_write  for event @ 0x%016" PRIx64 , event);
 	} else
 		debug_msg( "client->mem_access was not NULL meaning we have a memory action in progress" );
 }
@@ -1718,7 +1758,7 @@ void handle_write_be_or_amo(struct cmd *cmd)
 		buffer[12] = event->cmd_endian;
 		event->abort = &(client->abort);
 
-		debug_msg("%s:AMO_RD cmd_flag=0x%02x size=%d addr=0x%016"PRIx64" port=0x%2x",
+		debug_msg("%s:handle_write_be_or_amo: AMO_RD cmd_flag=0x%02x size=%d addr=0x%016"PRIx64" port=0x%2x",
 		  	cmd->afu_name, event->cmd_flag, event->size, event->addr, client->fd);
 		if (put_bytes(client->fd, 13, buffer, cmd->dbg_fp,
 		      cmd->dbg_id, client->context) < 0) 
@@ -2511,6 +2551,39 @@ static void _handle_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
 	}
 }
 
+// Handle data returning from client for cacheable memory read
+static void _handle_cacheable_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
+{
+	uint8_t data[MAX_LINE_CHARS];
+	uint64_t offset = event->addr & ~CACHELINE_MASK;
+
+	// printf ("_handle_mem_read: event->type is %2x, event->state is 0x%3x \n", event->type, event->state);
+	if (event->type == CMD_CACHE_RD) {
+		//TODO libocxl needs to return resp_opcode, cache_state. Ef, resp_code AND data
+	        //printf ("_handle_cacheable_mem_read: CMD_CACHE_RD \n" );
+		// Client is returning data from cacheable memory read, libocxl
+		// tells us if cmd is successful or not
+		if (get_bytes_silent(fd, event->size, data, cmd->parms->timeout,
+			     event->abort) < 0) {
+	        	debug_msg("%s:_handle_cacheable_mem_read failed afutag=0x%04x size=%d addr=0x%016"PRIx64,
+				  cmd->afu_name, event->afutag, event->size, event->addr);
+			event->state = MEM_DONE;
+			event->resp_opcode = TLX_RSP_READ_FAILED;
+			event->type = CMD_FAILED;
+			event->resp = 0x0e;
+			debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->afutag,
+				 event->context, event->resp);
+			return;
+		}
+		// we used to put the data in the event->data at the offset implied by the address
+		// should we still do that?  It might depend on the the actual ap command that we received.
+		memcpy((void *)&(event->data[offset]), (void *)&data, event->size);
+		event->state = MEM_RECEIVED;
+	}
+}
+
+
+
 // Calculate page address in cached index for translation
 static void _calc_index(struct cmd *cmd, uint64_t * addr, uint64_t * index)
 {
@@ -2613,6 +2686,8 @@ void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd)
 	_update_age(cmd, event->addr);
 	if (event->type == CMD_READ)
 		_handle_mem_read(cmd, event, fd);
+	if (event->type == CMD_CACHE_RD)
+		_handle_cacheable_mem_read(cmd, event, fd);
 	if ((event->type == CMD_WRITE) || (event->type == CMD_AMO_WR))
 		event->state = MEM_DONE;
  	// have to account for AMO RD or RW cmds with returned data
