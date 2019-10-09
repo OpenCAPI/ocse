@@ -51,6 +51,7 @@ enum cmd_type {
 	CMD_FAILED,
 	CMD_SYNC,
 	CMD_CACHE,
+	CMD_CACHE_RD,
 	CMD_OTHER
 };
 

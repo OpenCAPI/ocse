@@ -14,64 +14,64 @@
     * limitations under the License.
     */
 
-    #include "Machine.h"
-    #include "MachineController.h"
+#include "Machine.h"
+#include "MachineController.h"
+#include <stdlib.h>
 
-    #include <stdlib.h>
-    static uint64_t translated_address;
-    static Command *resend_holder;
+static uint64_t translated_address;
+static Command *resend_holder;
 
-    MachineController::Machine::Machine (uint16_t c)
-    {
-    reset ();
+MachineController::Machine::Machine (uint16_t c)
+{
+  reset ();
 
-    config[0] = (config[0] & 0xFFFF0000FFFFFFFFLL) | ((uint64_t) c << 32);
-    }
+  config[0] = (config[0] & 0xFFFF0000FFFFFFFFLL) | ((uint64_t) c << 32);
+}
 
-    void
-    MachineController::Machine::reset ()
-    {
-    delay = 0;
-    command = NULL;
+void
+MachineController::Machine::reset ()
+{
+  delay = 0;
+  command = NULL;
 
-    for (uint32_t i = 0; i < SIZE_CONFIG_TABLE; ++i)
-        config[i] = 0;
+  for (uint32_t i = 0; i < SIZE_CONFIG_TABLE; ++i)
+    config[i] = 0;
 
-    for (uint32_t i = 0; i < SIZE_CACHE_LINE; ++i)
-        cache_line[i] = 0;
-    }
+  for (uint32_t i = 0; i < SIZE_CACHE_LINE; ++i)
+    cache_line[i] = 0;
+}
 
-    void
-    MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
-    {
-    printf("Machine: config\n");
-    printf("config[0] = 0x%016lx\n", config[0]);
-    printf("config[1] = 0x%016lx\n", config[1]);
-    printf("config[2] = 0x%016lx\n", config[2]);
-    printf("config[3] = 0x%016lx\n", config[3]);
+void
+MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
+{
+  printf("Machine: config\n");
+  printf("config[0] = 0x%016lx\n", config[0]);
+  printf("config[1] = 0x%016lx\n", config[1]);
+  printf("config[2] = 0x%016lx\n", config[2]);
+  printf("config[3] = 0x%016lx\n", config[3]);
 
-    context = (config[0] >> 32) & 0xFFFF;
+  context = (config[0] >> 32) & 0xFFFF;
 
-    min_delay = (config[0] >> 16) & 0xFFFF;
-    max_delay = config[0] & 0xFFFF;
+  min_delay = (config[0] >> 16) & 0xFFFF;
+  max_delay = config[0] & 0xFFFF;
 
-    if (min_delay > max_delay)
-        error_msg
-        ("Machine: min_delay is larger than max_delay (min_delay = %d, max_delay = %d)",
+  if (min_delay > max_delay)
+    error_msg
+    ("Machine: min_delay is larger than max_delay (min_delay = %d, max_delay = %d)",
          min_delay, max_delay);
-    delay =
-        (max_delay ==
-         min_delay) ? max_delay : rand () % (max_delay - min_delay) +
-        min_delay;
+  delay =
+    (max_delay ==
+      min_delay) ? max_delay : rand () % (max_delay - min_delay) +
+      min_delay;
 
-    abort = (config[1] >> 60) & 0x7;
-    command_size = (config[1] >> 48) & 0xFFF;
+  abort = (config[1] >> 60) & 0x7;
+  command_size = (config[1] >> 48) & 0xFFF;
 
-    memory_base_address = config[2];
+  memory_base_address = config[2];
 
-    memory_size = (uint16_t)config[1];
-    printf("Machine: memory_size = 0x%x\n", memory_size);
-    switch(memory_size) {
+  memory_size = (uint16_t)config[1];
+  printf("Machine: memory_size = 0x%x\n", memory_size);
+  switch(memory_size) {
     case 1:
         afu_event->afu_tlx_vc3_pl = 0;
         break;
@@ -95,127 +95,131 @@
         break;
     default:
         break;
-    }
-    uint16_t command_code = (config[0] >> 48) & 0x1FFF;
-    bool command_address_parity = get_command_address_parity ();
-    bool command_code_parity = get_command_code_parity ();
-    bool command_tag_parity = get_command_tag_parity ();
-    bool buffer_read_parity = get_buffer_read_parity ();
-    afu_event->afu_tlx_vc3_cmdflag = (config[1] >> 16);
+  }
+  uint16_t command_code = (config[0] >> 48) & 0x1FFF;
+  bool command_address_parity = get_command_address_parity ();
+  bool command_code_parity = get_command_code_parity ();
+  bool command_tag_parity = get_command_tag_parity ();
+  bool buffer_read_parity = get_buffer_read_parity ();
+  afu_event->afu_tlx_vc3_cmdflag = (config[1] >> 16);
 
-    if (command)
-        delete command;
-    printf("command code = 0x%x\n", command_code);
+  if (command)
+    delete command;
 
-    switch (command_code) {
-        case AFU_CMD_AMO_RD:
-        afu_event->afu_tlx_vc3_pl = (config[1] >> 24);
-        //afu_event->afu_tlx_vc3_cmdflag = (config[1] >> 16);
-        printf("Machine: amo_rd pl=0x%x and cmdflag=0x%x\n", afu_event->afu_tlx_vc3_pl,
+  printf("command code = 0x%x\n", command_code);
+
+  switch (command_code) {
+    case AFU_CMD_AMO_RD:
+      afu_event->afu_tlx_vc3_pl = (config[1] >> 24);
+      printf("Machine: amo_rd pl=0x%x and cmdflag=0x%x\n", afu_event->afu_tlx_vc3_pl,
             afu_event->afu_tlx_vc3_cmdflag);
-        command = new LoadCommand (command_code, command_address_parity,
+      command = new LoadCommand (command_code, command_address_parity,
                  command_code_parity, command_tag_parity, buffer_read_parity);
-        break;
-        case AFU_CMD_AMO_RW:
-        afu_event->afu_tlx_vc3_pl = (config[1] >> 24);
-        printf("Machine: amo_rw pl=0x%x and cmdflag=0x%x\n", afu_event->afu_tlx_vc3_pl,
+      break;
+    case AFU_CMD_AMO_RW:
+      afu_event->afu_tlx_vc3_pl = (config[1] >> 24);
+      printf("Machine: amo_rw pl=0x%x and cmdflag=0x%x\n", afu_event->afu_tlx_vc3_pl,
             afu_event->afu_tlx_vc3_cmdflag);
-        command = new StoreCommand (command_code, command_address_parity,
+      command = new StoreCommand (command_code, command_address_parity,
                  command_code_parity, command_tag_parity, buffer_read_parity);
-        break;
-        case AFU_CMD_AMO_RW_T:
-            printf("Machine: amo_rw_t pl = 0x%x and cmdflag = 0x%x\n", 
+      break;
+    case AFU_CMD_AMO_RW_T:
+      printf("Machine: amo_rw_t pl = 0x%x and cmdflag = 0x%x\n", 
                 afu_event->afu_tlx_vc3_pl,
                 afu_event->afu_tlx_vc3_cmdflag);
-            command = new StoreCommand(command_code, command_address_parity, 
+      command = new StoreCommand(command_code, command_address_parity, 
                 command_code_parity, command_tag_parity, buffer_read_parity);
-            break;
-        case AFU_CMD_AMO_W_T_P:
-            printf("Machine: amo_w_t_p pl=0x%x and cmdflag=0x%x\n",
+      break;
+    case AFU_CMD_AMO_W_T_P:
+      printf("Machine: amo_w_t_p pl=0x%x and cmdflag=0x%x\n",
                 afu_event->afu_tlx_vc3_pl,
                 afu_event->afu_tlx_vc3_cmdflag);
-            command = new StoreCommand(command_code, command_address_parity,
+      command = new StoreCommand(command_code, command_address_parity,
                 command_code_parity, command_tag_parity, buffer_read_parity);
-            break;
-        case AFU_CMD_AMO_RD_T:
-            printf("Machine: amo_rd.t pl = 0x%x and cmdflag=0x%x\n", 
+      break;
+    case AFU_CMD_AMO_RD_T:
+      printf("Machine: amo_rd.t pl = 0x%x and cmdflag=0x%x\n", 
                 afu_event->afu_tlx_vc3_pl, afu_event->afu_tlx_vc3_cmdflag);
-            memory_base_address = memory_base_address | 0xF000000000000000LL;
-            printf("Machine: translated_address = 0x%llx\n", memory_base_address);
-            command = new LoadCommand(command_code, command_address_parity,
+      memory_base_address = memory_base_address | 0xF000000000000000LL;
+      printf("Machine: translated_address = 0x%llx\n", memory_base_address);
+      command = new LoadCommand(command_code, command_address_parity,
                 command_code_parity, command_tag_parity,
                 buffer_read_parity);
-            break;
-        case AFU_CMD_DMA_W_T_P:
-            printf("Machine: dma w t p\n");
-            command = 
-                new StoreCommand(command_code, command_address_parity,
+      break;
+    case AFU_CMD_DMA_W_T_P:
+      printf("Machine: dma w t p\n");
+      command = 
+          new StoreCommand(command_code, command_address_parity,
                     command_code_parity, command_tag_parity,
                     buffer_read_parity);
-            break;
-        case AFU_CMD_PR_RD_WNITC:
-        case AFU_CMD_RD_WNITC:
-            printf("Machine: rd_wnitc pl = 0x%x and dl = 0x%x\n", afu_event->afu_tlx_vc3_pl,
+      break;
+    case AFU_CMD_PR_RD_WNITC:
+    case AFU_CMD_RD_WNITC:
+      printf("Machine: rd_wnitc pl = 0x%x and dl = 0x%x\n", afu_event->afu_tlx_vc3_pl,
     	       afu_event->afu_tlx_vc3_dl);
-            command = 
+      command = 
                 new LoadCommand (command_code, command_address_parity,
     		     command_code_parity, command_tag_parity,
     		     buffer_read_parity);
-            break;
+      break;
     case AFU_CMD_XLATE_TOUCH:   // VC3
-        printf("Machine: Sending AFU_CMD_XLATE_TOUCH\n");
+      printf("Machine: Sending AFU_CMD_XLATE_TOUCH\n");
         translated_address = memory_base_address & 0x00007FFF;
-        printf("translated_address = 0x%x\n", translated_address);
-        command = new OtherCommand(command_code, command_address_parity,
+      printf("translated_address = 0x%x\n", translated_address);
+      command = new OtherCommand(command_code, command_address_parity,
             command_code_parity, command_tag_parity, buffer_read_parity);
-        break;
+      break;
     case AFU_CMD_XLATE_RELEASE: // vc3
-        printf("Machine: sending AFU_CMD_XLATE_RELEASE\n");
-        //memory_base_address = memory_base_address | 0xF000000000000000LL;
-        printf("memory_base_address = 0x%llx\n", memory_base_address);
-        command = new OtherCommand(command_code, command_address_parity,
+      printf("Machine: sending AFU_CMD_XLATE_RELEASE\n");
+      //memory_base_address = memory_base_address | 0xF000000000000000LL;
+      printf("memory_base_address = 0x%llx\n", memory_base_address);
+      command = new OtherCommand(command_code, command_address_parity,
             command_code_parity, command_tag_parity, buffer_read_parity);
-        break;
+      break;
     case AFU_CMD_RD_WNITC_T:
-        printf("translated_address = 0x%x\n", translated_address);
-        printf("memory_base_address = 0x%llx\n", memory_base_address);
-        memory_base_address = memory_base_address || 0xF000000000000000LL;
-        printf("new memory_base_address = 0x%llx\n", memory_base_address);
-        printf("Machine: Sending AFU_CMD_RD_WNITC_T\n");
-        printf("memory_base_address = 0x%llx\n", memory_base_address);
-        
-        command = new LoadCommand(command_code, command_address_parity,
+      printf("translated_address = 0x%x\n", translated_address);
+      printf("memory_base_address = 0x%llx\n", memory_base_address);
+      memory_base_address = memory_base_address || 0xF000000000000000LL;
+      printf("new memory_base_address = 0x%llx\n", memory_base_address);
+      printf("Machine: Sending AFU_CMD_RD_WNITC_T\n");
+      printf("memory_base_address = 0x%llx\n", memory_base_address);
+      
+      command = new LoadCommand(command_code, command_address_parity,
           command_code_parity, command_tag_parity, buffer_read_parity);
-        break;
+      break;
     case AFU_CMD_AMO_W:
-    printf("Machine: amo_w: pl = 0x%x and cmdflag = 0x%x\n", afu_event->afu_tlx_vc3_pl,
-        afu_event->afu_tlx_vc3_cmdflag);
-    command = new StoreCommand ( command_code, command_address_parity,
+      printf("Machine: amo_w: pl = 0x%x and cmdflag = 0x%x\n", afu_event->afu_tlx_vc3_pl,
+      afu_event->afu_tlx_vc3_cmdflag);
+      command = new StoreCommand ( command_code, command_address_parity,
         command_code_parity, command_tag_parity, buffer_read_parity);
-    break;
+      break;
     case AFU_CMD_DMA_PR_W:
     case AFU_CMD_DMA_W:
-    printf("Machine: dma_w: pl = 0x%x and dl = 0x%x\n", afu_event->afu_tlx_vc3_pl,
+      printf("Machine: dma_w: pl = 0x%x and dl = 0x%x\n", afu_event->afu_tlx_vc3_pl,
     	afu_event->afu_tlx_vc3_dl);
-    command = new StoreCommand ( command_code, command_address_parity,
+      command = new StoreCommand ( command_code, command_address_parity,
     	command_code_parity, command_tag_parity, buffer_read_parity);
-    break;
+      break;
     case AFU_CMD_WAKE_HOST_THRD:
     case AFU_CMD_INTRP_REQ_D:
     case AFU_CMD_INTRP_REQ:
-    printf("Machine: afu_cmd_intrp_req\n");
-        command =
+      printf("Machine: afu_cmd_intrp_req\n");
+      command =
             new OtherCommand (command_code, command_address_parity,
                               command_code_parity, command_tag_parity,
                               buffer_read_parity);
-        break;
+      break;
+    case AFU_CMD_READ_ME:
+      printf("Machine: read.me 0x68\n");
+      command = new LoadCommand(command_code, command_address_parity,
+        command_code_parity, command_tag_parity, buffer_read_parity);
+      break;
     default:
-        error_msg
+      error_msg
         ("MachineController::Machine::read_machine_config(): command code 0x%x is currently not supported",
          command_code);
-    }
-
-    }
+  }
+}
 
     void
     MachineController::Machine::record_command (bool error_state, uint16_t cycle)
