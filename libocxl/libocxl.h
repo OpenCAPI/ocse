@@ -102,7 +102,7 @@ typedef enum {
  */
 typedef struct {
   uint16_t irq;
-  uint64_t id;
+  uint64_t handle;
   void *info;
   uint64_t count;
 } ocxl_event_irq;
