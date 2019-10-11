@@ -773,8 +773,8 @@ void tlx_bfm(
         invalidVal		        += (afu_tlx_vc1_dl_top->bval) & 0x3;
         printf("%08lld: ", (long long) c_sim_time);
         int resp_code = afu_tlx_send_cmd_vc1(&event,
- 		 c_afu_tlx_vc1_opcode, c_afu_tlx_vc1_stream_id, c_afu_tlx_vc1_afutag,
- 		 c_afu_tlx_vc1_pa, c_afu_tlx_vc1_dl);
+					     c_afu_tlx_vc1_opcode, c_afu_tlx_vc1_stream_id, c_afu_tlx_vc1_afutag,
+					     (uint8_t *)c_afu_tlx_vc1_pa, c_afu_tlx_vc1_dl);
         printf(" The AFU to TLX  VC1 response, with opcode: 0x%x, and the method resp code being 0x%02x\n",  c_afu_tlx_vc1_opcode, resp_code);
       }
 
