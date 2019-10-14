@@ -358,7 +358,7 @@ static int _handle_interrupt(struct ocxl_afu *afu, uint8_t data_is_valid)
 	//afu->events[i]->header.size = size;
 	//afu->events[i]->header.process_element = afu->context; // might not need this
 	afu->events[i]->irq.irq = irq->irq;  // which came in and matched irq
-	afu->events[i]->irq.id = addr;  // which came in and matched irq
+	afu->events[i]->irq.handle = addr;  // which came in and matched irq
 	afu->events[i]->irq.count = 1;  
 	// should we store data from an interrupt d at the info pointer?
 	// afu->events[i]->irq.flags = cmd_flag;
