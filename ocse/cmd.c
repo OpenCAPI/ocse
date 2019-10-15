@@ -229,6 +229,9 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	event->wr_be = wr_be;
 	event->cmd_flag = cmd_flag;
 	event->cmd_endian = cmd_endian;
+	event->cache_state = 0;
+	event->resp_ef = 0;
+	event->host_tag = 0;
 	switch (command) {
 		case AFU_CMD_XLATE_RELEASE:
 		case AFU_CMD_XLATE_TOUCH:
@@ -1181,12 +1184,10 @@ void handle_buffer_write(struct cmd *cmd)
 	struct cmd_event *event;
 	struct cmd_event *clist;
 	struct client *client;
-	//uint8_t buffer[11];  // 1 message byte + 2 size bytes + 8 address bytes
 	uint8_t buffer[12];  // 1 message byte + 2 size bytes + 8 address bytesa + 1 form_flag
 	uint64_t *addr;
 	uint16_t *size;
 	int m, n, clear;
-	//int quadrant, byte;
 
 	// Make sure cmd structure is valid
 	if (cmd == NULL)
@@ -1246,7 +1247,6 @@ void handle_buffer_write(struct cmd *cmd)
 	else
 		debug_msg(" handle_buffer_write: NO NEED to check presyncq");
 	// end of new code for .s cmds
-	//if ((event->type == CMD_READ) && (event->state == MEM_IDLE) && (client->mem_access == NULL)) {// skip this for cacheable reads
 	if ((event->state == MEM_IDLE) && (client->mem_access == NULL)) {
 	        // Check to see if this cmd gets selected for a RETRY or FAILED or PENDING or DERROR read_failed response
 	        if ( allow_retry(cmd->parms) && !(event->form_flag & 0x80) ) {
@@ -1298,22 +1298,11 @@ void handle_buffer_write(struct cmd *cmd)
 	//    chunk spacing
 	//    interleaving
 	//    and so on.
-	if ((event->state == MEM_RECEIVED) && (event->type == CMD_READ)) {
-	  debug_msg( "memory read data received, formulate capp response" );
-	  switch(event->command) { // might be cleaner if libocxl always returned event->resp for us
-	 	case AFU_CMD_PR_RD_WNITC:
-		case AFU_CMD_PR_RD_WNITC_N:
-		case AFU_CMD_PR_RD_WNITC_T:
-		case AFU_CMD_PR_RD_WNITC_T_S:  
-	 	case AFU_CMD_RD_WNITC:
-		case AFU_CMD_RD_WNITC_N:
-		case AFU_CMD_RD_WNITC_T:
-		case AFU_CMD_RD_WNITC_T_S: 
-	      		event->resp = TLX_RESPONSE_DONE; //Not sure why this is same as above? why not just one case??
-	      		event->state = MEM_DONE;
-	    		break;
-			//think cacheable read event->resps can be one of three types, let libocxl pass it back.
-  		}
+	if (event->state == MEM_RECEIVED)  { // true for either cacheable or non-cacheable reads
+	  	debug_msg( "handle_buffer_write: memory read data received, formulate capp response" );
+	  	event->state = MEM_DONE;
+	}
+	debug_msg( "event->state is not MEM_RECEIVEDD" );
 	    // we need to send back 1 or more 64B response
 	    // we can:
 	    //    send a complete response, with all the data
@@ -1327,11 +1316,9 @@ void handle_buffer_write(struct cmd *cmd)
 	    // fifo.  This method actually works for partial read as well as the minimum size of a split response is 64 B.
 	    // it is the afu's responsiblity to manage resp_rd_cnt correctly, and this is not information for us to check
 	    // anything other than an overrun (i.e. resp_rd_req of an empty fifo, or resp_rd_cnt exceeds the amount of data in the fifo)
-	}
-	debug_msg( "event->state is not MEM_RECEIVED and event->type is not CMD_READ" );
 
-	if (event->state != MEM_IDLE) { //?
-	        debug_msg( "event->state is not equal MEM_IDLE" );
+	if (event->state != MEM_IDLE) { //more dead code or just case where client->mem_access !=NULL?
+	        debug_msg( "handle_buffer_write: LOOK event->state is not equal MEM_IDLE" );
 		return;
 	}
 
@@ -2053,6 +2040,111 @@ void handle_sync(struct cmd *cmd)
 	}
 }
 
+// Handle randomly selected upgrade cache cmd from afu
+void handle_upgrade_state(struct cmd *cmd)
+{
+	struct cmd_event *event;
+	struct client *client;
+	uint8_t *buffer;
+	uint64_t *addr;
+
+	// Make sure cmd structure is valid
+	if (cmd == NULL) {
+	        debug_msg( "handle_upgrade_cache: bad cmd pointer");
+		return;
+	}
+
+	// Randomly select a pending upgrade_cache (or none)
+	event = cmd->list;
+	while (event != NULL) {
+	        if ((( event->type == CMD_CACHE )  &&   ( event->state == MEM_IDLE ) )  && 
+		  ( ( event->client_state != CLIENT_VALID ) || !allow_reorder(cmd->parms)))   {
+			break;
+		}
+		event = event->_next;
+	}
+
+	// Test for no event selected - it's ok, just return
+	if ( event == NULL ) return;
+	debug_msg( "handle_upgrade_cache: we have an event" );
+
+	// Test for client disconnect
+	if ((client = _get_client(cmd, event)) == NULL) {
+	        debug_msg( "handle_upgrade_cache: no client found");
+		return;
+	}
+
+	// Check that memory request can be driven to client
+	if (client->mem_access != NULL) {
+	        debug_msg( "handle_upgrade_cache: can't drive request to client - TRY LATER");
+		return;
+	}
+	// for OpenCAPI4 there are only two cmds here - upgrade_state and upgrade_state.t
+	if (event->command == AFU_CMD_XLATE_RELEASE) {
+		// Send upgrade_cache touch request to client
+		buffer = (uint8_t *) malloc(11);
+		buffer[0] = (uint8_t) OCSE_XLATE_RELEASE;
+		addr = (uint64_t *) & (buffer[1]);
+		*addr = htonll(event->addr);
+		buffer[9] = (uint8_t) event->form_flag;
+		buffer[10] = event->cmd_pg_size;
+		debug_msg("%s:XLATE RELEASE  afutag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
+			   event->afutag, event->addr);
+		if (put_bytes(client->fd, 11, buffer, cmd->dbg_fp, cmd->dbg_id,
+			      event->context) < 0) {
+			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		}
+		event->state = MEM_TOUCH; // if we don't get an ACK back,should set this to MEM_DONE and skip handle_resp code
+		client->mem_access = (void *)event;
+		debug_msg("Setting client->mem_access in handle_upgrade_cache for handling XLATE_RELEASE");
+		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
+        } else {
+		debug_msg("%s:XLATE TOUCH NOT XLATE_RELEASE cmd_flag=0x%x form_flag= 0x%x afutag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
+			  event->cmd_flag, event->form_flag, event->afutag, event->addr);
+		// Check to see if this cmd gets selected for a RETRY or FAILED or PENDING read_failed response
+		if ( allow_retry(cmd->parms)) {
+			event->state = MEM_DONE;
+			event->resp_opcode = TLX_RSP_TOUCH_RESP;
+			event->type = CMD_FAILED;
+			event->resp = 0x02;
+			debug_msg("handle_upgrade_cache: RETRY this cmd =0x%x \n", event->command);
+			return;
+		}
+		// for xlate_pending response, ocse has to THEN follow up with an xlate_done response 
+		// (at some unknown time later) and that will "complete" the original cmd (no rd/write )
+		if ( allow_pending(cmd->parms)) {
+			event->state = MEM_XLATE_PENDING;
+			event->resp_opcode = TLX_RSP_TOUCH_RESP;
+			event->type = CMD_FAILED;
+			event->resp = 0x04;
+			debug_msg("handle_upgrade_cache: send XLATE_PENDING for this cmd =0x%x \n", event->command);
+			return;
+		}
+
+
+		// Send upgrade_cache touch request to client
+		buffer = (uint8_t *) malloc(10);
+		buffer[0] = (uint8_t) OCSE_MEMORY_TOUCH;
+		addr = (uint64_t *) & (buffer[1]);
+		*addr = htonll(event->addr);
+		buffer[9] = event->cmd_flag;
+		// buffer[10] = event->cmd_pg_size;
+		debug_msg("%s:XLATE TOUCH cmd_flag=0x%x afutag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
+			  event->cmd_flag, event->afutag, event->addr);
+		if (put_bytes(client->fd, 10, buffer, cmd->dbg_fp, cmd->dbg_id,
+		      event->context) < 0) {
+			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		}
+		event->state = MEM_TOUCH;
+		client->mem_access = (void *)event;
+		debug_msg("Setting client->mem_access in handle_upgrade_cache");
+		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
+       	     }
+}
+
+
+//end of cache cmd
+
 // Handle randomly selected memory touch
 void handle_touch(struct cmd *cmd)
 {
@@ -2556,14 +2648,19 @@ static void _handle_cacheable_mem_read(struct cmd *cmd, struct cmd_event *event,
 {
 	uint8_t data[MAX_LINE_CHARS];
 	uint64_t offset = event->addr & ~CACHELINE_MASK;
+	uint16_t xfer_size; // = event->size + 1 + 1 + 4
 
 	// printf ("_handle_mem_read: event->type is %2x, event->state is 0x%3x \n", event->type, event->state);
 	if (event->type == CMD_CACHE_RD) {
-		//TODO libocxl needs to return resp_opcode, cache_state. Ef, resp_code AND data
+		//TODO libocxl needs to return  cache_state. EF, host_tag AND data
+		// this code assumes that libocxl will return regular ACK byte, followed by cache_state (byte),
+		// EF (byte), host_tag (4 bytes) and then data (either 64B or 128B?)
+		// buffer size = MAX_LINE_CHARS which is 1024 bytes.
 	        //printf ("_handle_cacheable_mem_read: CMD_CACHE_RD \n" );
 		// Client is returning data from cacheable memory read, libocxl
 		// tells us if cmd is successful or not
-		if (get_bytes_silent(fd, event->size, data, cmd->parms->timeout,
+		xfer_size = event->size + 6;
+		if (get_bytes_silent(fd, xfer_size, data, cmd->parms->timeout,
 			     event->abort) < 0) {
 	        	debug_msg("%s:_handle_cacheable_mem_read failed afutag=0x%04x size=%d addr=0x%016"PRIx64,
 				  cmd->afu_name, event->afutag, event->size, event->addr);
@@ -2577,7 +2674,10 @@ static void _handle_cacheable_mem_read(struct cmd *cmd, struct cmd_event *event,
 		}
 		// we used to put the data in the event->data at the offset implied by the address
 		// should we still do that?  It might depend on the the actual ap command that we received.
-		memcpy((void *)&(event->data[offset]), (void *)&data, event->size);
+		memcpy(&(data[0]), &event->cache_state, 1);
+		memcpy(&(data[1]), &event->resp_ef, 1);
+		memcpy(&(data[2]), &event->host_tag, 4); // TODO does this need endian conversion ntohl ?
+		memcpy((void *)&(event->data[offset]), (void *)&data+5, event->size);
 		event->state = MEM_RECEIVED;
 	}
 }
@@ -2726,6 +2826,7 @@ void handle_aerror(struct cmd *cmd, struct cmd_event *event, int fd)
 	event->state = MEM_DONE;
 	switch (event->type){ //figure out which type of failed cmd and specify wr_failed, rd_failed if needed
 		case CMD_READ:
+		case CMD_CACHE_RD:
 		case CMD_AMO_RD:
 		case CMD_AMO_RW: event->resp_opcode = TLX_RSP_READ_FAILED;
 				 break;
@@ -2873,17 +2974,15 @@ void handle_response(struct cmd *cmd)
 						0,
 						event->resp_dp,
 						0);
-//	} else if ( (event->command == AFU_CMD_PR_RD_WNITC) || (event->command == AFU_CMD_PR_RD_WNITC_N) ||
-//		    (event->command == AFU_CMD_AMO_RD) || (event->command == AFU_CMD_AMO_RD_N) ||
-//		    (event->command == AFU_CMD_AMO_RW) || (event->command == AFU_CMD_AMO_RW_N) ||
-//		    (event->command == AFU_CMD_RD_WNITC) || (event->command == AFU_CMD_RD_WNITC_N) ){
-	} else if ( (event->type == CMD_READ) || (event->type == CMD_AMO_RD) ||
+	} else if ( (event->type == CMD_READ) || (event->type == CMD_CACHE_RD) || (event->type == CMD_AMO_RD) ||
 		    (event->type == CMD_AMO_RW)  ){
 		// if not AMO or PR_RD, check to see if split response is warranted
 		// For this initial implementation, there is a parm called HOST_CL_SIZE that is used to determine max resp length
 		// This could alternatively be thought of as an internal bus transfer restriction. Valid sizes are 64, 128 and 256.
 		// Default is 128. Right now this value is fixed. This could change in the future to be a randomized selection of 64, 
 	        // 128 or 256.
+		// TODO for now,ocse assumes AFU cache line size = 64B, so NO checking for split resoonses. event->dl should always be 64
+		// if this is WRONG, need to add cacheable read cmds to the following if
 		if  ((event->command == AFU_CMD_RD_WNITC) || (event->command == AFU_CMD_RD_WNITC_N) ||
 		    (event->command == AFU_CMD_RD_WNITC_T) || (event->command == AFU_CMD_RD_WNITC_T_S)) { 
 			if (event->size > cmd->HOST_CL_SIZE)  { // a split resp
@@ -2918,9 +3017,9 @@ void handle_response(struct cmd *cmd)
 							  0, // resp_code - not really used for a good response
 							  0, // resp_pg_size - not used by response,
 							  event->resp_dl, // for partials, dl is 1 (64 B)
-							  0, // resp_host_tag, - 
-							  0, // resp_cache_state, -
-							  0, // resp_ef, -
+							  event->host_tag, // resp_host_tag, - 
+							  event->cache_state, // resp_cache_state, -
+							  event->resp_ef, // resp_ef, -
 							  0, // resp_w, -
 							  0, // resp_mh, -
 							  0, // resp_pa_or_ta, -
