@@ -108,6 +108,20 @@ typedef struct ocxl_ea_area {
         struct ocxl_ea_area *_next;
 } ocxl_ea_area;
 
+// ocxl_cache_proxy contains cache state information for addresses cached by the afu
+//   EA
+//   Cache state
+//   host_tag
+// Notes:
+// - what happens if host shares non-64byte aligned object with afu.  may not be able "protect" the 64 byte aligned ea that comes back
+// - should the cache proxy be associated with the afu or with the instance of libocxl?  for now, with afu
+typedef struct ocxl_cache_proxy {
+        uint64_t ea;                    // the effective address for which we want the translation
+        uint8_t cache_state;            // the cache state that we have decided to give back to the AFU
+        uint32_t host_tag;              // the host_tag that we give back to the afu for subsequent cache ops
+        struct ocxl_cache_proxy *_next;
+} ocxl_cache_proxy;
+
 // struct ocxl_afu_h {
 struct ocxl_afu {
 	pthread_t thread;
@@ -149,6 +163,8 @@ struct ocxl_afu {
 	struct mem_req mem;
 	struct ocxl_irq *irq;
         ocxl_ea_area *eas;
+        ocxl_cache_proxy *cache_lines;
+        uint32_t next_host_tag;
 };
 
 #endif
