@@ -58,17 +58,15 @@ char* Cache::Read(psCache pCache, int address)
   int index;
   int tag;
   char* data;
-  psBlock block;
 
   // tag=[31:12], index=[11:6], offset=[5:0]
   index = (address & 0x00000FC0) >> 6;
   printf("Cache: index = 0x%x\n", index);
   tag = (address & 0xFFFFF000) >> 12;
   printf("Cache: tag = 0x%x\n", tag);
-  if(pCache->ppBlock[index]->valid ==1 && 
+  if((pCache->ppBlock[index]->valid == 1) && 
       (pCache->ppBlock[index]->tag == tag)) {
-    block = pCache->ppBlock[index];
-    data = block->data;
+    data = pCache->ppBlock[index]->data;
   }
   else {
     printf("Cache: no data found in cache\n");
@@ -90,17 +88,16 @@ int Cache::Write(psCache pCache, int address, char* data)
   printf("Cache: index = 0x%x\n", index);
   tag = (address & 0xFFFFF000) >> 12;
   printf("Cache: tag = 0x%x\n", tag);
-  if(pCache->ppBlock[index]->tag == tag) {
-    memcpy(pCache->ppBlock[index], data, 64);
-    if(pCache->ppBlock[index]->valid==1) {
-      pCache->ppBlock[index]->dirty = 1;
-    }
+  if((pCache->ppBlock[index]->tag == tag) &&
+     (pCache->ppBlock[index]->valid==1)) {
+    pCache->ppBlock[index]->dirty = 1;
   }
   else {
-    printf("Cache: tag not exist.\n");
-    return 1;
+    pCache->ppBlock[index]->tag = tag;
+    pCache->ppBlock[index]->valid = 1;
+    pCache->ppBlock[index]->dirty = 1;
   }
-
+  memcpy(pCache->ppBlock[index], data, 64);
   return 0;
 }
 

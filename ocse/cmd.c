@@ -1184,7 +1184,7 @@ void handle_buffer_write(struct cmd *cmd)
 	struct cmd_event *event;
 	struct cmd_event *clist;
 	struct client *client;
-	uint8_t buffer[12];  // 1 message byte + 2 size bytes + 8 address bytesa + 1 form_flag
+	uint8_t buffer[13];  // 1 message byte + 1 opcode byte (cachable only) + 2 size bytes + 8 address bytesa + 1 form_flag
 	uint64_t *addr;
 	uint16_t *size;
 	int m, n, clear;
@@ -1332,25 +1332,37 @@ void handle_buffer_write(struct cmd *cmd)
 		// to point to this event blocking any other memory
 		// accesses to client until data is returned by call
 		// to the _handle_mem_read() function.
-                if (event->type == CMD_READ) {
+                if (event->type == CMD_READ) { //only send 12 bytes, no need to send command opcode
 		    	buffer[0] = (uint8_t) OCSE_MEMORY_READ;
 		    	debug_msg("%s:MEMORY READ afutag=0x%04x size=%d addr=0x%016"PRIx64" form_flag=0x%x",
 			    	cmd->afu_name, event->afutag, event->size, event->addr, event->form_flag);
+					size = (uint16_t *)&(buffer[1]);
+			*size = htons(event->size);
+			buffer[3] = event->form_flag;
+			addr = (uint64_t *) & (buffer[4]);
+			*addr = htonll(event->addr);
+			event->abort = &(client->abort);
+			if (put_bytes(client->fd, 12, buffer, cmd->dbg_fp,
+				cmd->dbg_id, event->context) < 0) {
+		        		client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+			}
+
 		}
 		else if (event->type == CMD_CACHE_RD) {
 		    	buffer[0] = (uint8_t) OCSE_CA_MEMORY_READ;
 		    	debug_msg("%s:CACHEABLE MEMORY READ afutag=0x%04x size=%d addr=0x%016"PRIx64" form_flag=0x%x",
 			    	cmd->afu_name, event->afutag, event->size, event->addr, event->form_flag);
-		}
-		size = (uint16_t *)&(buffer[1]);
-		*size = htons(event->size);
-		buffer[3] = event->form_flag;
-		addr = (uint64_t *) & (buffer[4]);
-		*addr = htonll(event->addr);
-		event->abort = &(client->abort);
-		if (put_bytes(client->fd, 12, buffer, cmd->dbg_fp,
-			cmd->dbg_id, event->context) < 0) {
-		        client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		    	buffer[1] = (uint8_t) event->command;
+			size = (uint16_t *)&(buffer[2]);
+			*size = htons(event->size);
+			buffer[4] = event->form_flag;
+			addr = (uint64_t *) & (buffer[5]);
+			*addr = htonll(event->addr);
+			event->abort = &(client->abort);
+			if (put_bytes(client->fd, 13, buffer, cmd->dbg_fp,
+				cmd->dbg_id, event->context) < 0) {
+		        	client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+			}
 		}
 		event->state = MEM_REQUEST;
 		    	debug_cmd_client( cmd->dbg_fp, cmd->dbg_id, event->afutag,
@@ -2045,16 +2057,17 @@ void handle_upgrade_state(struct cmd *cmd)
 {
 	struct cmd_event *event;
 	struct client *client;
+	uint16_t size;
 	uint8_t *buffer;
 	uint64_t *addr;
 
 	// Make sure cmd structure is valid
 	if (cmd == NULL) {
-	        debug_msg( "handle_upgrade_cache: bad cmd pointer");
+	        debug_msg( "handle_upgrade_state: bad cmd pointer");
 		return;
 	}
 
-	// Randomly select a pending upgrade_cache (or none)
+	// Randomly select a pending upgrade_state (or none)
 	event = cmd->list;
 	while (event != NULL) {
 	        if ((( event->type == CMD_CACHE )  &&   ( event->state == MEM_IDLE ) )  && 
@@ -2066,48 +2079,27 @@ void handle_upgrade_state(struct cmd *cmd)
 
 	// Test for no event selected - it's ok, just return
 	if ( event == NULL ) return;
-	debug_msg( "handle_upgrade_cache: we have an event" );
+	debug_msg( "handle_upgrade_state: we have an event" );
 
 	// Test for client disconnect
 	if ((client = _get_client(cmd, event)) == NULL) {
-	        debug_msg( "handle_upgrade_cache: no client found");
+	        debug_msg( "handle_upgrade_state: no client found");
 		return;
 	}
 
 	// Check that memory request can be driven to client
 	if (client->mem_access != NULL) {
-	        debug_msg( "handle_upgrade_cache: can't drive request to client - TRY LATER");
+	        debug_msg( "handle_upgrade_state: can't drive request to client - TRY LATER");
 		return;
 	}
 	// for OpenCAPI4 there are only two cmds here - upgrade_state and upgrade_state.t
-	if (event->command == AFU_CMD_XLATE_RELEASE) {
-		// Send upgrade_cache touch request to client
-		buffer = (uint8_t *) malloc(11);
-		buffer[0] = (uint8_t) OCSE_XLATE_RELEASE;
-		addr = (uint64_t *) & (buffer[1]);
-		*addr = htonll(event->addr);
-		buffer[9] = (uint8_t) event->form_flag;
-		buffer[10] = event->cmd_pg_size;
-		debug_msg("%s:XLATE RELEASE  afutag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
-			   event->afutag, event->addr);
-		if (put_bytes(client->fd, 11, buffer, cmd->dbg_fp, cmd->dbg_id,
-			      event->context) < 0) {
-			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
-		}
-		event->state = MEM_TOUCH; // if we don't get an ACK back,should set this to MEM_DONE and skip handle_resp code
-		client->mem_access = (void *)event;
-		debug_msg("Setting client->mem_access in handle_upgrade_cache for handling XLATE_RELEASE");
-		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
-        } else {
-		debug_msg("%s:XLATE TOUCH NOT XLATE_RELEASE cmd_flag=0x%x form_flag= 0x%x afutag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
-			  event->cmd_flag, event->form_flag, event->afutag, event->addr);
-		// Check to see if this cmd gets selected for a RETRY or FAILED or PENDING read_failed response
+	// Check to see if this cmd gets selected for a RETRY or FAILED or PENDING read_failed response
 		if ( allow_retry(cmd->parms)) {
 			event->state = MEM_DONE;
 			event->resp_opcode = TLX_RSP_TOUCH_RESP;
 			event->type = CMD_FAILED;
 			event->resp = 0x02;
-			debug_msg("handle_upgrade_cache: RETRY this cmd =0x%x \n", event->command);
+			debug_msg("handle_upgrade_state: RETRY this cmd =0x%x \n", event->command);
 			return;
 		}
 		// for xlate_pending response, ocse has to THEN follow up with an xlate_done response 
@@ -2117,29 +2109,29 @@ void handle_upgrade_state(struct cmd *cmd)
 			event->resp_opcode = TLX_RSP_TOUCH_RESP;
 			event->type = CMD_FAILED;
 			event->resp = 0x04;
-			debug_msg("handle_upgrade_cache: send XLATE_PENDING for this cmd =0x%x \n", event->command);
+			debug_msg("handle_upgrade_state: send XLATE_PENDING for this cmd =0x%x \n", event->command);
 			return;
 		}
-
-
-		// Send upgrade_cache touch request to client
-		buffer = (uint8_t *) malloc(10);
-		buffer[0] = (uint8_t) OCSE_MEMORY_TOUCH;
-		addr = (uint64_t *) & (buffer[1]);
+		// Send upgrade_state request to client
+		/*buffer = (uint8_t *) malloc(13);
+		buffer[0] = (uint8_t) OCSE_UPGRADE_STATE;
+		size = (uint16_t *)&(buffer[1]);
+		*size = htons(event->size);
+		addr = (uint64_t *) & (buffer[3]);
 		*addr = htonll(event->addr);
-		buffer[9] = event->cmd_flag;
-		// buffer[10] = event->cmd_pg_size;
-		debug_msg("%s:XLATE TOUCH cmd_flag=0x%x afutag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
+		buffer[11] = event->cmd_flag;
+		buffer[12] = event->form_flag;
+		debug_msg("%s:UPGRADE STATE cmd_flag=0x%x afutag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
 			  event->cmd_flag, event->afutag, event->addr);
-		if (put_bytes(client->fd, 10, buffer, cmd->dbg_fp, cmd->dbg_id,
+		if (put_bytes(client->fd, 13, buffer, cmd->dbg_fp, cmd->dbg_id,
 		      event->context) < 0) {
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		}
-		event->state = MEM_TOUCH;
+		event->state = MEM_REQUEST;
 		client->mem_access = (void *)event;
-		debug_msg("Setting client->mem_access in handle_upgrade_cache");
-		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
-       	     }
+		debug_msg("Setting client->mem_access in handle_upgrade_state");
+		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); */
+       	     
 }
 
 
@@ -2532,6 +2524,65 @@ void handle_interrupt(struct cmd *cmd)
 	event->state = MEM_DONE;
 }
 
+// Handle upgrade response 
+static void _handle_upgrade_resp(struct cmd *cmd, struct cmd_event *event, int fd)
+{
+  // we know the event type is CMD_CACHE
+  // according to the spec, there can be multiple responses for upgrade_state or upgrade_state.t
+  // to start off with, we expect just one response here (and it better be upgrade_resp)
+  // we expect to get cache_state EF, and host_tag back from libocxl
+  // TODO adapt this to handle multiple responses
+        uint64_t ta;
+	uint8_t data[MAX_LINE_CHARS];
+        uint8_t pg_size;
+	uint64_t offset = event->addr & ~CACHELINE_MASK;
+		// should we still do that?  It might depend on the the actual ap command that we received.
+//		memcpy(&(data[0]), &event->cache_state, 1);
+//		memcpy(&(data[1]), &event->resp_ef, 1);
+//		memcpy(&(data[2]), &event->host_tag, 4); // TODO does this need endian conversion ntohl ?
+//		memcpy((void *)&(event->data[offset]), (void *)&data+5, event->size);
+//		event->state = MEM_RECEIVED;
+	
+
+	debug_msg("%s:_handle_upgrade_resp",cmd->afu_name);
+
+	event->resp_opcode = TLX_RSP_UGRADE_RESP;
+
+	if (get_bytes_silent(fd, sizeof( ta ), (uint8_t *)&ta, cmd->parms->timeout, event->abort) < 0) {
+	        	debug_msg("%s:_handle_upgrade_resp failed afutag=0x%04x size=%d addr=0x%016"PRIx64,
+				  cmd->afu_name, event->afutag, event->size, event->addr);
+			event->state = MEM_DONE;
+			event->type = CMD_FAILED;
+			event->resp = 0x0e;
+			debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->afutag,
+				 event->context, event->resp);
+			return;
+	}
+	event->resp_ta = ntohll( ta );
+
+	if (get_bytes_silent(fd, sizeof( pg_size ), &pg_size, cmd->parms->timeout, event->abort) < 0) {
+	        	debug_msg("%s:_handle_upgrade_resp failed afutag=0x%04x size=%d addr=0x%016"PRIx64,
+				  cmd->afu_name, event->afutag, event->size, event->addr);
+			event->state = MEM_DONE;
+			event->type = CMD_FAILED;
+			event->resp = 0x0e;
+			debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->afutag,
+				 event->context, event->resp);
+			return;
+	}
+	event->resp_pg_size = pg_size;
+	
+	event->resp_w = 1;  // always writeable for now
+	event->resp_mh = 0; // mem hit is a 5.0 feature
+	
+	event->state = MEM_DONE;
+
+	debug_msg("%s:_handle_mem_touch afutag=0x%04x addr=0x%016llx,  translated_addr=0x%016llx, pg_szie=0x%02x",
+		  cmd->afu_name, event->afutag, event->addr, event->resp_ta, event->resp_pg_size);
+}
+//end of upgrade_resp
+
+
 
 // Handle additional data (if any) returning from translate touch commands
 static void _handle_mem_touch(struct cmd *cmd, struct cmd_event *event, int fd)
@@ -2808,6 +2859,8 @@ void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd)
 	else if (event->type == CMD_XLATE_REL)
 		//NOTE - this means we expect an ACK back from libocxl for the XLATE_RELEASE
 		event->state = MEM_DONE;
+	else if (event->type == CMD_CACHE)
+		_handle_upgrade_resp( cmd, event, fd);
 	debug_cmd_return(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context);
 }
 
