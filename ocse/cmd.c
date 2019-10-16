@@ -2057,7 +2057,7 @@ void handle_upgrade_state(struct cmd *cmd)
 {
 	struct cmd_event *event;
 	struct client *client;
-	uint16_t size;
+	uint16_t *size;
 	uint8_t *buffer;
 	uint64_t *addr;
 
@@ -2093,10 +2093,10 @@ void handle_upgrade_state(struct cmd *cmd)
 		return;
 	}
 	// for OpenCAPI4 there are only two cmds here - upgrade_state and upgrade_state.t
-	// Check to see if this cmd gets selected for a RETRY or FAILED or PENDING read_failed response
+	// Check to see if this cmd gets selected for a RETRY or PENDING read_failed response
 		if ( allow_retry(cmd->parms)) {
 			event->state = MEM_DONE;
-			event->resp_opcode = TLX_RSP_TOUCH_RESP;
+			event->resp_opcode = TLX_RSP_READ_FAILED;
 			event->type = CMD_FAILED;
 			event->resp = 0x02;
 			debug_msg("handle_upgrade_state: RETRY this cmd =0x%x \n", event->command);
@@ -2106,14 +2106,14 @@ void handle_upgrade_state(struct cmd *cmd)
 		// (at some unknown time later) and that will "complete" the original cmd (no rd/write )
 		if ( allow_pending(cmd->parms)) {
 			event->state = MEM_XLATE_PENDING;
-			event->resp_opcode = TLX_RSP_TOUCH_RESP;
+			event->resp_opcode = TLX_RSP_READ_FAILED;
 			event->type = CMD_FAILED;
 			event->resp = 0x04;
 			debug_msg("handle_upgrade_state: send XLATE_PENDING for this cmd =0x%x \n", event->command);
 			return;
 		}
 		// Send upgrade_state request to client
-		/*buffer = (uint8_t *) malloc(13);
+		buffer = (uint8_t *) malloc(13);
 		buffer[0] = (uint8_t) OCSE_UPGRADE_STATE;
 		size = (uint16_t *)&(buffer[1]);
 		*size = htons(event->size);
@@ -2130,12 +2130,9 @@ void handle_upgrade_state(struct cmd *cmd)
 		event->state = MEM_REQUEST;
 		client->mem_access = (void *)event;
 		debug_msg("Setting client->mem_access in handle_upgrade_state");
-		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); */
+		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
        	     
 }
-
-
-//end of cache cmd
 
 // Handle randomly selected memory touch
 void handle_touch(struct cmd *cmd)
@@ -2532,25 +2529,15 @@ static void _handle_upgrade_resp(struct cmd *cmd, struct cmd_event *event, int f
   // to start off with, we expect just one response here (and it better be upgrade_resp)
   // we expect to get cache_state EF, and host_tag back from libocxl
   // TODO adapt this to handle multiple responses
-        uint64_t ta;
-	uint8_t data[MAX_LINE_CHARS];
-        uint8_t pg_size;
-	uint64_t offset = event->addr & ~CACHELINE_MASK;
-		// should we still do that?  It might depend on the the actual ap command that we received.
-//		memcpy(&(data[0]), &event->cache_state, 1);
-//		memcpy(&(data[1]), &event->resp_ef, 1);
-//		memcpy(&(data[2]), &event->host_tag, 4); // TODO does this need endian conversion ntohl ?
-//		memcpy((void *)&(event->data[offset]), (void *)&data+5, event->size);
-//		event->state = MEM_RECEIVED;
-	
+        uint32_t host_tag;
+        uint8_t ef, cache_state;
 
 	debug_msg("%s:_handle_upgrade_resp",cmd->afu_name);
-
 	event->resp_opcode = TLX_RSP_UGRADE_RESP;
 
-	if (get_bytes_silent(fd, sizeof( ta ), (uint8_t *)&ta, cmd->parms->timeout, event->abort) < 0) {
-	        	debug_msg("%s:_handle_upgrade_resp failed afutag=0x%04x size=%d addr=0x%016"PRIx64,
-				  cmd->afu_name, event->afutag, event->size, event->addr);
+	if (get_bytes_silent(fd, sizeof( cache_state ), &cache_state, cmd->parms->timeout, event->abort) < 0) {
+	        	debug_msg("%s:_handle_upgrade_resp failed to get cache_state afutag=0x%04x size=%d ",
+				  cmd->afu_name, event->afutag, event->size);
 			event->state = MEM_DONE;
 			event->type = CMD_FAILED;
 			event->resp = 0x0e;
@@ -2558,11 +2545,10 @@ static void _handle_upgrade_resp(struct cmd *cmd, struct cmd_event *event, int f
 				 event->context, event->resp);
 			return;
 	}
-	event->resp_ta = ntohll( ta );
-
-	if (get_bytes_silent(fd, sizeof( pg_size ), &pg_size, cmd->parms->timeout, event->abort) < 0) {
-	        	debug_msg("%s:_handle_upgrade_resp failed afutag=0x%04x size=%d addr=0x%016"PRIx64,
-				  cmd->afu_name, event->afutag, event->size, event->addr);
+	event->cache_state = cache_state;
+	if (get_bytes_silent(fd, sizeof( &ef ), &ef, cmd->parms->timeout, event->abort) < 0) {
+	        	debug_msg("%s:_handle_upgrade_resp failed to get ef  afutag=0x%04x size=%d",
+				  cmd->afu_name, event->afutag, event->size);
 			event->state = MEM_DONE;
 			event->type = CMD_FAILED;
 			event->resp = 0x0e;
@@ -2570,15 +2556,22 @@ static void _handle_upgrade_resp(struct cmd *cmd, struct cmd_event *event, int f
 				 event->context, event->resp);
 			return;
 	}
-	event->resp_pg_size = pg_size;
-	
-	event->resp_w = 1;  // always writeable for now
-	event->resp_mh = 0; // mem hit is a 5.0 feature
-	
+	event->resp_ef = ef;
+	if (get_bytes_silent(fd, sizeof( host_tag ), (uint8_t *)&host_tag, cmd->parms->timeout, event->abort) < 0) {
+	        	debug_msg("%s:_handle_upgrade_resp failed to get host_tag afutag=0x%04x size=%d" ,
+				  cmd->afu_name, event->afutag, event->size);
+			event->state = MEM_DONE;
+			event->type = CMD_FAILED;
+			event->resp = 0x0e;
+			debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->afutag,
+				 event->context, event->resp);
+			return;
+	}
+	event->host_tag = ntohl(host_tag);
 	event->state = MEM_DONE;
 
-	debug_msg("%s:_handle_mem_touch afutag=0x%04x addr=0x%016llx,  translated_addr=0x%016llx, pg_szie=0x%02x",
-		  cmd->afu_name, event->afutag, event->addr, event->resp_ta, event->resp_pg_size);
+	debug_msg("%s:_handle_upgrade_resp afutag=0x%04x cache_state=0x%02x,  ef=0x%02x, host_tag=0x%04x",
+		  cmd->afu_name, event->afutag, event->cache_state, event->resp_ef, event->host_tag);
 }
 //end of upgrade_resp
 
@@ -2699,8 +2692,8 @@ static void _handle_cacheable_mem_read(struct cmd *cmd, struct cmd_event *event,
 {
 	uint8_t data[MAX_LINE_CHARS];
 	uint64_t offset = event->addr & ~CACHELINE_MASK;
-	uint16_t xfer_size; // = event->size + 1 + 1 + 4
-
+	uint32_t host_tag;
+        uint8_t ef, cache_state;	
 	// printf ("_handle_mem_read: event->type is %2x, event->state is 0x%3x \n", event->type, event->state);
 	if (event->type == CMD_CACHE_RD) {
 		//TODO libocxl needs to return  cache_state. EF, host_tag AND data
@@ -2710,8 +2703,40 @@ static void _handle_cacheable_mem_read(struct cmd *cmd, struct cmd_event *event,
 	        //printf ("_handle_cacheable_mem_read: CMD_CACHE_RD \n" );
 		// Client is returning data from cacheable memory read, libocxl
 		// tells us if cmd is successful or not
-		xfer_size = event->size + 6;
-		if (get_bytes_silent(fd, xfer_size, data, cmd->parms->timeout,
+		if (get_bytes_silent(fd, sizeof( cache_state ), &cache_state, cmd->parms->timeout, event->abort) < 0) {
+	        	debug_msg("%s:_handle_cacheable_mem_read failed to get cache_state afutag=0x%04x size=%d ",
+				  cmd->afu_name, event->afutag, event->size);
+			event->state = MEM_DONE;
+			event->type = CMD_FAILED;
+			event->resp = 0x0e;
+			debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->afutag,
+				 event->context, event->resp);
+			return;
+		}
+		event->cache_state = cache_state;
+		if (get_bytes_silent(fd, sizeof( ef ), &ef, cmd->parms->timeout, event->abort) < 0) {
+	        		debug_msg("%s:_handle_cacheable_mem_read failed to get ef  afutag=0x%04x size=%d",
+					  cmd->afu_name, event->afutag, event->size);
+				event->state = MEM_DONE;
+				event->type = CMD_FAILED;
+				event->resp = 0x0e;
+				debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->afutag,
+					 event->context, event->resp);
+				return;
+		}
+		event->resp_ef = ef;
+		if (get_bytes_silent(fd, sizeof( host_tag ), (uint8_t *)&host_tag, cmd->parms->timeout, event->abort) < 0) {
+	        		debug_msg("%s:_handle_cacheable_mem_read failed to get host_tag afutag=0x%04x size=%d" ,
+					  cmd->afu_name, event->afutag, event->size);
+				event->state = MEM_DONE;
+				event->type = CMD_FAILED;
+				event->resp = 0x0e;
+				debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->afutag,
+					 event->context, event->resp);
+				return;
+		}
+		event->host_tag = ntohl(host_tag);
+		if (get_bytes_silent(fd, event->size, data, cmd->parms->timeout,
 			     event->abort) < 0) {
 	        	debug_msg("%s:_handle_cacheable_mem_read failed afutag=0x%04x size=%d addr=0x%016"PRIx64,
 				  cmd->afu_name, event->afutag, event->size, event->addr);
@@ -2724,11 +2749,8 @@ static void _handle_cacheable_mem_read(struct cmd *cmd, struct cmd_event *event,
 			return;
 		}
 		// we used to put the data in the event->data at the offset implied by the address
-		// should we still do that?  It might depend on the the actual ap command that we received.
-		memcpy(&(data[0]), &event->cache_state, 1);
-		memcpy(&(data[1]), &event->resp_ef, 1);
-		memcpy(&(data[2]), &event->host_tag, 4); // TODO does this need endian conversion ntohl ?
-		memcpy((void *)&(event->data[offset]), (void *)&data+5, event->size);
+		// should we still do that?  
+		memcpy((void *)&(event->data[offset]), (void *)&data, event->size);
 		event->state = MEM_RECEIVED;
 	}
 }
