@@ -1302,7 +1302,7 @@ void handle_buffer_write(struct cmd *cmd)
 	  	debug_msg( "handle_buffer_write: memory read data received, formulate capp response" );
 	  	event->state = MEM_DONE;
 	}
-	debug_msg( "event->state is not MEM_RECEIVEDD" );
+	debug_msg( "event->state is not MEM_RECEIVED" );
 	    // we need to send back 1 or more 64B response
 	    // we can:
 	    //    send a complete response, with all the data

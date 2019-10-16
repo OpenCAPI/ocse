@@ -423,6 +423,156 @@ static int _xlate_addr(struct ocxl_afu *afu, uint64_t *addr, uint8_t form_flag)
       return 0;
 }
 
+// puts a new cache line at the beginning of the cache line list
+// returns a pointer to the new entry
+static ocxl_cache_proxy *_cache( struct ocxl_afu *afu, uint8_t op_code, uint64_t addr )
+{
+        ocxl_cache_proxy *this_line;
+
+	// allocate the struct
+	this_line = (ocxl_cache_proxy *)malloc( sizeof(ocxl_cache_proxy) );
+
+	// pick a state based on op_code
+	this_line->ea = addr;
+	this_line->host_tag = afu->next_host_tag++;
+	this_line->cache_state = 0x1; // just shared for now
+
+	//put at head of list
+	this_line->_next = afu->cache_lines;
+	afu->cache_lines = this_line;
+	return this_line;
+}
+
+// scans through the list of cached addresses.  returns line address if found
+static uint64_t _is_cached( struct ocxl_afu *afu, uint64_t addr )
+{
+        ocxl_cache_proxy *this_line;
+
+	this_line = afu->cache_lines;
+	while (this_line != NULL) {
+	        this_line = this_line->_next;
+	}
+	
+	return (uint64_t)this_line;
+}
+
+// Handle the read_a, read_me, and read_mes commands from the afu
+// the address will be a naturally aligned 64, 128 or 256 byte line
+// the line will be treated as multiple 64 byte lines if longer that 64
+// build the cl_read_resp
+// protect the line(s)
+//   we protect the lines so that we will get a signal if the host user references the line that is cached in the afu
+static void _handle_ca_read(struct ocxl_afu *afu)
+{
+	uint8_t buffer[MAX_LINE_CHARS];
+	uint64_t addr;
+	uint16_t size;
+	uint8_t op_code;
+	uint8_t form_flag;
+	int rc;
+
+	ocxl_cache_proxy *cache_line;
+
+	if ( afu == NULL ) fatal_msg("NULL afu passed to libocxl.c:_handle_ca_read");
+	
+	// retrieve size, form_flag, and address from socket
+	if (get_bytes_silent(afu->fd, sizeof( size ), buffer, 1000, 0) < 0) {
+	      warn_msg("Socket failure getting ca memory read size");
+	      _all_idle(afu);
+	      return;
+	}
+	memcpy( (char *)&size, buffer, sizeof( size ) );
+	size = ntohs(size);
+
+	if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
+	      warn_msg("Socket failure getting ca op_code ");
+	      _all_idle(afu);
+	      return;
+	}
+	memcpy( (char *)&op_code, buffer, sizeof( op_code ) );
+
+	if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
+	      warn_msg("Socket failure getting ca form_flag ");
+	      _all_idle(afu);
+	      return;
+	}
+	memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
+
+	if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer, -1, 0) < 0) {
+	      warn_msg("Socket failure getting ca memory read addr");
+	      _all_idle(afu);
+	      return;
+	}
+	memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
+	addr = ntohll(addr);
+	debug_msg("_handle_ca_read: addr @ 0x%016" PRIx64 ", size = %d, form = %x", addr, size, form_flag);
+	
+	// at this point, addr is either an ea, ta, (or eventually pa) depending on the form flag.
+	// so lets call a routine to translate the address if form flag is the right value
+	rc = _xlate_addr( afu, &addr, form_flag );
+	if ( rc == 0xc ) {
+	        // bad translation
+	        // need to add the reason code to the mem failure message
+		warn_msg("CA READ from TA that was invalid addr @ 0x%016" PRIx64 "", addr);
+		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
+		buffer[1] = (uint8_t) 0xc;
+		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
+			afu->opened = 0;
+			afu->attached = 0;
+		}
+		return;
+	}
+	
+	debug_msg("_handle_ca_read: addr @ 0x%016" PRIx64 ", size = %d", addr, size);
+
+	// addr now represents an EA
+	// we need to check to see if we've cached it already...
+	// if we have, then what?
+	if ( _is_cached( afu, addr ) != 0) {
+	        //synonym???  or error???
+		warn_msg("CA READ from EA that was prviously cached addr @ 0x%016" PRIx64 "", addr);
+		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
+		buffer[1] = (uint8_t) 0xC;
+		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
+			afu->opened = 0;
+			afu->attached = 0;
+		}
+		return;
+	}
+
+	// if we have not, we need to make sure we own this address
+	if (!_testmemaddr((uint8_t *) addr)) {
+	        if (_handle_dsi(afu, addr) < 0) {
+		        perror("DSI Failure");
+			return;
+		}
+		warn_msg("CA READ from invalid addr @ 0x%016" PRIx64 "", addr);
+		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
+		buffer[1] = 0xc;
+		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
+			afu->opened = 0;
+			afu->attached = 0;
+		}
+		return;
+	}
+
+	// the address is not previously cached and we own it.
+	// we need to build a response and then "cache" the address
+	// depending on the op_code, we can choose various cache states to send back.
+	// for now, let's send back E for ME and MES, and S for S
+	cache_line = _cache( afu, op_code, addr );
+	buffer[0] = OCSE_MEM_SUCCESS;
+	buffer[1] = cache_line->cache_state;
+	memcpy(&(buffer[2]), (void *)addr, size);
+	if (put_bytes_silent(afu->fd, size + 2, buffer) != size + 2) {
+		afu->opened = 0;
+		afu->attached = 0;
+	}
+	debug_msg("CA READ cache state = %d from addr @ 0x%016" PRIx64 "", cache_line->cache_state, addr);
+
+	// finally, protect the line(s)
+}
+
 static void _handle_read(struct ocxl_afu *afu)
 {
 	uint8_t buffer[MAX_LINE_CHARS];
@@ -479,7 +629,7 @@ static void _handle_read(struct ocxl_afu *afu)
 		        perror("DSI Failure");
 			return;
 		}
-		warn_msg("READ1 from invalid addr @ 0x%016" PRIx64 "", addr);
+		warn_msg("READ from invalid addr @ 0x%016" PRIx64 "", addr);
 		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
 		buffer[1] = 0xc;
 		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
@@ -2589,6 +2739,10 @@ static void *_psl_loop(void *ptr)
 				perror("Wake Host Thread Failure");
 				goto ocl_fail;
 			}
+			break;
+		case OCSE_CA_MEMORY_READ:
+			debug_msg("AFU CACHEABLE READ OPERATION");
+			_handle_ca_read( afu );
 			break;
 		/* case OCSE_AFU_ERROR: */
 		/* 	if (_handle_afu_error(afu) < 0) { */
