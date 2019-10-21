@@ -745,7 +745,7 @@ AFU::resolve_tlx_afu_resp()
 	    printf("\n");
 		}
 		else {
-    	debug_msg("AFU: read_resp_data for memory");
+    	debug_msg("AFU: read dcp0 data");
     	tlx_afu_read_dcp0_data(&afu_event, &rdata_bdi, memory);
     	printf("memory = 0x");
     	for(i=0; i<64; i++) {
@@ -827,7 +827,19 @@ AFU::resolve_tlx_afu_resp()
 	    printf("AFU: TLX read response failed\n");
 	    printf("AFU: afutag = 0x%x\n", afu_event.tlx_afu_vc0_afutag);
 	    break;
-		case TLX_RSP_CL_RD_RESP:
+		case TLX_RSP_CL_RD_RESP:  //vc0 and dcp0
+      printf("AFU: TLX_RSP_CL_RD_RESP\n");
+      printf("AFU: afutag = 0x%x\n", resp_afutag);
+      printf("AFU: dl = 0x%x\n", resp_dl);
+      //cache data, state, dl, dp, afutag
+      //credit for both VC and DCP
+      printf("AFU: cache dcp0 data read request\n");
+      if(afu_tlx_dcp0_data_read_req(&afu_event, cmd_rd_req,
+        cmd_rd_cnt) != TLX_SUCCESS) {
+        error_msg("AFU: FAILED cl read request");
+      }
+      printf("AFU: CL_RD waiting for data\n");
+      resp_state = WAITING_FOR_DATA;
 	    break;
 		case TLX_RSP_WRITE_RESP:
 	    printf("AFU: received response write\n");

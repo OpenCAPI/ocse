@@ -134,11 +134,11 @@ int main(int argc, char *argv[])
 	  printf("FAILED: ocxl_mmio_map\n");
 	  goto done;
   }
-  printf("Attempt Read command 0x10\n");
+  printf("Attempt read_me 0x68\n");
   config_param.context = 0;
   config_param.enable_always = 1;
   config_param.mem_size = 64;
-  config_param.command = AFU_CMD_RD_WNITC;
+  config_param.command = AFU_CMD_READ_ME;
   config_param.mem_base_address = (uint64_t)rcacheline;
   config_param.machine_number = 0;
   config_param.status_address = (uint32_t)status;
