@@ -469,13 +469,21 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 	uint16_t size;
 	uint8_t op_code;
 	uint8_t form_flag;
+	uint32_t host_tag;
 	int rc;
 
 	ocxl_cache_proxy *cache_line;
 
 	if ( afu == NULL ) fatal_msg("NULL afu passed to libocxl.c:_handle_ca_read");
 	
-	// retrieve size, form_flag, and address from socket
+	// retrieve op_code(1), size(1), form_flag, and address from socket
+	if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
+	      warn_msg("Socket failure getting ca op_code ");
+	      _all_idle(afu);
+	      return;
+	}
+	memcpy( (char *)&op_code, buffer, sizeof( op_code ) );
+
 	if (get_bytes_silent(afu->fd, sizeof( size ), buffer, 1000, 0) < 0) {
 	      warn_msg("Socket failure getting ca memory read size");
 	      _all_idle(afu);
@@ -483,13 +491,6 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 	}
 	memcpy( (char *)&size, buffer, sizeof( size ) );
 	size = ntohs(size);
-
-	if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
-	      warn_msg("Socket failure getting ca op_code ");
-	      _all_idle(afu);
-	      return;
-	}
-	memcpy( (char *)&op_code, buffer, sizeof( op_code ) );
 
 	if (get_bytes_silent(afu->fd, 1, buffer, 1000, 0) < 0) {
 	      warn_msg("Socket failure getting ca form_flag ");
@@ -561,10 +562,26 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 	// depending on the op_code, we can choose various cache states to send back.
 	// for now, let's send back E for ME and MES, and S for S
 	cache_line = _cache( afu, op_code, addr );
-	buffer[0] = OCSE_MEM_SUCCESS;
-	buffer[1] = cache_line->cache_state;
-	memcpy(&(buffer[2]), (void *)addr, size);
-	if (put_bytes_silent(afu->fd, size + 2, buffer) != size + 2) {
+
+	int bufsiz;
+	bufsiz = 0;
+
+	buffer[bufsiz] = OCSE_MEM_SUCCESS;
+	bufsiz++;
+
+	buffer[bufsiz] = cache_line->cache_state;
+	bufsiz++;
+
+	buffer[bufsiz] = 0; // evict and fill
+	bufsiz++;
+
+	host_tag = ntohl( cache_line->host_tag );
+	memcpy( &(buffer[bufsiz]), (void *)&host_tag, sizeof(host_tag) );
+	bufsiz = bufsiz + sizeof( host_tag );
+
+	memcpy( &(buffer[bufsiz]), (void *)addr, size);
+	bufsiz = bufsiz + size;
+	if (put_bytes_silent(afu->fd, bufsiz, buffer) != bufsiz) {
 		afu->opened = 0;
 		afu->attached = 0;
 	}
