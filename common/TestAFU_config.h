@@ -41,19 +41,19 @@ typedef struct MachineConfig
 // Machine Configuration Parameters
 typedef struct MachineConfigParam
 {
-    uint16_t	context;
-    uint16_t	command;
-    uint16_t	command_size;
-    uint16_t	machine_number;
-//    uint16_t	max_delay;
-    uint32_t	status_address;
-    uint64_t	mem_base_address;  // config[2]
-//    uint64_t	mem_size;
-    uint64_t  	mem_dest_address;	// config[3]
-    uint16_t	mem_size;		// config[1]
-    uint8_t	enable_always;
-    uint8_t     oplength;
-    uint8_t     cmdflag;
+  uint16_t	context;
+  uint16_t	command;
+  uint16_t	command_size;
+  uint16_t	machine_number;
+  //uint16_t	max_delay;
+  uint32_t	status_address;
+  uint64_t	mem_base_address;  // config[2]
+  //uint64_t	mem_size;
+  uint64_t  	mem_dest_address;	// config[3]
+  uint16_t	mem_size;		// config[1]
+  uint8_t	enable_always;
+  uint8_t     oplength;
+  uint8_t     cmdflag;
 } MachineConfigParam;
 
 // Zero out all machine config registers

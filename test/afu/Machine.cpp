@@ -210,7 +210,7 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
                               buffer_read_parity);
       break;
     case AFU_CMD_READ_ME:
-      printf("Machine: read.me 0x68\n");
+      printf("Machine: read_me 0x68\n");
       command = new LoadCommand(command_code, command_address_parity,
         command_code_parity, command_tag_parity, buffer_read_parity);
       break;
@@ -290,52 +290,51 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
         return (uint32_t) ((config[offset / 2] & 0xFFFFFFFF00000000LL) >> 32);
     }
 
-    bool MachineController::Machine::attempt_new_command (AFU_EVENT * afu_event,
-        uint32_t tag,
-        bool error_state,
-        uint16_t cycle)
-    {
+bool MachineController::Machine::attempt_new_command (AFU_EVENT * afu_event,
+  uint32_t tag,
+  bool error_state,
+  uint16_t cycle)
+{
 
-    // only send new command if
-    // 1. previous command has completed
-    // 2. delay is 0
+  // only send new command if
+  // 1. previous command has completed
+  // 2. delay is 0
 
-    if (!is_enabled ())
-        error_msg
-        ("MachineController::Machine::attempt_new_command(): attemp to send new command when machine is not enabled");
+  if (!is_enabled ())
+      error_msg
+      ("MachineController::Machine::attempt_new_command(): attemp to send new command when machine is not enabled");
 
-    if ((!command || command->is_completed ()) && delay == 0) {
-        debug_msg("Machine::attempt_new_command: read_machine_config");
-        read_machine_config (afu_event);
+  if ((!command || command->is_completed ()) && delay == 0) {
+      debug_msg("Machine::attempt_new_command: read_machine_config");
+      read_machine_config (afu_event);
 
-        // randomly generates address within the range
-        uint64_t
-        address_offset =
-            (rand () % (memory_size - (command_size - 1))) & ~(command_size -
-                    1);
-        debug_msg("Machine::attempt_new_command: command->send_command with tag = 0x%x", 
+      // randomly generates address within the range
+    uint64_t
+    address_offset =
+        (rand () % (memory_size - (command_size - 1))) & ~(command_size -
+          1);
+    debug_msg("Machine::attempt_new_command: command->send_command with tag = 0x%x", 
             tag);
-        command->send_command (afu_event, tag,
+    command->send_command (afu_event, tag,
                                memory_base_address,
                                command_size, abort, context);
         
-        resend_command = command;
-        resend_holder = command;
-        printf("M: resend_command = 0x%x\n", resend_command);
-        printf("M: command = 0x%x\n", command);
-        printf("M: resend_holder = 0x%x\n", resend_holder);
-        record_command (error_state, cycle);
-        clear_response ();
+    resend_command = command;
+    resend_holder = command;
+    printf("M: resend_command = 0x%x\n", resend_command);
+    printf("M: command = 0x%x\n", command);
+    printf("M: resend_holder = 0x%x\n", resend_holder);
+    record_command (error_state, cycle);
+    clear_response ();
 
-        if (is_enabled_once ()) {
+    if (is_enabled_once ()) {
             disable_once ();
-        }
-
-        return true;
     }
 
-    return false;
-    }
+    return true;
+  }
+  return false;
+}
 
 bool
 MachineController::Machine::attempt_resend_command(AFU_EVENT *afu_event, uint32_t tag, 
