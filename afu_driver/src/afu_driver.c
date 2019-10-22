@@ -480,10 +480,12 @@ void tlx_bfm(
   c_reset			= reset & 0x1;
   // print some values
   debug_msg("tlx_bfm: tick = %d, reset = %d, c_reset = %d, c_reset_d1 = %d, c_reset_d2 = %d, c_reset_d3 = %d, c_reset_d4 = %d", tick, (uint8_t)reset, c_reset, c_reset_d1, c_reset_d2, c_reset_d3, c_reset_d4 );
+  debug_msg("tlx_bfm: afu_tlx_credits_initialized = %d, tlx_afu_credits_initialized=%d", afu_tlx_credits_initialized, tlx_afu_credits_initialized );
   // increment tick
   tick = tick + 1;
 
-  if(!c_reset_d4)
+  if(!c_reset_d3)
+    //if(!c_reset)
   {
     if ( tlx_clock == sv_0 ) {	// On OCSE, we are doing the signal sensing and driving on the active low mode of clock
       debug_msg("tlx_bfm: clock = 0, reading inputs from AFU" );

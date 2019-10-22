@@ -187,7 +187,7 @@ module top_eac4 (
 				input             afu_tlx_dcp3_data_bdi_top
                                        );
 
-   parameter RESET_CYCLES = 9;
+   parameter RESET_CYCLES = 18;
    reg             tlx_clock;
    reg             afu_clock;
    reg             reset;
@@ -235,17 +235,14 @@ module top_eac4 (
    reg   [7:0]     tlx_afu_vc1_mad_top;
 
 //	Table 5: TLX to AFU Response Data Interface
-   wire             tlx_afu_resp_data_valid_top;
    wire [511:0]     tlx_afu_resp_data_bus_top;
    wire             tlx_afu_resp_data_bdi_top;
 
 //	Table 5: TLX to AFU Response Data Interface delays
-   reg             tlx_afu_resp_data_valid_dly1;
    reg [511:0]     tlx_afu_resp_data_bus_dly1;
    reg             tlx_afu_resp_data_bdi_dly1;
 
 //	Table 5: TLX to AFU Response Data Interface delays
-   reg             tlx_afu_resp_data_valid_dly2;
    reg [511:0]     tlx_afu_resp_data_bus_dly2;
    reg             tlx_afu_resp_data_bdi_dly2;
 
@@ -393,30 +390,28 @@ module top_eac4 (
 
  // Wires for AFU o/p
 //	Table 2: TLX Response Credit Interface
-   wire	[6:0]		afu_tlx_resp_initial_credit               ;
+   //wire	[6:0]		afu_tlx_resp_initial_credit               ;
 
 // Other wires
    wire            reset_n;
 
 //	Table 5: TLX to AFU Response Data Interface
-   reg             tlx_afu_resp_data_valid;
    reg [511:0]     tlx_afu_resp_data_bus;
    reg             tlx_afu_resp_data_bdi;
 
 //	Table 6: TLX to AFU Command Data Interface
-   wire             tlx_afu_cmd_data_valid;
-   wire [511:0]     tlx_afu_cmd_data_bus;
-   wire             tlx_afu_cmd_data_bdi;
+   //wire             tlx_afu_cmd_data_valid;
+   //wire [511:0]     tlx_afu_cmd_data_bus;
+   //wire             tlx_afu_cmd_data_bdi;
 
 //	Table 7: TLX Framer credit interface
-   wire             tlx_afu_resp_credit;
-   wire             tlx_afu_resp_data_credit;
-   wire             tlx_afu_cmd_credit;
-   wire             tlx_afu_cmd_data_credit;
-   wire [3:0]       tlx_afu_cmd_initial_credit;
-   wire [3:0]       tlx_afu_resp_initial_credit;
-   wire [5:0]       tlx_afu_cmd_data_initial_credit;
-   wire [5:0]       tlx_afu_resp_data_initial_credit;
+   //wire             tlx_afu_resp_credit;
+   //wire             tlx_afu_resp_data_credit;
+   //wire             tlx_afu_cmd_credit;
+   //wire             tlx_afu_cmd_data_credit;
+   //wire [3:0]       tlx_afu_cmd_initial_credit;
+   //wire [5:0]       tlx_afu_cmd_data_initial_credit;
+   //wire [5:0]       tlx_afu_resp_data_initial_credit;
 
    wire      [4:0]  ro_device;
    wire     [31:0] ro_dlx0_version ;                     // -- Connect to DLX output at next level, or tie off to all 0s
@@ -748,14 +743,15 @@ end
   end
 
   always @ ( tlx_clock ) begin
-    if(resetCnt < 30)
+    if(resetCnt < 40)
       resetCnt = resetCnt + 1;
     else
       i = 1;
   end
 
   always @ ( tlx_clock ) begin
-    if(resetCnt == RESET_CYCLES + 2)
+    // if(resetCnt == RESET_CYCLES + 2)
+    if(resetCnt == RESET_CYCLES)
       #0 tlx_bfm_init();
   end
 
@@ -911,7 +907,6 @@ end
    assign tlx_afu_dcp3_credit           = tlx_afu_dcp3_credit_top;
 
    always @( negedge tlx_clock ) begin
-      tlx_afu_resp_data_valid		<= tlx_afu_resp_data_valid_dly1;
       tlx_afu_resp_data_bus		<= tlx_afu_resp_data_bus_dly1;
       tlx_afu_resp_data_bdi		<= tlx_afu_resp_data_bdi_dly1;
    end
@@ -927,7 +922,7 @@ end
     assign 	tlx_afu_cmd_credit			= tlx_afu_cmd_credit_top;
     assign 	tlx_afu_cmd_data_credit			= tlx_afu_cmd_data_credit_top;
     assign 	tlx_afu_cmd_initial_credit		= tlx_afu_cmd_resp_initial_credit_top;
-    assign 	tlx_afu_resp_initial_credit		= tlx_afu_data_initial_credit_top;
+    //assign 	tlx_afu_resp_initial_credit		= tlx_afu_data_initial_credit_top;
     assign 	tlx_afu_cmd_data_initial_credit		= tlx_afu_cmd_data_initial_credit_top;
     assign 	tlx_afu_resp_data_initial_credit	= tlx_afu_resp_data_initial_credit_top;
 
@@ -961,13 +956,11 @@ end
    // a block to delay the resp_data path 1 cycle
    // todo: variable number of cycles from 1 to n
    always @ ( negedge tlx_clock ) begin
-      tlx_afu_resp_data_valid_dly1 <= tlx_afu_dcp0_data_valid_top;	// DCP0 is the old Resp Data
       tlx_afu_resp_data_bus_dly1 <= tlx_afu_resp_data_bus_top;
       tlx_afu_resp_data_bdi_dly1 <= tlx_afu_resp_data_bdi_top;
    end
 
    always @ ( negedge tlx_clock ) begin
-      tlx_afu_resp_data_valid_dly2 <= tlx_afu_resp_data_valid_dly1;
       tlx_afu_resp_data_bus_dly2 <= tlx_afu_resp_data_bus_dly1;
       tlx_afu_resp_data_bdi_dly2 <= tlx_afu_resp_data_bdi_dly1;
    end

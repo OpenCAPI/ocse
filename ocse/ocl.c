@@ -596,6 +596,8 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 		}
 
 	// did we get credits???
+	debug_msg("ocl_init: %s @ %s:%d: value of afu_tlx_credit_req_valid before calling _handle_afu = 0x%x", ocl->name, ocl->host,
+	          ocl->port, ocl->afu_event->afu_tlx_credit_req_valid);
 
 
 	// Handle events from AFU
@@ -603,6 +605,9 @@ uint16_t ocl_init(struct ocl **head, struct parms *parms, char *id, char *host,
 		_handle_afu(ocl);
 
 	
+	debug_msg("ocl_init: %s @ %s:%d: value of afu_tlx_credit_req_valid AFTER calling _handle_afu = 0x%x", ocl->name, ocl->host,
+	          ocl->port, ocl->afu_event->afu_tlx_credit_req_valid);
+
 	// Read AFU descriptor
 	debug_msg("%s @ %s:%d: Reading AFU config record and VSEC.", ocl->name, ocl->host,
 	          ocl->port);
