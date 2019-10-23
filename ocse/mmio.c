@@ -1009,6 +1009,35 @@ void send_mmio(struct mmio *mmio)
 		    event->state = OCSE_PENDING; //OCSE_RD_RQ_PENDING;
 	      }
 	      break;
+	case OCSE_FORCE_EVICT:
+	      // This is a posted cmd that goes to AFU over VC0, which is normally used for responses
+	     if ( tlx_afu_send_resp_cmd_vc0( mmio->afu_event,
+			    event->cmd_opcode, 0, 0, 0, event->cmd_dL, event->cmd_host_tag, 0, 0, 
+			    0, 0, 0, 0, event->cmd_CAPPtag ) == TLX_SUCCESS ) {
+			    debug_msg("%s:%s send FORCE_EVICT posted cmd ", mmio->afu_name, type);
+			    debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw,event->cmd_PA );
+			    event->state = OCSE_DONE; // Posted cmd. so expect no response back from afu; hopefully some other code comes along and frees event
+	      		    mmio->list = mmio->list->_next; // TODO ASK Lance if this is SUPPOSED to be done :)
+	      }
+	      break;
+	case OCSE_DISABLE_CACHE:
+	case OCSE_ENABLE_CACHE:
+	case OCSE_DISABLE_ATC: 
+	case OCSE_ENABLE_ATC: 
+	      // These cmds go to AFU over VC2, not VC1 like other mmios
+	      if ( tlx_afu_send_cmd_vc2( mmio->afu_event,
+					 event->cmd_opcode,  //valid 
+					 event->cmd_CAPPtag, //valid
+					 event->cmd_pg_size, 
+					 event->cmd_PA, 
+					 event->cmd_flg, //valid
+					 event->cmd_pasid, //valid, as is bdf 
+					 event->cmd_bdf ) == TLX_SUCCESS ) {
+  		    debug_msg("%s:%s ENABLE/DISABLE ATC/CACHE cmd_opcode=0x%x", mmio->afu_name, type, event->cmd_opcode);
+		    debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw,event->cmd_PA );
+		    event->state = OCSE_PENDING;  // waiting for a cache mgmt command response back from the afu. 
+	      }
+	      break;
 	default:
 	      // use rnw and size (or cmd_byte_cnt) to sort out the rest
 	      if (event->rnw) {
@@ -1371,7 +1400,7 @@ int _resp_dldp_is_legal(uint8_t cmd_dl, uint8_t resp_dl, uint8_t resp_dp)
 } */
 
 // Handle ap responses coming from the afu
-// this will include responses to config commmands, mmio requests, amo cmds and lpc memory requests
+// this will include responses to config commmands, mmio requests, amo cmds cache enable/disable cmds and lpc memory requests
 void handle_ap_resp(struct mmio *mmio)
 {
 	int rc;
@@ -1434,6 +1463,22 @@ void handle_ap_resp(struct mmio *mmio)
 	      }
 
 	      // check the CAPPtag - later
+	      // TODO put this someplace better? for now, check first to see if this is a response to cache enable/disable
+	      // and handle first!
+	      switch(afu_resp_opcode) {
+		      case AFU_RSP_CACHE_DISABLED:
+		      case AFU_RSP_CACHE_ENABLED:
+		      case AFU_RSP_ATC_DISABLED:
+		      case AFU_RSP_ATC_ENABLED:
+				mmio->list->resp_code = resp_code;
+				mmio->list->cmd_CAPPtag = resp_capptag;
+				mmio->list->resp_opcode = afu_resp_opcode;
+		     		mmio->list->state = OCSE_DONE;
+	      			debug_msg("handle_ap_resp: enable/disable cache/atc resp_capptag = %x and resp_code = %x! ", resp_capptag, resp_code);
+				return;
+		      default:
+				break;
+		}
 
 	      if (mmio->list->cfg) {
 		    sprintf(type, "CONFIG");
@@ -1866,6 +1911,17 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 		        client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		}
 		debug_msg("handle_mmio_done: KILL XLATE DONE SENT to HOST!!!!");
+	} else if ((this_event->cmd_opcode == OCSE_DISABLE_CACHE) || (this_event->cmd_opcode == OCSE_ENABLE_CACHE)
+			|| (this_event->cmd_opcode == OCSE_DISABLE_ATC) || (this_event->cmd_opcode == OCSE_ENABLE_ATC)) {
+		buffer = (uint8_t *) malloc(5);
+		buffer[0] = this_event->ack;
+		buffer[1] = this_event->resp_opcode;
+		buffer[2] = this_event->resp_code;
+		buffer[3] = this_event->cmd_CAPPtag; //TODO check this, may have to memcopy to get byte order correct?
+		if (put_bytes(fd, 5, buffer, mmio->dbg_fp, mmio->dbg_id, client->context) < 0) {
+		        client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		}
+		debug_msg("handle_mmio_done: ATC/CACHE ENABLED/DISABLED RESP  SENT to HOST!!!!");
 	} else {
 	        // Return acknowledge for write
 		// debug_msg("READY TO SEND OCSE_*_ACK for a WRITE to client!!!!");
@@ -2281,96 +2337,121 @@ struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
 	return NULL;
 }
 
-// Handle request from client to send kill_xlate request to AFU for specific address
-/* struct mmio_event *handle_kill_xlate(struct mmio *mmio, struct client *client) */
-/* { */
-/* 	struct mmio_event *event; */
-/* 	struct mmio_event **list; */
-/* 	uint64_t ea; */
-/* 	uint16_t bdf; */
-/* 	uint16_t pasid; */
-/* 	uint8_t cmd_flg; */
-/* 	uint8_t pg_size; */
-/* 	uint16_t context; */
-/* 	int fd = client->fd; */
+// Handle request from client to send various cache management cmds to AFU 
+ struct mmio_event *handle_capp_cache_cmd(struct mmio *mmio, struct client *client) 
+ { 
+ 	struct mmio_event *event; 
+ 	struct mmio_event **list; 
+ 	uint32_t host_tag; 
+ 	uint16_t bdf; 
+ 	uint16_t pasid; 
+ 	uint16_t CAPP_tag; 
+ 	uint8_t cmd_flg; 
+ 	uint8_t cmd_dL; 
+ 	uint8_t cmd_opcode; 
+ 	uint16_t context; 
+ 	int fd = client->fd; 
 
-/* 	uint8_t ack; */
+ 	uint8_t ack; 
 
-/* 	debug_msg( "handle_kill_xlate" ); */
+ 	debug_msg( "handle_capp_cache_cmd" ); 
 
-/* 	// Only allow mem access when client is valid */
-/* 	if (client->state != CLIENT_VALID) { */
-/* 	        debug_msg( "handle_kill_xlate: invalid client" ); */
-/* 		ack = OCSE_KILL_XLATE_FAIL; */
-/* 		if (put_bytes(client->fd, 1, &ack, mmio->dbg_fp, mmio->dbg_id, */
-/* 			      client->context) < 0) { */
-/* 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE); */
-/* 		} */
-/* 		return NULL; */
-/* 	} */
+ 	// Only allow mem access when client is valid 
+ 	if (client->state != CLIENT_VALID) { 
+ 	        debug_msg( "handle_capp_cache_cmd: invalid client" ); 
+ 		ack = OCSE_KILL_XLATE_FAIL; 
+ 		if (put_bytes(client->fd, 1, &ack, mmio->dbg_fp, mmio->dbg_id,
+ 			      client->context) < 0) { 
+ 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE); 
+ 		} 
+ 		return NULL; 
+ 	} 
 
 
+ 	event = (struct mmio_event *)malloc(sizeof(struct mmio_event)); 
+	if (!event)
+		return event;
+	// All 5 cmds expect to get the cmd_opcode sent over
+ 	if (get_bytes_silent(fd, 1, (uint8_t *) &cmd_opcode, mmio->timeout, &(client->abort)) < 0) { 
+ 		goto cache_cmd_fail; 
+ 	} 
+ 	event->cmd_opcode = cmd_opcode;
+ 	event->cmd_flg = 0; 
+ 	event->cmd_bdf = 0; 
+ 	event->cmd_pasid = 0; 
+ 	event->cmd_CAPPtag = 0; 
+ 	event->cmd_dL = 0; 
+ 	event->cmd_host_tag = 0; 
+ 	event->size = 0;  // part of the new fields 
+ 	event->size_received = 0;  // part of the new fields 
 
-/* 	if (get_bytes_silent(fd, 1, (uint8_t *) &cmd_flg, mmio->timeout, &(client->abort)) < 0) { */
-/* 		goto kill_fail; */
-/* 	} */
+	if (cmd_flg != TLX_CMD_FORCE_EVICT) { // Only enable/disable atc/cache cmds need cmd_flag & bdf
+ 		if (get_bytes_silent(fd, 1, (uint8_t *) &cmd_flg, mmio->timeout, &(client->abort)) < 0) { 
+ 			goto cache_cmd_fail; 
+ 		} 
+ 		event->cmd_flg = cmd_flg; 
 
-/* 	if (get_bytes_silent(fd, 8, (uint8_t *) &ea, mmio->timeout, &(client->abort)) < 0) { */
-/* 		goto kill_fail; */
-/* 	} */
-/* 	ea = ntohl(ea); */
+ 		if (get_bytes_silent(fd, 2, (uint8_t *) &bdf, mmio->timeout, &(client->abort)) < 0) { 
+ 		 	goto cache_cmd_fail; 
+ 		} 
+ 		bdf = ntohl(bdf); 
 
-/* 	if (get_bytes_silent(fd, 1, (uint8_t *) &pg_size, mmio->timeout, &(client->abort)) < 0) { */
-/* 		goto kill_fail; */
-/* 	} */
+ 		if (get_bytes_silent(fd, 2, (uint8_t *) &pasid, mmio->timeout, &(client->abort)) < 0) { 
+ 			goto cache_cmd_fail; 
+ 		} 
+ 		pasid = ntohl(pasid); 
+	}
+	// All 5 cmds expect to get the CAPP_tag sent over
+ 	if (get_bytes_silent(fd, 2, (uint8_t *) &CAPP_tag, mmio->timeout, &(client->abort)) < 0) { 
+ 		goto cache_cmd_fail; 
+ 	} 
+ 	host_tag = ntohl(CAPP_tag); 
 
-/* 	if (get_bytes_silent(fd, 2, (uint8_t *) &bdf, mmio->timeout, &(client->abort)) < 0) { */
-/* 		goto kill_fail; */
-/* 	} */
-/* 	bdf = ntohl(bdf); */
+	if (cmd_flg == TLX_CMD_FORCE_EVICT) { // enable/disable atc/cache cmds don't need dL and host_tag
+ 		if (get_bytes_silent(fd, 1, (uint8_t *) &cmd_dL, mmio->timeout, &(client->abort)) < 0) { 
+ 			goto cache_cmd_fail; 
+ 		} 
+		// This is ugly, but needed since the code parsing/sending mmio cmds expects to see non zero size
+		// maybe have libocxl send over size instead of dL?
+		if (cmd_dL == 1)
+			event->size= 64;
+		if (cmd_dL == 2)
+			event->size= 128;
 
-/* 	if (get_bytes_silent(fd, 2, (uint8_t *) &pasid, mmio->timeout, &(client->abort)) < 0) { */
-/* 		goto kill_fail; */
-/* 	} */
-/* 	pasid = ntohl(pasid); */
+ 		if (get_bytes_silent(fd, 4, (uint8_t *) &host_tag, mmio->timeout, &(client->abort)) < 0) { 
+ 			goto cache_cmd_fail; 
+ 		} 
+ 	host_tag = ntohl(host_tag); 
+	}
 
-/* 	event = (struct mmio_event *)malloc(sizeof(struct mmio_event)); */
-/* 	if (!event) */
-/* 		return event; */
-/* 	event->cmd_opcode = TLX_CMD_KILL_XLATE; */
-/* 	event->cfg = 0; */
-/* 	event->rnw = 0; */
-/* 	event->be_valid = 0; */
-/* 	event->dw = 0; */
-/* 	event->size = 0;  // part of the new fields */
-/* 	event->size_received = 0;  // part of the new fields */
-/* 	event->data = 0; */
-/* 	event->be = 0; */
+ 	event->cfg = 0; 
+ 	event->rnw = 0; 
+ 	event->be_valid = 0; 
+ 	event->dw = 0; 
+ 	event->data = 0; 
+ 	event->be = 0; 
+ 	event->cmd_ea = 0; 
 
-/* 	event->cmd_flg = cmd_flg; */
-/* 	event->cmd_ea = ea; */
-/* 	event->cmd_pg_size = pg_size; */
-/* 	event->cmd_bdf = bdf; */
-/* 	event->cmd_pasid = pasid; */
-/* 	event->state = OCSE_IDLE; */
-/* 	event->_next = NULL; */
-/* 	debug_msg("_handle_kill_xlate: ea=0x%016lx  cmd_flg= 0x%x", event->cmd_ea,  event->cmd_flg ); */
-/* 		// Add to end of list */
-/* 	list = &(mmio->list); */
-/* 	while (*list != NULL) */
-/* 		list = &((*list)->_next); */
-/* 	*list = event; */
-/* 	context = client->context; */
-/* 	debug_mmio_add(mmio->dbg_fp, mmio->dbg_id, context, 0, cmd_flg,  ea); */
+ 	event->state = OCSE_IDLE; 
+ 	event->_next = NULL;
+ 	debug_msg("_handle_capp_cache_cmd: cmd_opcode=0x%x  cmd_flg= 0x%x", event->cmd_opcode,  event->cmd_flg ); 
+ 		// Add to end of list 
+ 	list = &(mmio->list); 
+ 	while (*list != NULL) 
+ 		list = &((*list)->_next); 
+ 	*list = event; 
+ 	context = client->context; 
+ 	debug_mmio_add(mmio->dbg_fp, mmio->dbg_id, context, 0, cmd_flg,  event->cmd_ea); 
 
-/* 	return event; */
+ 	return event; 
 
-/*  kill_fail: */
-/* 	// Socket connection is dead */
-/* 	debug_msg("%s:handle_kill_xlate failed context=%d", */
-/* 		  mmio->afu_name, client->context); */
-/* 	client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE); */
-/* 	return NULL; */
+  cache_cmd_fail: 
+ 	// Socket connection is dead 
+ 	debug_msg("%s:handle_capp_cache_cmd failed context=%d", 
+ 		  mmio->afu_name, client->context); 
+ 	client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE); 
+	free(event);
+ 	return NULL; 
 
-/* } */
+ } 
 

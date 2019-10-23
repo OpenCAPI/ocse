@@ -48,6 +48,7 @@ struct mmio_event {
 	uint64_t cmd_data;
 	uint64_t cmd_PA;
 	uint64_t cmd_ea;
+	uint32_t cmd_host_tag;
 	uint16_t cmd_pasid;
 	uint16_t cmd_CAPPtag;
 	uint8_t cmd_opcode;
@@ -186,5 +187,7 @@ struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
 			      int rnw, int region, int cmd);
 
 struct mmio_event *handle_kill_xlate(struct mmio *mmio, struct client *client);
+
+struct mmio_event *handle_capp_cache_cmd(struct mmio *mmio, struct client *client);
 
 #endif				/* _MMIO_H_ */
