@@ -35,6 +35,7 @@
 #include <unistd.h>
 #include <limits.h>
 #include "sys/mman.h"
+#include <signal.h>
 
 #include "libocxl_internal.h"
 #include "libocxl.h"
@@ -67,6 +68,32 @@
 
 #define DSISR 0x4000000040000000L
 #define ERR_BUFF_MAX_COPY_SIZE 4096
+
+ocxl_cache_proxy *ocxl_cache_list = NULL;
+uint32_t ocxl_next_host_tag = 0;
+
+// this is where we will "fix" the cached address if the sigsegv is caused by a cacheline access
+// that is, we will tell the afu to evict the line
+// we will wait for the eviction to occure
+// then we will unprotect the address and return to the code at the instruction that caused the sigsegv
+// how do we know if the sigsegv is because of our cache access (normal) or a real error case?
+// but where do we install the handler?
+// how do I avoid installing the signal handler more than once?
+static void cache_access( int sig, siginfo_t *si, void *unused )
+{
+  // si->si_code - SEGV_MAPERR is bad - die
+  // where do I get the EA that caused the signal? si->si_addr
+  // find the EA in the cache proxy list - 
+  //       cache proxy list has to be global
+  //       if the EA is not in the list, this must be a real error, so die somehow.
+  // un protect the address
+  // send a force_evict to the appropriate afu - must have afu handle in the cache proxy
+  // WAIT for the response - ok - this is dangerous
+  //       the afu will want to update the protected address so we have un protect if first.
+  // the afu should have updated the line if needed
+  // remove or invalidate the line
+  // return and allow the signalling instruction to execute
+}
 
 static int _delay_1ms()
 {
@@ -432,14 +459,30 @@ static ocxl_cache_proxy *_cache( struct ocxl_afu *afu, uint8_t op_code, uint64_t
 	// allocate the struct
 	this_line = (ocxl_cache_proxy *)malloc( sizeof(ocxl_cache_proxy) );
 
-	// pick a state based on op_code
 	this_line->ea = addr;
-	this_line->host_tag = afu->next_host_tag++;
-	this_line->cache_state = 0x1; // just shared for now
+	this_line->host_tag = ocxl_next_host_tag++;
+
+	// pick a state based on op_code
+	switch (op_code) {
+	case AFU_CMD_READ_S:
+	case AFU_CMD_READ_S_T:
+	        this_line->cache_state = 0x1; // just shared for now
+	        break;
+	case AFU_CMD_READ_ME:
+	case AFU_CMD_READ_ME_T:
+	case AFU_CMD_READ_MES:
+	case AFU_CMD_READ_MES_T:
+	        this_line->cache_state = 0x2; // just exclusive for now
+	        break;
+	default:
+	        warn_msg(" _cache: invalid op_code 0x%02x received", op_code );
+	        return NULL;
+	}
 
 	//put at head of list
-	this_line->_next = afu->cache_lines;
-	afu->cache_lines = this_line;
+	this_line->afu = afu;
+	this_line->_next = ocxl_cache_list;
+	ocxl_cache_list = this_line;
 	return this_line;
 }
 
@@ -448,7 +491,7 @@ static uint64_t _is_cached( struct ocxl_afu *afu, uint64_t addr )
 {
         ocxl_cache_proxy *this_line;
 
-	this_line = afu->cache_lines;
+	this_line = ocxl_cache_list;
 	while (this_line != NULL) {
 	        this_line = this_line->_next;
 	}
@@ -456,12 +499,12 @@ static uint64_t _is_cached( struct ocxl_afu *afu, uint64_t addr )
 	return (uint64_t)this_line;
 }
 
-// Handle the read_a, read_me, and read_mes commands from the afu
+// Handle the read_s, read_me, and read_mes commands from the afu
 // the address will be a naturally aligned 64, 128 or 256 byte line
 // the line will be treated as multiple 64 byte lines if longer that 64
 // build the cl_read_resp
 // protect the line(s)
-//   we protect the lines so that we will get a signal if the host user references the line that is cached in the afu
+//   we protect the lines so that we will get a SIGSEGV signal if the host user references the line that is cached in the afu
 static void _handle_ca_read(struct ocxl_afu *afu)
 {
 	uint8_t buffer[MAX_LINE_CHARS];
@@ -560,9 +603,20 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 	// the address is not previously cached and we own it.
 	// we need to build a response and then "cache" the address
 	// depending on the op_code, we can choose various cache states to send back.
+	// we also get to decide whether or not to set the evict/fill hint.
 	// for now, let's send back E for ME and MES, and S for S
 	cache_line = _cache( afu, op_code, addr );
 
+	if (cache_line == NULL) {
+		warn_msg("CA READ from invalid operation 0x%02x", op_code);
+		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
+		buffer[1] = 0xf;
+		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
+			afu->opened = 0;
+			afu->attached = 0;
+		}
+		return;
+	}
 	int bufsiz;
 	bufsiz = 0;
 
@@ -588,6 +642,12 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 	debug_msg("CA READ cache state = %d from addr @ 0x%016" PRIx64 "", cache_line->cache_state, addr);
 
 	// finally, protect the line(s)
+	// for shared, protect from write
+	// for exclusive, protect from read/write
+	if ( mprotect( (char *)addr, size, PROT_NONE ) == -1 ) {
+	        // could not protect (therefore cache) the address
+ 	        debug_msg("_handle_ca_read:  could not protect cache line addr @ 0x%016lx", addr);
+	}
 }
 
 static void _handle_read(struct ocxl_afu *afu)

@@ -119,6 +119,7 @@ typedef struct ocxl_cache_proxy {
         uint64_t ea;                    // the effective address for which we want the translation
         uint8_t cache_state;            // the cache state that we have decided to give back to the AFU
         uint32_t host_tag;              // the host_tag that we give back to the afu for subsequent cache ops
+        struct ocxl_afu *afu;
         struct ocxl_cache_proxy *_next;
 } ocxl_cache_proxy;
 
@@ -163,8 +164,6 @@ struct ocxl_afu {
 	struct mem_req mem;
 	struct ocxl_irq *irq;
         ocxl_ea_area *eas;
-        ocxl_cache_proxy *cache_lines;
-        uint32_t next_host_tag;
 };
 
 #endif
