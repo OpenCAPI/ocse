@@ -273,6 +273,13 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 		case OCSE_KILL_XLATE:
 		  mmio = handle_kill_xlate(ocl->mmio, client);
 			break;
+		case OCSE_ENABLE_ATC:
+		case OCSE_ENABLE_CACHE:
+		case OCSE_DISABLE_ATC:
+		case OCSE_DISABLE_CACHE:
+		case OCSE_FORCE_EVICT:
+		  mmio = handle_capp_cache_cmd(ocl->mmio, client);
+			break;
 		default:
 		  error_msg("Unexpected 0x%02x from client on socket 0x%02x", buffer[0], client->fd);
 		}
