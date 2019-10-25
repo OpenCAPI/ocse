@@ -69,8 +69,10 @@
 #define DSISR 0x4000000040000000L
 #define ERR_BUFF_MAX_COPY_SIZE 4096
 
+// maybe put these in a global structure to help with name space
 ocxl_cache_proxy *ocxl_cache_list = NULL;
 uint32_t ocxl_next_host_tag = 0;
+uint32_t ocxl_cache_access_installed = 0;
 
 // this is where we will "fix" the cached address if the sigsegv is caused by a cacheline access
 // that is, we will tell the afu to evict the line
@@ -79,20 +81,33 @@ uint32_t ocxl_next_host_tag = 0;
 // how do we know if the sigsegv is because of our cache access (normal) or a real error case?
 // but where do we install the handler?
 // how do I avoid installing the signal handler more than once?
-static void cache_access( int sig, siginfo_t *si, void *unused )
+static void _cache_access( int sig, siginfo_t *si, void *unused )
 {
+  ocxl_cache_proxy *this_line;
+
   // si->si_code - SEGV_MAPERR is bad - die
-  // where do I get the EA that caused the signal? si->si_addr
+
   // find the EA in the cache proxy list - 
+  //       where do I get the EA that caused the signal? si->si_addr
   //       cache proxy list has to be global
+  this_line = ocxl_cache_list;
+  while ( this_line != NULL ) {
+    if ( this_line->ea == (uint64_t)si->si_addr ) {
+      // un protect the address
+      // mprotect( (void *)this_line->ea, 
+      // send a force_evict to the appropriate afu - must have afu handle in the cache proxy
+      // WAIT for the response - ok - this is dangerous
+      //       the afu will want to update the protected address so we have un protect if first.
+      // the afu should have updated the line if needed
+      // remove or invalidate the line
+      // return and allow the signalling instruction to execute
+      return;
+    }
+  }
+
   //       if the EA is not in the list, this must be a real error, so die somehow.
-  // un protect the address
-  // send a force_evict to the appropriate afu - must have afu handle in the cache proxy
-  // WAIT for the response - ok - this is dangerous
-  //       the afu will want to update the protected address so we have un protect if first.
-  // the afu should have updated the line if needed
-  // remove or invalidate the line
-  // return and allow the signalling instruction to execute
+  if ( this_line == NULL ) {
+  }
 }
 
 static int _delay_1ms()
@@ -646,8 +661,10 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 	// for exclusive, protect from read/write
 	if ( mprotect( (char *)addr, size, PROT_NONE ) == -1 ) {
 	        // could not protect (therefore cache) the address
- 	        debug_msg("_handle_ca_read:  could not protect cache line addr @ 0x%016lx", addr);
+	        perror("mprotect");
+		exit( EXIT_FAILURE );
 	}
+	debug_msg("_handle_ca_read: protected addr" );
 }
 
 static void _handle_read(struct ocxl_afu *afu)
