@@ -73,6 +73,7 @@
 ocxl_cache_proxy *ocxl_cache_list = NULL;
 uint32_t ocxl_next_host_tag = 0;
 uint32_t ocxl_cache_access_installed = 0;
+struct sigaction ocxl_sigaction;
 
 // this is where we will "fix" the cached address if the sigsegv is caused by a cacheline access
 // that is, we will tell the afu to evict the line
@@ -85,6 +86,7 @@ static void _cache_access( int sig, siginfo_t *si, void *unused )
 {
   ocxl_cache_proxy *this_line;
 
+  printf( "_cache_access\n" );
   // si->si_code - SEGV_MAPERR is bad - die
 
   // find the EA in the cache proxy list - 
@@ -92,7 +94,8 @@ static void _cache_access( int sig, siginfo_t *si, void *unused )
   //       cache proxy list has to be global
   this_line = ocxl_cache_list;
   while ( this_line != NULL ) {
-    if ( this_line->ea == (uint64_t)si->si_addr ) {
+    if ( this_line->ea == ((uint64_t)(si->si_addr) & ~(this_line->size - 1)) ) {
+      printf( "_cache_access: found address: 0x%016lx == 0x%016lx \n", this_line->ea, (uint64_t)(si->si_addr) & ~(this_line->size - 1) );
       // un protect the address
       // mprotect( (void *)this_line->ea, 
       // send a force_evict to the appropriate afu - must have afu handle in the cache proxy
@@ -102,12 +105,15 @@ static void _cache_access( int sig, siginfo_t *si, void *unused )
       // remove or invalidate the line
       // return and allow the signalling instruction to execute
       return;
+    } else {
+      printf( "_cache_access: 0x%016lx != 0x%016lx \n", this_line->ea, (uint64_t)(si->si_addr) );
+      this_line = this_line->_next;
     }
   }
 
   //       if the EA is not in the list, this must be a real error, so die somehow.
-  if ( this_line == NULL ) {
-  }
+  printf( "_cache_access: address not found\n" );
+  exit( EXIT_FAILURE );
 }
 
 static int _delay_1ms()
@@ -467,7 +473,7 @@ static int _xlate_addr(struct ocxl_afu *afu, uint64_t *addr, uint8_t form_flag)
 
 // puts a new cache line at the beginning of the cache line list
 // returns a pointer to the new entry
-static ocxl_cache_proxy *_cache( struct ocxl_afu *afu, uint8_t op_code, uint64_t addr )
+static ocxl_cache_proxy *_cache( struct ocxl_afu *afu, uint8_t op_code, uint64_t addr, uint64_t size )
 {
         ocxl_cache_proxy *this_line;
 
@@ -475,6 +481,7 @@ static ocxl_cache_proxy *_cache( struct ocxl_afu *afu, uint8_t op_code, uint64_t
 	this_line = (ocxl_cache_proxy *)malloc( sizeof(ocxl_cache_proxy) );
 
 	this_line->ea = addr;
+	this_line->size = size;
 	this_line->host_tag = ocxl_next_host_tag++;
 
 	// pick a state based on op_code
@@ -620,7 +627,7 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 	// depending on the op_code, we can choose various cache states to send back.
 	// we also get to decide whether or not to set the evict/fill hint.
 	// for now, let's send back E for ME and MES, and S for S
-	cache_line = _cache( afu, op_code, addr );
+	cache_line = _cache( afu, op_code, addr, (uint64_t)size );
 
 	if (cache_line == NULL) {
 		warn_msg("CA READ from invalid operation 0x%02x", op_code);
@@ -2943,6 +2950,17 @@ static int _ocse_connect(uint16_t * afu_map, int *fd)
 	memcpy((char *)afu_map, (char *)buffer, 2);
 	*afu_map = (long)ntohs(*afu_map);
 	debug_msg("opened host-side socket %d", *fd);
+
+	// install a sigsegv signal handler
+	if ( ocxl_cache_access_installed == 0 ) {
+	  ocxl_sigaction.sa_flags = SA_SIGINFO;
+	  sigemptyset( &ocxl_sigaction.sa_mask );
+	  ocxl_sigaction.sa_sigaction = _cache_access;
+	  if ( sigaction( SIGSEGV, &ocxl_sigaction, NULL ) == -1 ) {
+	    perror( "sigaction" );
+	  }
+	  ocxl_cache_access_installed = 1;
+	}
 	return 0;
 
  connect_fail:
