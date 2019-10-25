@@ -172,7 +172,7 @@ void handle_afu_tlx_cmd_data_read(struct cmd *cmd);
 
 void handle_afu_tlx_write_cmd(struct cmd *cmd);
 
-void handle_upgrade_state(struct cmd *cmd);
+void handle_upgrade_state_or_castout(struct cmd *cmd);
 
 void handle_touch(struct cmd *cmd);
 

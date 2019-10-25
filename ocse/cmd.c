@@ -2053,21 +2053,22 @@ void handle_sync(struct cmd *cmd)
 }
 
 // Handle randomly selected upgrade cache cmd from afu
-void handle_upgrade_state(struct cmd *cmd)
+void handle_upgrade_state_or_castout(struct cmd *cmd)
 {
 	struct cmd_event *event;
 	struct client *client;
 	uint16_t *size;
+	uint32_t *host_tag;
 	uint8_t *buffer;
 	uint64_t *addr;
 
 	// Make sure cmd structure is valid
 	if (cmd == NULL) {
-	        debug_msg( "handle_upgrade_state: bad cmd pointer");
+	        debug_msg( "handle_upgrade_state_or_castout: bad cmd pointer");
 		return;
 	}
 
-	// Randomly select a pending upgrade_state (or none)
+	// Randomly select a pending upgrade_state or castout (or none)
 	event = cmd->list;
 	while (event != NULL) {
 	        if ((( event->type == CMD_CACHE )  &&   ( event->state == MEM_IDLE ) )  && 
@@ -2083,13 +2084,38 @@ void handle_upgrade_state(struct cmd *cmd)
 
 	// Test for client disconnect
 	if ((client = _get_client(cmd, event)) == NULL) {
-	        debug_msg( "handle_upgrade_state: no client found");
+	        debug_msg( "handle_upgrade_state_or_castout: no client found");
 		return;
 	}
 
 	// Check that memory request can be driven to client
 	if (client->mem_access != NULL) {
-	        debug_msg( "handle_upgrade_state: can't drive request to client - TRY LATER");
+	        debug_msg( "handle_upgrade_state_or_castout: can't drive request to client - TRY LATER");
+		return;
+	}
+	if ((event->command == AFU_CMD_CASTOUT) || (event->command == AFU_CMD_CASTOUT_PUSH)) {
+	// these are posted cmds, so just send the info to libocxl, set state to MEM_DONE and set form_flag to indicated posted
+	// castout has cmd_flag and castout_push doesn't so send 0 for that field for castout_push
+		buffer = (uint8_t *) malloc(10);
+		buffer[0] = (uint8_t) OCSE_CASTOUT;
+		buffer[1] = event->command;
+		size = (uint16_t *)&(buffer[2]);
+		*size = htons(event->size);
+		buffer[4] = event->cmd_flag;
+		buffer[5] = event->cache_state;
+		host_tag = (uint32_t *) & (buffer[6]);
+		*host_tag = htonll(event->host_tag);
+		debug_msg("%s:CASTOUT or CASTOUT PUSH  cmd_flag=0x%x cmd=0x%x host_tag=0x%04x", cmd->afu_name,
+			  event->cmd_flag, event->command, event->host_tag);
+		if (put_bytes(client->fd, 13, buffer, cmd->dbg_fp, cmd->dbg_id,
+		      event->context) < 0) {
+			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		}
+		//these are posted, so no need to tie up memory interface (TODO - correct??)
+		event->form_flag = 0x2;  //do this so handle_response knows it a posted cmd
+		event->state = MEM_DONE;
+		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
+		debug_msg("exiting handle upgrade_state_or_castout after sending castout msg to client");
 		return;
 	}
 	// for OpenCAPI4 there are only two cmds here - upgrade_state and upgrade_state.t
@@ -2099,7 +2125,7 @@ void handle_upgrade_state(struct cmd *cmd)
 			event->resp_opcode = TLX_RSP_READ_FAILED;
 			event->type = CMD_FAILED;
 			event->resp = 0x02;
-			debug_msg("handle_upgrade_state: RETRY this cmd =0x%x \n", event->command);
+			debug_msg("handle_upgrade_state_or_castout: RETRY this cmd =0x%x \n", event->command);
 			return;
 		}
 		// for xlate_pending response, ocse has to THEN follow up with an xlate_done response 
@@ -2109,7 +2135,7 @@ void handle_upgrade_state(struct cmd *cmd)
 			event->resp_opcode = TLX_RSP_READ_FAILED;
 			event->type = CMD_FAILED;
 			event->resp = 0x04;
-			debug_msg("handle_upgrade_state: send XLATE_PENDING for this cmd =0x%x \n", event->command);
+			debug_msg("handle_upgrade_state_or_castout: send XLATE_PENDING for this cmd =0x%x \n", event->command);
 			return;
 		}
 		// Send upgrade_state request to client
@@ -2129,7 +2155,7 @@ void handle_upgrade_state(struct cmd *cmd)
 		}
 		event->state = MEM_REQUEST;
 		client->mem_access = (void *)event;
-		debug_msg("Setting client->mem_access in handle_upgrade_state");
+		debug_msg("Setting client->mem_access in handle_upgrade_state_or_castout");
 		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
        	     
 }
@@ -2378,7 +2404,6 @@ void handle_kill_done(struct cmd *cmd, struct mmio *mmio)
 	        debug_msg( "KILL XLATE DONE was not labeled as AFU_RSP_KILL_XLATE_DONE" );
 	}
 }
-
 
 
 // Send pending interrupt to client as soon as possible
