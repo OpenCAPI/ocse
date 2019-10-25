@@ -63,6 +63,8 @@ uint16_t gACTAG = 0;
 uint16_t gDUT = 0;
 uint16_t other_resp_completed = 0;
 uint8_t kill_xlate_flag = 0;
+uint8_t cache_ready = 0;
+psCache dcache;
 
 AFU::AFU (int port, string filename, bool parity, bool jerror):
   descriptor (filename),
@@ -123,7 +125,6 @@ AFU::start ()
 {
 	uint32_t cycle = 0;
 	uint8_t  initial_credit_flag = 0;
-  psCache dcache;
 
   //uint16_t index=0;
 
@@ -508,23 +509,24 @@ AFU::reset_machine_controllers ()
 bool 
 AFU::get_machine_context()
 {
-    //MachineController *mc = NULL;
-    uint64_t  data;
-    uint8_t  size = 8;
-    uint16_t  context, machine_number, i;
-//    uint32_t  mmio_base;
+  //MachineController *mc = NULL;
+  uint64_t  data;
+  uint8_t  size = 8;
+  uint16_t  context, machine_number, i;
 
-    debug_msg("AFU: get machine context");
-    machine_number = 0;
-    for(context=0; context<4; context++) {
-	descriptor.get_mmio_mem(0x1000*context+machine_number, (char*)&data, size);
-	if(data) {
+  debug_msg("AFU: get machine context");
+  machine_number = 0;
+  for(context=0; context<4; context++) {
+	  descriptor.get_mmio_mem(0x1000*context+machine_number, 
+      (char*)&data, size);
+	  if(data) {
 	    mmio_base = 0x1000*context + machine_number;
 	    afu_event.afu_tlx_vc3_pasid = context;
 	    context = (uint16_t)((data & 0x0000FFFF00000000LL) >> 32);
 	    debug_msg("AFU: context = %d", context);
 	    if(context == 0) {
 				afu_event.afu_tlx_vc3_pasid = context;
+        get_global_configs();
 				//afu_event.afu_tlx_cmd_bdf = 0x0001;
 				context_to_mc[context] = new MachineController(context);
 	    }
@@ -547,11 +549,28 @@ AFU::get_machine_context()
 				mc->change_machine_config(i, machine_number, data);
 	    }
 	    return true;
-	}
-    }
-    return false;		
+	  }
+  }
+  return false;		
 }
 
+void
+AFU::get_global_configs()
+{
+  uint8_t i;
+  uint8_t size = 8;
+  printf("AFU: get global configs\n");
+  for(i=0; i<4; i++) {
+    descriptor.get_mmio_mem(i*8, 
+      (char*)&global_configs[i], size);
+  }
+  printf("AFU: command = 0x%x\n", (global_configs[0] >> 48) & 0x1FFF );
+  printf("AFU: size = 0x%x\n", (uint16_t)global_configs[1]);
+  printf("AFU: address = 0x%x\n", (uint32_t) global_configs[2]);
+  afu_cmd.size = (uint16_t)global_configs[1];
+  afu_cmd.address = (uint32_t)global_configs[2];
+  afu_cmd.command = (global_configs[0] >> 48) & 0x1FFF;
+}
 void
 AFU::request_assign_actag()
 {
@@ -757,9 +776,15 @@ AFU::resolve_tlx_afu_resp()
 				memcpy((char*)&data64, memory, 8);
 				//index=3 machine_number=0
 				descriptor.set_mmio_mem(3*8, (char*)memory, 8);
-
 			}
-	  	printf("\n");
+      if(cache_ready) {
+        printf("AFU: write dataline to afu cache\n");
+        //store current afu cmd address 
+        current.push_back(afu_cmd);
+        cache.Write(dcache, (uint32_t)afu_cmd.address, (char*)memory);
+        cache.Print(dcache);
+      }
+	  	
 		}
 		//debug_msg("AFU: set mem_state = IDLE");
 		//mem_state = IDLE;
@@ -828,8 +853,10 @@ AFU::resolve_tlx_afu_resp()
 	    printf("AFU: afutag = 0x%x\n", afu_event.tlx_afu_vc0_afutag);
 	    break;
 		case TLX_RSP_CL_RD_RESP:  //vc0 and dcp0
+      afu_cmd.afutag = resp_afutag;
       printf("AFU: TLX_RSP_CL_RD_RESP\n");
       printf("AFU: afutag = 0x%x\n", resp_afutag);
+      printf("AFU: resp_cache_state = 0x%x\n", resp_cache_state);
       printf("AFU: dl = 0x%x\n", resp_dl);
       //cache data, state, dl, dp, afutag
       //credit for both VC and DCP
@@ -840,6 +867,7 @@ AFU::resolve_tlx_afu_resp()
       }
       printf("AFU: CL_RD waiting for data\n");
       resp_state = WAITING_FOR_DATA;
+      cache_ready = 1;
 	    break;
 		case TLX_RSP_WRITE_RESP:
 	    printf("AFU: received response write\n");

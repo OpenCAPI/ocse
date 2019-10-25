@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
 	  goto done;
   }
   timeout = 0;
-  printf("Polling read completion status\n");
+  printf("Polling read_me completion status\n");
   while(status[0] != 0x0) {
 	  nanosleep(&t, &t);
   }
