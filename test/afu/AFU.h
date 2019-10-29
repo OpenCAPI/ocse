@@ -35,20 +35,30 @@ extern "C" {
 #define RIGHT	1
 #define LEFT	0
 
-//uint8_t memory[128];
+typedef struct _AFU_CMD
+{
+  uint16_t  command;
+  uint64_t  address;
+  uint16_t  size;
+  uint16_t  afutag;
+}AFU_CMD;
+
+//struct _AFU_CMD afu_cmd;
 
 class AFU
 {
-private:
+  private:
     enum AFU_State
     { IDLE, RESET, READY, RUNNING, WAITING_FOR_DATA, WAITING_FOR_LAST_RESPONSES, HALT };
 
     AFU_EVENT afu_event;
     Descriptor descriptor;
     Lpc	lpc;
+    AFU_CMD afu_cmd;
     std::map < uint16_t, MachineController * >context_to_mc;
     std::map < uint16_t,
         MachineController * >::iterator highest_priority_mc;
+    std::vector<AFU_CMD> current;
     std::vector<uint64_t> t_address_v;
     MachineController *machine_controller;
     Cache   cache;
@@ -57,7 +67,7 @@ private:
     AFU_State mem_state, resp_state;
     uint8_t *status_address;
 //    uint8_t  memory[128];
-    uint64_t global_configs[3];	// stores MMIO registers for global configurations
+    uint64_t global_configs[4];	// stores MMIO registers for global configurations
     uint8_t  tlx_afu_cmd_max_credit;
     uint8_t  tlx_afu_data_max_credit;
     uint8_t  tlx_afu_cmd_initial_credit;
@@ -102,7 +112,8 @@ private:
     uint32_t is_mmio_addr(uint64_t addr);
     bool get_mmio_read_parity ();
     bool set_jerror_not_run;
-    
+    void get_global_configs();
+
 public:
     /* constructor sets up descriptor from config file, establishes server socket connection
        and waits for client to connect */

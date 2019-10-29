@@ -163,7 +163,7 @@ static void _handle_afu(struct ocl *ocl)
 	  handle_touch(ocl->cmd);
 	  handle_interrupt(ocl->cmd);
 	  handle_write_be_or_amo(ocl->cmd);
-	  handle_upgrade_state(ocl->cmd);
+	  handle_upgrade_state_or_castout(ocl->cmd);
 	}
 }
 

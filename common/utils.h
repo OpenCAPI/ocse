@@ -85,6 +85,7 @@
 #define OCSE_KILL_XLATE_DONE            0x43
 #define OCSE_KILL_XLATE_FAIL            0x44
 #define OCSE_UPGRADE_STATE              0x45
+#define OCSE_CASTOUT	                0x46
 #define OCSE_FIND                       0x50
 #define OCSE_FIND_NTH                   0x51
 #define OCSE_FIND_ACK                   0x52
