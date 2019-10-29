@@ -75,47 +75,6 @@ uint32_t ocxl_next_host_tag = 0;
 uint32_t ocxl_cache_access_installed = 0;
 struct sigaction ocxl_sigaction;
 
-// this is where we will "fix" the cached address if the sigsegv is caused by a cacheline access
-// that is, we will tell the afu to evict the line
-// we will wait for the eviction to occure
-// then we will unprotect the address and return to the code at the instruction that caused the sigsegv
-// how do we know if the sigsegv is because of our cache access (normal) or a real error case?
-// but where do we install the handler?
-// how do I avoid installing the signal handler more than once?
-static void _cache_access( int sig, siginfo_t *si, void *unused )
-{
-  ocxl_cache_proxy *this_line;
-
-  printf( "_cache_access\n" );
-  // si->si_code - SEGV_MAPERR is bad - die
-
-  // find the EA in the cache proxy list - 
-  //       where do I get the EA that caused the signal? si->si_addr
-  //       cache proxy list has to be global
-  this_line = ocxl_cache_list;
-  while ( this_line != NULL ) {
-    if ( this_line->ea == ((uint64_t)(si->si_addr) & ~(this_line->size - 1)) ) {
-      printf( "_cache_access: found address: 0x%016lx == 0x%016lx \n", this_line->ea, (uint64_t)(si->si_addr) & ~(this_line->size - 1) );
-      // un protect the address
-      // mprotect( (void *)this_line->ea, 
-      // send a force_evict to the appropriate afu - must have afu handle in the cache proxy
-      // WAIT for the response - ok - this is dangerous
-      //       the afu will want to update the protected address so we have un protect if first.
-      // the afu should have updated the line if needed
-      // remove or invalidate the line
-      // return and allow the signalling instruction to execute
-      return;
-    } else {
-      printf( "_cache_access: 0x%016lx != 0x%016lx \n", this_line->ea, (uint64_t)(si->si_addr) );
-      this_line = this_line->_next;
-    }
-  }
-
-  //       if the EA is not in the list, this must be a real error, so die somehow.
-  printf( "_cache_access: address not found\n" );
-  exit( EXIT_FAILURE );
-}
-
 static int _delay_1ms()
 {
 	struct timespec ts;
@@ -137,6 +96,79 @@ static int _testmemaddr(uint8_t * memaddr)
 	close(fd[1]);
 
 	return ret;
+}
+
+// this is where we will "fix" the cached address if the sigsegv is caused by a cacheline access
+// that is, we will tell the afu to evict the line
+// we will wait for the eviction to occure
+// then we will unprotect the address and return to the code at the instruction that caused the sigsegv
+// how do we know if the sigsegv is because of our cache access (normal) or a real error case?
+// but where do we install the handler?
+// how do I avoid installing the signal handler more than once?
+static void _cache_access( int sig, siginfo_t *si, void *unused )
+{
+  ocxl_cache_proxy *this_line;
+  uint8_t buffer[32];
+  int buffer_len;
+  uint16_t size;
+  uint32_t host_tag;
+
+  printf( "_cache_access\n" );
+  // si->si_code - SEGV_MAPERR is bad - die
+
+  // find the EA in the cache proxy list - 
+  //       where do I get the EA that caused the signal? si->si_addr
+  //       cache proxy list has to be global
+  this_line = ocxl_cache_list;
+  while ( this_line != NULL ) {
+    if ( this_line->ea == ((uint64_t)(si->si_addr) & ~((uint64_t)this_line->size - 1)) ) {
+      printf( "_cache_access: found address: 0x%016lx == 0x%016lx \n", this_line->ea, (uint64_t)(si->si_addr) & ~((uint64_t)this_line->size - 1) );
+      // un protect the address
+      mprotect( (void *)this_line->ea, this_line->size, PROT_READ | PROT_WRITE | PROT_EXEC );
+
+      // send a force_evict to the appropriate afu - must have afu handle in the cache proxy
+      // build the ocse message and send it
+      buffer_len = 0;
+      // 1 OCSE_FORCE_EVICT
+      buffer[buffer_len] = OCSE_FORCE_EVICT;
+      buffer_len++;
+      
+      // 4 host_tag
+      host_tag = htonl( this_line->host_tag );
+      memcpy( &buffer[buffer_len], &host_tag, sizeof( host_tag ) );
+      buffer_len = buffer_len + sizeof( host_tag );
+      
+      // 2 size
+      size = htons( this_line->size );
+      memcpy( &buffer[buffer_len], &size, sizeof( size ) );
+      buffer_len = buffer_len + sizeof( size );
+      
+      if ( put_bytes_silent( this_line->afu->fd, buffer_len, buffer ) != buffer_len ) {
+	      debug_msg( "_cache_access: socket failure" );
+	      exit( EXIT_FAILURE );
+      }
+      debug_msg( "_cache_access: FORCE_EVICT 0x%016lx sent host_tag  %d, size %d", this_line->ea, this_line->host_tag, this_line->size );
+
+      // WAIT for the response from a castout or castout.push - ok - this is dangerous.  Will it work?
+      // Function will block until wake host thread occurs and matches thread id
+      while ( this_line->castout == 0 ) {	/*infinite loop */
+	if (_delay_1ms() < 0) exit( EXIT_FAILURE );
+      }
+      debug_msg( "_cache_access: FORCE_EVICT 0x%016lx castout completed", this_line->ea );      
+      // the afu should have updated the line if needed
+
+      // remove or invalidate the line
+      // return and allow the signalling instruction to execute
+      return;
+    } else {
+      printf( "_cache_access: 0x%016lx != 0x%016lx \n", this_line->ea, (uint64_t)(si->si_addr) );
+      this_line = this_line->_next;
+    }
+  }
+
+  //       if the EA is not in the list, this must be a real error, so die somehow.
+  printf( "_cache_access: address not found\n" );
+  exit( EXIT_FAILURE );
 }
 
 ocxl_wait_event *ocxl_wait_list = NULL;
@@ -480,6 +512,7 @@ static ocxl_cache_proxy *_cache( struct ocxl_afu *afu, uint8_t op_code, uint64_t
 	// allocate the struct
 	this_line = (ocxl_cache_proxy *)malloc( sizeof(ocxl_cache_proxy) );
 
+	this_line->castout = 0;
 	this_line->ea = addr;
 	this_line->size = size;
 	this_line->host_tag = ocxl_next_host_tag++;
@@ -3795,7 +3828,7 @@ ocxl_err ocxl_mmio_map_advanced( ocxl_afu_h afu, ocxl_mmio_type type, size_t siz
 
 	afu->mmio.state = LIBOCXL_REQ_REQUEST;
 
-	// wait for _pls_loop to see and process mmio libocxl_req_request and set to libocxl_req_idle
+	// wait for _psl_loop to see and process mmio libocxl_req_request and set to libocxl_req_idle
 	while (afu->mmio.state != LIBOCXL_REQ_IDLE)	/*infinite loop */
 		_delay_1ms();
 

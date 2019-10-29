@@ -117,9 +117,10 @@ typedef struct ocxl_ea_area {
 // - should the cache proxy be associated with the afu or with the instance of libocxl?  for now, with afu
 typedef struct ocxl_cache_proxy {
         uint64_t ea;                    // the effective address that the afu is going to cache
-        uint64_t size;
+        uint16_t size;
         uint8_t cache_state;            // the cache state that we have decided to give back to the AFU
         uint32_t host_tag;              // the host_tag that we give back to the afu for subsequent cache ops
+        uint8_t castout;                // gets set when the afu issues a castout[.push]
         struct ocxl_afu *afu;
         struct ocxl_cache_proxy *_next;
 } ocxl_cache_proxy;

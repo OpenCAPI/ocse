@@ -190,4 +190,6 @@ struct mmio_event *handle_kill_xlate(struct mmio *mmio, struct client *client);
 
 struct mmio_event *handle_capp_cache_cmd(struct mmio *mmio, struct client *client);
 
+struct mmio_event *handle_force_evict(struct mmio *mmio, struct client *client);
+
 #endif				/* _MMIO_H_ */

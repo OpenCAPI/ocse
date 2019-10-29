@@ -841,7 +841,7 @@ void send_mmio(struct mmio *mmio)
 		return;
        	}  
 
-	// if not a CONFIG, then must be memory access MMIO rd/wr or a kill_xlate
+	// if not a CONFIG, then must be memory access MMIO rd/wr or a kill_xlate or a force_evict
 	if ( event->size == 0 ) {
 	      // we have the old mmio style
 	      debug_msg( "ocse:send_mmio:mmio to mmio space" );
@@ -1012,12 +1012,12 @@ void send_mmio(struct mmio *mmio)
 	case OCSE_FORCE_EVICT:
 	      // This is a posted cmd that goes to AFU over VC0, which is normally used for responses
 	     if ( tlx_afu_send_resp_cmd_vc0( mmio->afu_event,
-			    event->cmd_opcode, 0, 0, 0, event->cmd_dL, event->cmd_host_tag, 0, 0, 
-			    0, 0, 0, 0, event->cmd_CAPPtag ) == TLX_SUCCESS ) {
-			    debug_msg("%s:%s send FORCE_EVICT posted cmd ", mmio->afu_name, type);
-			    debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw,event->cmd_PA );
-			    event->state = OCSE_DONE; // Posted cmd. so expect no response back from afu; hopefully some other code comes along and frees event
-	      		    mmio->list = mmio->list->_next; // TODO ASK Lance if this is SUPPOSED to be done :)
+					     TLX_CMD_FORCE_EVICT, 0, 0, 0, event->cmd_dL, event->cmd_host_tag, 0, 0, 
+					     0, 0, 0, 0, event->cmd_CAPPtag ) == TLX_SUCCESS ) {
+	             debug_msg("%s:%s send FORCE_EVICT", mmio->afu_name, type);
+		     debug_mmio_send(mmio->dbg_fp, mmio->dbg_id, event->cfg, event->rnw, event->dw,event->cmd_PA );
+		     event->state = OCSE_PENDING; // waiting for castout[.push]
+		     // mmio->list = mmio->list->_next; // TODO ASK Lance if this is SUPPOSED to be done :)
 	      }
 	      break;
 	case OCSE_DISABLE_CACHE:
@@ -2449,6 +2449,86 @@ struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
  	// Socket connection is dead 
  	debug_msg("%s:handle_capp_cache_cmd failed context=%d", 
  		  mmio->afu_name, client->context); 
+ 	client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE); 
+	free(event);
+ 	return NULL; 
+
+ } 
+
+// Handle request from client to send various cache management cmds to AFU 
+ struct mmio_event *handle_force_evict(struct mmio *mmio, struct client *client) 
+ { 
+ 	struct mmio_event *event; 
+ 	struct mmio_event **list; 
+ 	uint32_t host_tag; 
+ 	uint16_t size; 
+ 	int fd = client->fd; 
+
+ 	uint8_t ack; 
+
+ 	debug_msg( "handle_force_evict:" ); 
+
+ 	// Only allow mem access when client is valid 
+ 	if (client->state != CLIENT_VALID) { 
+ 	        debug_msg( "handle_capp_cache_cmd: invalid client" ); 
+ 		ack = OCSE_LPC_FAIL; 
+ 		if (put_bytes(client->fd, 1, &ack, mmio->dbg_fp, mmio->dbg_id,
+ 			      client->context) < 0) { 
+ 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE); 
+ 		} 
+ 		return NULL; 
+ 	} 
+
+ 	event = (struct mmio_event *)malloc(sizeof(struct mmio_event)); 
+	if (!event) return event;
+
+ 	event->cmd_opcode = OCSE_FORCE_EVICT;
+ 	event->cmd_flg = 0; 
+ 	event->cmd_bdf = 0; 
+ 	event->cmd_pasid = 0; 
+ 	event->cmd_dL = 0; 
+ 	event->cmd_host_tag = 0; 
+ 	event->size = 0;  // part of the new fields 
+ 	event->size_received = 0;  // part of the new fields 
+
+	// pull host_tag
+ 	if ( get_bytes_silent( fd, 4, (uint8_t *)&host_tag, mmio->timeout, &(client->abort) ) < 0 ) { 
+	  goto handle_force_evict_fail; 
+ 	} 
+ 	event->cmd_host_tag = ntohl(host_tag); 
+
+	// ocse adds the capp_tag
+	event->cmd_CAPPtag = mmio->CAPPtag_next++;
+
+	// pull size
+ 	if ( get_bytes_silent( fd, 2, (uint8_t *)&size, mmio->timeout, &(client->abort) ) < 0 ) { 
+	  goto handle_force_evict_fail; 
+ 	} 
+ 	event->size = ntohs(size); 
+
+ 	event->cfg = 0; 
+ 	event->rnw = 0; 
+ 	event->be_valid = 0; 
+ 	event->dw = 0; 
+ 	event->data = 0; 
+ 	event->be = 0; 
+ 	event->cmd_ea = 0; 
+
+ 	event->state = OCSE_IDLE; 
+ 	event->_next = NULL;
+ 	debug_msg("handle_force_evict: cmd_opcode=0x%x, host_tag=%d, size=%d", event->cmd_opcode,  event->cmd_host_tag, event->size ); 
+ 		// Add to end of list 
+ 	list = &(mmio->list); 
+ 	while (*list != NULL) 
+ 		list = &((*list)->_next); 
+ 	*list = event; 
+ 	debug_mmio_add(mmio->dbg_fp, mmio->dbg_id, client->context, 0, event->cmd_host_tag,  event->cmd_ea); 
+
+ 	return event; 
+
+  handle_force_evict_fail: 
+ 	// Socket connection is dead 
+ 	debug_msg("%s:handle_force_evict: failed context=%d", mmio->afu_name, client->context); 
  	client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE); 
 	free(event);
  	return NULL; 
