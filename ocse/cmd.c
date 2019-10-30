@@ -2963,11 +2963,12 @@ void handle_response(struct cmd *cmd)
 		// if the state of the event is mem_done, we can potentially stop the loop and send a response for it.
 		// if we not allowing reordering, we'll break the loop and use this event.
 		// don't allow reordering while we sort this out.
-		if ( (( (*head)->state == MEM_DONE )  || ((*head)->state == MEM_XLATE_PENDING)
-			|| ((*head)->state == MEM_INT_PENDING))  && ( allow_resp(cmd->parms))) {
-		  debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", drive response because MEM_DONE and resp ok",
-		  	   cmd->afu_name, (*head) );
-		  break;
+		if ( ( ( (*head)->state == MEM_DONE )         || 
+		       ( (*head)->state == MEM_XLATE_PENDING) || 
+		       ( (*head)->state == MEM_INT_PENDING)      ) && ( allow_resp( cmd->parms ) ) ) {
+		        debug_msg( "%s:RESPONSE event @ 0x%016lx, command=0x%x, afutag=0x%x, drive response because MEM_DONE and resp ok",
+				   cmd->afu_name, (*head), (*head)->command, (*head)->afutag );
+			break;
 		}
 
 		head = &((*head)->_next);
@@ -2987,14 +2988,14 @@ void handle_response(struct cmd *cmd)
 		if (event->type == CMD_FAILED)  // print INFO_MSG to let user know error code if debug isn't turned on
 			info_msg("%s:WARNING - ERROR ON POSTED RESPONSE event @ 0x%016" PRIx64 ",  for POSTED cmd=0x%2x   afutag=0x%02x code=0x%x",
 				       	cmd->afu_name,event, event->command, event->afutag, event->resp);
-		debug_msg("%s:RESPONSE event @ 0x%016" PRIx64 ", NO RESPONSE sent for POSTED cmd=0x%2x   afutag=0x%02x code=0x%x", cmd->afu_name,
-		    event, event->command, event->afutag, event->resp);
+		debug_msg("%s:RESPONSE event @ 0x%016lx, NO RESPONSE sent for POSTED cmd=0x%2x   afutag=0x%02x code=0x%x", 
+			  cmd->afu_name, event, event->command, event->afutag, event->resp);
 		debug_cmd_response(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->resp_opcode, event->resp);
 	            debug_msg( "%s:POSTED CMD RESPONSE event @ 0x%016" PRIx64 ", free event",
 		    cmd->afu_name, event );
 			
 		*head = event->_next;
-			debug_msg( "*headt= 0x%016" PRIx64 , *head);		
+			debug_msg( "*head = 0x%016" PRIx64 , *head);		
 		//start of new code
 		next = *head;
 		if (event->_next == NULL)
@@ -3044,7 +3045,7 @@ void handle_response(struct cmd *cmd)
 		return;
 	}
 	
-	//`drive_resp:
+	// drive_resp:
 	// debug - dump the event we picked...
 	debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", command=0x%x, resp_opcode= 0x%x, afutag=0x%08x, type=0x%02x, state=0x%02x, resp=0x%x",
 		   cmd->afu_name,

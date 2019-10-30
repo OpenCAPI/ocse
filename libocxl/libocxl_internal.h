@@ -120,7 +120,7 @@ typedef struct ocxl_cache_proxy {
         uint16_t size;
         uint8_t cache_state;            // the cache state that we have decided to give back to the AFU
         uint32_t host_tag;              // the host_tag that we give back to the afu for subsequent cache ops
-        uint8_t castout;                // gets set when the afu issues a castout[.push]
+        uint8_t castout_required;       // gets cleared set when the afu issues a castout[.push]
         struct ocxl_afu *afu;
         struct ocxl_cache_proxy *_next;
 } ocxl_cache_proxy;

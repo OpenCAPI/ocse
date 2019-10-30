@@ -123,8 +123,9 @@ static void _cache_access( int sig, siginfo_t *si, void *unused )
   while ( this_line != NULL ) {
     if ( this_line->ea == ((uint64_t)(si->si_addr) & ~((uint64_t)this_line->size - 1)) ) {
       printf( "_cache_access: found address: 0x%016lx == 0x%016lx \n", this_line->ea, (uint64_t)(si->si_addr) & ~((uint64_t)this_line->size - 1) );
-      // un protect the address
-      mprotect( (void *)this_line->ea, this_line->size, PROT_READ | PROT_WRITE | PROT_EXEC );
+
+      // un protect the address - no, let _handle_castout do this
+      // mprotect( (void *)this_line->ea, this_line->size, PROT_READ | PROT_WRITE | PROT_EXEC );
 
       // send a force_evict to the appropriate afu - must have afu handle in the cache proxy
       // build the ocse message and send it
@@ -147,23 +148,23 @@ static void _cache_access( int sig, siginfo_t *si, void *unused )
 	      debug_msg( "_cache_access: socket failure" );
 	      exit( EXIT_FAILURE );
       }
-      debug_msg( "_cache_access: FORCE_EVICT 0x%016lx sent host_tag  %d, size %d", this_line->ea, this_line->host_tag, this_line->size );
+      debug_msg( "_cache_access: FORCE_EVICT 0x%016lx sent host_tag %d, size %d", this_line->ea, this_line->host_tag, this_line->size );
 
       // WAIT for the response from a castout or castout.push - ok - this is dangerous.  Will it work?
       // Function will block until wake host thread occurs and matches thread id
-      while ( this_line->castout == 0 ) {	/*infinite loop */
+      this_line->castout_required = 1;
+      while ( this_line->castout_required == 1 ) {	/*infinite loop */
 	if (_delay_1ms() < 0) exit( EXIT_FAILURE );
       }
-      debug_msg( "_cache_access: FORCE_EVICT 0x%016lx castout completed", this_line->ea );      
       // the afu should have updated the line if needed
-
-      // remove or invalidate the line
-      // return and allow the signalling instruction to execute
+      // via castout which will manage the line protection and existance
+      // it had better unprotect this
+      // free the line we just evicted
+      debug_msg( "_cache_access: FORCE_EVICT 0x%016lx castout completed", this_line->ea );      
       return;
-    } else {
-      printf( "_cache_access: 0x%016lx != 0x%016lx \n", this_line->ea, (uint64_t)(si->si_addr) );
-      this_line = this_line->_next;
-    }
+    } 
+    debug_msg( "_cache_access: 0x%016lx != 0x%016lx", this_line->ea, (uint64_t)(si->si_addr) );
+    this_line = this_line->_next;
   }
 
   //       if the EA is not in the list, this must be a real error, so die somehow.
@@ -512,7 +513,7 @@ static ocxl_cache_proxy *_cache( struct ocxl_afu *afu, uint8_t op_code, uint64_t
 	// allocate the struct
 	this_line = (ocxl_cache_proxy *)malloc( sizeof(ocxl_cache_proxy) );
 
-	this_line->castout = 0;
+	this_line->castout_required = 0;
 	this_line->ea = addr;
 	this_line->size = size;
 	this_line->host_tag = ocxl_next_host_tag++;
@@ -548,10 +549,144 @@ static uint64_t _is_cached( struct ocxl_afu *afu, uint64_t addr )
 
 	this_line = ocxl_cache_list;
 	while (this_line != NULL) {
-	        this_line = this_line->_next;
+	        // if the address matches
+	        if ( this_line->ea == addr ) {
+		        return (uint64_t)this_line;
+		}
+		this_line = this_line->_next;
 	}
 	
-	return (uint64_t)this_line;
+	return (uint64_t)NULL;
+}
+
+// Handle the castout and castout.push from the afu
+// lookup the host tag in the cache proxy list
+// update memory (if push), clear the line, clear the castout require field
+//   castout_required bit should free the signal handler
+//   if castout required was not set, then this is a cache management castout
+//   and we can update the state or free the line in the case of setting the cache state to invalid 
+static void _handle_castout(struct ocxl_afu *afu)
+{
+        uint8_t buffer[MAX_LINE_CHARS];
+	uint16_t size;
+	uint8_t op_code;
+	uint8_t cmd_flag;
+	uint8_t cache_state;
+	uint32_t host_tag;
+	
+	ocxl_cache_proxy *this_line;
+	ocxl_cache_proxy *prev_line;
+
+	if ( afu == NULL ) fatal_msg("_handle_castout: NULL afu passed to libocxl.c:_handle_castout");
+	
+	// retrieve op_code(1), cmdflag(1), host_tag(4), cachestate(1), size(2), and optionally data(size)
+	if (get_bytes_silent(afu->fd, sizeof(op_code), buffer, 1000, 0) < 0) {
+	      warn_msg("_handle_castout: Socket failure getting ca op_code ");
+	      _all_idle(afu);
+	      return;
+	}
+	memcpy( (char *)&op_code, buffer, sizeof( op_code ) );
+
+	if (get_bytes_silent(afu->fd, sizeof( cmd_flag ), buffer, 1000, 0) < 0) {
+	      warn_msg("_handle_castout: Socket failure getting cmd_flag ");
+	      _all_idle(afu);
+	      return;
+	}
+	memcpy( (char *)&cmd_flag, buffer, sizeof( cmd_flag ) );
+
+	if (get_bytes_silent(afu->fd, sizeof( host_tag ), buffer, -1, 0) < 0) {
+	      warn_msg("_handle_castout: Socket failure getting host_tag");
+	      _all_idle(afu);
+	      return;
+	}
+	memcpy( (uint8_t *)&host_tag, buffer, sizeof( host_tag ) );
+	host_tag = ntohl( host_tag );
+	
+        if (get_bytes_silent(afu->fd, sizeof( cache_state ), buffer, 1000, 0) < 0) {
+	      warn_msg("_handle_castout: Socket failure getting cache_state ");
+	      _all_idle(afu);
+	      return;
+	}
+	memcpy( (char *)&cache_state, buffer, sizeof( cache_state ) );
+
+	if (get_bytes_silent(afu->fd, sizeof( size ), buffer, 1000, 0) < 0) {
+	      warn_msg("_handle_castout: Socket failure getting size");
+	      _all_idle(afu);
+	      return;
+	}
+	memcpy( (char *)&size, buffer, sizeof( size ) );
+	size = ntohs( size );
+
+	if ( op_code == AFU_CMD_CASTOUT_PUSH ) {
+	        if (get_bytes_silent(afu->fd, size, buffer, -1, 0) < 0) {
+		        warn_msg("_handle_castout: Socket failure getting data");
+			_all_idle(afu);
+			return;
+		}
+	}
+	
+	debug_msg("_handle_castout: host_tag=0x%06x, size=%d, cmd_flag=%x", host_tag, size, cmd_flag);
+
+	// find host tag in the cache proxy list
+	this_line = ocxl_cache_list;
+	while ( this_line != NULL ) {
+	        if ( this_line->host_tag == host_tag ) {
+		        if ( op_code == AFU_CMD_CASTOUT_PUSH ) {
+			        // update the memory - if it was a push
+			        mprotect( (void *)this_line->ea, this_line->size, PROT_READ | PROT_WRITE | PROT_EXEC );
+				memcpy( (void *)(this_line->ea), (void *)buffer, size );
+			}
+			// set new protection based on final cache_state
+			switch ( cache_state ) {
+			case 0x0: // invalid
+			        // unprotect the entry
+			        mprotect( (void *)this_line->ea, this_line->size, PROT_READ | PROT_WRITE | PROT_EXEC );
+			        break;
+			case 0x1: // shared - allow read
+			        mprotect( (void *)this_line->ea, this_line->size, PROT_READ );
+			        break;
+			case 0x2: // exclusive - allow none
+			case 0x3: // modified - allow none
+			case 0x4: // exclusive with no valid data - allow none
+			        mprotect( (void *)this_line->ea, this_line->size, PROT_NONE );
+			        break;
+			default:
+			        warn_msg("_handle_castout: invalid final cache state" );
+			        break;
+			}
+
+			// if invalid and the castout was not required, free the line
+			if ( cache_state == 0x0 && this_line->castout_required == 0 ) {
+			        // the afu is freeing this cacheline on its own, so
+			        // we can free the line here
+			        prev_line = ocxl_cache_list;
+				if ( prev_line == this_line ) {
+				        ocxl_cache_list = this_line->_next;
+					free( this_line );
+				} else {
+   				        while (prev_line != NULL) {
+					        if (prev_line->_next == this_line) {
+						        prev_line->_next = this_line->_next;
+							free( this_line );
+						} 
+						prev_line = prev_line->_next;
+					}
+				}
+			} else {
+			        // we manage the line
+			        this_line->cache_state = cache_state;
+				this_line->castout_required = 0;
+			}
+			return;
+		}
+		this_line = this_line->_next;
+	}
+
+	// if not found!
+	if ( this_line == NULL ) {
+		warn_msg("_handle_castout: castout of line that is not cached" );
+	}
+	
 }
 
 // Handle the read_s, read_me, and read_mes commands from the afu
@@ -629,7 +764,7 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 	// if we have, then what?
 	if ( _is_cached( afu, addr ) != 0) {
 	        //synonym???  or error???
-		warn_msg("CA READ from EA that was prviously cached addr @ 0x%016" PRIx64 "", addr);
+		warn_msg("_handle_ca_read: CA READ from EA that was prviously cached addr @ 0x%016" PRIx64 "", addr);
 		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
 		buffer[1] = (uint8_t) 0xC;
 		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
@@ -645,7 +780,7 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 		        perror("DSI Failure");
 			return;
 		}
-		warn_msg("CA READ from invalid addr @ 0x%016" PRIx64 "", addr);
+		warn_msg("_handle_ca_read: CA READ from invalid addr @ 0x%016" PRIx64 "", addr);
 		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
 		buffer[1] = 0xc;
 		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
@@ -663,7 +798,7 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 	cache_line = _cache( afu, op_code, addr, (uint64_t)size );
 
 	if (cache_line == NULL) {
-		warn_msg("CA READ from invalid operation 0x%02x", op_code);
+		warn_msg("_handle_ca_read: CA READ from invalid operation 0x%02x", op_code);
 		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
 		buffer[1] = 0xf;
 		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
@@ -694,7 +829,7 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 		afu->opened = 0;
 		afu->attached = 0;
 	}
-	debug_msg("CA READ cache state = %d from addr @ 0x%016" PRIx64 "", cache_line->cache_state, addr);
+	debug_msg("_handle_ca_read: CA READ cache state = %d from addr @ 0x%016" PRIx64 "", cache_line->cache_state, addr);
 
 	// finally, protect the line(s)
 	// for shared, protect from write
@@ -2669,8 +2804,10 @@ static void *_psl_loop(void *ptr)
 
 		// Process socket input from OCSE
 		rc = bytes_ready(afu->fd, 1000, 0);
-		if (rc == 0)
+		if (rc == 0) {
+		        // debug_msg("Socket open - no bytes to read - testing to see if socket is still tested while in the signal handler");
 			continue;
+		}
 		if (rc < 0) {
 			warn_msg("Socket failure testing bytes_ready");
 			_all_idle(afu);
@@ -2877,6 +3014,10 @@ static void *_psl_loop(void *ptr)
 		case OCSE_CA_MEMORY_READ:
 			debug_msg("AFU CACHEABLE READ OPERATION");
 			_handle_ca_read( afu );
+			break;
+		case OCSE_CASTOUT:
+			debug_msg("AFU CASTOUT OPERATION");
+			_handle_castout( afu );
 			break;
 		/* case OCSE_AFU_ERROR: */
 		/* 	if (_handle_afu_error(afu) < 0) { */
