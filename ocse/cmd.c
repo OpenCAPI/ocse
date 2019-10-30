@@ -2053,13 +2053,15 @@ void handle_sync(struct cmd *cmd)
 }
 
 // Handle randomly selected upgrade cache cmd from afu
-void handle_upgrade_state_or_castout(struct cmd *cmd)
+void handle_upgrade_state(struct cmd *cmd)
 {
 	struct cmd_event *event;
 	struct client *client;
+	uint8_t *data;
 	uint16_t *size;
 	uint32_t *host_tag;
 	uint8_t *buffer;
+	int bufsiz;
 	uint64_t *addr;
 
 	// Make sure cmd structure is valid
@@ -2093,24 +2095,46 @@ void handle_upgrade_state_or_castout(struct cmd *cmd)
 	        debug_msg( "handle_upgrade_state_or_castout: can't drive request to client - TRY LATER");
 		return;
 	}
+
 	if ((event->command == AFU_CMD_CASTOUT) || (event->command == AFU_CMD_CASTOUT_PUSH)) {
-	// these are posted cmds, so just send the info to libocxl, set state to MEM_DONE and set form_flag to indicated posted
-	// castout has cmd_flag and castout_push doesn't so send 0 for that field for castout_push
-		buffer = (uint8_t *) malloc(10);
-		buffer[0] = (uint8_t) OCSE_CASTOUT;
-		buffer[1] = event->command;
-		size = (uint16_t *)&(buffer[2]);
+ 	        // There may be a force_evict in the mmio list that is the cause of this castout
+	        // 
+	        // these are posted cmds, so just send the info to libocxl, set state to MEM_DONE and set form_flag to indicated posted
+	        // castout has cmd_flag and castout_push doesn't so send 0 for that field for castout_push
+	        buffer = (uint8_t *)malloc(10 + event->size);
+		bufsiz = 0;
+		buffer[bufsiz] = (uint8_t)OCSE_CASTOUT;
+		bufsiz = bufsiz + sizeof( uint8_t );
+
+		buffer[bufsiz] = event->command;
+		bufsiz = bufsiz + sizeof( uint8_t );
+		
+		buffer[bufsiz] = event->cmd_flag;
+		bufsiz = bufsiz + sizeof( uint8_t );
+		
+		host_tag = (uint32_t *)&(buffer[bufsiz]);
+		*host_tag = htonl(event->host_tag);
+		bufsiz = bufsiz + sizeof( uint32_t );
+
+		buffer[bufsiz] = event->cache_state;
+		bufsiz = bufsiz + sizeof( uint8_t );
+
+		size = (uint16_t *)&(buffer[bufsiz]);
 		*size = htons(event->size);
-		buffer[4] = event->cmd_flag;
-		buffer[5] = event->cache_state;
-		host_tag = (uint32_t *) & (buffer[6]);
-		*host_tag = htonll(event->host_tag);
+		bufsiz = bufsiz + sizeof( uint16_t );
+
+		if ( event->command == AFU_CMD_CASTOUT_PUSH ) {
+		  data = &(buffer[bufsiz]);
+		  memcpy( data, event->data, event->size );
+		  bufsiz = bufsiz + event->size;
+		}
 		debug_msg("%s:CASTOUT or CASTOUT PUSH  cmd_flag=0x%x cmd=0x%x host_tag=0x%04x", cmd->afu_name,
 			  event->cmd_flag, event->command, event->host_tag);
-		if (put_bytes(client->fd, 13, buffer, cmd->dbg_fp, cmd->dbg_id,
-		      event->context) < 0) {
+		if (put_bytes(client->fd, bufsiz, buffer, cmd->dbg_fp, cmd->dbg_id, event->context) < 0) {
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		}
+		free( buffer );
+
 		//these are posted, so no need to tie up memory interface (TODO - correct??)
 		event->form_flag = 0x2;  //do this so handle_response knows it a posted cmd
 		event->state = MEM_DONE;
@@ -2118,46 +2142,123 @@ void handle_upgrade_state_or_castout(struct cmd *cmd)
 		debug_msg("exiting handle upgrade_state_or_castout after sending castout msg to client");
 		return;
 	}
-	// for OpenCAPI4 there are only two cmds here - upgrade_state and upgrade_state.t
+
+	// it must be an upgrade_state[.t]
+
 	// Check to see if this cmd gets selected for a RETRY or PENDING read_failed response
-		if ( allow_retry(cmd->parms)) {
-			event->state = MEM_DONE;
-			event->resp_opcode = TLX_RSP_READ_FAILED;
-			event->type = CMD_FAILED;
-			event->resp = 0x02;
-			debug_msg("handle_upgrade_state_or_castout: RETRY this cmd =0x%x \n", event->command);
-			return;
-		}
-		// for xlate_pending response, ocse has to THEN follow up with an xlate_done response 
-		// (at some unknown time later) and that will "complete" the original cmd (no rd/write )
-		if ( allow_pending(cmd->parms)) {
-			event->state = MEM_XLATE_PENDING;
-			event->resp_opcode = TLX_RSP_READ_FAILED;
-			event->type = CMD_FAILED;
-			event->resp = 0x04;
-			debug_msg("handle_upgrade_state_or_castout: send XLATE_PENDING for this cmd =0x%x \n", event->command);
-			return;
-		}
-		// Send upgrade_state request to client
-		buffer = (uint8_t *) malloc(13);
-		buffer[0] = (uint8_t) OCSE_UPGRADE_STATE;
-		size = (uint16_t *)&(buffer[1]);
-		*size = htons(event->size);
-		addr = (uint64_t *) & (buffer[3]);
-		*addr = htonll(event->addr);
-		buffer[11] = event->cmd_flag;
-		buffer[12] = event->form_flag;
-		debug_msg("%s:UPGRADE STATE cmd_flag=0x%x afutag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
-			  event->cmd_flag, event->afutag, event->addr);
-		if (put_bytes(client->fd, 13, buffer, cmd->dbg_fp, cmd->dbg_id,
+
+	// Send upgrade_state request to client
+	buffer = (uint8_t *) malloc(13);
+	buffer[0] = (uint8_t) OCSE_UPGRADE_STATE;
+	size = (uint16_t *)&(buffer[1]);
+	*size = htons(event->size);
+	addr = (uint64_t *) & (buffer[3]);
+	*addr = htonll(event->addr);
+	buffer[11] = event->cmd_flag;
+	buffer[12] = event->form_flag;
+	debug_msg("%s:UPGRADE STATE cmd_flag=0x%x afutag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
+		  event->cmd_flag, event->afutag, event->addr);
+	if (put_bytes(client->fd, 13, buffer, cmd->dbg_fp, cmd->dbg_id,
 		      event->context) < 0) {
+	        client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+	}
+	event->state = MEM_REQUEST;
+	client->mem_access = (void *)event;
+	debug_msg("Setting client->mem_access in handle_upgrade_state_or_castout");
+	debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
+       	     
+}
+
+// Handle randomly selected upgrade cache cmd from afu
+void handle_castout(struct cmd *cmd, struct mmio *mmio)
+{
+	struct cmd_event *event;
+	struct client *client;
+	uint8_t *data;
+	uint16_t *size;
+	uint32_t *host_tag;
+	uint8_t *buffer;
+	int bufsiz;
+
+	// Make sure cmd structure is valid
+	if (cmd == NULL) {
+	        debug_msg( "handle_upgrade_state_or_castout: bad cmd pointer");
+		return;
+	}
+
+	// Randomly select a pending upgrade_state or castout (or none)
+	event = cmd->list;
+	while (event != NULL) {
+	        if ((( event->type == CMD_CACHE )  &&   ( event->state == MEM_IDLE ) )  && 
+		  ( ( event->client_state != CLIENT_VALID ) || !allow_reorder(cmd->parms)))   {
+			break;
+		}
+		event = event->_next;
+	}
+
+	// Test for no event selected - it's ok, just return
+	if ( event == NULL ) return;
+	debug_msg( "handle_castout: we have an event" );
+
+	// Test for client disconnect
+	if ((client = _get_client(cmd, event)) == NULL) {
+	        debug_msg( "handle_castout: no client found");
+		return;
+	}
+
+	// Check that memory request can be driven to client
+	if (client->mem_access != NULL) {
+	        debug_msg( "handle_castout: can't drive request to client - TRY LATER");
+		return;
+	}
+
+	if ((event->command == AFU_CMD_CASTOUT) || (event->command == AFU_CMD_CASTOUT_PUSH)) {
+ 	        // There may be a force_evict in the mmio list that is the cause of this castout - remove it
+	        // 
+	        // these are posted cmds, so just send the info to libocxl, set state to MEM_DONE and set form_flag to indicated posted
+	        // castout has cmd_flag and castout_push doesn't so send 0 for that field for castout_push
+	        buffer = (uint8_t *)malloc(10 + event->size);
+		bufsiz = 0;
+		buffer[bufsiz] = (uint8_t)OCSE_CASTOUT;
+		bufsiz = bufsiz + sizeof( uint8_t );
+
+		buffer[bufsiz] = event->command;
+		bufsiz = bufsiz + sizeof( uint8_t );
+		
+		buffer[bufsiz] = event->cmd_flag;
+		bufsiz = bufsiz + sizeof( uint8_t );
+		
+		host_tag = (uint32_t *)&(buffer[bufsiz]);
+		*host_tag = htonl(event->host_tag);
+		bufsiz = bufsiz + sizeof( uint32_t );
+
+		buffer[bufsiz] = event->cache_state;
+		bufsiz = bufsiz + sizeof( uint8_t );
+
+		size = (uint16_t *)&(buffer[bufsiz]);
+		*size = htons(event->size);
+		bufsiz = bufsiz + sizeof( uint16_t );
+
+		if ( event->command == AFU_CMD_CASTOUT_PUSH ) {
+		        data = &(buffer[bufsiz]);
+			memcpy( data, event->data, event->size );
+			bufsiz = bufsiz + event->size;
+		}
+		debug_msg("%s:CASTOUT or CASTOUT PUSH  cmd_flag=0x%x cmd=0x%x host_tag=0x%04x", cmd->afu_name,
+			  event->cmd_flag, event->command, event->host_tag);
+		if (put_bytes(client->fd, bufsiz, buffer, cmd->dbg_fp, cmd->dbg_id, event->context) < 0) {
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		}
-		event->state = MEM_REQUEST;
-		client->mem_access = (void *)event;
-		debug_msg("Setting client->mem_access in handle_upgrade_state_or_castout");
+		free( buffer );
+
+		//these are posted, so no need to tie up memory interface (TODO - correct??)
+		event->form_flag = 0x2;  //do this so handle_response knows it a posted cmd
+		event->state = MEM_DONE;
 		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
-       	     
+		debug_msg("exiting handle upgrade_state_or_castout after sending castout msg to client");
+	}
+
+	return;
 }
 
 // Handle randomly selected memory touch
@@ -2987,12 +3088,12 @@ void handle_response(struct cmd *cmd)
 	if (((event->form_flag & 0x2) == 0x2) && (event->state == MEM_DONE)) { // cmd is posted; no resp needed so free structs
 		if (event->type == CMD_FAILED)  // print INFO_MSG to let user know error code if debug isn't turned on
 			info_msg("%s:WARNING - ERROR ON POSTED RESPONSE event @ 0x%016" PRIx64 ",  for POSTED cmd=0x%2x   afutag=0x%02x code=0x%x",
-				       	cmd->afu_name,event, event->command, event->afutag, event->resp);
+				 cmd->afu_name,event, event->command, event->afutag, event->resp);
 		debug_msg("%s:RESPONSE event @ 0x%016lx, NO RESPONSE sent for POSTED cmd=0x%2x   afutag=0x%02x code=0x%x", 
 			  cmd->afu_name, event, event->command, event->afutag, event->resp);
 		debug_cmd_response(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->resp_opcode, event->resp);
-	            debug_msg( "%s:POSTED CMD RESPONSE event @ 0x%016" PRIx64 ", free event",
-		    cmd->afu_name, event );
+		debug_msg( "%s:POSTED CMD RESPONSE event @ 0x%016" PRIx64 ", free event",
+			   cmd->afu_name, event );
 			
 		*head = event->_next;
 			debug_msg( "*head = 0x%016" PRIx64 , *head);		

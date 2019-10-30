@@ -141,29 +141,30 @@ static void _detach(struct ocl *ocl, struct client *client)
 static void _handle_afu(struct ocl *ocl)
 {
 	if (ocl->mmio->list != NULL) {
-	 // handle_ap_killdone(ocl->mmio);
-	  handle_ap_resp(ocl->mmio);
-	  handle_ap_resp_data(ocl->mmio);
-	  handle_kill_done(ocl->cmd, ocl->mmio);  // send back kill_xlate_done response to client
+	        // handle_ap_killdone(ocl->mmio);
+	        handle_ap_resp(ocl->mmio);
+		handle_ap_resp_data(ocl->mmio);
+		handle_kill_done(ocl->cmd, ocl->mmio);  // send back kill_xlate_done response to client
 	}
 
 	if (ocl->cmd != NULL) {
-	  // handle_response should follow a similar flow to handle_cmd
-	  // that is, the response may need subsequent resp data valid beats to complete the data for a give response, just like a command...
-	  handle_response(ocl->cmd);  // sends response and data (if required)
-	  handle_buffer_write(ocl->cmd);  // just finishes up the read command structures
-	  handle_pending_kill_xlate_sent(ocl->cmd);  // just finishes up an xlate_pending resp
-	  handle_xlate_intrp_pending_sent(ocl->cmd);  // just finishes up an xlate_pending resp
-	  handle_vc1_cmd(ocl->cmd, ocl->latency);
-	  handle_vc2_cmd(ocl->cmd, ocl->latency);
-	  handle_vc3_cmd(ocl->cmd, ocl->latency);
-	  handle_afu_tlx_cmd_data_read(ocl->cmd);  // just fills up the write command structures
-	  handle_sync(ocl->cmd);
-	  handle_afu_tlx_write_cmd(ocl->cmd);  // completes the write command
-	  handle_touch(ocl->cmd);
-	  handle_interrupt(ocl->cmd);
-	  handle_write_be_or_amo(ocl->cmd);
-	  handle_upgrade_state_or_castout(ocl->cmd);
+	        // handle_response should follow a similar flow to handle_cmd
+	        // that is, the response may need subsequent resp data valid beats to complete the data for a give response, just like a command...
+	        handle_response(ocl->cmd);  // sends response and data (if required)
+		handle_buffer_write(ocl->cmd);  // just finishes up the read command structures
+		handle_pending_kill_xlate_sent(ocl->cmd);  // just finishes up an xlate_pending resp
+		handle_xlate_intrp_pending_sent(ocl->cmd);  // just finishes up an xlate_pending resp
+		handle_vc1_cmd(ocl->cmd, ocl->latency);
+		handle_vc2_cmd(ocl->cmd, ocl->latency);
+		handle_vc3_cmd(ocl->cmd, ocl->latency);
+		handle_afu_tlx_cmd_data_read(ocl->cmd);  // just fills up the write command structures
+		handle_sync(ocl->cmd);
+		handle_afu_tlx_write_cmd(ocl->cmd);  // completes the write command
+		handle_touch(ocl->cmd);
+		handle_interrupt(ocl->cmd);
+		handle_write_be_or_amo(ocl->cmd);
+		handle_upgrade_state(ocl->cmd);
+		handle_castout(ocl->cmd, ocl->mmio);  // there may be a force evict in the mmio list to be removed
 	}
 }
 
