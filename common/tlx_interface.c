@@ -1179,7 +1179,7 @@ static int tlx_signal_tlx_model(struct AFU_EVENT *event)
 		event->tbuf[bp++] = (event->afu_tlx_cmd_bdf & 0xFF);
 		for (i = 0; i < 4; i++) {
 			event->tbuf[bp++] =
-			    ((event->afu_tlx_cmd_pasid) >> ((3 - i) * 4)) & 0xFF;
+			    ((event->afu_tlx_cmd_pasid) >> ((3 - i) * 8)) & 0xFF;
 		}
 		event->tbuf[bp++] = (event->afu_tlx_cmd_pg_size & 0xFF);
 		//printf("event->tbuf[%x] is 0x%2x  \n", bp-1, event->tbuf[bp-1]);
