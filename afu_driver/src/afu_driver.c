@@ -449,18 +449,16 @@ void tlx_bfm(
       invalidVal		+= afu_tlx_resp_credit_top & 0x2;
       // if value is invalid, force the credit to 0
       if(invalidVal != 0) {
-	  event.afu_tlx_resp_credit = 0;
-      }
-           if(invalidVal != 0) {
-	printf("%08lld: ", (long long) c_sim_time);
-	printf(" The AFU-TLX Resp return value has either X or Z value \n" );
+	event.afu_tlx_resp_credit = 0;
+	debug_msg("%08lld: ", (long long) c_sim_time);
+	debug_msg("tlx_bfm: The AFU-TLX Resp return value has either X or Z value \n" );
       } else {
 	if (c_afu_tlx_resp_credit == 1 ) {
-	  printf( "returning resp credit\n" );
+	  // printf( "returning resp credit\n" );
 	  event.afu_tlx_resp_credit = 1;
 	  event.afu_tlx_credit_req_valid = 1;
 	} else {
-	  printf( "no resp credit to return\n" );
+	  // printf( "no resp credit to return\n" );
 	  event.afu_tlx_resp_credit = 0;
 	}
       }
