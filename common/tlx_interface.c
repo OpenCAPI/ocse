@@ -934,11 +934,14 @@ int afu_tlx_read_cmd_vc1(struct AFU_EVENT *event,
 /* Call this from ocse to read AFU command on vc2. This reads both afu_tlx cmd vc2 AND cmd data dcp2 interfaces */
 
 int afu_tlx_read_cmd_vc2_and_dcp2_data(struct AFU_EVENT *event,
-		    uint8_t * afu_cmd_opcode, uint8_t * cmd_dl,
-  		    uint32_t * cmd_host_tag, uint8_t * cmd_cache_state,
- 		    uint8_t * cmd_cmdflag, 
-  	  	    uint8_t * cmd_data_is_valid,
- 		    uint8_t * cdata_bus, uint8_t * cdata_bdi)
+				       uint8_t * afu_cmd_opcode, 
+				       uint8_t * cmd_dl,
+				       uint32_t * cmd_host_tag, 
+				       uint8_t * cmd_cache_state,
+				       uint8_t * cmd_cmdflag, 
+				       uint8_t * cmd_data_is_valid,
+				       uint8_t * cdata_bus, 
+				       uint8_t * cdata_bdi)
 
 {
   // in opencapi, it is possible that the afu will send a data only event...
@@ -958,10 +961,10 @@ int afu_tlx_read_cmd_vc2_and_dcp2_data(struct AFU_EVENT *event,
 		*cmd_cmdflag = event->afu_tlx_vc2_cmdflg;
 		*cmd_data_is_valid = 0;
 		if (event->afu_tlx_dcp2_data_valid) {
-	// should we return some sort of RC other than 0 if there is no data? Should calling function be
-	// smart enough to know if data is expected? Or should we set a bit to indicate that there is data
-	// on the data bus? Call it data valid, BUT caller still has to check bdi? Or does bdi kill interface
-	// at the TLX level??
+		        // should we return some sort of RC other than 0 if there is no data? Should calling function be
+		        // smart enough to know if data is expected? Or should we set a bit to indicate that there is data
+		        // on the data bus? Call it data valid, BUT caller still has to check bdi? Or does bdi kill interface
+		        // at the TLX level??
 			event->afu_tlx_dcp2_data_valid = 0;
 			*cmd_data_is_valid = 1;
 			*cdata_bdi = event->afu_tlx_dcp2_data_bdi;
@@ -1192,7 +1195,7 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 		event->tbuf[bp++] = (event->tlx_afu_vc2_cmdflag & 0x0F);
 		for (i = 0; i < 4; i++) {
 			event->tbuf[bp++] =
-			    ((event->tlx_afu_vc2_pasid) >> ((3 - i) * 4)) & 0xFF;
+			    ((event->tlx_afu_vc2_pasid) >> ((3 - i) * 8)) & 0xFF;
 		}
 		event->tbuf[bp++] = ((event->tlx_afu_vc2_bdf) >> 8) & 0xFF;
 		event->tbuf[bp++] = (event->tlx_afu_vc2_bdf & 0xFF);
@@ -1658,7 +1661,7 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 			//rbc += 65; //TODO for now, cmd data always 65 total
 			}
 		if ((event->rbuf[1] & 0x40) != 0) {
-		        debug_msg("      add in  expected vc2 cmd byte count");
+		        debug_msg("tlx_get_afu_event: add in  expected vc2 cmd byte count");
 			rbc += 7; 
 		}
 		if ((event->rbuf[1] & 0x08) != 0) {
@@ -1744,23 +1747,27 @@ int tlx_get_afu_events(struct AFU_EVENT *event)
 		event->tlx_afu_vc1_credit = 0;
 	}
 	if ((event->rbuf[1] & 0x40) != 0) {
-	        debug_msg("      parsing afu tlx vc2 cmd");
+	        debug_msg("tlx_get_afu_events: parsing afu tlx vc2 cmd");
 		event->afu_tlx_vc2_valid = 1;
 		//printf("event->afu_tlx_vc2_valid is 1  and rbc is 0x%2x \n", rbc);
 		event->tlx_afu_vc2_credit = 1;
 		event->tlx_afu_credit_valid = 1;
-		debug_msg("TLX_GET_AFU_EVENTS setting tlx_afu_vc2_credit = 1");
+		debug_msg("tlx_get_afu_events: setting tlx_afu_vc2_credit = 1");
 		//printf("event->rbuf[%x] is 0x%2x \n", rbc, event->rbuf[rbc]);
 		event->afu_tlx_vc2_opcode = event->rbuf[rbc++];
 		event->afu_tlx_vc2_dl = event->rbuf[rbc++];
 		event->afu_tlx_vc2_host_tag = 0;
-		for (bc = 0; bc < 4; bc++) {
-			event->afu_tlx_vc2_host_tag  =
-			    ((event->afu_tlx_vc2_host_tag) << 8) |
-			    event->rbuf[rbc++];
+		for (bc = 0; bc < 3; bc++) {
+			event->afu_tlx_vc2_host_tag = ((event->afu_tlx_vc2_host_tag) << 8) | event->rbuf[rbc++];
 		}
 		event->afu_tlx_vc2_cache_state = event->rbuf[rbc++];
 		event->afu_tlx_vc2_cmdflg = event->rbuf[rbc++];
+		debug_msg( "tlx_get_afu_events: opcode=0x%02x dl=0x%02x, host_tag=0x%08x, cache_state=0x%02x, cmd_flag=0x%02x", 
+			   event->afu_tlx_vc2_opcode, 
+			   event->afu_tlx_vc2_dl, 
+			   event->afu_tlx_vc2_host_tag, 
+			   event->afu_tlx_vc2_cache_state, 
+			   event->afu_tlx_vc2_cmdflg ); 
 	} else {
 		event->afu_tlx_vc2_valid = 0;
 		event->tlx_afu_vc2_credit = 0;
@@ -2199,9 +2206,7 @@ int tlx_get_tlx_events(struct AFU_EVENT *event)
 		event->tlx_afu_vc2_cmdflag = event->rbuf[rbc++];
 		event->tlx_afu_vc2_pasid = 0;
 		for (bc = 0; bc < 4; bc++) {
-			event->tlx_afu_vc2_pasid  =
-			    ((event->tlx_afu_vc2_pasid) << 8) |
-			    event->rbuf[rbc++];
+			event->tlx_afu_vc2_pasid = ((event->tlx_afu_vc2_pasid) << 8) | event->rbuf[rbc++];
 		}
 		event->tlx_afu_vc2_bdf = event->rbuf[rbc++];
 		event->tlx_afu_vc2_bdf = ((event->tlx_afu_vc2_bdf << 8) | event->rbuf[rbc++]);
