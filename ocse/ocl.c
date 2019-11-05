@@ -34,8 +34,10 @@
 #include <sys/types.h>
 
 #include "mmio.h"
-#include "ocl.h"
+#include "client.h"
+#include "cmd.h"
 #include "../common/debug.h"
+#include "../common/utils.h"
 #include "../common/tlx_interface.h"
 
 // are there any pending commands with this context?
@@ -216,6 +218,11 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 		case OCSE_MEM_SUCCESS:
 			if (client->mem_access != NULL)
 				handle_mem_return(ocl->cmd, cmd, client->fd);
+			client->mem_access = NULL;
+			break;
+		case OCSE_CA_MEM_SUCCESS:
+			if (client->mem_access != NULL)
+			        handle_ca_mem_return(ocl, ocl->cmd, cmd, client->fd);
 			client->mem_access = NULL;
 			break;
 		case OCSE_MMIO_MAP:

@@ -20,9 +20,11 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "client.h"
-#include "mmio.h"
-#include "parms.h"
+#include "ocse_t.h"
+//#include "ocl.h"
+//#include "client.h"
+//#include "mmio.h"
+//#include "parms.h"
 #include "../common/tlx_interface.h"
 
 #define TOTAL_PAGES_CACHED 64
@@ -34,125 +36,6 @@
 #define PAGE_MASK 0xFFF
 #define BAD_OPERAND_SIZE 2
 #define BAD_ADDR_OFFSET 3
-
-enum cmd_type {
-	CMD_READ,
-	CMD_WRITE,
-	CMD_TOUCH, 
-	CMD_XL_TO_PA,  
-	CMD_INTERRUPT,
-	CMD_WAKE_HOST_THRD,
-	CMD_WR_BE,
-	CMD_AMO_RD,
-	CMD_AMO_RW,
-	CMD_AMO_WR,
-	CMD_XLATE_REL, // release TA from CMD_XL_TOUCH
-	CMD_KILL_DONE, 
-	CMD_FAILED,
-	CMD_SYNC,
-	CMD_CACHE,
-	CMD_CACHE_RD,
-	CMD_OTHER
-};
-
-enum mem_state {
-	MEM_IDLE,
-	MEM_XLATE_PENDING,
-	MEM_INT_PENDING,
-	MEM_PENDING_SENT,
-	MEM_TOUCH,
-	MEM_TOUCHED,
-	MEM_BUFFER,
-	MEM_REQUEST,
-	MEM_CAS_RD,
-	//MEM_CAS_WR,
-	MEM_RECEIVED,
-	AMO_MEM_RESP,
-	DMA_MEM_RESP,
-	MEM_KILL_XLATE_SENT,
-	MEM_SYNC,
-	MEM_DONE
-};
-
-
-struct pages {
-	uint64_t entry[PAGE_ENTRIES][PAGE_WAYS];
-	uint64_t entry_filter;
-	uint64_t page_filter;
-	int age[PAGE_ENTRIES][PAGE_WAYS];
-	uint8_t valid[PAGE_ENTRIES][PAGE_WAYS];
-};
-
-struct cmd_event {
-	uint64_t addr;
-	int32_t context;
-	uint32_t command;
-	uint32_t afutag;
-	uint32_t size;
-	uint32_t resp;  // this is used as resp_code TODO change this to  resp_code
-	uint32_t port;
-	uint32_t resp_dl;
-	uint32_t resp_dp;
-	uint32_t resp_opcode;
-        uint64_t resp_ta;
-        uint32_t host_tag;
-        uint8_t cache_state;
-        uint8_t resp_ef;
-        uint8_t resp_w;
-        uint8_t resp_mh;
-        uint8_t  resp_pg_size;
-        uint16_t resp_capptag;  //???
-	uint32_t dpartial;
-	uint64_t wr_be;
-	uint16_t resp_bytes_sent;
-	uint16_t service_q_slot;
-	uint8_t sync_b4me;
-	uint8_t cmd_flag;
-	uint8_t cmd_endian;
-	uint8_t cmd_pg_size;
-	uint8_t form_flag; // 0x1 = .S, 0x2= .P, 0x4 = .N , 0x80= .T form of AP instruction
-	uint8_t stream_id;
-	uint8_t unlock;
-	uint8_t buffer_activity;
-	uint8_t *data;
-	//uint8_t *parity;
-	int *abort;
-	enum cmd_type type;
-	enum mem_state state;
-	enum client_state client_state;
-	uint16_t presyncq[24];
-	struct cmd_event *_next;
-	struct cmd_event *_prev;
-};
-
-struct actag {
-        uint8_t valid;
-        uint32_t pasid;
-        struct client *client;
-};
-
-struct cmd {
-	struct AFU_EVENT *afu_event;
-	struct cmd_event *list;
-	struct cmd_event *buffer_read;
-	struct mmio *mmio;
-	struct parms *parms;
-	struct client **client;
-	struct actag *actag_array;
-	struct pages page_entries;
-	volatile enum ocse_state *ocl_state;
-	char *afu_name;
-	FILE *dbg_fp;
-	uint8_t dbg_id;
-	uint64_t lock_addr;
-	//uint64_t res_addr;
-	int max_clients;
-        int max_actags;
-	uint32_t pagesize;
-	uint32_t HOST_CL_SIZE;
-	uint16_t irq;
-	//int locked;
-};
 
 struct cmd *cmd_init(struct AFU_EVENT *afu_event, struct parms *parms,
 		     struct mmio *mmio, volatile enum ocse_state *state,
@@ -183,6 +66,8 @@ void handle_sync(struct cmd *cmd);
 void handle_interrupt(struct cmd *cmd);
 
 void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd);
+
+void handle_ca_mem_return(struct ocl *ocl, struct cmd *cmd, struct cmd_event *cmd_event, int fd);
 
 void handle_aerror(struct cmd *cmd, struct cmd_event *event, int fd);
 

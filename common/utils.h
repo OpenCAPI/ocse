@@ -90,6 +90,7 @@
 #define OCSE_FIND_ACK                   0x52
 #define OCSE_LPC_SPECIAL_PURPOSE_MAP    0x60
 #define OCSE_CA_MEMORY_READ	        0x87
+#define OCSE_CA_MEM_SUCCESS             0x88
 #define OCSE_FORCE_EVICT		0xd0
 #define OCSE_DISABLE_CACHE		0xd4
 #define OCSE_ENABLE_CACHE	    	0xd5

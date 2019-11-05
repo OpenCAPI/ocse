@@ -39,8 +39,11 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
+// #include "ocl.h"
 #include "cmd.h"
 #include "mmio.h"
+#include "parms.h"
+#include "client.h"
 #include "../common/debug.h"
 #include "../common/utils.h"
 
@@ -52,7 +55,7 @@ struct cmd *cmd_init(struct AFU_EVENT *afu_event, struct parms *parms,
 		     struct mmio *mmio, volatile enum ocse_state *state,
 		     char *afu_name, FILE * dbg_fp, uint8_t dbg_id)
 {
-	int i, j;
+  // int i, j;
 	struct cmd *cmd;
 
 	cmd = (struct cmd *)calloc(1, sizeof(struct cmd));
@@ -67,18 +70,18 @@ struct cmd *cmd_init(struct AFU_EVENT *afu_event, struct parms *parms,
 	cmd->ocl_state = state;
 	cmd->pagesize = parms->pagesize;
 	cmd->HOST_CL_SIZE = parms->host_CL_size;
-	cmd->page_entries.page_filter = ~((uint64_t) PAGE_MASK);
-	cmd->page_entries.entry_filter = 0;
-	for (i = 0; i < LOG2_ENTRIES; i++) {
-		cmd->page_entries.entry_filter <<= 1;
-		cmd->page_entries.entry_filter += 1;
-	}
-	cmd->page_entries.entry_filter <<= PAGE_ADDR_BITS;
-	for (i = 0; i < PAGE_ENTRIES; i++) {
-		for (j = 0; j < PAGE_WAYS; j++) {
-			cmd->page_entries.valid[i][j] = 0;
-		}
-	}
+	//cmd->page_entries.page_filter = ~((uint64_t) PAGE_MASK);
+	//cmd->page_entries.entry_filter = 0;
+	//for (i = 0; i < LOG2_ENTRIES; i++) {
+	//	cmd->page_entries.entry_filter <<= 1;
+	//	cmd->page_entries.entry_filter += 1;
+	//}
+	//cmd->page_entries.entry_filter <<= PAGE_ADDR_BITS;
+	//for (i = 0; i < PAGE_ENTRIES; i++) {
+	//	for (j = 0; j < PAGE_WAYS; j++) {
+	//		cmd->page_entries.valid[i][j] = 0;
+	//	}
+	//}
 	cmd->afu_name = afu_name;
 	cmd->dbg_fp = dbg_fp;
 	cmd->dbg_id = dbg_id;
@@ -115,7 +118,7 @@ static int32_t _find_client_by_actag(struct cmd *cmd, uint16_t cmd_actag)
   // new
   // check the actag array for a valid entry at the cmd_actag index.
   // return -1 for no matching client
-  // cmd->actag_arrat[cmd_actag].pasid and bdr, right?
+  // cmd->actag_array[cmd_actag].pasid and bdr, right?
   // int32_t i;
 
   debug_msg("_find_client_by_actag: seeking client in %d potential actags with actag=0x%04x", cmd->max_actags, cmd_actag );
@@ -142,8 +145,6 @@ static int32_t _find_client_by_actag(struct cmd *cmd, uint16_t cmd_actag)
   }
 
   return cmd->actag_array[cmd_actag].pasid;
-
-  return -1;
 }
 
 
@@ -215,9 +216,10 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	struct cmd_event *event;
 	struct cmd_event *cmd_b4me;
 
-	if (cmd == NULL)
-		return;
+	if (cmd == NULL) return;
+
 	event = (struct cmd_event *)calloc(1, sizeof(struct cmd_event));
+
 	event->context = context;
 	event->command = command;
 	event->afutag = afutag;
@@ -232,30 +234,37 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	event->cache_state = 0;
 	event->resp_ef = 0;
 	event->host_tag = 0;
+
+	// special parameter mappings
 	switch (command) {
-		case AFU_CMD_XLATE_RELEASE:
-		case AFU_CMD_XLATE_TOUCH:
-		case AFU_CMD_XLATE_TOUCH_N:
-		case AFU_CMD_XLATE_TO_PA:
-			event->cmd_pg_size = cmd_endian;
-			break;
-		default:
-			break;
+	case AFU_CMD_XLATE_RELEASE:
+	case AFU_CMD_XLATE_TOUCH:
+	case AFU_CMD_XLATE_TOUCH_N:
+	case AFU_CMD_XLATE_TO_PA:
+	        event->cmd_pg_size = cmd_endian;
+		break;
+	case AFU_RSP_KILL_XLATE_DONE:
+		event->resp_capptag = afutag;
+		break;
+	case AFU_CMD_CASTOUT:
+	case AFU_CMD_CASTOUT_PUSH:
+		event->host_tag = resp_opcode;
+		event->cache_state = stream_id;
+	        break;
+	default:
+	        break;
 	}
+
 	event->resp_opcode = resp_opcode;
 	event->stream_id = stream_id;  //TODO figure out how to use it later.....
 	event->form_flag = form_flag;
-	if (command == AFU_RSP_KILL_XLATE_DONE) 
-		event->resp_capptag = afutag;
-	if ((command == AFU_CMD_MEM_SYN_DONE) || (command == AFU_CMD_CASTOUT) || (command == AFU_CMD_CASTOUT_PUSH)) {
-		event->host_tag = resp_opcode;
-		event->cache_state = stream_id;
-	}
+
 	// if size = 0 it doesn't matter what we set, in this case, 1, otherwise find resp_dl from size but resp_dp always 0 
 	if (size <= 64)
 		event->resp_dl = 1;
 	else
 		event->resp_dl = size_to_dl(size);
+
 	event->resp_dp = 0;
 
 	event->unlock = unlock;
@@ -265,8 +274,11 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	memset(event->data, 0xFF, CACHELINE_BYTES * 4);
 
 	event->resp_bytes_sent = 0;  //init this to 0 (used for split responses)
+
 	// Test for client disconnect
 	if (_get_client(cmd, event) == NULL) {
+	        debug_msg( "_add_cmd: client not found for cmd_event @ 0x%016"PRIx64": command=0x%02x, context=0x%02x",
+			   event, event->command, event->context );
 		event->resp = TLX_RESPONSE_FAILED;
 		event->state = MEM_DONE;
 	}
@@ -275,8 +287,8 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 	event->service_q_slot=1;
 	event->sync_b4me = 0; // always assume there is not a SYNC in the queue, then check later
 	cmd_b4me = NULL;
-	if (*head == NULL)  
-		printf ("FOUND THE FIRST CMD; START COUNTING NOW\n");
+
+	if (*head == NULL) printf ("FOUND THE FIRST CMD; START COUNTING NOW\n");
 	while (*head != NULL) {
 		cmd_b4me = *head;
 		head = &((*head)->_next);
@@ -290,13 +302,15 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 
 	qitem = &(event->presyncq[0]);
 	*qitem = (uint16_t)0;
-	if (event->service_q_slot > 1) { // for all, check for SYNC cmds ahead; for .s & kill_xlate_done, check for other cmds in same context
+	if ( event->service_q_slot > 1 ) { // for all, check for SYNC cmds ahead; for .s & kill_xlate_done, check for other cmds in same context
 		head = &(cmd->list);
 		for (n=0; n< event->service_q_slot; n++) { // list all afutags ahead of this cmd (TODO add check for stream id)
 			cmd_b4me= *head;
 			// for .s and kill_xlate_done and SYNC need to make list of all cmds ahead
-			if (((((event->form_flag & 0x01) == 1) || (event->command == AFU_RSP_KILL_XLATE_DONE))  && (cmd_b4me->context == event->context))
-					|| (event->command == AFU_CMD_SYNC)) {
+			if ( ( ( ( ( event->form_flag & 0x01 ) == 1 ) || 
+				 ( event->command == AFU_RSP_KILL_XLATE_DONE ) ) && 
+			       ( cmd_b4me->context == event->context ) ) || 
+			     ( event->command == AFU_CMD_SYNC ) ) {
 				qitem = &(event->presyncq[n]);
 				*qitem = (uint16_t)cmd_b4me->afutag;
 				debug_msg("event->presyncq[%d]=0x%04x and form_flag=%x and stream_id=0x%04x and context=0x%04x",
@@ -314,14 +328,14 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 			}
 			head = &((*head)->_next);
 		}
+	} else { 
+	        debug_msg("no presyncq or SYNC check needed; service_q_slot= %x and form_flag=%x", event->service_q_slot, form_flag);
 	}
-	else  
-		 debug_msg("no presyncq or SYNC check needed; service_q_slot= %x and form_flag=%x", event->service_q_slot, form_flag);
 	
 	// Check to see if event->cmd_data_is_valid is, and if so, set event->buffer_data
 	// TODO check to see if data is bad...if so, what???
-	if (cmd_data_is_valid) { // TODO make sure this is JUST for dcp3 data!
-		if (_incoming_data_expected( cmd)  == 0) {
+	if ( cmd_data_is_valid ) { // TODO make sure this is JUST for dcp3 data!
+		if (_incoming_data_expected( cmd ) == 0 ) {
 		        cmd->buffer_read = event;
 			debug_msg("Ready to copy first 64B of write data to buffer, add=0x%016"PRIx64" , size=0x%x , afutag= 0x%x.\n",
 				  event->addr, size, event->afutag);
@@ -805,11 +819,11 @@ static void _parse_vc1_vc2_cmd(	struct cmd *cmd, uint8_t cmd_opcode, uint8_t cmd
 			  	0, 0, 0, 0, cmd_flag, 0, cmd_host_tag, cmd_cache_state, 0);
 			break;
 		case AFU_CMD_CASTOUT:
-			debug_msg("YES! AFU response is AFU_CMD_CASTOUT and host_tag= 0x%04x", cmd_host_tag);
+			debug_msg( "YES! AFU Command is AFU_CMD_CASTOUT and host_tag=0x%08x", cmd_host_tag );
 			//TODO - will there ever be data on dcp2 that is not part of castout_push? IF SO, 
 			//need to create a special cmd_data_is_valid to signal data on dcp2 NOT dcp3 
 			// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
-			_add_cmd(cmd, 0xca, cmd_afutag, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl), MEM_IDLE, 
+			_add_cmd(cmd, 0xca, 0, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl), MEM_IDLE, 
 			  	0, 0, 0, 0, cmd_flag, 0, cmd_host_tag, cmd_cache_state, 0);
 			break;
 
@@ -1074,9 +1088,14 @@ void handle_vc1_cmd(struct cmd *cmd, uint32_t latency)
 void handle_vc2_cmd(struct cmd *cmd, uint32_t latency)
 {
 	uint32_t cmd_host_tag;
-	uint8_t  cmd_opcode, cmd_dl, cmd_cache_state, cmd_flag, cmd_data_is_valid, cdata_bad;
+	uint8_t  cmd_opcode;
+	uint8_t  cmd_dl;
+	uint8_t  cmd_cache_state;
+	uint8_t  cmd_flag;
+	uint8_t  cmd_data_is_valid;
+	uint8_t  cdata_bad;
 	unsigned char cdata_bus[64];
-	uint8_t * dptr = cdata_bus;
+	uint8_t *dptr = cdata_bus;
 	int rc;
 
 	// debug_msg( "ocse:handle_vc2_cmd:" );
@@ -1084,18 +1103,25 @@ void handle_vc2_cmd(struct cmd *cmd, uint32_t latency)
 		return;
 
 	// Check for command from AFU on vc2 with data on dcp2 (only a few cache related cmds)
-	rc = afu_tlx_read_cmd_vc2_and_dcp2_data(cmd->afu_event, &cmd_opcode, &cmd_dl,
-  		    &cmd_host_tag, &cmd_cache_state,
- 		    &cmd_flag, &cmd_data_is_valid, dptr,  &cdata_bad);
+	rc = afu_tlx_read_cmd_vc2_and_dcp2_data(cmd->afu_event, 
+						&cmd_opcode, 
+						&cmd_dl,
+						&cmd_host_tag, 
+						&cmd_cache_state,
+						&cmd_flag, 
+						&cmd_data_is_valid, 
+						dptr,  
+						&cdata_bad);
 
 	// No command ready */
-	if ( rc != TLX_SUCCESS )
-		return;
-	debug_msg( "%s:VC2 COMMAND host_tag=0x%04x cache_state=0x%02x cmd=0x%x cmd_data_is_valid= 0x%x ",
+	if ( rc != TLX_SUCCESS ) return;
+
+	debug_msg( "handle_vc2_cmd: %s: opcode=0x%02x, host_tag=0x%08x, cache_state=0x%02x, cmd_flag=0x%02x, cmd_data_is_valid= 0x%x ",
 		   cmd->afu_name,
+		   cmd_opcode,
 		   cmd_host_tag,
 		   cmd_cache_state,
-		   cmd_opcode,
+		   cmd_flag,
 		   cmd_data_is_valid );
 
 
@@ -2180,24 +2206,32 @@ void handle_castout(struct cmd *cmd, struct mmio *mmio)
 	uint8_t *buffer;
 	int bufsiz;
 
+	debug_msg( "handle_castout: checking for castout commands" );
+
 	// Make sure cmd structure is valid
 	if (cmd == NULL) {
-	        debug_msg( "handle_upgrade_state_or_castout: bad cmd pointer");
+	        debug_msg( "handle_castout: bad cmd pointer");
 		return;
 	}
 
 	// Randomly select a pending upgrade_state or castout (or none)
 	event = cmd->list;
 	while (event != NULL) {
-	        if ((( event->type == CMD_CACHE )  &&   ( event->state == MEM_IDLE ) )  && 
-		  ( ( event->client_state != CLIENT_VALID ) || !allow_reorder(cmd->parms)))   {
-			break;
+	        debug_msg( "handle_castout: cmd_event @ 0x%016"PRIx64": command=0x%02x, type=0x%02x ?= 0x%02x, mem_state=0x%03x ?= 0x%03x",
+			   event, event->command, event->type, CMD_CACHE, event->state, MEM_IDLE );
+	        if ( ( event->type == CMD_CACHE ) && 
+		     ( event->state == MEM_IDLE ) ) { // && 
+		     // ( !allow_reorder(cmd->parms) ) ) {
+		        break;
 		}
 		event = event->_next;
 	}
 
 	// Test for no event selected - it's ok, just return
-	if ( event == NULL ) return;
+	if ( event == NULL ) {
+	  debug_msg( "handle_castout: no CMD_CACHE event found" );
+	  return;
+	}
 	debug_msg( "handle_castout: we have an event" );
 
 	// Test for client disconnect
@@ -2212,8 +2246,9 @@ void handle_castout(struct cmd *cmd, struct mmio *mmio)
 		return;
 	}
 
-	if ((event->command == AFU_CMD_CASTOUT) || (event->command == AFU_CMD_CASTOUT_PUSH)) {
+	if ( ( event->command == AFU_CMD_CASTOUT ) || ( event->command == AFU_CMD_CASTOUT_PUSH ) ) {
  	        // There may be a force_evict in the mmio list that is the cause of this castout - remove it
+	        // look back at the mmio path and see if we can remove the force_evict right after it is sent
 	        // 
 	        // these are posted cmds, so just send the info to libocxl, set state to MEM_DONE and set form_flag to indicated posted
 	        // castout has cmd_flag and castout_push doesn't so send 0 for that field for castout_push
@@ -2244,7 +2279,7 @@ void handle_castout(struct cmd *cmd, struct mmio *mmio)
 			memcpy( data, event->data, event->size );
 			bufsiz = bufsiz + event->size;
 		}
-		debug_msg("%s:CASTOUT or CASTOUT PUSH  cmd_flag=0x%x cmd=0x%x host_tag=0x%04x", cmd->afu_name,
+		debug_msg("handle_castout: %s: CASTOUT or CASTOUT PUSH  cmd_flag=0x%x cmd=0x%x host_tag=0x%04x", cmd->afu_name,
 			  event->cmd_flag, event->command, event->host_tag);
 		if (put_bytes(client->fd, bufsiz, buffer, cmd->dbg_fp, cmd->dbg_id, event->context) < 0) {
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
@@ -2255,7 +2290,9 @@ void handle_castout(struct cmd *cmd, struct mmio *mmio)
 		event->form_flag = 0x2;  //do this so handle_response knows it a posted cmd
 		event->state = MEM_DONE;
 		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
-		debug_msg("exiting handle upgrade_state_or_castout after sending castout msg to client");
+		debug_msg("handle_castout: exiting after sending castout msg to client");
+	} else {
+		debug_msg("handle_castout: Not a CASTOUT - exiting");
 	}
 
 	return;
@@ -2813,148 +2850,182 @@ static void _handle_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
 	}
 }
 
+static void _update_host_tag( struct ocl *ocl, struct cmd_event *cmd_event )
+{
+  struct host_tag *this_host_tag;
+  // scan the host_tag list for cmd_event->host_tag
+  this_host_tag = ocl->host_tag;
+  while ( this_host_tag != NULL ) {
+    if ( this_host_tag->ca_host_tag == cmd_event->host_tag ) {
+      // we found an existing host_tag - ???
+      fatal_msg( "_update_host_tag_list: we didn't expect to match host_tags in this routine" );
+      return;
+    }
+  }
+
+  // this_host_tag should be NULL
+  // add a new entry to the head of the list
+  this_host_tag = (struct host_tag *)malloc( sizeof(struct host_tag) );
+  this_host_tag->ca_host_tag = cmd_event->host_tag;
+  this_host_tag->context = cmd_event->context;
+  this_host_tag->ca_state = cmd_event->cache_state;
+  this_host_tag->_next = ocl->host_tag;
+  ocl->host_tag = this_host_tag;
+
+  return;
+}
+
 // Handle data returning from client for cacheable memory read
-static void _handle_cacheable_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
+static void _handle_cacheable_mem_read(struct ocl *ocl, struct cmd *cmd, struct cmd_event *cmd_event, int fd)
 {
 	uint8_t data[MAX_LINE_CHARS];
-	uint64_t offset = event->addr & ~CACHELINE_MASK;
+	uint64_t offset = cmd_event->addr & ~CACHELINE_MASK;
 	uint32_t host_tag;
-        uint8_t ef, cache_state;	
-	// printf ("_handle_mem_read: event->type is %2x, event->state is 0x%3x \n", event->type, event->state);
-	if (event->type == CMD_CACHE_RD) {
-		//TODO libocxl needs to return  cache_state. EF, host_tag AND data
-		// this code assumes that libocxl will return regular ACK byte, followed by cache_state (byte),
-		// EF (byte), host_tag (4 bytes) and then data (either 64B or 128B?)
-		// buffer size = MAX_LINE_CHARS which is 1024 bytes.
-	        //printf ("_handle_cacheable_mem_read: CMD_CACHE_RD \n" );
-		// Client is returning data from cacheable memory read, libocxl
-		// tells us if cmd is successful or not
-		if (get_bytes_silent(fd, sizeof( cache_state ), &cache_state, cmd->parms->timeout, event->abort) < 0) {
-	        	debug_msg("%s:_handle_cacheable_mem_read failed to get cache_state afutag=0x%04x size=%d ",
-				  cmd->afu_name, event->afutag, event->size);
-			event->state = MEM_DONE;
-			event->type = CMD_FAILED;
-			event->resp = 0x0e;
-			debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->afutag,
-				 event->context, event->resp);
-			return;
-		}
-		event->cache_state = cache_state;
-		if (get_bytes_silent(fd, sizeof( ef ), &ef, cmd->parms->timeout, event->abort) < 0) {
-	        		debug_msg("%s:_handle_cacheable_mem_read failed to get ef  afutag=0x%04x size=%d",
-					  cmd->afu_name, event->afutag, event->size);
-				event->state = MEM_DONE;
-				event->type = CMD_FAILED;
-				event->resp = 0x0e;
-				debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->afutag,
-					 event->context, event->resp);
-				return;
-		}
-		event->resp_ef = ef;
-		if (get_bytes_silent(fd, sizeof( host_tag ), (uint8_t *)&host_tag, cmd->parms->timeout, event->abort) < 0) {
-	        		debug_msg("%s:_handle_cacheable_mem_read failed to get host_tag afutag=0x%04x size=%d" ,
-					  cmd->afu_name, event->afutag, event->size);
-				event->state = MEM_DONE;
-				event->type = CMD_FAILED;
-				event->resp = 0x0e;
-				debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->afutag,
-					 event->context, event->resp);
-				return;
-		}
-		event->host_tag = ntohl(host_tag);
-		if (get_bytes_silent(fd, event->size, data, cmd->parms->timeout,
-			     event->abort) < 0) {
-	        	debug_msg("%s:_handle_cacheable_mem_read failed afutag=0x%04x size=%d addr=0x%016"PRIx64,
-				  cmd->afu_name, event->afutag, event->size, event->addr);
-			event->state = MEM_DONE;
-			event->resp_opcode = TLX_RSP_READ_FAILED;
-			event->type = CMD_FAILED;
-			event->resp = 0x0e;
-			debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, event->afutag,
-				 event->context, event->resp);
-			return;
-		}
-		// we used to put the data in the event->data at the offset implied by the address
-		// should we still do that?  
-		memcpy((void *)&(event->data[offset]), (void *)&data, event->size);
-		event->state = MEM_RECEIVED;
+        uint8_t ef;	
+        uint8_t cache_state;	
+
+
+	// this code assumes that libocxl will return regular ACK byte, followed by cache_state (byte),
+	// EF (byte), host_tag (4 bytes) and then data (either 64B or 128B?)
+	// buffer size = MAX_LINE_CHARS which is 1024 bytes.
+	// debug_msg("_handle_cacheable_mem_read: CMD_CACHE_RD" );
+	// Client is successfully returning data from cacheable memory read, libocxl
+	if (get_bytes_silent(fd, sizeof( cache_state ), &cache_state, cmd->parms->timeout, cmd_event->abort) < 0) {
+	        debug_msg("_handle_cacheable_mem_read: %s: failed to get cache_state afutag=0x%04x size=%d ",
+			  cmd->afu_name, cmd_event->afutag, cmd_event->size);
+		cmd_event->state = MEM_DONE;
+		cmd_event->type = CMD_FAILED;
+		cmd_event->resp = 0x0e;
+		debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, cmd_event->afutag,
+				 cmd_event->context, cmd_event->resp);
+		return;
 	}
+	cmd_event->cache_state = cache_state;
+
+	if (get_bytes_silent(fd, sizeof( ef ), &ef, cmd->parms->timeout, cmd_event->abort) < 0) {
+	        debug_msg("_handle_cacheable_mem_read: %s: failed to get ef  afutag=0x%04x size=%d",
+			  cmd->afu_name, cmd_event->afutag, cmd_event->size);
+		cmd_event->state = MEM_DONE;
+		cmd_event->type = CMD_FAILED;
+		cmd_event->resp = 0x0e;
+		debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, cmd_event->afutag,
+				 cmd_event->context, cmd_event->resp);
+		return;
+	}
+	cmd_event->resp_ef = ef;
+
+	if (get_bytes_silent(fd, sizeof( host_tag ), (uint8_t *)&host_tag, cmd->parms->timeout, cmd_event->abort) < 0) {
+	        debug_msg("_handle_cacheable_mem_read: %s: failed to get host_tag afutag=0x%04x size=%d" ,
+			  cmd->afu_name, cmd_event->afutag, cmd_event->size);
+		cmd_event->state = MEM_DONE;
+		cmd_event->type = CMD_FAILED;
+		cmd_event->resp = 0x0e;
+		debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, cmd_event->afutag,
+				 cmd_event->context, cmd_event->resp);
+		return;
+	}
+	cmd_event->host_tag = ntohl(host_tag);
+
+	if (get_bytes_silent(fd, cmd_event->size, data, cmd->parms->timeout, cmd_event->abort) < 0) {
+	        debug_msg("_handle_cacheable_mem_read: %s: failed afutag=0x%04x size=%d addr=0x%016"PRIx64,
+			  cmd->afu_name, cmd_event->afutag, cmd_event->size, cmd_event->addr);
+		cmd_event->state = MEM_DONE;
+		cmd_event->resp_opcode = TLX_RSP_READ_FAILED;
+		cmd_event->type = CMD_FAILED;
+		cmd_event->resp = 0x0e;
+		debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, cmd_event->afutag,
+				 cmd_event->context, cmd_event->resp);
+		return;
+	}
+
+	// log the host tag in the host tag list. tag, state, client (or context), ?
+	_update_host_tag( ocl, cmd_event );
+
+	// we used to put the data in the event->data at the offset implied by the address
+	// should we still do that?  
+	memcpy((void *)&(cmd_event->data[offset]), (void *)&data, cmd_event->size);
+	cmd_event->state = MEM_RECEIVED;
+
 }
 
 
 
 // Calculate page address in cached index for translation
-static void _calc_index(struct cmd *cmd, uint64_t * addr, uint64_t * index)
-{
-	*addr &= cmd->page_entries.page_filter;
-	*index = *addr & cmd->page_entries.entry_filter;
-	*index >>= PAGE_ADDR_BITS;
-}
+//static void _calc_index(struct cmd *cmd, uint64_t * addr, uint64_t * index)
+//{
+//	*addr &= cmd->page_entries.page_filter;
+//	*index = *addr & cmd->page_entries.entry_filter;
+//	*index >>= PAGE_ADDR_BITS;
+//}
 
 // Update age of translation entries and create new entry if needed
-static void _update_age(struct cmd *cmd, uint64_t addr)
+//static void _update_age(struct cmd *cmd, uint64_t addr)
+//{
+//	uint64_t index;
+//	int i, set, age, oldest, empty;
+//
+//	_calc_index(cmd, &addr, &index);
+//	set = age = oldest = 0;
+//	empty = PAGE_WAYS;
+//	for (i = 0; i < PAGE_WAYS; i++) {
+//		if (cmd->page_entries.valid[index][i] &&
+//		    (cmd->page_entries.entry[index][i] != addr)) {
+//			cmd->page_entries.age[index][i]++;
+//			if (cmd->page_entries.age[index][i] > age) {
+//				age = cmd->page_entries.age[index][i];
+//				oldest = i;
+//			}
+//		}
+//		if (!cmd->page_entries.valid[index][i] && (empty == PAGE_WAYS)) {
+//			empty = i;
+//		}
+//		if (cmd->page_entries.valid[index][i] &&
+//		    (cmd->page_entries.entry[index][i] == addr)) {
+//			cmd->page_entries.age[index][i] = 0;
+//			set = 1;
+//		}
+//	}
+//
+//	// Entry found and updated
+//	if (set)
+//		return;
+//
+//	// Empty slot exists
+//	if (empty < PAGE_WAYS) {
+//		cmd->page_entries.entry[index][empty] = addr;
+//		cmd->page_entries.valid[index][empty] = 1;
+//		cmd->page_entries.age[index][empty] = 0;
+//		return;
+//	}
+//	// Evict oldest entry and replace with new entry
+//	cmd->page_entries.entry[index][oldest] = addr;
+//	cmd->page_entries.valid[index][oldest] = 1;
+//	cmd->page_entries.age[index][oldest] = 0;
+//}
+
+// Decide what to do with a client memory acknowledgement
+void handle_ca_mem_return( struct ocl *ocl, struct cmd *cmd, struct cmd_event *cmd_event, int fd )
 {
-	uint64_t index;
-	int i, set, age, oldest, empty;
+	struct client *client;
 
-	_calc_index(cmd, &addr, &index);
-	set = age = oldest = 0;
-	empty = PAGE_WAYS;
-	for (i = 0; i < PAGE_WAYS; i++) {
-		if (cmd->page_entries.valid[index][i] &&
-		    (cmd->page_entries.entry[index][i] != addr)) {
-			cmd->page_entries.age[index][i]++;
-			if (cmd->page_entries.age[index][i] > age) {
-				age = cmd->page_entries.age[index][i];
-				oldest = i;
-			}
-		}
-		if (!cmd->page_entries.valid[index][i] && (empty == PAGE_WAYS)) {
-			empty = i;
-		}
-		if (cmd->page_entries.valid[index][i] &&
-		    (cmd->page_entries.entry[index][i] == addr)) {
-			cmd->page_entries.age[index][i] = 0;
-			set = 1;
-		}
-	}
+	debug_msg( "handle_ca_mem_return:" );
 
-	// Entry found and updated
-	if (set)
+	// Test for client disconnect
+	if ( ( cmd_event == NULL ) || ( ( client = _get_client( cmd, cmd_event ) ) == NULL ) )
 		return;
 
-	// Empty slot exists
-	if (empty < PAGE_WAYS) {
-		cmd->page_entries.entry[index][empty] = addr;
-		cmd->page_entries.valid[index][empty] = 1;
-		cmd->page_entries.age[index][empty] = 0;
-		return;
+	debug_msg("handle_ca_mem_return:%s:MEMORY ACK afutag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
+		  cmd_event->afutag, cmd_event->addr);
+
+	// _update_age(cmd, cmd_event->addr);
+
+	if (cmd_event->type == CMD_CACHE_RD) {
+	        _handle_cacheable_mem_read( ocl, cmd, cmd_event, fd);
+	} else {
+	        debug_msg( "handle_ca_mem_return: invalid cmd_event type found");
 	}
-	// Evict oldest entry and replace with new entry
-	cmd->page_entries.entry[index][oldest] = addr;
-	cmd->page_entries.valid[index][oldest] = 1;
-	cmd->page_entries.age[index][oldest] = 0;
+	debug_cmd_return(cmd->dbg_fp, cmd->dbg_id, cmd_event->afutag, cmd_event->context);
 }
-
-// Determine if page translation is already cached
-/* static int _page_cached(struct cmd *cmd, uint64_t addr) */
-/* { */
-/* 	uint64_t index; */
-/* 	int i, hit; */
-
-/* 	_calc_index(cmd, &addr, &index); */
-/* 	i = hit = 0; */
-/* 	while ((i < PAGE_WAYS) && cmd->page_entries.valid[index][i] && */
-/* 	       (cmd->page_entries.entry[index][i] != addr)) { */
-/* 		i++; */
-/* 	} */
-
-/* 	// Hit entry */
-/* 	if ((i < PAGE_WAYS) && cmd->page_entries.valid[index][i]) */
-/* 		hit = 1; */
-
-/* 	return hit; */
-/* } */
 
 // Decide what to do with a client memory acknowledgement
 void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd)
@@ -2982,11 +3053,9 @@ void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd)
 				 event->context, event->resp);
 		return;
 	} */
-	_update_age(cmd, event->addr);
+	//_update_age(cmd, event->addr);
 	if (event->type == CMD_READ)
 		_handle_mem_read(cmd, event, fd);
-	if (event->type == CMD_CACHE_RD)
-		_handle_cacheable_mem_read(cmd, event, fd);
 	if ((event->type == CMD_WRITE) || (event->type == CMD_AMO_WR))
 		event->state = MEM_DONE;
  	// have to account for AMO RD or RW cmds with returned data

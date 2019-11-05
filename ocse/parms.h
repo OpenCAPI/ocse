@@ -17,30 +17,7 @@
 #ifndef _PARMS_H_
 #define _PARMS_H_
 
-#include <stdio.h>
-#include "../common/tlx_interface.h"
-
-struct parms {
-	uint32_t timeout;
-	uint32_t seed;
-	uint32_t pagesize;
-	uint32_t host_CL_size;
-	uint32_t resp_percent;
-	uint32_t paged_percent;
-	uint32_t retry_percent;
-	uint32_t failed_percent;
-	uint32_t pending_percent;
-	uint32_t pending_kill_xlate_percent;
-	uint32_t derror_percent;
-	uint32_t int_retry_percent;
-	uint32_t int_failed_percent;
-	uint32_t int_pending_percent;
-	uint32_t int_derror_percent;
-	uint32_t bdi_resp_err_percent;
-	uint32_t bdi_cmd_err_percent;
-	uint32_t reorder_percent;
-	uint32_t buffer_percent;
-};
+#include "ocse_t.h"
 
 // Randomly decide to allow response to AFU
 int allow_resp(struct parms *parms);

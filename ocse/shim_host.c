@@ -24,6 +24,7 @@
 #include <stdlib.h>
 
 #include "shim_host.h"
+#include "ocl.h"
 #include "../common/utils.h"
 
 // Parse file to find hostname and ports for AFU simulator(s)

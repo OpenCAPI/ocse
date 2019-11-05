@@ -17,10 +17,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <stdio.h>
 
 #include "parms.h"
 #include "../common/utils.h"
 #include "../common/debug.h"
+// #include "../common/tlx_interface.h"
 
 #define DEFAULT_PAGESIZE 0
 

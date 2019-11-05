@@ -21,9 +21,10 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "parms.h"
-#include "mmio.h"
-#include "ocl.h"
+#include "ocse_t.h"
+//#include "parms.h"
+//#include "mmio.h"
+//#include "ocl.h"
 
 uint16_t parse_host_data(struct ocl ** head, struct parms * parms,
 			 char *filename, pthread_mutex_t * lock, FILE * dbg_fp);

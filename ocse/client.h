@@ -19,45 +19,7 @@
 #include <pthread.h>
 #include <stdint.h>
 
-enum client_state {
-	CLIENT_NONE,
-	CLIENT_INIT,
-	CLIENT_VALID
-};
-
-enum flush_state {
-	FLUSH_NONE,
-	FLUSH_PAGED,
-	FLUSH_FLUSHING
-};
-
-struct client {
-	int pending;
-	int idle_cycles;
-	int fd;
-	int context;
-	int abort;
-	int timeout;
-	enum flush_state flushing;
-	enum client_state state;
-	char type;
-	uint64_t AMR;
-	uint32_t pasid;
-	uint16_t bdf;
-  uint8_t bus;
-  uint8_t dev;
-  uint8_t fcn;
-  uint8_t afuid;
-  // uint16_t actag;
-	uint32_t mmio_offset;
-	uint32_t mmio_size;
-	void *mem_access;
-	void *mmio_access;
-	char *ip;
-	pthread_t thread;
-	struct client *_prev;
-	struct client *_next;
-};
+#include "ocse_t.h"
 
 void client_drop(struct client *client, int cycles, enum client_state state);
 

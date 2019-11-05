@@ -42,9 +42,11 @@
 #include <stdlib.h>
 #include <math.h>
 
-#include "../common/debug.h"
+
 #include "mmio.h"
-#include "ocl.h"
+#include "client.h"
+#include "../common/debug.h"
+// #include "ocl.h"
 
 // Initialize MMIO tracking structure
 struct mmio *mmio_init(struct AFU_EVENT *afu_event, int timeout, char *afu_name,

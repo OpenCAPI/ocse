@@ -47,11 +47,14 @@
 #include <termios.h>
 #include <time.h>
 
+#include "ocse_t.h"
+
+#include "parms.h"
 #include "client.h"
 #include "mmio.h"
-#include "parms.h"
 #include "ocl.h"
 #include "shim_host.h"
+
 #include "../common/debug.h"
 #include "../common/utils.h"
 

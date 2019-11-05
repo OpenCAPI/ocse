@@ -810,7 +810,7 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 	int bufsiz;
 	bufsiz = 0;
 
-	buffer[bufsiz] = OCSE_MEM_SUCCESS;
+	buffer[bufsiz] = OCSE_CA_MEM_SUCCESS;
 	bufsiz++;
 
 	buffer[bufsiz] = cache_line->cache_state;
