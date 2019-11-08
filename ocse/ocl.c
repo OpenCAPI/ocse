@@ -156,8 +156,8 @@ static void _handle_afu(struct ocl *ocl)
 		handle_buffer_write(ocl->cmd);  // just finishes up the read command structures
 		handle_pending_kill_xlate_sent(ocl->cmd);  // just finishes up an xlate_pending resp
 		handle_xlate_intrp_pending_sent(ocl->cmd);  // just finishes up an xlate_pending resp
-		handle_vc1_cmd(ocl->cmd, ocl->latency);
-		handle_vc2_cmd(ocl->cmd, ocl->latency);
+		// handle_vc1_cmd(ocl->cmd, ocl->latency);
+		handle_vc2_cmd(ocl, ocl->cmd, ocl->latency);
 		handle_vc3_cmd(ocl->cmd, ocl->latency);
 		handle_afu_tlx_cmd_data_read(ocl->cmd);  // just fills up the write command structures
 		handle_sync(ocl->cmd);

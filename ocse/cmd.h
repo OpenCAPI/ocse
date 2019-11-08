@@ -41,8 +41,8 @@ struct cmd *cmd_init(struct AFU_EVENT *afu_event, struct parms *parms,
 		     struct mmio *mmio, volatile enum ocse_state *state,
 		     char *afu_name, FILE * dbg_fp, uint8_t dbg_id);
 
-void handle_vc1_cmd(struct cmd *cmd,  uint32_t latency);
-void handle_vc2_cmd(struct cmd *cmd,  uint32_t latency);
+// void handle_vc1_cmd(struct cmd *cmd,  uint32_t latency);
+void handle_vc2_cmd(struct ocl *ocl, struct cmd *cmd,  uint32_t latency);
 void handle_vc3_cmd(struct cmd *cmd,  uint32_t latency);
 
 //void handle_buffer_data(struct cmd *cmd);

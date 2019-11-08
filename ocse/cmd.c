@@ -109,6 +109,28 @@ static struct client *_find_client_by_pasid_and_bdf(struct cmd *cmd, uint16_t cm
 }
 
 // find a client that has a matching actag.  return pointer to client
+static int32_t _find_client_by_host_tag(struct ocl *ocl, uint32_t cmd_host_tag)
+{
+  // search the host tag list for cmd_host_tag
+  // return the context #
+  struct host_tag *this_host_tag;
+
+  debug_msg("_find_client_by_host_tag: seek searching for host_tag=0x%08x", cmd_host_tag );
+  
+  this_host_tag = ocl->host_tag;
+  while ( this_host_tag != NULL ) {
+    if ( this_host_tag->ca_host_tag == cmd_host_tag ) {
+      // we found the host tag, return the context that we associated with this host tag
+      return this_host_tag->context;
+    }
+    this_host_tag = this_host_tag->_next;
+  }
+  
+  warn_msg("_find_client_by_host_tag: host_tag does not have a valid context" );
+  return -1;
+}
+
+// find a client that has a matching actag.  return pointer to client
 static int32_t _find_client_by_actag(struct cmd *cmd, uint16_t cmd_actag)
 {
   // old
@@ -793,7 +815,7 @@ static void _add_write(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 
 
 // Determine what type of vc1 or vc2 command to add to list
-static void _parse_vc1_vc2_cmd(	struct cmd *cmd, uint8_t cmd_opcode, uint8_t cmd_stream_id, uint8_t *cmd_pa,
+static void _parse_vc1_vc2_cmd(	struct ocl *ocl, struct cmd *cmd, uint8_t cmd_opcode, uint8_t cmd_stream_id, uint8_t *cmd_pa,
 		       uint16_t cmd_afutag, uint8_t cmd_dl, uint8_t cmd_flag,uint32_t cmd_host_tag,
 		       uint8_t cmd_cache_state, 
 		       uint8_t cmd_data_is_valid,
@@ -801,47 +823,51 @@ static void _parse_vc1_vc2_cmd(	struct cmd *cmd, uint8_t cmd_opcode, uint8_t cmd
 
 {
         // Based on the cmd_opcode we have received from the afu, add a cmd_event to the list associated with our cmd struct
-	// TODO these cmds don't have actag, pasid or BDF so  when rest of cache support is developed, need to determine context from host_tag
-	// for now, just use dummy context of 0xca
 	int64_t addr = 0;
+	int32_t context;
+
+	// find cmd_host_tag in the host_tag list so that we can correctly set the context for _add_cmd
+	// but host_tag list is under ocl, so we need to pass that into this routine
+	context = _find_client_by_host_tag( ocl, cmd_host_tag );
+
 	switch (cmd_opcode) {
-		case AFU_CMD_MEM_PA_FLUSH:
-		case AFU_CMD_MEM_BACK_FLUSH:
-			debug_msg("NO! THESE CMDS are NOT SUPPORTED in OpenCAPI 4!");
-			break;
+	case AFU_CMD_MEM_PA_FLUSH:
+	case AFU_CMD_MEM_BACK_FLUSH:
+	        debug_msg("NO! THESE CMDS are NOT SUPPORTED in OpenCAPI 4!");
+		break;
+	  
+	case AFU_CMD_MEM_SYN_DONE:
+	        debug_msg("YES! AFU response is AFU_CMD_MEM_SYN_DONE and host_tag= 0x%04x", cmd_host_tag);
+		//TODO - will there ever be data on dcp2 that is not part of castout_push? IF SO, 
+		//need to create a special cmd_data_is_valid to signal data on dcp2 NOT dcp3 
+		// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
+		_add_cmd(cmd, 0xca, cmd_afutag, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl ), MEM_IDLE, 
+			 0, 0, 0, 0, cmd_flag, 0, cmd_host_tag, cmd_cache_state, 0);
+		break;
+	case AFU_CMD_CASTOUT:
+	        debug_msg( "YES! AFU Command is AFU_CMD_CASTOUT and host_tag=0x%08x", cmd_host_tag );
+		//TODO - will there ever be data on dcp2 that is not part of castout_push? IF SO, 
+		//need to create a special cmd_data_is_valid to signal data on dcp2 NOT dcp3 
+		// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
+		_add_cmd(cmd, context, 0, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl ), MEM_IDLE, 
+			 0, 0, 0, 0, cmd_flag, 0, cmd_host_tag, cmd_cache_state, 0);
+		break;
 
-		case AFU_CMD_MEM_SYN_DONE:
-			debug_msg("YES! AFU response is AFU_CMD_MEM_SYN_DONE and host_tag= 0x%04x", cmd_host_tag);
-			//TODO - will there ever be data on dcp2 that is not part of castout_push? IF SO, 
-			//need to create a special cmd_data_is_valid to signal data on dcp2 NOT dcp3 
-			// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
-			_add_cmd(cmd, 0xca, cmd_afutag, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl), MEM_IDLE, 
-			  	0, 0, 0, 0, cmd_flag, 0, cmd_host_tag, cmd_cache_state, 0);
-			break;
-		case AFU_CMD_CASTOUT:
-			debug_msg( "YES! AFU Command is AFU_CMD_CASTOUT and host_tag=0x%08x", cmd_host_tag );
-			//TODO - will there ever be data on dcp2 that is not part of castout_push? IF SO, 
-			//need to create a special cmd_data_is_valid to signal data on dcp2 NOT dcp3 
-			// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
-			_add_cmd(cmd, 0xca, 0, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl), MEM_IDLE, 
-			  	0, 0, 0, 0, cmd_flag, 0, cmd_host_tag, cmd_cache_state, 0);
-			break;
 
-
-		case AFU_CMD_CASTOUT_PUSH:
-			debug_msg("YES! AFU response is AFU_CMD_CASTOUT_PUSH and host_tag= 0x%04x", cmd_host_tag);
-       			 // convert 68 bit pa to 64 bit addr
-        		memcpy( (void *)&addr, (void *)&(cmd_pa[0]), sizeof(int64_t));
-
-			// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
-			_add_cmd(cmd, 0xca, cmd_afutag, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl), MEM_IDLE, 
-			  	0, 0, 0, 0, cmd_flag, 0, cmd_host_tag, cmd_cache_state, 0);
-			break;
-		default:
-			warn_msg("Unsupported command 0x%04x", cmd_opcode);
-			// TODO this type of error is signaled as "malformed packet error type 0 event" but how??  
-			_add_fail(cmd, 0xca, cmd_afutag, cmd_opcode, TLX_RESPONSE_FAILED, TLX_RESPONSE_FAILED);
-			break;
+	case AFU_CMD_CASTOUT_PUSH:
+	        debug_msg("YES! AFU response is AFU_CMD_CASTOUT_PUSH and host_tag= 0x%04x", cmd_host_tag);
+		// convert 68 bit pa to 64 bit addr
+		memcpy( (void *)&addr, (void *)&(cmd_pa[0]), sizeof(int64_t));
+		
+		// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
+		_add_cmd(cmd, 0xca, cmd_afutag, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl ), MEM_IDLE, 
+			 0, 0, 0, 0, cmd_flag, 0, cmd_host_tag, cmd_cache_state, 0);
+		break;
+	default:
+	        warn_msg("Unsupported command 0x%04x", cmd_opcode);
+		// TODO this type of error is signaled as "malformed packet error type 0 event" but how??  
+		_add_fail(cmd, 0xca, cmd_afutag, cmd_opcode, TLX_RESPONSE_FAILED, TLX_RESPONSE_FAILED);
+		break;
 	}
 }
 
@@ -1037,55 +1063,51 @@ static void _parse_vc3_cmd(struct cmd *cmd,
 	}
 }
 
-// See if a vc1 command was sent by AFU and process if so
 // NOTE: the only identified vc1 cmds are OpenCAPI 5, so this shouldn't be used until then
-void handle_vc1_cmd(struct cmd *cmd, uint32_t latency)
-{
-	struct cmd_event *event;
-	uint16_t cmd_afutag;
-	uint8_t  cmd_pa[8];
-	uint8_t  cmd_opcode, cmd_stream_id, cmd_dl;
-	int rc;
-
-	// debug_msg( "ocse:handle_vc1_cmd:" );
-	if (cmd == NULL)
-		return;
-
-	// Check for command from AFU on vc1 (only a few cache related cmds)
-	rc = afu_tlx_read_cmd_vc1(cmd->afu_event, &cmd_opcode, &cmd_stream_id,
-		    &cmd_afutag, &cmd_pa[0], &cmd_dl);
-
-	// No command ready */
-	if ( rc != TLX_SUCCESS )
-		return;
-
-	debug_msg( "%s:VC1 COMMAND stream_id=0x%02x afutag=0x%04x cmd=0x%x ",
-		   cmd->afu_name,
-		   cmd_stream_id,
-		   cmd_afutag,
-		   cmd_opcode );
-
-
-	// Check for duplicate afutag
-	event = cmd->list;
-	while (event != NULL) {
-		if (event->afutag == cmd_afutag) {
-			error_msg("Duplicate afutag 0x%04x", cmd_afutag);
-			return;
-		}
-		event = event->_next;
-	}
-
-	_parse_vc1_vc2_cmd(cmd, cmd_opcode, cmd_stream_id, cmd_pa, cmd_afutag, cmd_dl,
-		   0, 0, 0, 0, 0, 0);
-}
-
-
-
-
+// See if a vc1 command was sent by AFU and process if so
+//void handle_vc1_cmd(struct cmd *cmd, uint32_t latency)
+//{
+//	struct cmd_event *event;
+//	uint16_t cmd_afutag;
+//	uint8_t  cmd_pa[8];
+//	uint8_t  cmd_opcode, cmd_stream_id, cmd_dl;
+//	int rc;
+//
+//	// debug_msg( "ocse:handle_vc1_cmd:" );
+//	if (cmd == NULL)
+//		return;
+//
+//	// Check for command from AFU on vc1 (only a few cache related cmds)
+//	rc = afu_tlx_read_cmd_vc1(cmd->afu_event, &cmd_opcode, &cmd_stream_id,
+//		    &cmd_afutag, &cmd_pa[0], &cmd_dl);
+//
+//	// No command ready */
+//	if ( rc != TLX_SUCCESS )
+//		return;
+//
+//	debug_msg( "%s:VC1 COMMAND stream_id=0x%02x afutag=0x%04x cmd=0x%x ",
+//		   cmd->afu_name,
+//		   cmd_stream_id,
+//		   cmd_afutag,
+//		   cmd_opcode );
+//
+//
+//	// Check for duplicate afutag
+//	event = cmd->list;
+//	while (event != NULL) {
+//		if (event->afutag == cmd_afutag) {
+//			error_msg("Duplicate afutag 0x%04x", cmd_afutag);
+//			return;
+//		}
+//		event = event->_next;
+//	}
+//
+//	_parse_vc1_vc2_cmd(cmd, cmd_opcode, cmd_stream_id, cmd_pa, cmd_afutag, cmd_dl,
+//		   0, 0, 0, 0, 0, 0);
+//}
 
 // See if a vc2 command was sent by AFU and process if so
-void handle_vc2_cmd(struct cmd *cmd, uint32_t latency)
+void handle_vc2_cmd(struct ocl * ocl, struct cmd *cmd, uint32_t latency)
 {
 	uint32_t cmd_host_tag;
 	uint8_t  cmd_opcode;
@@ -1128,7 +1150,7 @@ void handle_vc2_cmd(struct cmd *cmd, uint32_t latency)
 	// Can no longer check for duplicate afutag (not used on vc2)
 	// Use cmd_pasid parm for cmd_host_tag; use cmd_pg_size for cmd_cache_state in _parse_cmd call
 
-	_parse_vc1_vc2_cmd(cmd, cmd_opcode, 0, 0, 0, cmd_dl,
+	_parse_vc1_vc2_cmd( ocl, cmd, cmd_opcode, 0, 0, 0, cmd_dl,
 		   cmd_flag, cmd_host_tag, cmd_cache_state, cmd_data_is_valid, dptr, cdata_bad);
 }
 
@@ -2206,7 +2228,7 @@ void handle_castout(struct cmd *cmd, struct mmio *mmio)
 	uint8_t *buffer;
 	int bufsiz;
 
-	debug_msg( "handle_castout: checking for castout commands" );
+	// debug_msg( "handle_castout: checking for castout commands" );
 
 	// Make sure cmd structure is valid
 	if (cmd == NULL) {
@@ -2217,8 +2239,8 @@ void handle_castout(struct cmd *cmd, struct mmio *mmio)
 	// Randomly select a pending upgrade_state or castout (or none)
 	event = cmd->list;
 	while (event != NULL) {
-	        debug_msg( "handle_castout: cmd_event @ 0x%016"PRIx64": command=0x%02x, type=0x%02x ?= 0x%02x, mem_state=0x%03x ?= 0x%03x",
-			   event, event->command, event->type, CMD_CACHE, event->state, MEM_IDLE );
+	  // debug_msg( "handle_castout: cmd_event @ 0x%016"PRIx64": command=0x%02x, type=0x%02x ?= 0x%02x, mem_state=0x%03x ?= 0x%03x",
+	  // event, event->command, event->type, CMD_CACHE, event->state, MEM_IDLE );
 	        if ( ( event->type == CMD_CACHE ) && 
 		     ( event->state == MEM_IDLE ) ) { // && 
 		     // ( !allow_reorder(cmd->parms) ) ) {
@@ -2229,10 +2251,11 @@ void handle_castout(struct cmd *cmd, struct mmio *mmio)
 
 	// Test for no event selected - it's ok, just return
 	if ( event == NULL ) {
-	  debug_msg( "handle_castout: no CMD_CACHE event found" );
+	  // debug_msg( "handle_castout: no CMD_CACHE event found" );
 	  return;
 	}
-	debug_msg( "handle_castout: we have an event" );
+	debug_msg( "handle_castout: we have an event@ 0x%016"PRIx64": command=0x%02x, host_tag=0x%02x, size=%d, cache_state=0x%03x",
+		   event, event->command, event->host_tag, event->size, event->cache_state );
 
 	// Test for client disconnect
 	if ((client = _get_client(cmd, event)) == NULL) {
@@ -2291,8 +2314,8 @@ void handle_castout(struct cmd *cmd, struct mmio *mmio)
 		event->state = MEM_DONE;
 		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
 		debug_msg("handle_castout: exiting after sending castout msg to client");
-	} else {
-		debug_msg("handle_castout: Not a CASTOUT - exiting");
+		// } else {
+		//	debug_msg("handle_castout: Not a CASTOUT - exiting");
 	}
 
 	return;
