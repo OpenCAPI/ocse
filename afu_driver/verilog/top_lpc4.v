@@ -34,7 +34,7 @@ module top_lpc4 (
 				inout   [7:0]     tlx_afu_vc0_opcode_top,
 				inout  [15:0]     tlx_afu_vc0_afutag_top,
 				inout  [15:0]     tlx_afu_vc0_capptag_top,
-				inout  [51:0]     tlx_afu_vc0_pa_or_ta_top,	// Address 63:12
+				inout  [63:0]     tlx_afu_vc0_pa_or_ta_top,	// Address 63:12
 				inout   [1:0]     tlx_afu_vc0_dl_top,
 				inout   [1:0]     tlx_afu_vc0_dp_top,
 				inout             tlx_afu_vc0_ef_top,
@@ -181,13 +181,13 @@ module top_lpc4 (
 				input  [15:0]	  afu_tlx_vc3_bdf_top,
 				input   [7:0]	  afu_tlx_vc3_mad_top,
 				input  [15:0]	  afu_tlx_vc3_capptag_top,
-				input   [7:0]	  afu_tlx_vc3_resp_code_top,
+				input   [3:0]	  afu_tlx_vc3_resp_code_top,
 				input             afu_tlx_dcp3_data_valid_top,
 				input [511:0]     afu_tlx_dcp3_data_bus_top,
 				input             afu_tlx_dcp3_data_bdi_top
                                        );
 
-   parameter RESET_CYCLES = 9;
+   parameter RESET_CYCLES = 18;
    reg             tlx_clock;
    reg             afu_clock;
    reg             reset;
@@ -198,7 +198,7 @@ module top_lpc4 (
    reg   [7:0]     tlx_afu_vc0_opcode_top;
    reg  [15:0]     tlx_afu_vc0_afutag_top;
    reg  [15:0]     tlx_afu_vc0_capptag_top;
-   reg  [51:0]     tlx_afu_vc0_pa_or_ta_top;	// Address 63:12
+   reg  [63:0]     tlx_afu_vc0_pa_or_ta_top;	// Address 63:12
    reg   [1:0]     tlx_afu_vc0_dl_top;
    reg   [1:0]     tlx_afu_vc0_dp_top;
    reg             tlx_afu_vc0_ef_top;
@@ -235,17 +235,14 @@ module top_lpc4 (
    reg   [7:0]     tlx_afu_vc1_mad_top;
 
 //	Table 5: TLX to AFU Response Data Interface
-   wire             tlx_afu_resp_data_valid_top;
    wire [511:0]     tlx_afu_resp_data_bus_top;
    wire             tlx_afu_resp_data_bdi_top;
 
 //	Table 5: TLX to AFU Response Data Interface delays
-   reg             tlx_afu_resp_data_valid_dly1;
    reg [511:0]     tlx_afu_resp_data_bus_dly1;
    reg             tlx_afu_resp_data_bdi_dly1;
 
 //	Table 5: TLX to AFU Response Data Interface delays
-   reg             tlx_afu_resp_data_valid_dly2;
    reg [511:0]     tlx_afu_resp_data_bus_dly2;
    reg             tlx_afu_resp_data_bdi_dly2;
 
@@ -386,37 +383,35 @@ module top_lpc4 (
    reg  [15:0]	  afu_tlx_vc3_bdf_top;
    reg   [7:0]	  afu_tlx_vc3_mad_top;
    reg  [15:0]	  afu_tlx_vc3_capptag_top;
-   reg   [7:0]	  afu_tlx_vc3_resp_code_top;
+   reg   [3:0]	  afu_tlx_vc3_resp_code_top;
    reg            afu_tlx_dcp3_data_valid_top;
    reg [511:0]    afu_tlx_dcp3_data_bus_top;
    reg            afu_tlx_dcp3_data_bdi_top;
 
  // Wires for AFU o/p
 //	Table 2: TLX Response Credit Interface
-   wire	[6:0]		afu_tlx_resp_initial_credit               ;
+   //wire	[6:0]		afu_tlx_resp_initial_credit               ;
 
 // Other wires
    wire            reset_n;
 
 //	Table 5: TLX to AFU Response Data Interface
-   reg             tlx_afu_resp_data_valid;
    reg [511:0]     tlx_afu_resp_data_bus;
    reg             tlx_afu_resp_data_bdi;
 
 //	Table 6: TLX to AFU Command Data Interface
-   wire             tlx_afu_cmd_data_valid;
-   wire [511:0]     tlx_afu_cmd_data_bus;
-   wire             tlx_afu_cmd_data_bdi;
+   //wire             tlx_afu_cmd_data_valid;
+   //wire [511:0]     tlx_afu_cmd_data_bus;
+   //wire             tlx_afu_cmd_data_bdi;
 
 //	Table 7: TLX Framer credit interface
-   wire             tlx_afu_resp_credit;
-   wire             tlx_afu_resp_data_credit;
-   wire             tlx_afu_cmd_credit;
-   wire             tlx_afu_cmd_data_credit;
-   wire [3:0]       tlx_afu_cmd_initial_credit;
-   wire [3:0]       tlx_afu_resp_initial_credit;
-   wire [5:0]       tlx_afu_cmd_data_initial_credit;
-   wire [5:0]       tlx_afu_resp_data_initial_credit;
+   //wire             tlx_afu_resp_credit;
+   //wire             tlx_afu_resp_data_credit;
+   //wire             tlx_afu_cmd_credit;
+   //wire             tlx_afu_cmd_data_credit;
+   //wire [3:0]       tlx_afu_cmd_initial_credit;
+   //wire [5:0]       tlx_afu_cmd_data_initial_credit;
+   //wire [5:0]       tlx_afu_resp_data_initial_credit;
 
    wire      [4:0]  ro_device;
    wire     [31:0] ro_dlx0_version ;                     // -- Connect to DLX output at next level, or tie off to all 0s
@@ -429,7 +424,7 @@ module top_lpc4 (
    wire   [7:0] tlx_afu_vc0_opcode               ;
    wire  [15:0] tlx_afu_vc0_afutag               ;
    wire  [15:0] tlx_afu_vc0_capptag              ;
-   wire [63:12] tlx_afu_vc0_pa_or_ta             ;
+   wire [63:0] tlx_afu_vc0_pa_or_ta             ;
    wire   [1:0] tlx_afu_vc0_dl                   ;
    wire   [1:0] tlx_afu_vc0_dp                   ;
    wire         tlx_afu_vc0_ef                   ;
@@ -541,7 +536,7 @@ module top_lpc4 (
    wire [ 15:0]    afu_tlx_vc3_bdf                  ;
    wire [  7:0]    afu_tlx_vc3_mad                  ;
    wire [ 15:0]    afu_tlx_vc3_capptag                  ;
-   wire [  7:0]    afu_tlx_vc3_resp_code                  ;
+   wire [  3:0]    afu_tlx_vc3_resp_code                  ;
         // --- DCP3 interface from AFU [AP Command Data from AFU to Host - original cmds]
    wire [  5:0]    tlx_afu_dcp3_initial_credit      ;
    wire            tlx_afu_dcp3_credit              ;
@@ -646,7 +641,7 @@ initial begin
      tlx_afu_vc0_opcode_top			<= 8'b0;
      tlx_afu_vc0_afutag_top			<= 16'b0;
      tlx_afu_vc0_capptag_top			<= 16'b0;
-     tlx_afu_vc0_pa_or_ta_top			<= 52'b0;
+     tlx_afu_vc0_pa_or_ta_top			<= 64'b0;
      tlx_afu_vc0_dl_top			<= 2'b0;
      tlx_afu_vc0_dp_top			<= 2'b0;
      tlx_afu_vc0_ef_top			<= 0;
@@ -748,14 +743,15 @@ end
   end
 
   always @ ( tlx_clock ) begin
-    if(resetCnt < 30)
+    if(resetCnt < 40)
       resetCnt = resetCnt + 1;
     else
       i = 1;
   end
 
   always @ ( tlx_clock ) begin
-    if(resetCnt == RESET_CYCLES + 2)
+    // if(resetCnt == RESET_CYCLES + 2)
+    if(resetCnt == RESET_CYCLES)
       #0 tlx_bfm_init();
   end
 
@@ -835,8 +831,8 @@ end
    afu_tlx_vc3_pasid_top		<= afu_tlx_vc3_pasid;
    afu_tlx_vc3_bdf_top			<= afu_tlx_vc3_bdf;
    afu_tlx_vc3_mad_top			<= afu_tlx_vc3_mad;
-   afu_tlx_vc3_capptag_top		<= 16'b0;	// lpc4 design still does not have this
-   afu_tlx_vc3_resp_code_top		<= 8'b0;	// lpc4 design still does not have this
+   afu_tlx_vc3_capptag_top		<= afu_tlx_vc3_capptag;
+   afu_tlx_vc3_resp_code_top		<= afu_tlx_vc3_resp_code;
    afu_tlx_dcp3_data_valid_top		<= afu_tlx_dcp3_data_valid;
    afu_tlx_dcp3_data_bus_top		<= afu_tlx_dcp3_data_bus;
    afu_tlx_dcp3_data_bdi_top		<= afu_tlx_dcp3_data_bdi;
@@ -911,7 +907,6 @@ end
    assign tlx_afu_dcp3_credit           = tlx_afu_dcp3_credit_top;
 
    always @( negedge tlx_clock ) begin
-      tlx_afu_resp_data_valid		<= tlx_afu_resp_data_valid_dly1;
       tlx_afu_resp_data_bus		<= tlx_afu_resp_data_bus_dly1;
       tlx_afu_resp_data_bdi		<= tlx_afu_resp_data_bdi_dly1;
    end
@@ -927,7 +922,7 @@ end
     assign 	tlx_afu_cmd_credit			= tlx_afu_cmd_credit_top;
     assign 	tlx_afu_cmd_data_credit			= tlx_afu_cmd_data_credit_top;
     assign 	tlx_afu_cmd_initial_credit		= tlx_afu_cmd_resp_initial_credit_top;
-    assign 	tlx_afu_resp_initial_credit		= tlx_afu_data_initial_credit_top;
+    //assign 	tlx_afu_resp_initial_credit		= tlx_afu_data_initial_credit_top;
     assign 	tlx_afu_cmd_data_initial_credit		= tlx_afu_cmd_data_initial_credit_top;
     assign 	tlx_afu_resp_data_initial_credit	= tlx_afu_resp_data_initial_credit_top;
 
@@ -961,13 +956,11 @@ end
    // a block to delay the resp_data path 1 cycle
    // todo: variable number of cycles from 1 to n
    always @ ( negedge tlx_clock ) begin
-      tlx_afu_resp_data_valid_dly1 <= tlx_afu_dcp0_data_valid_top;	// DCP0 is the old Resp Data
       tlx_afu_resp_data_bus_dly1 <= tlx_afu_resp_data_bus_top;
       tlx_afu_resp_data_bdi_dly1 <= tlx_afu_resp_data_bdi_top;
    end
 
    always @ ( negedge tlx_clock ) begin
-      tlx_afu_resp_data_valid_dly2 <= tlx_afu_resp_data_valid_dly1;
       tlx_afu_resp_data_bus_dly2 <= tlx_afu_resp_data_bus_dly1;
       tlx_afu_resp_data_bdi_dly2 <= tlx_afu_resp_data_bdi_dly1;
    end
