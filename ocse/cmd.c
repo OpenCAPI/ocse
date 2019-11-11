@@ -1227,13 +1227,14 @@ void handle_vc3_cmd(struct cmd *cmd, uint32_t latency)
 // when get the data back from the host, we just send it with the response.
 // should we defer some of this to handle_response?  Or should we process
 // the data and response here and also free the event?
-void handle_buffer_write(struct cmd *cmd)
+void handle_buffer_write(struct ocl *ocl, struct cmd *cmd)
 {
 	struct cmd_event *event;
 	struct cmd_event *clist;
 	struct client *client;
 	uint8_t buffer[13];  // 1 message byte + 1 opcode byte (cachable only) + 2 size bytes + 8 address bytesa + 1 form_flag
 	uint64_t *addr;
+	uint32_t *host_tag;
 	uint16_t *size;
 	int m, n, clear;
 
@@ -1406,8 +1407,11 @@ void handle_buffer_write(struct cmd *cmd)
 			buffer[4] = event->form_flag;
 			addr = (uint64_t *) & (buffer[5]);
 			*addr = htonll(event->addr);
+			host_tag = (uint32_t *)&(buffer[13]);
+			*host_tag = htonl(ocl->next_host_tag);
+			ocl->next_host_tag += ( event->size / 64 );
 			event->abort = &(client->abort);
-			if (put_bytes(client->fd, 13, buffer, cmd->dbg_fp,
+			if (put_bytes(client->fd, 17, buffer, cmd->dbg_fp,
 				cmd->dbg_id, event->context) < 0) {
 		        	client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 			}

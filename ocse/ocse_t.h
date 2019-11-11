@@ -367,6 +367,7 @@ struct ocl {
 	int attached_clients;
 	int timeout;
 	int has_been_reset;
+        int next_host_tag;
 };
 
 #endif				/* _OCSE_T_H_ */
