@@ -1232,7 +1232,7 @@ void handle_buffer_write(struct ocl *ocl, struct cmd *cmd)
 	struct cmd_event *event;
 	struct cmd_event *clist;
 	struct client *client;
-	uint8_t buffer[13];  // 1 message byte + 1 opcode byte (cachable only) + 2 size bytes + 8 address bytesa + 1 form_flag
+	uint8_t buffer[17];  // 1 message byte + 1 opcode byte (cachable only) + 2 size bytes + 1 form_flag + 8 address bytes + 4 host_tag bytes 
 	uint64_t *addr;
 	uint32_t *host_tag;
 	uint16_t *size;
@@ -2912,12 +2912,14 @@ static void _handle_cacheable_mem_read(struct ocl *ocl, struct cmd *cmd, struct 
         uint8_t cache_state;	
 
 
+	debug_msg("_handle_cacheable_mem_read:");
+
 	// this code assumes that libocxl will return regular ACK byte, followed by cache_state (byte),
 	// EF (byte), host_tag (4 bytes) and then data (either 64B or 128B?)
 	// buffer size = MAX_LINE_CHARS which is 1024 bytes.
 	// debug_msg("_handle_cacheable_mem_read: CMD_CACHE_RD" );
 	// Client is successfully returning data from cacheable memory read, libocxl
-	if (get_bytes_silent(fd, sizeof( cache_state ), &cache_state, cmd->parms->timeout, cmd_event->abort) < 0) {
+	if ( get_bytes_silent( fd, sizeof( cache_state ), &cache_state, cmd->parms->timeout, cmd_event->abort ) < 0) {
 	        debug_msg("_handle_cacheable_mem_read: %s: failed to get cache_state afutag=0x%04x size=%d ",
 			  cmd->afu_name, cmd_event->afutag, cmd_event->size);
 		cmd_event->state = MEM_DONE;
@@ -3037,9 +3039,17 @@ void handle_ca_mem_return( struct ocl *ocl, struct cmd *cmd, struct cmd_event *c
 
 	debug_msg( "handle_ca_mem_return:" );
 
-	// Test for client disconnect
-	if ( ( cmd_event == NULL ) || ( ( client = _get_client( cmd, cmd_event ) ) == NULL ) )
+	// Test for valid cmd
+	if ( cmd_event == NULL ) {
+	        debug_msg("handle_ca_mem_return: %s: invalid command event=0x%016"PRIx64, cmd->afu_name, cmd_event );
 		return;
+	}
+
+	// Test for client disconnect
+	if ( ( client = _get_client( cmd, cmd_event ) ) == NULL ) {
+	        debug_msg("handle_ca_mem_return: %s: client invalid, likely disconnected", cmd->afu_name );
+		return;
+	}
 
 	debug_msg("handle_ca_mem_return:%s:MEMORY ACK afutag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
 		  cmd_event->afutag, cmd_event->addr);

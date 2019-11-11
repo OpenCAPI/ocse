@@ -544,8 +544,7 @@ static ocxl_cache_proxy *_cache( struct ocxl_afu *afu, uint8_t op_code, uint64_t
 		this_line->size = size;
 	        this_line->cache_state = 0x0; // initially invalid
 		this_line->host_tag = ocxl_next_host_tag;
-		ocxl_next_host_tag = ocxl_next_host_tag + (size/64); 
-		// might need to send next host tag from ocse so that it is unique between hosts
+		// ocxl_next_host_tag = ocxl_next_host_tag + (size/64); 
 	}
 
 	// check the state of the line
