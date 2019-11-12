@@ -704,6 +704,7 @@ AFU::resolve_tlx_afu_cmd()
 	    tlx_pr_wr_mem();
 	    break;
 	case TLX_CMD_FORCE_EVICT:
+      info_msg("AFU: tlx force evict command");
 //	case TLX_CMD_FORCE_UR:
 //	case TLX_CMD_WAKE_AFU_THREAD:
 	    break;
@@ -783,6 +784,8 @@ AFU::resolve_tlx_afu_resp()
         current.push_back(afu_cmd);
         cache.Write(dcache, (uint32_t)afu_cmd.address, (char*)memory);
         cache.Print(dcache);
+        cache_ready = 0;
+        read_resp_completed = 1;
       }
 	  	
 		}

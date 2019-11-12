@@ -91,11 +91,11 @@ int main(int argc, char *argv[])
   init_machine(&machine_config);
 
   // align and randomize cacheline
-  if (posix_memalign((void**)&rcacheline, CACHELINE, CACHELINE) != 0) {
+  if (posix_memalign((void**)&rcacheline, 0x10000, CACHELINE) != 0) {
 	  perror("FAILED: posix_memalign for rcacheline");
 	  goto done;
   }
-  if (posix_memalign((void**)&wcacheline, CACHELINE, CACHELINE) != 0) {
+  if (posix_memalign((void**)&wcacheline, 0x10000, CACHELINE) != 0) {
 	  perror("FAILED: posix_memalign for wcacheline");
 	  goto done;
   }
