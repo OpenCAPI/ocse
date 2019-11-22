@@ -108,6 +108,22 @@ int Cache::Write(psCache pCache, int address, char* data)
   return 0;
 }
 
+void Cache::UpdateAttribute(psCache pCache, int address, int valid, int dirty) {
+  int index;
+  int tag;
+
+  index = (address & 0x00000FC0) >> 6;
+  tag = (address & 0xFFFFF000) >> 12;
+  if(pCache->ppBlock[index]->tag == tag) {
+    pCache->ppBlock[index]->valid = valid;
+    pCache->ppBlock[index]->dirty = dirty;
+  }
+  else {
+    printf("Cache: cache line does not exist.\n");
+  }
+  
+}
+
 void Cache::Print(psCache pCache)
 {
   int i;

@@ -41,6 +41,7 @@ class Cache
     psCache Create(int cache_size, int block_size, int write_policy);
     char* Read(psCache pCache, int address);
     int Write(psCache pCache, int address, char* data);
+    void UpdateAttribute(psCache pCache, int address, int valid, int dirty);
     void Print(psCache pCache);
     void Destroy(psCache pCache);
     ~Cache(); // desctructor

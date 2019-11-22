@@ -602,6 +602,15 @@ AFU::request_assign_actag()
 }
 
 void
+AFU::resp_command(uint16_t cmd, uint64_t address)
+{
+  //write command to mmio offset, data, size
+  descriptor.set_mmio_mem(8*0, (char*) cmd, 2);;
+  //write address config[2] to mmio
+  descriptor.set_mmio_mem(8*2, (char*) address, 8);
+}
+
+void
 AFU::resolve_tlx_vc2_cmd()
 {
 	uint8_t cmd_opcode;
@@ -779,7 +788,7 @@ AFU::resolve_tlx_afu_resp()
 				descriptor.set_mmio_mem(3*8, (char*)memory, 8);
 			}
       if(cache_ready) {
-        printf("AFU: write dataline to afu cache\n");
+        printf("AFU: write data line to afu cache\n");
         //store current afu cmd address 
         current.push_back(afu_cmd);
         cache.Write(dcache, (uint32_t)afu_cmd.address, (char*)memory);
@@ -807,6 +816,26 @@ AFU::resolve_tlx_afu_resp()
   }
 
   switch (tlx_resp_opcode) {
+    case TLX_CMD_FORCE_EVICT:
+      printf("AFU: received tlx force evict\n");
+      // search host tag in afu_cmd
+      // obtain address and dl and store them in vc2
+      // send castout cmd
+      for(int i=0; i<current.size(); i++){
+        if(current[i].host_tag == resp_host_tag) {
+          afu_event.afu_tlx_vc2_dl = resp_dl;
+          afu_event.afu_tlx_vc2_host_tag = resp_host_tag;
+          // set cache line to invalid 
+          cache.UpdateAttribute(dcache, current[i].address,
+            0, 0);
+          // set mmio for castout cmd 0x55
+          resp_command(0x55, current[i].address);
+          //set cmd_ready flag to send cmd on next clock cycle
+          cmd_ready = 1;
+          break;
+        }
+      }
+      break;
 		case TLX_RSP_NOP:
 	    break;
 		case TLX_RSP_RET_TLX_CREDITS:
@@ -857,10 +886,12 @@ AFU::resolve_tlx_afu_resp()
 	    break;
 		case TLX_RSP_CL_RD_RESP:  //vc0 and dcp0
       afu_cmd.afutag = resp_afutag;
+      afu_cmd.host_tag = resp_host_tag;
       printf("AFU: TLX_RSP_CL_RD_RESP\n");
       printf("AFU: afutag = 0x%x\n", resp_afutag);
       printf("AFU: resp_cache_state = 0x%x\n", resp_cache_state);
       printf("AFU: dl = 0x%x\n", resp_dl);
+      printf("AFU: host tag = 0x%x\n", resp_host_tag);
       //cache data, state, dl, dp, afutag
       //credit for both VC and DCP
       printf("AFU: cache dcp0 data read request\n");

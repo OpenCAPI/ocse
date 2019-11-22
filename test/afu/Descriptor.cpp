@@ -307,19 +307,21 @@ Descriptor::set_afu_desc_reg(uint32_t offset, uint32_t data)
 void
 Descriptor::set_mmio_mem(uint32_t offset, char *data, uint16_t size)
 {
-    uint8_t i;
-    debug_msg("Descriptor:set_mmio_mem");
-    if(offset > 0x4000) {
-	error_msg("Descriptor:set_mmio memory out of range");
-    }
-    //memcpy(&mmio[offset], &data, size);
-    for(i=0; i<size; i++)
-	mmio[offset+i] = data[i];
-    printf("MMIO offset = 0x%x data = 0x", offset);
-    for(i=0; i< size; i++)
-	printf("%02x", mmio[offset+i]);
-    printf("\n");
-    //debug_msg("Descriptor:set_mmio_mem: exit");
+  uint8_t i;
+  debug_msg("Descriptor:set_mmio_mem");
+  if(offset > 0x4000) {
+	  error_msg("Descriptor:set_mmio memory out of range");
+  }
+  //memcpy(&mmio[offset], &data, size);
+  for(i=0; i<size; i++)
+	  mmio[offset+i] = data[i];
+  
+  printf("MMIO offset = 0x%x data = 0x", offset);
+  
+  for(i=0; i< size; i++)
+	  printf("%02x", mmio[offset+i]);
+  
+  printf("\n");
 }
 
 void
