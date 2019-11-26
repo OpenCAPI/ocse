@@ -432,8 +432,8 @@ static void _add_fail(struct cmd *cmd, uint16_t actag, uint32_t afutag,
 		 resp, 0, 0, 0, 0, 0, resp_opcode, 0, 0);
 }
 
-// Check address alignment
-static int _aligned(uint64_t addr, uint32_t size)
+// Check command size
+static int _sized(uint64_t addr, uint32_t size)
 {
 	// Check valid size
         // that is, size must be a power of 2
@@ -441,14 +441,18 @@ static int _aligned(uint64_t addr, uint32_t size)
 		info_msg("WARNING: AFU issued command with invalid size %d", size);
 		return 2;
 	}
+	return 0;
+}
+
+// Check address alignment
+static int _aligned(uint64_t addr, uint32_t size)
+{
 	// Check aligned address
 	if (addr & (size - 1)) {
-		info_msg("WARNING: AFU issued command with unaligned address %016"
-			 PRIx64, addr);
+		info_msg("WARNING: AFU issued command with unaligned address %016"PRIx64, addr);
 		return 3;
 	}
-
-	return 1;
+	return 0;
 }
 
 
@@ -548,6 +552,54 @@ static void _assign_actag(struct cmd *cmd, uint16_t cmd_bdf, uint32_t cmd_pasid,
 }
 
 // Format and add memory read to command list
+static void _add_pr_read(struct cmd *cmd, uint16_t actag, uint16_t afutag,
+		      uint8_t cmd_opcode, uint8_t *cmd_ea_ta_or_obj, uint32_t size, uint8_t stream_id)
+{
+        int32_t context;
+        int64_t addr;
+	uint8_t form_flag;
+
+	debug_msg("_add_pr_read:entered" );
+        // convert 68 bit ea/obj to 64 bit addr
+        // for ap read commands, ea_or_obj is a 64 bit thing...
+        memcpy( (void *)&addr, (void *)&(cmd_ea_ta_or_obj[0]), sizeof(int64_t));
+
+	// Check command size and address
+ 	if (_sized(addr, size) == BAD_OPERAND_SIZE) {
+ 		_add_fail(cmd, actag, afutag, cmd_opcode, 0x09,TLX_RSP_READ_FAILED );
+ 		return;
+ 	}
+	
+	// partial reads and atomics have a address alignment expectation
+	if (_aligned(addr, size) == BAD_ADDR_OFFSET) { //invalid address alignment
+ 		_add_fail(cmd, actag, afutag, cmd_opcode,  0x0b, TLX_RSP_READ_FAILED);
+ 		return;
+	}
+
+        // convert actag to a context - search the client array contained in cmd for a client with matching actag
+	context = _find_client_by_actag(cmd, actag);
+
+	if (context == -1) {
+		debug_msg("_add_pr_read: INVALID CONTEXT! COMMAND WILL BE IGNORED actag received= 0x%x", actag);
+		return;
+	   }
+	debug_msg("_add_pr_read:calling _add_cmd context=%d; command=0x%02x; addr=0x%016"PRIx64"; size=0x%04x; afutag=0x%04x",
+		context, cmd_opcode, addr, size, afutag );
+	form_flag= 0;
+	if ((cmd_opcode & 0x80) == 0x80)
+		form_flag = form_flag | 0x80; //T form
+	if ((cmd_opcode & 0x4) == 0x4)
+		form_flag = form_flag | 0x4; //N form
+	if ((cmd_opcode & 0x1) == 0x1) { // why did this one instruction have to be different?
+	        form_flag = form_flag | 0x1;} //S form 
+
+	// Reads will be added to the list and will next be processed
+	// in the function handle_buffer_write()
+	_add_cmd(cmd, context, afutag, cmd_opcode, CMD_READ, addr, size,
+		 MEM_IDLE, TLX_RESPONSE_DONE, 0, 0, 0, 0, 0, TLX_RSP_READ_RESP, stream_id, form_flag);
+}
+
+// Format and add memory read to command list
 static void _add_read(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 		      uint8_t cmd_opcode, uint8_t *cmd_ea_ta_or_obj, uint32_t size, uint8_t stream_id)
 {
@@ -561,13 +613,20 @@ static void _add_read(struct cmd *cmd, uint16_t actag, uint16_t afutag,
         memcpy( (void *)&addr, (void *)&(cmd_ea_ta_or_obj[0]), sizeof(int64_t));
 
 	// Check command size and address
- 	if (_aligned(addr, size) == BAD_OPERAND_SIZE) {
+ 	if (_sized(addr, size) == BAD_OPERAND_SIZE) {
  		_add_fail(cmd, actag, afutag, cmd_opcode, 0x09,TLX_RSP_READ_FAILED );
  		return;
  	}
-	else if (_aligned(addr, size) == BAD_ADDR_OFFSET) { //invalid address alignment
- 		_add_fail(cmd, actag, afutag, cmd_opcode,  0x0b, TLX_RSP_READ_FAILED);
- 		return;
+	
+	// this needs to be more sophisticated
+	// other reads use unaligned addresses to denote the critial oct word which we do not support
+	// check alignment and debug/warn message that crit oct word request is ignored.
+	if ( _aligned(addr, size) == BAD_ADDR_OFFSET ) { //invalid address alignment
+	        debug_msg( "_add_read: critical oct word will be ignore 0x%016"PRIx64" => 0x%016"PRIx64,
+			   addr, addr & ~( (uint64_t)size - 1 ) );
+		addr = addr & ~( (uint64_t)size - 1 );
+ 		// _add_fail(cmd, actag, afutag, cmd_opcode,  0x0b, TLX_RSP_READ_FAILED);
+ 		// return;
 	}
 
         // convert actag to a context - search the client array contained in cmd for a client with matching actag
@@ -949,7 +1008,7 @@ static void _parse_vc3_cmd(struct cmd *cmd,
 		// calculate size from pl
 		if (cmd_data_is_valid)
 		    cmd->afu_event->afu_tlx_dcp3_data_valid = 1;
-		_add_read(cmd, cmd_actag, cmd_afutag, cmd_opcode,
+		_add_pr_read(cmd, cmd_actag, cmd_afutag, cmd_opcode,
 			 cmd_ea_ta_or_obj, pl_to_size( cmd_pl ), cmd_stream_id);
 		break;
 		// Memory Writes

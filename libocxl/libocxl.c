@@ -121,6 +121,8 @@ static void _cache_access( int sig, siginfo_t *si, void *unused )
 	//       cache proxy list has to be global
 	this_line = ocxl_cache_list;
 	while ( this_line != NULL ) {
+    	        printf( "_cache_addr: si_addr = 0x%016lx, masked by size-1 (0x%08x) = 0x%016lx, cached addr = 0x%016lx\n", 
+			(uint64_t)(si->si_addr), this_line->size-1, (uint64_t)(si->si_addr) & ~((uint64_t)(this_line->size) - 1), this_line->ea );
 	        if ( this_line->ea == ((uint64_t)(si->si_addr) & ~((uint64_t)this_line->size - 1)) ) {
 		        printf( "_cache_access: found address: 0x%016lx == 0x%016lx \n", 
 				this_line->ea, (uint64_t)(si->si_addr) & ~((uint64_t)this_line->size - 1) );
