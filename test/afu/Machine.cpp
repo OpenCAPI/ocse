@@ -214,6 +214,11 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
       command = new LoadCommand(command_code, command_address_parity,
         command_code_parity, command_tag_parity, buffer_read_parity);
       break;
+    case AFU_CMD_CASTOUT:
+      printf("Machine: castout 0x55\n");
+      command = new OtherCommand(command_code, command_address_parity,
+        command_code_parity, command_tag_parity, buffer_read_parity);
+      break;
     default:
       error_msg
         ("MachineController::Machine::read_machine_config(): command code 0x%x is currently not supported",

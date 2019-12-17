@@ -55,6 +55,8 @@ OtherCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     uint8_t  cmd_flag, cmd_endian, cmd_pg_size, cmd_resp_code;
     uint16_t  cmd_bdf, cmd_actag, cmd_afutag;
     uint16_t cmd_pasid, cmd_capptag;
+    uint32_t cmd_host_tag;
+    uint8_t cmd_cache_state;
     int  rc, i;
     uint8_t  cmd_os, cmd_mad, ea_addr[9];
     uint8_t  cdata_bus[64], cdata_bdi;
@@ -125,7 +127,16 @@ OtherCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
             cmd_actag, cmd_stream_id, ea_addr, cmd_afutag, cmd_dl, 
             cmd_pl, cmd_os, cmd_be, cmd_flag, cmd_endian, cmd_bdf, 
             cmd_pasid, cmd_pg_size, cmd_mad, cmd_capptag, cmd_resp_code);
-        break;    
+        break;   
+    case AFU_CMD_CASTOUT:
+      cmd_dl = afu_event->afu_tlx_vc2_dl;
+      cmd_host_tag = afu_event->afu_tlx_vc2_host_tag;
+      cmd_cache_state = afu_event->afu_tlx_vc2_cache_state;
+      cmd_flag = afu_event->afu_tlx_vc2_cmdflg;
+      printf("Commands: sending castout.\n");
+      rc = afu_tlx_send_cmd_vc2(afu_event, Command::code, cmd_dl,
+        cmd_host_tag, cmd_cache_state, cmd_flag);
+      break; 
 	default:
 	    break;
     }

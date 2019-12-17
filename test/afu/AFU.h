@@ -41,6 +41,7 @@ typedef struct _AFU_CMD
   uint64_t  address;
   uint16_t  size;
   uint16_t  afutag;
+  uint32_t  host_tag;
 }AFU_CMD;
 
 //struct _AFU_CMD afu_cmd;
@@ -60,6 +61,7 @@ class AFU
         MachineController * >::iterator highest_priority_mc;
     std::vector<AFU_CMD> current;
     std::vector<uint64_t> t_address_v;
+
     MachineController *machine_controller;
     Cache   cache;
     AFU_State state;
@@ -113,6 +115,7 @@ class AFU
     bool get_mmio_read_parity ();
     bool set_jerror_not_run;
     void get_global_configs();
+    void resp_command(uint16_t cmd, uint64_t address);
 
 public:
     /* constructor sets up descriptor from config file, establishes server socket connection
