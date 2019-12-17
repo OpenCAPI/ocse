@@ -875,7 +875,7 @@ static void _add_write(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 
 // Determine what type of vc1 or vc2 command to add to list
 static void _parse_vc1_vc2_cmd(	struct ocl *ocl, struct cmd *cmd, uint8_t cmd_opcode, uint8_t cmd_stream_id, uint8_t *cmd_pa,
-		       uint16_t cmd_afutag, uint8_t cmd_dl, uint8_t cmd_flag,uint32_t cmd_host_tag,
+		       uint16_t cmd_afutag, uint8_t cmd_dl, uint8_t cmd_flag, uint32_t cmd_host_tag,
 		       uint8_t cmd_cache_state, 
 		       uint8_t cmd_data_is_valid,
 		       uint8_t *cdata_bus, uint8_t cdata_bad)
@@ -915,11 +915,8 @@ static void _parse_vc1_vc2_cmd(	struct ocl *ocl, struct cmd *cmd, uint8_t cmd_op
 
 	case AFU_CMD_CASTOUT_PUSH:
 	        debug_msg("YES! AFU response is AFU_CMD_CASTOUT_PUSH and host_tag= 0x%04x", cmd_host_tag);
-		// convert 68 bit pa to 64 bit addr
-		memcpy( (void *)&addr, (void *)&(cmd_pa[0]), sizeof(int64_t));
-		
 		// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
-		_add_cmd(cmd, 0xca, cmd_afutag, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl ), MEM_IDLE, 
+		_add_cmd(cmd, context, 0, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl ), MEM_IDLE, 
 			 0, 0, 0, 0, cmd_flag, 0, cmd_host_tag, cmd_cache_state, 0);
 		break;
 	default:
@@ -1209,10 +1206,9 @@ void handle_vc2_cmd(struct ocl * ocl, struct cmd *cmd, uint32_t latency)
 	// Can no longer check for duplicate afutag (not used on vc2)
 	// Use cmd_pasid parm for cmd_host_tag; use cmd_pg_size for cmd_cache_state in _parse_cmd call
 
-	_parse_vc1_vc2_cmd( ocl, cmd, cmd_opcode, 0, 0, 0, cmd_dl,
+	_parse_vc1_vc2_cmd( ocl, cmd, cmd_opcode, 0, NULL, 0, cmd_dl,
 		   cmd_flag, cmd_host_tag, cmd_cache_state, cmd_data_is_valid, dptr, cdata_bad);
 }
-
 
 
 // See if a vc3 command was sent by AFU and process if so
@@ -1996,8 +1992,9 @@ void handle_xlate_intrp_pending_sent(struct cmd *cmd)
 	        debug_msg("%s:handle xlate_intrp_pending_sent: SELECTED A PENDING XLATE_TOUCH OP command= 0x%02x, addr=0x%016"PRIx64, cmd->afu_name, event->command, event->addr);
 		int allow;
 		allow = allow_pending_kill_xlate( cmd->parms );
-	        debug_msg("%s:handle xlate_intrp_pending_sent: ALLOW KILL = 0x%02x", cmd->afu_name, allow );
-	        if ( allow == 1 ) {
+		allow = 0; // remove this later to figure out the kill_xlate problem
+	        debug_msg("%s:handle xlate_intrp_pending_sent: ALLOW KILL = 0x%02x, cmd_flag=0x%01x", cmd->afu_name, allow, event->cmd_flag );
+	        if ( ( allow == 1 ) && ( ( event->cmd_flag & 0x08 ) == 0x08 ) ) {
 		        debug_msg( "%s:handle_xlate_intrp_pending_sent: XLATE_KILL the address for this cmd =0x%x \n", cmd->afu_name, event->command );
 			// create the mmio event for a kill_xlate command, but point to a NULL client
 			mmio_event = add_kill_xlate_event( cmd->mmio, NULL, event->addr & (~(uint64_t)0 << 0x10), 0x10, 0, client->bdf, client->pasid );
@@ -2027,8 +2024,7 @@ void handle_xlate_intrp_pending_sent(struct cmd *cmd)
 	else
 		cmd_to_send = TLX_CMD_XLATE_DONE;
 
-	// These POSTED cmds get sent back over vx0 (resp channel).
-	// TODO why are we using fixed value 0xefac for afutag?
+	// These POSTED cmds get sent back over vc0 (resp channel).
 	if (tlx_afu_send_resp_cmd_vc0( cmd->afu_event,
 				       cmd_to_send, event->afutag, event->resp,0,0,0,0,0,0,0,0,0,0) == TLX_SUCCESS) {
 	        debug_msg("%s:handle_xlate_intrp_pending_sent: CMD event @ 0x%016" PRIx64 ", sent tag=0x%02x code=0x%x cmd=0x%x", cmd->afu_name,
@@ -2168,11 +2164,8 @@ void handle_upgrade_state(struct cmd *cmd)
 {
 	struct cmd_event *event;
 	struct client *client;
-	uint8_t *data;
 	uint16_t *size;
-	uint32_t *host_tag;
 	uint8_t *buffer;
-	int bufsiz;
 	uint64_t *addr;
 
 	// Make sure cmd structure is valid
@@ -2207,53 +2200,6 @@ void handle_upgrade_state(struct cmd *cmd)
 		return;
 	}
 
-	if ((event->command == AFU_CMD_CASTOUT) || (event->command == AFU_CMD_CASTOUT_PUSH)) {
- 	        // There may be a force_evict in the mmio list that is the cause of this castout
-	        // 
-	        // these are posted cmds, so just send the info to libocxl, set state to MEM_DONE and set form_flag to indicated posted
-	        // castout has cmd_flag and castout_push doesn't so send 0 for that field for castout_push
-	        buffer = (uint8_t *)malloc(10 + event->size);
-		bufsiz = 0;
-		buffer[bufsiz] = (uint8_t)OCSE_CASTOUT;
-		bufsiz = bufsiz + sizeof( uint8_t );
-
-		buffer[bufsiz] = event->command;
-		bufsiz = bufsiz + sizeof( uint8_t );
-		
-		buffer[bufsiz] = event->cmd_flag;
-		bufsiz = bufsiz + sizeof( uint8_t );
-		
-		host_tag = (uint32_t *)&(buffer[bufsiz]);
-		*host_tag = htonl(event->host_tag);
-		bufsiz = bufsiz + sizeof( uint32_t );
-
-		buffer[bufsiz] = event->cache_state;
-		bufsiz = bufsiz + sizeof( uint8_t );
-
-		size = (uint16_t *)&(buffer[bufsiz]);
-		*size = htons(event->size);
-		bufsiz = bufsiz + sizeof( uint16_t );
-
-		if ( event->command == AFU_CMD_CASTOUT_PUSH ) {
-		  data = &(buffer[bufsiz]);
-		  memcpy( data, event->data, event->size );
-		  bufsiz = bufsiz + event->size;
-		}
-		debug_msg("%s:CASTOUT or CASTOUT PUSH  cmd_flag=0x%x cmd=0x%x host_tag=0x%04x", cmd->afu_name,
-			  event->cmd_flag, event->command, event->host_tag);
-		if (put_bytes(client->fd, bufsiz, buffer, cmd->dbg_fp, cmd->dbg_id, event->context) < 0) {
-			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
-		}
-		free( buffer );
-
-		//these are posted, so no need to tie up memory interface (TODO - correct??)
-		event->form_flag = 0x2;  //do this so handle_response knows it a posted cmd
-		event->state = MEM_DONE;
-		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
-		debug_msg("exiting handle upgrade_state_or_castout after sending castout msg to client");
-		return;
-	}
-
 	// it must be an upgrade_state[.t]
 
 	// Check to see if this cmd gets selected for a RETRY or PENDING read_failed response
@@ -2284,6 +2230,7 @@ void handle_upgrade_state(struct cmd *cmd)
 void handle_castout(struct cmd *cmd, struct mmio *mmio)
 {
 	struct cmd_event *event;
+	struct mmio_event *this_mmio;
 	struct client *client;
 	uint8_t *data;
 	uint16_t *size;
@@ -2372,6 +2319,17 @@ void handle_castout(struct cmd *cmd, struct mmio *mmio)
 		}
 		free( buffer );
 
+		// need to remove force_evict from mmio list if it matches host_tag
+		// if client->mmio_access matches host_tag then this castout is a response to the force_evict - remove the force_evict mmio
+		if (client->mmio_access != NULL) {
+		        this_mmio = (struct mmio_event  *)client->mmio_access;
+			debug_msg( "handle_castout: mmio event @ 0x%016llx, cmd_opcode=0x%02x, cmd_CAPPtag=0x04x host_tag=0x%06x, castout host tag=0x%06x", 
+				   this_mmio, this_mmio->cmd_opcode, this_mmio->cmd_CAPPtag, this_mmio->cmd_host_tag, event->host_tag  );
+			if (event->host_tag == this_mmio->cmd_host_tag) {
+			        // remove it by setting it to done
+			        this_mmio->state = OCSE_DONE;
+			}
+		}
 		//these are posted, so no need to tie up memory interface (TODO - correct??)
 		event->form_flag = 0x2;  //do this so handle_response knows it a posted cmd
 		event->state = MEM_DONE;
@@ -2947,6 +2905,7 @@ static void _update_host_tag( struct ocl *ocl, struct cmd_event *cmd_event )
       fatal_msg( "_update_host_tag_list: we didn't expect to match host_tags in this routine" );
       return;
     }
+    this_host_tag = this_host_tag->_next;
   }
 
   // this_host_tag should be NULL

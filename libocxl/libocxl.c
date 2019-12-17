@@ -513,7 +513,7 @@ static struct ocxl_cache_proxy *_is_cached( struct ocxl_afu *afu, uint64_t addr 
 	this_line = ocxl_cache_list;
 	while (this_line != NULL) {
 	        // if the address matches
-	        if ( this_line->ea == addr ) {
+	        if ( this_line->ea == ( addr & ~((uint64_t)(this_line->size) - 1) ) ) {
 		        return this_line;
 		}
 		this_line = this_line->_next;
@@ -1144,6 +1144,7 @@ static int _allow_kill_xlate( uint8_t *cmd_flag )
     }
   } 
 
+  allow_kill = 0; // remove this later
   return allow_kill;
 }
 
@@ -1324,7 +1325,7 @@ static void _handle_kill_xlate( struct ocxl_afu *afu )
 		afu->attached = 0;
 		debug_msg( "KILL XLATE socket failure" );
 	}
-	debug_msg( "KILL_XLATE addr @ 0x%016" PRIx64 ", cmd_flag %d, pg_size %d, bdf %d, pasid %d", ntohll( ea ), cmd_flag, pg_size, ntohs(bdf), ntohl(pasid) );
+	debug_msg( "_handle_kill_xlate: KILL_XLATE addr @ 0x%016" PRIx64 ", cmd_flag %d, pg_size %d, bdf %d, pasid %d", ntohll( ea ), cmd_flag, pg_size, ntohs(bdf), ntohl(pasid) );
 }
 
 static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
@@ -1421,18 +1422,21 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 	        // if function code is request a ta 
 	        // add a reason code to the fail message
 	        if (!_testmemaddr((uint8_t *) addr)) {
-		        if (_handle_dsi(afu, addr) < 0) {
-			        perror("DSI Failure");
+		        // if it is not something we cached, continue down this error checking path
+		        if ( _is_cached( afu, addr ) == NULL ) {
+			        if (_handle_dsi(afu, addr) < 0) {
+				        perror("DSI Failure");
+					return;
+				}
+				warn_msg("TOUCH of invalid addr @ 0x%016" PRIx64 "", addr);
+				buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
+				buffer[1] = 0xc;
+				if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
+				        afu->opened = 0;
+					afu->attached = 0;
+				}
 				return;
-			}
-			warn_msg("TOUCH of invalid addr @ 0x%016" PRIx64 "", addr);
-			buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
-			buffer[1] = 0xc;
-			if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
-			  afu->opened = 0;
-			  afu->attached = 0;
-			}
-			return;
+		        }
 		}
 
 	        if ( (cmd_flag & 0x08 ) == 0x08 ) {

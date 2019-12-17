@@ -1854,6 +1854,13 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 		return this_event;
 
 	// we are assuming that host commands complete (become DONE) in order...
+	struct mmio_event *list_event;
+	debug_msg( "handle_mmio_done: mmio done @ 0x%016llx, remove from:", this_event);
+	list_event = mmio->list;
+	while (list_event != NULL) {
+	  debug_msg( "handle_mmio_done:      mmio @ 0x%016llx, _next @ 0x%016llx", list_event, list_event->_next );
+	  list_event = list_event->_next;
+	}
 
 	// if AFU sent a mem_rd_fail or mem_wr_fail response, send them on to libocxl so it can interpret the resp_code
 	// and retry if needed, or fail simulation 
@@ -1913,6 +1920,9 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 		        client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		}
 		debug_msg("handle_mmio_done: KILL XLATE DONE SENT to HOST!!!!");
+	} else if (this_event->cmd_opcode == OCSE_FORCE_EVICT) {
+	        // no response necessary, a castout is now in flight to finish the evict
+		debug_msg("handle_mmio_done: FORCE_EVICT being completed by CASTOUT!!!!");
 	} else if ((this_event->cmd_opcode == OCSE_DISABLE_CACHE) || (this_event->cmd_opcode == OCSE_ENABLE_CACHE)
 			|| (this_event->cmd_opcode == OCSE_DISABLE_ATC) || (this_event->cmd_opcode == OCSE_ENABLE_ATC)) {
 		buffer = (uint8_t *) malloc(5);
@@ -1939,7 +1949,7 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 	// locate the pointer to this event in mmio->list and adjust the pointer to this events _next
 	if (mmio->list != NULL) {
 	  if (mmio->list == this_event) {
-	    // event is the first in the list, update mmio_list to point to event->_next
+	    // event is the first in the list, update mmio->list to point to this_event->_next
 	    mmio->list = this_event->_next;
 	  } else {
 	    //scan list for this event, and update the prev event _next pointer to skip this event
@@ -1955,6 +1965,7 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 	}
 	
 	// free this_event and buffer
+	debug_msg( "handle_mmio_done: completed mmio @ 0x%016llx", this_event );
 	free(this_event);
 	free(buffer);
 
@@ -2461,7 +2472,9 @@ struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
  struct mmio_event *handle_force_evict(struct mmio *mmio, struct client *client) 
  { 
  	struct mmio_event *event; 
- 	struct mmio_event **list; 
+ 	struct mmio_event *last_mmio; 
+	struct mmio_event *this_mmio;
+ 	// struct mmio_event **list; 
  	uint32_t host_tag; 
  	uint16_t size; 
  	int fd = client->fd; 
@@ -2518,12 +2531,25 @@ struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
 
  	event->state = OCSE_IDLE; 
  	event->_next = NULL;
- 	debug_msg("handle_force_evict: cmd_opcode=0x%x, host_tag=%d, size=%d", event->cmd_opcode,  event->cmd_host_tag, event->size ); 
- 		// Add to end of list 
- 	list = &(mmio->list); 
- 	while (*list != NULL) 
- 		list = &((*list)->_next); 
- 	*list = event; 
+ 	debug_msg("handle_force_evict: new mmio event @ 0x%016llx, cmd_opcode=0x%02x, host_tag=0x%06x, size=%d", event, event->cmd_opcode, event->cmd_host_tag, event->size ); 
+
+	// Add to end of list
+	last_mmio = NULL;
+	this_mmio = mmio->list;
+	
+	while ( this_mmio != NULL ) {
+	        debug_msg( "handle_force_evict: mmio event @ 0x%016llx, cmd_opcode=0x%02x, cmd_CAPPtag=0x%04x host_tag=0x%06x", 
+			   this_mmio, this_mmio->cmd_opcode, this_mmio->cmd_CAPPtag, this_mmio->cmd_host_tag );
+		last_mmio = this_mmio;
+		this_mmio = this_mmio->_next; 
+	}
+	if (last_mmio == NULL) {
+	  mmio->list = event;
+	} else {
+	  last_mmio->_next = event;
+	}
+	debug_msg( "handle_force_evict: mmio event @ 0x%016llx, cmd_opcode=0x%02x, cmd_CAPPtag=0x04x host_tag=0x%06x", 
+		   event, event->cmd_opcode, event->cmd_CAPPtag, event->cmd_host_tag );
  	debug_mmio_add(mmio->dbg_fp, mmio->dbg_id, client->context, 0, event->cmd_host_tag,  event->cmd_ea); 
 
  	return event; 

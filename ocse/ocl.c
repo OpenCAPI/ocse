@@ -77,7 +77,7 @@ static void _attach(struct ocl *ocl, struct client *client)
 	 }
 	ocl->attached_clients++;
 	ocl->state = OCSE_RUNNING;
-	info_msg( "Attached client context %d: current attached clients = %d\n", client->context, ocl->attached_clients );
+	info_msg( "Attached client context %d: current attached clients = %d", client->context, ocl->attached_clients );
 
 
  	//attach_done:
@@ -165,7 +165,7 @@ static void _handle_afu(struct ocl *ocl)
 		handle_touch(ocl->cmd);
 		handle_interrupt(ocl->cmd);
 		handle_write_be_or_amo(ocl->cmd);
-		handle_upgrade_state(ocl->cmd);
+		// handle_upgrade_state(ocl->cmd);
 		handle_castout(ocl->cmd, ocl->mmio);  // there may be a force evict in the mmio list to be removed
 	}
 }
@@ -234,61 +234,77 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 			global = 1;
 			dw = 1;
 			mmio = handle_mmio(ocl->mmio, client, 0, dw, global);
+			debug_msg( "_handle_client: new mmio event @ 0x%016llx", mmio ); 
 			break;
 		case OCSE_MMIO_WRITE64:
 			dw = 1;
 			mmio = handle_mmio(ocl->mmio, client, 0, dw, global);
+			debug_msg( "_handle_client: new mmio event @ 0x%016llx", mmio ); 
 			break;
 		case OCSE_GLOBAL_MMIO_WRITE32:
 			global = 1;
 			mmio = handle_mmio(ocl->mmio, client, 0, dw, global);
+			debug_msg( "_handle_client: new mmio event @ 0x%016llx", mmio ); 
 			break;
 		case OCSE_MMIO_WRITE32:
 			mmio = handle_mmio(ocl->mmio, client, 0, dw, global);
+			debug_msg( "_handle_client: new mmio event @ 0x%016llx", mmio ); 
 			break;
 		case OCSE_GLOBAL_MMIO_READ64:
 			global = 1;
 			dw = 1;
 			mmio = handle_mmio(ocl->mmio, client, 1, dw, global);
+			debug_msg( "_handle_client: new mmio event @ 0x%016llx", mmio ); 
 			break;
 		case OCSE_MMIO_READ64:
 			dw = 1;
 			mmio = handle_mmio(ocl->mmio, client, 1, dw, global);
+			debug_msg( "_handle_client: new mmio event @ 0x%016llx", mmio ); 
 			break;
 		case OCSE_GLOBAL_MMIO_READ32:
 			global = 1;
 			mmio = handle_mmio(ocl->mmio, client, 1, dw, global);
+			debug_msg( "_handle_client: new mmio event @ 0x%016llx", mmio ); 
 			break;
 		case OCSE_MMIO_READ32:
 			mmio = handle_mmio(ocl->mmio, client, 1, dw, global);
+			debug_msg( "_handle_client: new mmio event @ 0x%016llx", mmio ); 
 			break;
 		case OCSE_LPC_WRITE:
-		  mmio = handle_mem(ocl->mmio, client, 0, region, 0);
+		        mmio = handle_mem(ocl->mmio, client, 0, region, 0);
+			debug_msg( "_handle_client: new MEM mmio event @ 0x%016llx", mmio ); 
 			break;
 		case OCSE_LPC_WRITE_BE:
-		  mmio = handle_mem(ocl->mmio, client, 0, region, 1);
+		        mmio = handle_mem(ocl->mmio, client, 0, region, 1);
+			debug_msg( "_handle_client: new MEM mmio event @ 0x%016llx", mmio ); 
 			break;
 		case OCSE_LPC_READ:
-		  mmio = handle_mem(ocl->mmio, client, 1, region, 0);
+		        mmio = handle_mem(ocl->mmio, client, 1, region, 0);
+			debug_msg( "_handle_client: new MEM mmio event @ 0x%016llx", mmio ); 
 			break;
 		case OCSE_AFU_AMO_RD:
 		case OCSE_AFU_AMO_RW:
-		  mmio = handle_afu_amo(ocl->mmio, client, 1, region, buffer[0]);
+		        mmio = handle_afu_amo(ocl->mmio, client, 1, region, buffer[0]);
+			debug_msg( "_handle_client: new AMO mmio event @ 0x%016llx", mmio ); 
 			break;
 		case OCSE_AFU_AMO_WR:
-		  mmio = handle_afu_amo(ocl->mmio, client, 0, region, buffer[0]);
+		        mmio = handle_afu_amo(ocl->mmio, client, 0, region, buffer[0]);
+			debug_msg( "_handle_client: new AMO mmio event @ 0x%016llx", mmio ); 
 			break;
 		case OCSE_KILL_XLATE:
-		  mmio = handle_kill_xlate(ocl->mmio, client);
+		        mmio = handle_kill_xlate(ocl->mmio, client);
+			debug_msg( "_handle_client: new KILL XLATE mmio event @ 0x%016llx", mmio ); 
 			break;
 		case OCSE_FORCE_EVICT:
-		  mmio = handle_force_evict(ocl->mmio, client);
+		        mmio = handle_force_evict(ocl->mmio, client);
+			debug_msg( "_handle_client: new FORCE EVICT mmio event @ 0x%016llx", mmio ); 
 			break;
 		case OCSE_ENABLE_ATC:
 		case OCSE_ENABLE_CACHE:
 		case OCSE_DISABLE_ATC:
 		case OCSE_DISABLE_CACHE:
-		  mmio = handle_capp_cache_cmd(ocl->mmio, client);
+		        mmio = handle_capp_cache_cmd(ocl->mmio, client);
+			debug_msg( "_handle_client: new CACHE mmio event @ 0x%016llx", mmio ); 
 			break;
 		default:
 		  error_msg("Unexpected 0x%02x from client on socket 0x%02x", buffer[0], client->fd);
@@ -298,7 +314,7 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 		        if ( client->mmio_access == NULL ) {
 			        client->mmio_access = (void *)mmio;
 			} else {
-			        debug_msg( "mmio access already in progress...  keeping the original access in place" );
+			        debug_msg( "_handle_client: mmio access already in progress...  keeping the original access in place" );
 			}
 		}
 
