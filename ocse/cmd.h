@@ -45,13 +45,14 @@ struct cmd *cmd_init(struct AFU_EVENT *afu_event, struct parms *parms,
 void handle_vc2_cmd(struct ocl *ocl, struct cmd *cmd,  uint32_t latency);
 void handle_vc3_cmd(struct cmd *cmd,  uint32_t latency);
 
+void handle_vc2_dcp2_data(struct cmd *cmd);
+void handle_vc3_dcp3_data(struct cmd *cmd);
+
 //void handle_buffer_data(struct cmd *cmd);
 
 void handle_mem_write(struct cmd *cmd);
 
 void handle_buffer_write(struct ocl *ocl, struct cmd *cmd);
-
-void handle_afu_tlx_cmd_data_read(struct cmd *cmd);
 
 void handle_afu_tlx_write_cmd(struct cmd *cmd);
 

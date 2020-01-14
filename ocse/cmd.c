@@ -203,6 +203,27 @@ static struct client *_get_client(struct cmd *cmd, struct cmd_event *event)
 	return cmd->client[event->context];
 }
 
+static int _incoming_vc2_data_expected(struct cmd *cmd)
+{
+	struct cmd_event *event;
+	event = cmd->list;
+	while (event != NULL) {
+		if ( ( event->type == CMD_CACHE ) &&
+		     ( event->state == MEM_BUFFER ) ) {
+			break;
+		}
+		event = event->_next;
+	}
+	if (event == NULL)  {
+		debug_msg("INCOMING_DATA_EXPECTED CHECK  and we found NO existing CMD CACHE in MEM_BUFFER state");
+		return 0;
+	} else {
+		debug_msg("INCOMING_DATA_EXPECTED CHECK  and we found a previous CMD CACHE IN MEM_BUFFER state");
+		return 1;
+	}
+
+}
+
 static int _incoming_data_expected(struct cmd *cmd)
 {
 	struct cmd_event *event;
@@ -223,6 +244,151 @@ static int _incoming_data_expected(struct cmd *cmd)
 	}
 
 }
+
+// Add new command to list
+static void _add_vc2_cmd(struct cmd *cmd, uint32_t context,
+			 uint32_t command, enum cmd_type type,
+			 uint64_t addr, uint16_t size, enum mem_state state,
+			 uint32_t resp, uint8_t unlock , uint8_t cmd_data_is_valid,
+			 uint8_t cmd_flag,
+			 uint32_t cmd_host_tag, uint8_t cmd_cache_state)
+
+{
+	int n;
+	uint16_t *qitem;
+	struct cmd_event **head;
+	struct cmd_event *event;
+	struct cmd_event *cmd_b4me;
+
+	if (cmd == NULL) return;
+
+	event = (struct cmd_event *)calloc(1, sizeof(struct cmd_event));
+
+	event->context = context;
+	event->command = command;
+	// event->afutag = afutag;
+	event->type = type;
+	event->addr = addr;
+	event->size = size;
+	event->state = state;
+	event->resp = resp;
+	//event->wr_be = wr_be;
+	event->cmd_flag = cmd_flag;
+	//event->cmd_endian = cmd_endian;
+	//event->cache_state = 0;
+	//event->resp_ef = 0;
+
+	event->host_tag = cmd_host_tag;
+	event->cache_state = cmd_cache_state;
+
+	//event->resp_opcode = resp_opcode;
+	//event->stream_id = stream_id;  //TODO figure out how to use it later.....
+	//event->form_flag = form_flag;
+
+	// if size = 0 it doesn't matter what we set, in this case, 1, otherwise find resp_dl from size but resp_dp always 0 
+	if (size <= 64)
+		event->resp_dl = 1;
+	else
+		event->resp_dl = size_to_dl(size);
+
+	event->resp_dp = 0;
+
+	event->unlock = unlock;
+
+	// make sure data buffer is big enough to hold "size" byts of data - max 256B (MAX memory transfer for OpenCAPI 3.0)
+	event->data = (uint8_t *)malloc( size );
+	memset( event->data, 0xFF, size );
+
+	event->resp_bytes_sent = 0;  //init this to 0 (used for split responses)
+
+	// Test for client disconnect
+	if (_get_client(cmd, event) == NULL) {
+	        debug_msg( "_add_vc2_cmd: client not found for cmd_event @ 0x%016"PRIx64": command=0x%02x, context=0x%02x",
+			   event, event->command, event->context );
+		event->resp = TLX_RESPONSE_FAILED;
+		event->state = MEM_DONE;
+	}
+
+	head = &(cmd->list);
+	event->service_q_slot=1;
+	event->sync_b4me = 0; // always assume there is not a SYNC in the queue, then check later
+	cmd_b4me = NULL;
+
+	if (*head == NULL) printf ("_add_vc2_cmd: FOUND THE FIRST CMD; START COUNTING NOW");
+	while (*head != NULL) {
+		cmd_b4me = *head;
+		head = &((*head)->_next);
+		event->service_q_slot +=1;
+	}
+	event->_next = *head;
+	event->_prev = cmd_b4me;
+	*head = event;
+	debug_msg("_add_vc2_cmd:created cmd_event @ 0x%016"PRIx64":command=0x%02x, size=0x%04x, type=0x%02x, state=0x%03x cmd_data_is_valid=0x%x, service_q_slot=0x%x, cmd_b4me @ 0x%016"PRIx64" cmd->list=0x%016"PRIx64,
+		 event, event->command, event->size, event->type, event->state, cmd_data_is_valid, event->service_q_slot, cmd_b4me, cmd->list );
+	debug_cmd_add(cmd->dbg_fp, cmd->dbg_id, 0, context, command);
+
+	qitem = &(event->presyncq[0]);
+	*qitem = (uint16_t)0;
+	if ( event->service_q_slot > 1 ) { // for all, check for SYNC cmds ahead; for .s & kill_xlate_done, check for other cmds in same context
+		head = &(cmd->list);
+		for (n=0; n< event->service_q_slot; n++) { // list all afutags ahead of this cmd (TODO add check for stream id)
+			cmd_b4me= *head;
+			// for .s and kill_xlate_done and SYNC need to make list of all cmds ahead
+			if ( ( ( ( ( event->form_flag & 0x01 ) == 1 ) || 
+				 ( event->command == AFU_RSP_KILL_XLATE_DONE ) ) && 
+			       ( cmd_b4me->context == event->context ) ) || 
+			     ( event->command == AFU_CMD_SYNC ) ) {
+				qitem = &(event->presyncq[n]);
+				*qitem = (uint16_t)cmd_b4me->afutag;
+				debug_msg("_add_vc2_cmd: event->presyncq[%d]=0x%04x and context=0x%04x",
+				       	n, event->presyncq[n], context );}
+			else {
+				qitem = &(event->presyncq[n]);
+				*qitem = 0; 
+				debug_msg("_add_vc2_cmd: prior cmd not in this context, it is  0x%04x and .s cmd or kill_xlate_done is  0x%04x",
+					       	cmd_b4me->context, event->context);
+		       	}
+			// for any cmd with cmds ahead of it, check to see if there is a SYNC cmd in front, if so  set flag
+			if (cmd_b4me->command == AFU_CMD_SYNC) {  //there is a SYNC in front of us, have to wait it out
+				event->sync_b4me = 1;
+				debug_msg("_add_vc2_cmd: found SYNC cmd in queue ahead  cmd=0x%x ", cmd_b4me->command);
+			}
+			head = &((*head)->_next);
+		}
+	} else { 
+	        debug_msg("_add_vc2_cmd: no presyncq or SYNC check needed; service_q_slot= %x", event->service_q_slot);
+	}
+	
+	// Check to see if event->cmd_data_is_valid is, and if so, set event->buffer_data
+	// TODO check to see if data is bad...if so, what???
+	if ( cmd_data_is_valid ) { // TODO make sure this is JUST for dcp3 data!
+		if (_incoming_vc2_data_expected( cmd ) == 0 ) {
+		        cmd->buffer_read = event;
+			debug_msg("_add_vc2_cmd: Ready to copy first 64B of write data to buffer, add=0x%016"PRIx64" , size=0x%x , afutag= 0x%x",
+				  event->addr, size, event->afutag);
+			// alway copy 64 bytes...
+			memcpy((void *)&(event->data[0]), (void *)&(cmd->afu_event->afu_tlx_dcp2_data_bus), 64);
+			// for type = cmd_interrupt, event->state is already correctly set to MEM_IDLE
+			if (event->type != CMD_INTERRUPT) {
+			  if (size > 64) {
+			    // but if size is greater that 64, we have to gather more data
+			    event->dpartial =64;
+			    event->state = MEM_BUFFER;
+			  } else {
+			    event->state = MEM_RECEIVED;
+			    event->dpartial =0;
+			    debug_msg("_add_vc2_cmd: FINISHED copy first 64B of write data to buffer, add=0x%016"PRIx64" , size=0x%x , afutag= 0x%x, event->state= %d",
+				      event->addr, size, event->afutag, event->state);
+			  }
+			}
+			
+		} else  {
+		        cmd->afu_event->afu_tlx_dcp2_data_valid = 1;
+			debug_msg("_add_vc2_cmd: SAVING dcp2 DATA FOR READ CMD dcp2 DATA TO FIND LATER");
+		}
+	}
+}
+
 // Add new command to list
 static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 		     uint32_t command, enum cmd_type type,
@@ -873,6 +1039,53 @@ static void _add_write(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 }
 
 
+// Determine what type of vc2 command to add to list
+static void _parse_vc2_cmd(	struct ocl *ocl, struct cmd *cmd, uint8_t cmd_opcode, uint8_t cmd_stream_id, uint8_t *cmd_pa,
+				uint16_t cmd_afutag, uint8_t cmd_dl, uint8_t cmd_flag, uint32_t cmd_host_tag,
+				uint8_t cmd_cache_state, 
+				uint8_t cmd_data_is_valid,
+				uint8_t *cdata_bus, uint8_t cdata_bad)
+
+{
+        // Based on the cmd_opcode we have received from the afu, add a cmd_event to the list associated with our cmd struct
+	int64_t addr = 0;
+	int32_t context;
+
+	// find cmd_host_tag in the host_tag list so that we can correctly set the context for _add_cmd
+	// but host_tag list is under ocl, so we need to pass that into this routine
+	context = _find_client_by_host_tag( ocl, cmd_host_tag );
+
+	switch (cmd_opcode) {
+	case AFU_CMD_SYNONYM_DONE:
+	        debug_msg("YES! AFU response is AFU_CMD_MEM_SYN_DONE and host_tag= 0x%04x", cmd_host_tag);
+		//TODO - will there ever be data on dcp2 that is not part of castout_push? IF SO, 
+		//need to create a special cmd_data_is_valid to signal data on dcp2 NOT dcp3 
+		// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
+		_add_cmd(cmd, 0xca, cmd_afutag, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl ), MEM_IDLE, 
+			 0, 0, 0, 0, cmd_flag, 0, cmd_host_tag, cmd_cache_state, 0);
+		break;
+	case AFU_CMD_CASTOUT:
+	        debug_msg( "YES! AFU Command is AFU_CMD_CASTOUT and host_tag=0x%08x", cmd_host_tag );
+		//TODO - will there ever be data on dcp2 that is not part of castout_push? IF SO, 
+		//need to create a special cmd_data_is_valid to signal data on dcp2 NOT dcp3 
+		// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
+		_add_vc2_cmd(cmd, context, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl ), MEM_IDLE, 
+			 0, 0, cmd_data_is_valid, cmd_flag, cmd_host_tag, cmd_cache_state);
+		break;
+	case AFU_CMD_CASTOUT_PUSH:
+	        debug_msg("YES! AFU response is AFU_CMD_CASTOUT_PUSH and host_tag= 0x%04x", cmd_host_tag);
+		// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
+		_add_vc2_cmd(cmd, context, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl ), MEM_IDLE, 
+			 0, 0, cmd_data_is_valid, cmd_flag, cmd_host_tag, cmd_cache_state);
+		break;
+	default:
+	        warn_msg("Unsupported command 0x%04x", cmd_opcode);
+		// TODO this type of error is signaled as "malformed packet error type 0 event" but how??  
+		_add_fail(cmd, 0xca, cmd_afutag, cmd_opcode, TLX_RESPONSE_FAILED, TLX_RESPONSE_FAILED);
+		break;
+	}
+}
+
 // Determine what type of vc1 or vc2 command to add to list
 static void _parse_vc1_vc2_cmd(	struct ocl *ocl, struct cmd *cmd, uint8_t cmd_opcode, uint8_t cmd_stream_id, uint8_t *cmd_pa,
 		       uint16_t cmd_afutag, uint8_t cmd_dl, uint8_t cmd_flag, uint32_t cmd_host_tag,
@@ -891,11 +1104,11 @@ static void _parse_vc1_vc2_cmd(	struct ocl *ocl, struct cmd *cmd, uint8_t cmd_op
 
 	switch (cmd_opcode) {
 	case AFU_CMD_MEM_PA_FLUSH:
-	case AFU_CMD_MEM_BACK_FLUSH:
+	case AFU_CMD_BACK_FLUSH:
 	        debug_msg("NO! THESE CMDS are NOT SUPPORTED in OpenCAPI 4!");
 		break;
 	  
-	case AFU_CMD_MEM_SYN_DONE:
+	case AFU_CMD_SYNONYM_DONE:
 	        debug_msg("YES! AFU response is AFU_CMD_MEM_SYN_DONE and host_tag= 0x%04x", cmd_host_tag);
 		//TODO - will there ever be data on dcp2 that is not part of castout_push? IF SO, 
 		//need to create a special cmd_data_is_valid to signal data on dcp2 NOT dcp3 
@@ -1206,8 +1419,8 @@ void handle_vc2_cmd(struct ocl * ocl, struct cmd *cmd, uint32_t latency)
 	// Can no longer check for duplicate afutag (not used on vc2)
 	// Use cmd_pasid parm for cmd_host_tag; use cmd_pg_size for cmd_cache_state in _parse_cmd call
 
-	_parse_vc1_vc2_cmd( ocl, cmd, cmd_opcode, 0, NULL, 0, cmd_dl,
-		   cmd_flag, cmd_host_tag, cmd_cache_state, cmd_data_is_valid, dptr, cdata_bad);
+	_parse_vc2_cmd( ocl, cmd, cmd_opcode, 0, NULL, 0, cmd_dl,
+			cmd_flag, cmd_host_tag, cmd_cache_state, cmd_data_is_valid, dptr, cdata_bad);
 }
 
 
@@ -1481,7 +1694,65 @@ void handle_buffer_write(struct ocl *ocl, struct cmd *cmd)
 }
 
 // Handle incoming write data from AFU
-void handle_afu_tlx_cmd_data_read(struct cmd *cmd)
+void handle_vc2_dcp2_data(struct cmd *cmd)
+{
+	struct cmd_event *event;
+	unsigned char cdata_bus[64];
+	uint8_t * dptr = cdata_bus;
+	uint8_t cmd_data_is_valid, cdata_bad;
+	int rc;
+
+	// debug_msg( "ocse:handle_vc2_dcp2_data:" );
+	// Check that cmd struct is valid buffer read is available
+	if (cmd == NULL)
+		return;
+
+	//First, let's look to see if any CMD CACHE is in MEM_BUFFER state...data still coming over the interface (should only be ONE @time)
+	// or if anyone is in MEM_RECEIVED...all data is here & ready to go (should only be ONE of these @time)
+	event = cmd->list;
+	while (event != NULL) {
+		if ( ( event->type == CMD_CACHE ) &&
+		     ( event->state == MEM_BUFFER ) ) {
+			break;
+		}
+		event = event->_next;
+	}
+
+	// Test for client disconnect
+	if (event == NULL)
+		return;
+
+	//debug_msg("entering HANDLE_VC2_DCP2_DATA");
+	rc = afu_tlx_read_dcp2_data(cmd->afu_event, &cmd_data_is_valid, dptr,  &cdata_bad);
+	if (rc == TLX_SUCCESS) {
+		if ( cmd_data_is_valid ) {
+			debug_msg("handle_vc2_dcp2_data: Copy another 64B of write data to buffer, addr=0x%016"PRIx64", total read so far=0x%x , afutag= 0x%x .\n",
+				  event->addr, event->dpartial, event->afutag);
+			if ((event->size - event->dpartial) > 64) {
+				memcpy((void *)&(event->data[event->dpartial]), (void *)&(cmd->afu_event->afu_tlx_dcp2_data_bus), 64);
+				debug_msg("handle_vc2_dcp2_data: SHOULD BE INTERMEDIATE COPY");
+				//int i;
+				//for ( i = 0; i < 64; i++ ) printf("%02x",cmd->afu_event->afu_tlx_cdata_bus[i]); printf( "\n" );
+
+				event->dpartial +=64;
+				event->state = MEM_BUFFER;
+			 } else  {
+				memcpy((void *)&(event->data[event->dpartial]), (void *)&(cmd->afu_event->afu_tlx_dcp2_data_bus), (event->size - event->dpartial));
+				debug_msg("handle_vc2_dcp2_data: SHOULD BE FINAL COPY and event->dpartial=0x%x , afutag= 0x%x", event->dpartial, event->afutag);
+				//for ( i = 0; i < 64; i++ ) printf("%02x",cmd->afu_event->afu_tlx_cdata_bus[i]); printf( "\n" );
+				event->state = MEM_RECEIVED;
+			}
+
+		} else {
+		        debug_msg("handle_vc2_dcp2_data: event->state == MEM_BUFFER and event->afutag = 0x%x and cmd_data_is_valid= 0x%x", event->afutag, cmd_data_is_valid);
+		}
+	}
+
+	return;
+}
+
+// Handle incoming write data from dcp3 of the AFU
+void handle_vc3_dcp3_data(struct cmd *cmd)
 {
 	struct cmd_event *event;
 	unsigned char cdata_bus[64];
@@ -2252,7 +2523,7 @@ void handle_castout(struct cmd *cmd, struct mmio *mmio)
 	  // debug_msg( "handle_castout: cmd_event @ 0x%016"PRIx64": command=0x%02x, type=0x%02x ?= 0x%02x, mem_state=0x%03x ?= 0x%03x",
 	  // event, event->command, event->type, CMD_CACHE, event->state, MEM_IDLE );
 	        if ( ( event->type == CMD_CACHE ) && 
-		     ( event->state == MEM_IDLE ) ) { // && 
+		     ( ( event->state == MEM_IDLE ) || ( event->state == MEM_RECEIVED ) ) ) { // && 
 		     // ( !allow_reorder(cmd->parms) ) ) {
 		        break;
 		}
