@@ -2582,7 +2582,7 @@ int afu_tlx_send_cmd_vc1(struct AFU_EVENT *event,
 		warn_msg("afu_tlx_send_cmd_vc1: double command", event->tlx_afu_vc1_credits_available);
 		return AFU_TLX_DOUBLE_COMMAND;
 	}
-	if ((afu_cmd_opcode == AFU_CMD_MEM_PA_FLUSH) || (afu_cmd_opcode == AFU_CMD_MEM_BACK_FLUSH)) {
+	if ((afu_cmd_opcode == AFU_CMD_MEM_PA_FLUSH) || (afu_cmd_opcode == AFU_CMD_BACK_FLUSH)) {
           	debug_msg( "afu_tlx_send_cmd_vc1: opcode=0x%02x stream_id=0x%02x afutag=0x%04x pa=0x%08x",
 		   afu_cmd_opcode, cmd_stream_id, cmd_afutag, cmd_pa );
 		event->afu_tlx_vc1_valid = 1;
@@ -2621,7 +2621,7 @@ int afu_tlx_send_cmd_vc2(struct AFU_EVENT *event,
 		return AFU_TLX_DOUBLE_COMMAND;
 	}
 
-	if ((afu_cmd_opcode == AFU_CMD_MEM_SYN_DONE) || (afu_cmd_opcode == AFU_CMD_CASTOUT) || (afu_cmd_opcode == AFU_CMD_CASTOUT_PUSH)) {
+	if ((afu_cmd_opcode == AFU_CMD_SYNONYM_DONE) || (afu_cmd_opcode == AFU_CMD_CASTOUT) || (afu_cmd_opcode == AFU_CMD_CASTOUT_PUSH)) {
         	debug_msg( "afu_tlx_send_cmd_vc2: opcode=0x%02x dl=0x%02x host_tag=0x%08x cache_state=0x%02x",
 		   afu_cmd_opcode, cmd_dl, cmd_host_tag, cmd_cache_state );
 		event->afu_tlx_vc2_valid = 1;
@@ -2684,7 +2684,7 @@ int afu_tlx_send_cmd_vc2_and_dcp2_data(struct AFU_EVENT *event,
 	}
 	if ((event->afu_tlx_vc2_valid == 1) || (event->afu_tlx_dcp2_data_valid == 1)) {
 		return AFU_TLX_DOUBLE_CMD_AND_DATA; }
-	if ((afu_cmd_opcode == AFU_CMD_MEM_SYN_DONE) || (afu_cmd_opcode == AFU_CMD_CASTOUT) || (afu_cmd_opcode == AFU_CMD_CASTOUT_PUSH)) {
+	if ((afu_cmd_opcode == AFU_CMD_SYNONYM_DONE) || (afu_cmd_opcode == AFU_CMD_CASTOUT) || (afu_cmd_opcode == AFU_CMD_CASTOUT_PUSH)) {
 		event->afu_tlx_vc2_valid = 1;
 		event->tlx_afu_vc2_credits_available -= 1;
 		debug_msg("afu_tlx_send_cmd_vc2_and_dcp2_data: tlx_afu_vc2_credits available is %d", event->tlx_afu_vc2_credits_available);
@@ -2727,8 +2727,8 @@ int afu_tlx_send_cmd_vc3(struct AFU_EVENT *event,
 	}
 	switch(afu_cmd_opcode) { // check to be sure afu is using correct vc for outgoing cmds
 	case AFU_CMD_MEM_PA_FLUSH:
-	case AFU_CMD_MEM_BACK_FLUSH:
-	case AFU_CMD_MEM_SYN_DONE:
+	case AFU_CMD_BACK_FLUSH:
+	case AFU_CMD_SYNONYM_DONE:
 	case AFU_CMD_CASTOUT:
 	case AFU_CMD_CASTOUT_PUSH:
 		info_msg("afu_tlx_send_cmd_vc3: Command NOT supported on vc3; will not be sent. afu_cmd_opcode= 0x%02x", afu_cmd_opcode);
@@ -2822,8 +2822,8 @@ int afu_tlx_send_cmd_vc3_and_dcp3_data(struct AFU_EVENT *event,
 	}
 	switch(afu_cmd_opcode) { // check to be sure afu is using correct vc for outgoing cmds
 	case AFU_CMD_MEM_PA_FLUSH:
-	case AFU_CMD_MEM_BACK_FLUSH:
-	case AFU_CMD_MEM_SYN_DONE:
+	case AFU_CMD_BACK_FLUSH:
+	case AFU_CMD_SYNONYM_DONE:
 	case AFU_CMD_CASTOUT:
 	case AFU_CMD_CASTOUT_PUSH:
 		info_msg("afu_tlx_send_cmd_vc3_and_dcp3_data: Command NOT supported on vc3; will not be sent. afu_cmd_opcode= 0x%02x", afu_cmd_opcode);
