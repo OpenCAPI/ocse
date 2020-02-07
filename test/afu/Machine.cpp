@@ -219,6 +219,11 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
       command = new LoadCommand(command_code, command_address_parity,
         command_code_parity, command_tag_parity, buffer_read_parity);
       break;
+    case AFU_CMD_READ_MES_T:
+      printf("Machine: read_mes.t 0xE9\n");
+      command = new LoadCommand(command_code, command_address_parity,
+        command_code_parity, command_tag_parity, buffer_read_parity);
+      break;
     case AFU_CMD_CASTOUT:
       printf("Machine: castout 0x55\n");
       command = new OtherCommand(command_code, command_address_parity,

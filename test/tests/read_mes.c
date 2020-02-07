@@ -179,11 +179,11 @@ int main(int argc, char *argv[])
   printf("Result = 0x%"PRIx64"\n", result);
 
 
-  printf("Attempt read_s 0xEA\n");
+  printf("Attempt read_mes.t 0xE9\n");
   config_param.context = 0;
   config_param.enable_always = 1;
   config_param.mem_size = 64;
-  config_param.command = AFU_CMD_READ_S_T;
+  config_param.command = AFU_CMD_READ_MES_T;
   config_param.mem_base_address = (uint64_t)t_address;
   config_param.machine_number = 0;
   config_param.status_address = (uint32_t)status;
@@ -202,7 +202,7 @@ int main(int argc, char *argv[])
 	  goto done;
   }
   timeout = 0;
-  printf("Polling read_s.t completion status\n");
+  printf("Polling read_mes.t completion status\n");
   while(status[0] != 0x0) {
 	  nanosleep(&t, &t);
   }
