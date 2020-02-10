@@ -883,6 +883,7 @@ AFU::resolve_tlx_afu_resp()
 		case TLX_RSP_READ_FAILED:
 	    printf("AFU: TLX read response failed\n");
 	    printf("AFU: afutag = 0x%x\n", afu_event.tlx_afu_vc0_afutag);
+      printf("AFU: read failed code 0x%x\n", resp_code);
 	    break;
 		case TLX_RSP_CL_RD_RESP:  //vc0 and dcp0
       afu_cmd.afutag = resp_afutag;
@@ -1678,6 +1679,7 @@ AFU::write_app_status(uint8_t *address, uint32_t data)
 
     write_status_tag = cmd_afutag;
     read_status_resp = 0;	// stall read status until write resp
+    
     return;
 }
 
