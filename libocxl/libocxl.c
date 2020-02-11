@@ -1217,6 +1217,90 @@ static void _kill_xlate_all( struct ocxl_afu *afu )
 	uint16_t bdf;
 	uint32_t pasid;
 	uint8_t buffer[17];
+	uint8_t *ea_buffer_p;
+	uint8_t *pg_size_buffer_p;
+	int size;
+
+	if ( !afu ) fatal_msg("_kill_xlate_all: NULL afu passed to libocxl.c:_kill_xlate_all");
+
+	if ( afu->eas == NULL ) return; // no translated addresses to kill
+
+	// init message buffer
+	size = 0;
+	// 1 OCSE_KILL_XLATE
+	buffer[size] = OCSE_KILL_XLATE;
+	size++;
+
+	// 1 cmd_flag
+	cmd_flag = 0x0; // kill all translated addresses
+	buffer[size] = cmd_flag;
+	size++;
+
+	// 8 ea
+	ea = 0;
+	ea = htonll( ea );
+	ea_buffer_p = &buffer[size];
+	memcpy( ea_buffer_p, &ea, sizeof( ea ) );
+	size = size + sizeof( ea );
+		
+	// 1 pg siz
+	pg_size = 0;
+	pg_size_buffer_p = &buffer[size];
+	buffer[size] = pg_size;
+	size++;
+
+	// 2 bdf
+	// bdf[15:8]=bus, bdf[7:3]=dev, bdf[2:0]=fcn
+	bdf = afu->bus;
+	bdf = bdf << 5;
+	bdf = bdf + afu->dev;
+	bdf = bdf << 3;
+	bdf = bdf + afu->fcn;
+	bdf = htons( bdf );
+	memcpy( &buffer[size], &bdf, sizeof( bdf ) );
+	size = size + sizeof( bdf );
+
+	// 4 pasid
+	pasid = afu->context;
+	pasid = htonl( pasid );
+	memcpy( &buffer[size], &pasid, sizeof( pasid ) );
+	size = size + sizeof( pasid );
+
+	this_ea = afu->eas;
+	while ( this_ea != NULL ) {
+	        if ( this_ea->kill_xlate_pending == 1 ) {
+		        this_ea = this_ea->_next;
+			continue;
+		}
+		// insert ea and pg_size to buffer
+		ea = htonll( this_ea->ea );
+		memcpy( ea_buffer_p, &ea, sizeof( ea ) );
+		*pg_size_buffer_p = this_ea->pg_size;
+		
+		// set this_ea to pending and transmit buffer
+		this_ea->kill_xlate_pending = 1;
+		if (put_bytes_silent(afu->fd, size, buffer) != size) {
+		        afu->opened = 0;
+			afu->attached = 0;
+			debug_msg( "KILL XLATE ALL socket failure" );
+		}
+		debug_msg( "_kill_xlate_all: KILL_XLATE addr @ 0x%016" PRIx64 ", cmd_flag %d, pg_size %d, bdf %d, pasid %d", ntohll( ea ), cmd_flag, pg_size, ntohs(bdf), ntohl(pasid) );
+
+		this_ea = this_ea->_next;	  
+	}
+	
+	return;
+}
+
+static void _kill_xlate_all_with_0xF( struct ocxl_afu *afu )
+{
+        ocxl_ea_area *this_ea;
+        uint8_t cmd_flag = 0;
+	uint64_t ea;
+	uint8_t pg_size;
+	uint16_t bdf;
+	uint32_t pasid;
+	uint8_t buffer[17];
 	int size;
 
 	if ( !afu ) fatal_msg("_kill_xlate_all: NULL afu passed to libocxl.c:_kill_xlate_all");
@@ -3770,7 +3854,7 @@ ocxl_err ocxl_afu_close( ocxl_afu_h afu )
 	
 	// Free eas
 	// in any eas are not kill pending, then issue a kill_xlate.
-	// _kill_xlate_all( afu );
+	_kill_xlate_all( afu );
 
 	// wait some time for the afu to respond to the kill_xlate's that are pending
 	while (afu->eas != NULL) {
