@@ -1154,6 +1154,7 @@ static void _handle_kill_xlate_done( struct ocxl_afu *afu )
 {
       ocxl_ea_area *this_ea;
       ocxl_ea_area *prev_ea;
+      ocxl_ea_area *next_ea;
       uint64_t ea;
       uint8_t code;
 
@@ -1164,14 +1165,14 @@ static void _handle_kill_xlate_done( struct ocxl_afu *afu )
 	  return;
 	}
       ea = ntohll(ea);
-      debug_msg( "  of addresse=0x%016x", ea );
 
       if (get_bytes_silent(afu->fd, sizeof( code ), &code, 1000, 0) < 0) {
 	  warn_msg("_handle_kill_xlate_done: Socket failure getting kill_xlate_done address");
 	  _all_idle(afu);
 	  return;
 	}
-      debug_msg( "  response code =0x%02x", code );
+
+      debug_msg( "_handle_kill_xlate_done: of address=0x%016x response code =0x%02x", ea, code );
 
       this_ea = afu->eas;
       prev_ea = NULL;
@@ -1181,30 +1182,38 @@ static void _handle_kill_xlate_done( struct ocxl_afu *afu )
       // ea's match differently depending on the kill_xlate cmd flag which is assumed to be 0
       // other cmd flag values will cause additional ea's kills to be completed/removed
       while (this_ea != NULL ) {
+	    // first save the _next pointer because we may free this_ea
+	    next_ea = this_ea->_next;
+	    
 	    if ( this_ea->kill_xlate_pending == 1) {
 	          // does this_ea ea match the ea we are done with?
-	          if ( this_ea->ea == ea ) {
-		        // we found the ea that we want to free
-		        // first save the _next pointer
-		        if (prev_ea == NULL) {
-			      afu->eas = this_ea->_next;
+	          // or if ea is 0, we probably are done with a kill_xlate with cmd_flag=0xf, so kill the ea if it pending
+	          if ( ( this_ea->ea == ea ) || ( ea == 0 ) ) {
+		        // we found an ea that we want to free
+			// update the previous next pointer.
+			if (prev_ea == NULL) {
+			  // the previous ea _next pointer is the afu eas pointer
+			  afu->eas = this_ea->_next;
 			} else {
-			      prev_ea->_next = this_ea->_next;
+			  prev_ea->_next = this_ea->_next;
 			}
 
-			debug_msg( "KILL XLATE DONE done for addr @ 0x%016" PRIx64, this_ea->ea );
+			// free this_ea
+			debug_msg( "_handle_kill_xlate_done: done for addr @ 0x%016" PRIx64, this_ea->ea );
 			free( this_ea );
-			
-			// we should only have one entry in the ea's list so we can leave now
-			// or we have to figure out how to set pointers so that the advance code below is correct.
-			return;
+		  } else {
+		    // not a match, advance the prev_ea pointer
+		    prev_ea = this_ea;
 		  }
+	    } else {
+	      // just advance the pointers
+	      prev_ea = this_ea;
 	    }
 	    
-	    // normal advance of the pointers
-	    prev_ea = this_ea;
-	    this_ea = this_ea->_next;
+	    // finally update the this_ea pointer to continue the scan
+	    this_ea = next_ea;
       }
+
       return;
 }
 
@@ -1303,7 +1312,7 @@ static void _kill_xlate_all_with_0xF( struct ocxl_afu *afu )
 	uint8_t buffer[17];
 	int size;
 
-	if ( !afu ) fatal_msg("_kill_xlate_all: NULL afu passed to libocxl.c:_kill_xlate_all");
+	if ( !afu ) fatal_msg("_kill_xlate_all_with_0xF: NULL afu passed to libocxl.c:_kill_xlate_all");
 
 	if ( afu->eas == NULL ) return; // no translated addresses to kill
 
@@ -1352,9 +1361,9 @@ static void _kill_xlate_all_with_0xF( struct ocxl_afu *afu )
 	if (put_bytes_silent(afu->fd, size, buffer) != size) {
 		afu->opened = 0;
 		afu->attached = 0;
-		debug_msg( "KILL XLATE ALL socket failure" );
+		debug_msg( "_kill_xlate_all_with_0xF: KILL XLATE ALL socket failure" );
 	}
-	debug_msg( "_kill_xlate_all: KILL_XLATE addr @ 0x%016" PRIx64 ", cmd_flag %d, pg_size %d, bdf %d, pasid %d", ntohll( ea ), cmd_flag, pg_size, ntohs(bdf), ntohl(pasid) );
+	debug_msg( "_kill_xlate_all_with_0xF: KILL_XLATE addr @ 0x%016" PRIx64 ", cmd_flag %d, pg_size %d, bdf %d, pasid %d", ntohll( ea ), cmd_flag, pg_size, ntohs(bdf), ntohl(pasid) );
 
 }
 
@@ -3854,7 +3863,7 @@ ocxl_err ocxl_afu_close( ocxl_afu_h afu )
 	
 	// Free eas
 	// in any eas are not kill pending, then issue a kill_xlate.
-	_kill_xlate_all( afu );
+	_kill_xlate_all_with_0xF( afu );
 
 	// wait some time for the afu to respond to the kill_xlate's that are pending
 	while (afu->eas != NULL) {
