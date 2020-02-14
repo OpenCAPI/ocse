@@ -122,10 +122,14 @@ static void _cache_access( int sig, siginfo_t *si, void *unused )
 	this_line = ocxl_cache_list;
 	while ( this_line != NULL ) {
     	        printf( "_cache_addr: si_addr = 0x%016lx, masked by size-1 (0x%08x) = 0x%016lx, cached addr = 0x%016lx\n", 
-			(uint64_t)(si->si_addr), this_line->size-1, (uint64_t)(si->si_addr) & ~((uint64_t)(this_line->size) - 1), this_line->ea );
+			(uint64_t)(si->si_addr), 
+			this_line->size-1, 
+			(uint64_t)(si->si_addr) & ~((uint64_t)(this_line->size) - 1), 
+			this_line->ea );
 	        if ( this_line->ea == ((uint64_t)(si->si_addr) & ~((uint64_t)this_line->size - 1)) ) {
 		        printf( "_cache_access: found address: 0x%016lx == 0x%016lx \n", 
-				this_line->ea, (uint64_t)(si->si_addr) & ~((uint64_t)this_line->size - 1) );
+				this_line->ea, 
+				(uint64_t)(si->si_addr) & ~((uint64_t)this_line->size - 1) );
 			
 			// send a force_evict to the appropriate afu - must have afu handle in the cache proxy
 			// build the ocse message and send it
@@ -712,6 +716,8 @@ static void _handle_castout(struct ocxl_afu *afu)
 // build the cl_read_resp
 // protect the line(s)
 //   we mprotect the lines so that we will get a SIGSEGV signal if the host user references the line that is cached in the afu
+// actually - mprotect the page in which the line is found.
+// if an address is accessed with the protected page, we have to force_evict every line cached within that page and unprotect the page
 static void _handle_ca_read(struct ocxl_afu *afu)
 {
 	uint8_t buffer[MAX_LINE_CHARS];
@@ -750,16 +756,16 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 	memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
 
 	if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer, -1, 0) < 0) {
-	      warn_msg("_handle_ca_read: Socket failure getting ca memory read addr");
+	      warn_msg("_handle_ca_read: Socket failure getting addr");
 	      _all_idle(afu);
 	      return;
 	}
 	memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
 	addr = ntohll(addr);
-	debug_msg("_handle_ca_read: addr @ 0x%016" PRIx64 ", size = %d, form = %x", addr, size, form_flag);
+	// debug_msg("_handle_ca_read: addr @ 0x%016" PRIx64 ", size = %d, form = %x", addr, size, form_flag);
 	
 	if (get_bytes_silent(afu->fd, sizeof(uint32_t), buffer, -1, 0) < 0) {
-	      warn_msg("_handle_ca_read: Socket failure getting ca memory read addr");
+	      warn_msg("_handle_ca_read: Socket failure getting next host tag");
 	      _all_idle(afu);
 	      return;
 	}
@@ -3863,7 +3869,8 @@ ocxl_err ocxl_afu_close( ocxl_afu_h afu )
 	
 	// Free eas
 	// in any eas are not kill pending, then issue a kill_xlate.
-	_kill_xlate_all_with_0xF( afu );
+	_kill_xlate_all( afu ); // this one makes sure a kill_xlate has been sent for every address in the translation cache
+	//_kill_xlate_all_with_0xF( afu ); // this one send a single kill_xlate with cmd_flag=0xf
 
 	// wait some time for the afu to respond to the kill_xlate's that are pending
 	while (afu->eas != NULL) {
