@@ -108,22 +108,38 @@ typedef struct ocxl_ea_area {
         struct ocxl_ea_area *_next;
 } ocxl_ea_area;
 
-// ocxl_cache_proxy contains cache state information for addresses cached by the afu
+// ocxl_cache_line_proxy contains cache state information for addresses cached by the afu
 //   EA
 //   Cache state
 //   host_tag
 // Notes:
 // - what happens if host shares non-64byte aligned object with afu.  may not be able "protect" the 64 byte aligned ea that comes back
 // - should the cache proxy be associated with the afu or with the instance of libocxl?  for now, with afu
-typedef struct ocxl_cache_proxy {
-        uint64_t ea;                    // the effective address that the afu is going to cache
+typedef struct ocxl_cache_line_proxy {
+        uint64_t ea;                    // the effective address of the line that the afu is going to cache
         uint16_t size;
         uint8_t cache_state;            // the cache state that we have decided to give back to the AFU
         uint32_t host_tag;              // the host_tag that we give back to the afu for subsequent cache ops
-        uint8_t castout_required;       // gets cleared set when the afu issues a castout[.push]
         struct ocxl_afu *afu;
-        struct ocxl_cache_proxy *_next;
-} ocxl_cache_proxy;
+        struct ocxl_cache_line_proxy *_next_line;
+} ocxl_cache_line_proxy;
+
+// ocxl_cache_page_proxy contains cache state information for the pages of the lines cached by the afu
+//   EA
+//   Cache state
+//   host_tag
+// Notes:
+// - what happens if host shares non-64byte aligned object with afu.  may not be able "protect" the 64 byte aligned ea that comes back
+// - should the cache proxy be associated with the afu or with the instance of libocxl?  for now, with afu
+typedef struct ocxl_cache_page_proxy {
+        uint64_t ea;                    // the effective address of the page in which the line is that the afu is going to cache
+        uint16_t size;                  // page size?
+        uint8_t cache_state;            // the cache state that we have decided to give back to the AFU
+        uint8_t castout_required;       // gets set by force evict, cleared when the afu has castout[.push] all the lines in the page
+        struct ocxl_afu *afu;
+        struct ocxl_cache_line_proxy *_next_line;
+        struct ocxl_cache_page_proxy *_next_page;
+} ocxl_cache_page_proxy;
 
 // struct ocxl_afu_h {
 struct ocxl_afu {
