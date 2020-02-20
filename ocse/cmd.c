@@ -236,10 +236,10 @@ static int _incoming_data_expected(struct cmd *cmd)
 		event = event->_next;
 	}
 	if (event == NULL)  {
-		debug_msg("INCOMING_DATA_EXPECTED CHECK  and we found NO CMD WRITE in MEM_BUFFER state");
+		debug_msg("_incoming_data_expected: INCOMING_DATA_EXPECTED CHECK  and we found NO CMD WRITE in MEM_BUFFER state");
 		return 0;
 	} else {
-		debug_msg("INCOMING_DATA_EXPECTED CHECK  and we found CMD WRITE IN MEM_BUFFER state");
+		debug_msg("_incoming_data_expected: INCOMING_DATA_EXPECTED CHECK  and we found CMD WRITE IN MEM_BUFFER state");
 		return 1;
 	}
 
@@ -314,7 +314,7 @@ static void _add_vc2_cmd(struct cmd *cmd, uint32_t context,
 	event->sync_b4me = 0; // always assume there is not a SYNC in the queue, then check later
 	cmd_b4me = NULL;
 
-	if (*head == NULL) printf ("_add_vc2_cmd: FOUND THE FIRST CMD; START COUNTING NOW");
+	if (*head == NULL) debug_msg("_add_vc2_cmd: FOUND THE FIRST CMD; START COUNTING NOW");
 	while (*head != NULL) {
 		cmd_b4me = *head;
 		head = &((*head)->_next);
@@ -361,8 +361,8 @@ static void _add_vc2_cmd(struct cmd *cmd, uint32_t context,
 	
 	// Check to see if event->cmd_data_is_valid is, and if so, set event->buffer_data
 	// TODO check to see if data is bad...if so, what???
-	if ( cmd_data_is_valid ) { // TODO make sure this is JUST for dcp3 data!
-		if (_incoming_vc2_data_expected( cmd ) == 0 ) {
+	if ( cmd_data_is_valid ) { // TODO make sure this is JUST for dcp2 data!
+		if ( _incoming_vc2_data_expected( cmd ) == 0 ) {
 		        cmd->buffer_read = event;
 			debug_msg("_add_vc2_cmd: Ready to copy first 64B of write data to buffer, add=0x%016"PRIx64" , size=0x%x , afutag= 0x%x",
 				  event->addr, size, event->afutag);
@@ -374,10 +374,12 @@ static void _add_vc2_cmd(struct cmd *cmd, uint32_t context,
 			    // but if size is greater that 64, we have to gather more data
 			    event->dpartial =64;
 			    event->state = MEM_BUFFER;
+			    debug_msg("_add_vc2_cmd: copy of 64B of write data to buffer, add=0x%016"PRIx64" , size=0x%x , afutag= 0x%x, event->state= %d, MORE EXPECTED",
+				      event->addr, size, event->afutag, event->state);
 			  } else {
 			    event->state = MEM_RECEIVED;
 			    event->dpartial =0;
-			    debug_msg("_add_vc2_cmd: FINISHED copy first 64B of write data to buffer, add=0x%016"PRIx64" , size=0x%x , afutag= 0x%x, event->state= %d",
+			    debug_msg("_add_vc2_cmd: FINISHED copy fo 64B of write data to buffer, add=0x%016"PRIx64" , size=0x%x , afutag= 0x%x, event->state= %d, FINISHED",
 				      event->addr, size, event->afutag, event->state);
 			  }
 			}
@@ -1057,7 +1059,7 @@ static void _parse_vc2_cmd(	struct ocl *ocl, struct cmd *cmd, uint8_t cmd_opcode
 
 	switch (cmd_opcode) {
 	case AFU_CMD_SYNONYM_DONE:
-	        debug_msg("YES! AFU response is AFU_CMD_MEM_SYN_DONE and host_tag= 0x%04x", cmd_host_tag);
+	        debug_msg("_parse_vc2_cmd: YES! AFU response is AFU_CMD_MEM_SYN_DONE and host_tag= 0x%06x", cmd_host_tag);
 		//TODO - will there ever be data on dcp2 that is not part of castout_push? IF SO, 
 		//need to create a special cmd_data_is_valid to signal data on dcp2 NOT dcp3 
 		// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
@@ -1065,7 +1067,7 @@ static void _parse_vc2_cmd(	struct ocl *ocl, struct cmd *cmd, uint8_t cmd_opcode
 			 0, 0, 0, 0, cmd_flag, 0, cmd_host_tag, cmd_cache_state, 0);
 		break;
 	case AFU_CMD_CASTOUT:
-	        debug_msg( "YES! AFU Command is AFU_CMD_CASTOUT and host_tag=0x%08x", cmd_host_tag );
+	        debug_msg( "_parse_vc2_cmd: YES! AFU Command is AFU_CMD_CASTOUT and host_tag=0x%06x", cmd_host_tag );
 		//TODO - will there ever be data on dcp2 that is not part of castout_push? IF SO, 
 		//need to create a special cmd_data_is_valid to signal data on dcp2 NOT dcp3 
 		// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
@@ -1073,13 +1075,13 @@ static void _parse_vc2_cmd(	struct ocl *ocl, struct cmd *cmd, uint8_t cmd_opcode
 			 0, 0, cmd_data_is_valid, cmd_flag, cmd_host_tag, cmd_cache_state);
 		break;
 	case AFU_CMD_CASTOUT_PUSH:
-	        debug_msg("YES! AFU response is AFU_CMD_CASTOUT_PUSH and host_tag= 0x%04x", cmd_host_tag);
+	        debug_msg("_parse_vc2_cmd: YES! AFU response is AFU_CMD_CASTOUT_PUSH and host_tag=0x%06x", cmd_host_tag);
 		// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
 		_add_vc2_cmd(cmd, context, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl ), MEM_IDLE, 
 			 0, 0, cmd_data_is_valid, cmd_flag, cmd_host_tag, cmd_cache_state);
 		break;
 	default:
-	        warn_msg("Unsupported command 0x%04x", cmd_opcode);
+	        warn_msg("_parse_vc2_cmd: Unsupported command 0x%04x", cmd_opcode);
 		// TODO this type of error is signaled as "malformed packet error type 0 event" but how??  
 		_add_fail(cmd, 0xca, cmd_afutag, cmd_opcode, TLX_RESPONSE_FAILED, TLX_RESPONSE_FAILED);
 		break;
@@ -1722,23 +1724,22 @@ void handle_vc2_dcp2_data(struct cmd *cmd)
 	if (event == NULL)
 		return;
 
-	//debug_msg("entering HANDLE_VC2_DCP2_DATA");
+	debug_msg("handle_vc2_dcp2_data: we have a command that is expecting more data");
 	rc = afu_tlx_read_dcp2_data(cmd->afu_event, &cmd_data_is_valid, dptr,  &cdata_bad);
 	if (rc == TLX_SUCCESS) {
 		if ( cmd_data_is_valid ) {
-			debug_msg("handle_vc2_dcp2_data: Copy another 64B of write data to buffer, addr=0x%016"PRIx64", total read so far=0x%x , afutag= 0x%x .\n",
-				  event->addr, event->dpartial, event->afutag);
 			if ((event->size - event->dpartial) > 64) {
+			        debug_msg("handle_vc2_dcp2_data: Copy another 64B of write data to event @ 0x%016"PRIx64", total read so far=0x%x, afutag=0x%x, MORE EXPECTED",
+					  event, event->dpartial, event->afutag);
 				memcpy((void *)&(event->data[event->dpartial]), (void *)&(cmd->afu_event->afu_tlx_dcp2_data_bus), 64);
-				debug_msg("handle_vc2_dcp2_data: SHOULD BE INTERMEDIATE COPY");
 				//int i;
 				//for ( i = 0; i < 64; i++ ) printf("%02x",cmd->afu_event->afu_tlx_cdata_bus[i]); printf( "\n" );
-
 				event->dpartial +=64;
 				event->state = MEM_BUFFER;
 			 } else  {
+			        debug_msg("handle_vc2_dcp2_data: Copy another 64B of write data to event @ 0x%016"PRIx64", total read so far=0x%x, afutag=0x%x, COMPLETE",
+					  event, event->dpartial, event->afutag);
 				memcpy((void *)&(event->data[event->dpartial]), (void *)&(cmd->afu_event->afu_tlx_dcp2_data_bus), (event->size - event->dpartial));
-				debug_msg("handle_vc2_dcp2_data: SHOULD BE FINAL COPY and event->dpartial=0x%x , afutag= 0x%x", event->dpartial, event->afutag);
 				//for ( i = 0; i < 64; i++ ) printf("%02x",cmd->afu_event->afu_tlx_cdata_bus[i]); printf( "\n" );
 				event->state = MEM_RECEIVED;
 			}
@@ -2535,7 +2536,7 @@ void handle_castout(struct cmd *cmd, struct mmio *mmio)
 	  // debug_msg( "handle_castout: no CMD_CACHE event found" );
 	  return;
 	}
-	debug_msg( "handle_castout: we have an event@ 0x%016"PRIx64": command=0x%02x, host_tag=0x%02x, size=%d, cache_state=0x%03x",
+	debug_msg( "handle_castout: we have an event @ 0x%016"PRIx64": command=0x%02x, host_tag=0x%02x, size=%d, cache_state=0x%03x",
 		   event, event->command, event->host_tag, event->size, event->cache_state );
 
 	// Test for client disconnect
@@ -2583,8 +2584,7 @@ void handle_castout(struct cmd *cmd, struct mmio *mmio)
 			memcpy( data, event->data, event->size );
 			bufsiz = bufsiz + event->size;
 		}
-		debug_msg("handle_castout: %s: CASTOUT or CASTOUT PUSH  cmd_flag=0x%x cmd=0x%x host_tag=0x%04x", cmd->afu_name,
-			  event->cmd_flag, event->command, event->host_tag);
+		debug_msg("handle_castout: CASTOUT or CASTOUT PUSH  cmd_flag=0x%02x cmd=0x%02x host_tag=0x%06x", event->cmd_flag, event->command, event->host_tag);
 		if (put_bytes(client->fd, bufsiz, buffer, cmd->dbg_fp, cmd->dbg_id, event->context) < 0) {
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		}
@@ -2593,8 +2593,8 @@ void handle_castout(struct cmd *cmd, struct mmio *mmio)
 		// need to remove force_evict from mmio list if it matches host_tag
 		// if client->mmio_access matches host_tag then this castout is a response to the force_evict - remove the force_evict mmio
 		if (client->mmio_access != NULL) {
-		        this_mmio = (struct mmio_event  *)client->mmio_access;
-			debug_msg( "handle_castout: mmio event @ 0x%016llx, cmd_opcode=0x%02x, cmd_CAPPtag=0x04x host_tag=0x%06x, castout host tag=0x%06x", 
+		        this_mmio = (struct mmio_event *)client->mmio_access;
+			debug_msg( "handle_castout: mmio event @ 0x%016llx, cmd_opcode=0x%02x, cmd_CAPPtag=0x%04x host_tag=0x%06x, castout host tag=0x%06x", 
 				   this_mmio, this_mmio->cmd_opcode, this_mmio->cmd_CAPPtag, this_mmio->cmd_host_tag, event->host_tag  );
 			if (event->host_tag == this_mmio->cmd_host_tag) {
 			        // remove it by setting it to done

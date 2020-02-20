@@ -846,7 +846,7 @@ void send_mmio(struct mmio *mmio)
 	// if not a CONFIG, then must be memory access MMIO rd/wr or a kill_xlate or a force_evict
 	if ( event->size == 0 ) {
 	      // we have the old mmio style
-	      debug_msg( "ocse:send_mmio:mmio to mmio space" );
+	      debug_msg( "send_mmio: mmio to mmio space" );
 	      sprintf(type, "MMIO");
 	      
 	      event->cmd_dL = 0;
@@ -870,7 +870,7 @@ void send_mmio(struct mmio *mmio)
 
 	} else {
 	      // we have the new general memory style
-	      debug_msg( "ocse:send_mmio:mmio to LPC space" );
+	      debug_msg( "send_mmio: mmio to CMD/LPC space" );
 	      sprintf(type, "MEM");
 	      event->ack = OCSE_LPC_ACK;
 	      
@@ -1844,7 +1844,7 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 	uint8_t *buffer;
 	int fd = client->fd;
 
-	// Is there an MMIO event pending?
+	// Is there an MMIO event pending for this client?
 	this_event = (struct mmio_event *)client->mmio_access;
 	if (this_event == NULL)
 		return NULL;
@@ -1855,7 +1855,7 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 
 	// we are assuming that host commands complete (become DONE) in order...
 	struct mmio_event *list_event;
-	debug_msg( "handle_mmio_done: mmio done @ 0x%016llx, remove from:", this_event);
+	debug_msg( "handle_mmio_done: client @ 0x%016llx mmio done @ 0x%016llx for client @ 0x%016llx, remove from:", client, this_event, this_event->client );
 	list_event = mmio->list;
 	while (list_event != NULL) {
 	  debug_msg( "handle_mmio_done:      mmio @ 0x%016llx, _next @ 0x%016llx", list_event, list_event->_next );
@@ -1878,7 +1878,7 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 	        // Return acknowledge with read data
 	        if ( this_event->size !=0 ) {
 		        // this is an lpc mem request coming back
-		        debug_msg("handle_mmio_done:sending OCSE_LPC_ACK for a AMO_R, AMO_RW, or READ to client!!!!");
+		        debug_msg("handle_mmio_done: sending OCSE_LPC_ACK for a AMO_R, AMO_RW, or READ to client!!!!");
 			buffer = (uint8_t *) malloc(this_event->size + 2);
 			buffer[0] = this_event->ack;
 			buffer[1] = this_event->resp_code;
@@ -1888,7 +1888,7 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 			}
 			free( this_event->data );
 		} else if ( this_event->dw ) {
-		        debug_msg("handle_mmio_done:sending OCSE_MMIO_ACK for a dw READ to client!!!!");
+		        debug_msg("handle_mmio_done: sending OCSE_MMIO_ACK for a dw READ to client!!!!");
 			buffer = (uint8_t *) malloc(10);
 			buffer[0] = this_event->ack;
 			buffer[1] = this_event->resp_code;
@@ -1965,22 +1965,31 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 	}
 	
 	// free this_event and buffer
-	debug_msg( "handle_mmio_done: completed mmio @ 0x%016llx", this_event );
+	debug_msg( "handle_mmio_done: completed mmio - freeing mmio @ 0x%016llx", this_event );
 	free(this_event);
 	free(buffer);
 
 	// scan the list again, this time looking for another mmio that points back to this client
+	debug_msg( "handle_mmio_done: find next mmio for client @ 0x%016llx in:", client );
+	list_event = mmio->list;
+	while (list_event != NULL) {
+	  debug_msg( "handle_mmio_done:      mmio @ 0x%016llx for client @ 0x%016llx", list_event, list_event->client );
+	  list_event = list_event->_next;
+	}
+
 	next_event = NULL;
 	if (mmio->list != NULL) {
 	  if (mmio->list->client == client) {
 	    // the first mmio event belongs to this client
 	    next_event = mmio->list;
+	    debug_msg( "handle_mmio_done: found the next mmio for this client @ 0x%016llx @ 0x%016llx (it was the first one)", client, next_event );
 	  } else {
 	    // scan the list
 	    this_event = mmio->list;
 	    while (this_event->_next != NULL) {
 	      if (this_event->_next->client == client) {
 		next_event = this_event->_next;
+		debug_msg( "handle_mmio_done: found the next mmio for this client @ 0x%016llx @ 0x%016llx (it was in the list)", client, next_event );
 		break;
 	      }
 	      this_event = this_event->_next;
@@ -2494,9 +2503,10 @@ struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
  		return NULL; 
  	} 
 
- 	event = (struct mmio_event *)malloc(sizeof(struct mmio_event)); 
+ 	event = (struct mmio_event *)calloc(1, sizeof(struct mmio_event)); 
 	if (!event) return event;
 
+	event->client = client;
  	event->cmd_opcode = OCSE_FORCE_EVICT;
  	event->cmd_flg = 0; 
  	event->cmd_bdf = 0; 
@@ -2531,7 +2541,7 @@ struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
 
  	event->state = OCSE_IDLE; 
  	event->_next = NULL;
- 	debug_msg("handle_force_evict: new mmio event @ 0x%016llx, cmd_opcode=0x%02x, host_tag=0x%06x, size=%d", event, event->cmd_opcode, event->cmd_host_tag, event->size ); 
+ 	debug_msg("handle_force_evict: client @ 0x%016llx, new mmio event @ 0x%016llx, cmd_opcode=0x%02x, host_tag=0x%06x, size=%d", event->client, event, event->cmd_opcode, event->cmd_host_tag, event->size ); 
 
 	// Add to end of list
 	last_mmio = NULL;
@@ -2548,7 +2558,7 @@ struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
 	} else {
 	  last_mmio->_next = event;
 	}
-	debug_msg( "handle_force_evict: mmio event @ 0x%016llx, cmd_opcode=0x%02x, cmd_CAPPtag=0x04x host_tag=0x%06x", 
+	debug_msg( "handle_force_evict: mmio event @ 0x%016llx, cmd_opcode=0x%02x, cmd_CAPPtag=0x%04x host_tag=0x%06x", 
 		   event, event->cmd_opcode, event->cmd_CAPPtag, event->cmd_host_tag );
  	debug_mmio_add(mmio->dbg_fp, mmio->dbg_id, client->context, 0, event->cmd_host_tag,  event->cmd_ea); 
 

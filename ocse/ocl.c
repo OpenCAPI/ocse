@@ -314,6 +314,7 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 		if (mmio) {
 		        if ( client->mmio_access == NULL ) {
 			        client->mmio_access = (void *)mmio;
+			        debug_msg( "_handle_client: no client mmio access already in progress...  setting the mmio_access pointer" );
 			} else {
 			        debug_msg( "_handle_client: mmio access already in progress...  keeping the original access in place" );
 			}

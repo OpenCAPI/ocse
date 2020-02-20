@@ -113,6 +113,8 @@ static void _cache_access( int sig, siginfo_t *si, void *unused )
 	int buffer_len;
 	uint16_t size;
 	uint32_t host_tag;
+	uint8_t *host_tag_p;
+	uint8_t *size_p;
 
 	printf( "_cache_access\n" );
 	// si->si_code - SEGV_MAPERR is bad - die
@@ -132,30 +134,43 @@ static void _cache_access( int sig, siginfo_t *si, void *unused )
 				this_page->ea, 
 				(uint64_t)(si->si_addr) & ~((uint64_t)this_page->size - 1) );
 			
-			// send a force_evict to the appropriate afu - must have afu handle in the cache proxy
-			// build the ocse message and send it
+			// send a force_evict for each line in the page to the appropriate afu - must have afu handle in the cache proxy
+			// build the ocse message template
 			buffer_len = 0;
 			// 1 OCSE_FORCE_EVICT
 			buffer[buffer_len] = OCSE_FORCE_EVICT;
 			buffer_len++;
 			
 			// 4 host_tag
-			host_tag = htonl( this_line->host_tag );
+			host_tag = 0;
+			host_tag_p = &buffer[buffer_len];
 			memcpy( &buffer[buffer_len], &host_tag, sizeof( host_tag ) );
 			buffer_len = buffer_len + sizeof( host_tag );
 		  
 			// 2 size
-			size = htons( this_line->size );
+			size = 0;
+			size_p = &buffer[buffer_len];
 			memcpy( &buffer[buffer_len], &size, sizeof( size ) );
 			buffer_len = buffer_len + sizeof( size );
 		  
-			if ( put_bytes_silent( this_line->afu->fd, buffer_len, buffer ) != buffer_len ) {
-		                debug_msg( "_cache_access: socket failure" );
-				exit( EXIT_FAILURE );
-			}
-			debug_msg( "_cache_access: FORCE_EVICT 0x%016lx sent host_tag %d, size %d", 
-				   this_line->ea, this_line->host_tag, this_line->size );
+			this_line = this_page->_next_line;
+			while ( this_line != NULL ) {
+			        // insert host_tag and size to buffer
+			        host_tag = htonl( this_line->host_tag );
+				memcpy( host_tag_p, &host_tag, sizeof( host_tag ) );
 
+				size = htons( this_line->size );
+				memcpy( size_p, &size, sizeof( size ) );
+			  
+				if ( put_bytes_silent( this_line->afu->fd, buffer_len, buffer ) != buffer_len ) {
+				  debug_msg( "_cache_access: socket failure" );
+				  exit( EXIT_FAILURE );
+				}
+				debug_msg( "_cache_access: FORCE_EVICT 0x%016lx sent host_tag %d, size %d", 
+					   this_line->ea, this_line->host_tag, this_line->size );
+				
+				this_line = this_line->_next_line;	  
+			}
 			// WAIT for the response from a castout or castout.push - ok - this is dangerous.  Will it work?
 			// Function will block until wake host thread occurs and matches thread id
 			this_page->castout_required = 1;
@@ -165,10 +180,10 @@ static void _cache_access( int sig, siginfo_t *si, void *unused )
 			// the afu should have updated the line if needed
 			// via castout which will manage the line protection and existance
 			// TODO free the page we just evicted
-			debug_msg( "_cache_access: FORCE_EVICT 0x%016lx castout completed", this_line->ea );      
+			debug_msg( "_cache_access: FORCE_EVICT of all lines in page 0x%016lx castout completed", this_page->ea );      
 			return;
 		} 
-		debug_msg( "_cache_access: 0x%016lx != 0x%016lx", this_line->ea, (uint64_t)(si->si_addr) );
+		// debug_msg( "_cache_access: 0x%016lx != 0x%016lx", this_line->ea, (uint64_t)(si->si_addr) );
 		this_page = this_page->_next_page;
 	}
 
@@ -548,7 +563,6 @@ static struct ocxl_cache_page_proxy *_is_page_cached( struct ocxl_afu *afu, uint
 static ocxl_cache_page_proxy *_cache_page( struct ocxl_afu *afu, uint8_t op_code, uint64_t addr )
 {
         ocxl_cache_page_proxy *this_page;
-	int page_size;
 
 	// we need to check to see if we've cached it already...
 	this_page = _is_page_cached( afu, addr );
@@ -565,8 +579,8 @@ static ocxl_cache_page_proxy *_cache_page( struct ocxl_afu *afu, uint8_t op_code
 
 		// set the characteristics of the line
 		this_page->castout_required = 0;
-		this_page->ea = addr & ~((uint64_t)(size) - 1); //TODO page size???
 		this_page->size = sysconf(_SC_PAGE_SIZE);
+		this_page->ea = addr & ~((uint64_t)(this_page->size) - 1); //TODO page size???
 	        this_page->cache_state = 0x0; // initially invalid
 		// ocxl_next_host_tag = ocxl_next_host_tag + (size/64); 
 	}
@@ -614,7 +628,7 @@ static ocxl_cache_line_proxy *_cache_line( struct ocxl_cache_page_proxy *this_pa
 
 		//put at head of list
 		this_line->afu = this_page->afu;
-		this_line->_next = this_page->_next_line;
+		this_line->_next_line = this_page->_next_line;
 		this_page->_next_line = this_line;
 
 		// set the characteristics of the line
@@ -667,8 +681,9 @@ static void _handle_castout(struct ocxl_afu *afu)
 	uint8_t cache_state;
 	uint32_t host_tag;
 	
-	ocxl_cache_proxy *this_line;
-	ocxl_cache_proxy *prev_line;
+	ocxl_cache_page_proxy *this_page;
+	ocxl_cache_line_proxy *this_line;
+	ocxl_cache_line_proxy *prev_line;
 
 	if ( afu == NULL ) fatal_msg("_handle_castout: NULL afu passed to libocxl.c:_handle_castout");
 	
@@ -721,62 +736,83 @@ static void _handle_castout(struct ocxl_afu *afu)
 	debug_msg("_handle_castout: host_tag=0x%06x, size=%d, cmd_flag=%x", host_tag, size, cmd_flag);
 
 	// find host tag in the cache proxy list
-	this_line = ocxl_cache_list;
-	while ( this_line != NULL ) {
-	        if ( this_line->host_tag == host_tag ) {
-		        if ( op_code == AFU_CMD_CASTOUT_PUSH ) {
-			        // update the memory - if it was a push
-			        mprotect( (void *)this_line->ea, this_line->size, PROT_READ | PROT_WRITE | PROT_EXEC );
-				memcpy( (void *)(this_line->ea), (void *)buffer, size );
-			}
-			// set new protection based on final cache_state
-			switch ( cache_state ) {
-			case 0x0: // invalid
-			        // unprotect the entry
-			        mprotect( (void *)this_line->ea, this_line->size, PROT_READ | PROT_WRITE | PROT_EXEC );
-			        break;
-			case 0x1: // shared - allow read
-			        mprotect( (void *)this_line->ea, this_line->size, PROT_READ );
-			        break;
-			case 0x2: // exclusive - allow none
-			case 0x3: // modified - allow none
-			case 0x4: // exclusive with no valid data - allow none
-			        mprotect( (void *)this_line->ea, this_line->size, PROT_NONE );
-			        break;
-			default:
-			        warn_msg("_handle_castout: invalid final cache state" );
-			        break;
-			}
-
-			// if invalid and the castout was not required, free the line
-			if ( cache_state == 0x0 && this_line->castout_required == 0 ) {
-			        // the afu is freeing this cacheline on its own, so
-			        // we can free the line here
-			        prev_line = ocxl_cache_list;
-				if ( prev_line == this_line ) {
-				        ocxl_cache_list = this_line->_next;
-					free( this_line );
-				} else {
-   				        while (prev_line != NULL) {
-					        if (prev_line->_next == this_line) {
-						        prev_line->_next = this_line->_next;
-							free( this_line );
-						} 
-						prev_line = prev_line->_next;
-					}
+	// loop through the page list
+	this_page = ocxl_cache_page_list;
+	while ( this_page != NULL ) {
+  	        // now scan this lines within the page
+	        // track the previous line just in case we need to free this_line
+	        prev_line = NULL;
+		this_line = this_page->_next_line;
+		while ( this_line != NULL ) {
+		        debug_msg("_handle_castout: this_line->host_tag= 0x%06x,host_tag=0x%06x", this_line->host_tag, host_tag);
+		        if ( this_line->host_tag == host_tag ) {
+			        // we matched
+			        debug_msg("_handle_castout: matched this_line->host_tag= 0x%06x,host_tag=0x%06x", this_line->host_tag, host_tag);
+			        if ( op_code == AFU_CMD_CASTOUT_PUSH ) {
+				        // update the memory - if it was a push
+				        // un protect the page and update memory
+				        mprotect( (void *)this_page->ea, this_page->size, PROT_READ | PROT_WRITE | PROT_EXEC );
+					memcpy( (void *)(this_line->ea), (void *)buffer, size );
 				}
+				// set new protection based on final cache_state
+				switch ( cache_state ) {
+				case 0x0: // invalid
+				  // unprotect the entry
+				  mprotect( (void *)this_page->ea, this_page->size, PROT_READ | PROT_WRITE | PROT_EXEC );
+				  break;
+				case 0x1: // shared - allow read - we actually don't have a good way to optimize for this so alway protect NONE
+				  //mprotect( (void *)this_line->ea, this_line->size, PROT_READ );
+				  //break;
+				case 0x2: // exclusive - allow none
+				case 0x3: // modified - allow none
+				case 0x4: // exclusive with no valid data - allow none
+				  mprotect( (void *)this_page->ea, this_page->size, PROT_NONE );
+				  break;
+				default:
+				  warn_msg("_handle_castout: invalid final cache state" );
+				  break;
+				}
+
+				// if the final state is I, free the line
+				if ( cache_state == 0x0 ) {
+				        // we can free this_line here
+				        // look carefully at this
+					if ( prev_line == NULL ) {
+					        // this_line is at the head of the list
+					        this_page->_next_line = this_line->_next_line;
+					} else {
+					        prev_line->_next_line = this_line->_next_line;
+					}
+					free( this_line );
+					// we've taken care of the line and freed it
+				} else {
+				        // we manage the line
+				        this_line->cache_state = cache_state;
+				}
+
+				// if the page is now empty we can un-mprotect the page 
+				// we can also clear the castout required bit,
+				// we can invalidate this page and reset the castout required bit
+				// - the page may be removed from page list by the sigsegv handler
+				if ( this_page->_next_line == NULL ) {
+				        mprotect( (void *)this_page->ea, this_page->size, PROT_READ | PROT_WRITE | PROT_EXEC );
+					this_page->cache_state = 0;
+					this_page->castout_required = 0;
+				}
+				
+				return;
 			} else {
-			        // we manage the line
-			        this_line->cache_state = cache_state;
-				this_line->castout_required = 0;
+			        debug_msg("_handle_castout: did not match this_line->host_tag= 0x%06x,host_tag=0x%06x", this_line->host_tag, host_tag);
+			        prev_line = this_line;
+				this_line = this_line->_next_line;
 			}
-			return;
 		}
-		this_line = this_line->_next;
+
+		this_page = this_page->_next_page;
 	}
 
 	// if not found!
-	if ( this_line == NULL ) {
+	if ( this_page == NULL ) {
 		warn_msg("_handle_castout: castout of line that is not cached" );
 	}
 	
@@ -865,21 +901,24 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 	debug_msg("_handle_ca_read: addr @ 0x%016" PRIx64 ", size = %d", addr, size);
 
 	// addr now represents an EA
+	// first is the address in a region we have cached?
+	// if the address is in a page we have protected, we cannot do this ownership test
+	// maybe we should just remove it for cacheable reads...
 	// we need to make sure we own this address
-	if (!_testmemaddr((uint8_t *) addr)) {
-	        if (_handle_dsi(afu, addr) < 0) {
-		        perror("_handle_ca_read: DSI Failure");
-			return;
-		}
-		warn_msg("_handle_ca_read: CA READ from invalid addr @ 0x%016" PRIx64 "", addr);
-		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
-		buffer[1] = 0xc;
-		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
-			afu->opened = 0;
-			afu->attached = 0;
-		}
-		return;
-	}
+	// if (!_testmemaddr((uint8_t *) addr)) {
+	//        if (_handle_dsi(afu, addr) < 0) {
+	//	        perror("_handle_ca_read: DSI Failure");
+	//		return;
+	//	}
+	//	warn_msg("_handle_ca_read: CA READ from invalid addr @ 0x%016" PRIx64 "", addr);
+	//	buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
+	//	buffer[1] = 0xc;
+	//	if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
+	//		afu->opened = 0;
+	//		afu->attached = 0;
+	//	}
+	//	return;
+	//}
 
 	// we need to find or create the page and line entry for this ea
 	// we need to build a response and then "cache" the address
@@ -915,6 +954,8 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 	memcpy( &(buffer[bufsiz]), (void *)&host_tag, sizeof(host_tag) );
 	bufsiz = bufsiz + sizeof( host_tag );
 
+	// oh rats - addr could be in a protected region so I can't just memcopy it...
+	mprotect( (char *)(cache_page->ea), cache_page->size, PROT_READ );
 	memcpy( &(buffer[bufsiz]), (void *)addr, size);
 	bufsiz = bufsiz + size;
 	if (put_bytes_silent(afu->fd, bufsiz, buffer) != bufsiz) {
@@ -1579,6 +1620,7 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 	int size;
 	struct ocxl_ea_area *prev;
 	struct ocxl_ea_area *this;
+        ocxl_cache_page_proxy *this_page;
 
 	if (!afu) fatal_msg("NULL afu passed to libocxl.c:_handle_xlate");
 
@@ -1664,7 +1706,22 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 	        // add a reason code to the fail message
 	        if (!_testmemaddr((uint8_t *) addr)) {
 		        // if it is not something we cached, continue down this error checking path
-		        if ( _is_cached( afu, addr ) == NULL ) {
+		        this_page = _is_page_cached( afu, addr );
+			if ( this_page == NULL ) {
+			        if (_handle_dsi(afu, addr) < 0) {
+				        perror("DSI Failure");
+					return;
+				}
+				warn_msg("TOUCH of invalid addr @ 0x%016" PRIx64 "", addr);
+				buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
+				buffer[1] = 0xc;
+				if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
+				        afu->opened = 0;
+					afu->attached = 0;
+				}
+				return;
+			}
+		        if ( _is_line_cached( this_page, addr ) == NULL ) {
 			        if (_handle_dsi(afu, addr) < 0) {
 				        perror("DSI Failure");
 					return;
