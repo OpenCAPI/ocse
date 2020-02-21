@@ -166,7 +166,7 @@ static void _cache_access( int sig, siginfo_t *si, void *unused )
 				  debug_msg( "_cache_access: socket failure" );
 				  exit( EXIT_FAILURE );
 				}
-				debug_msg( "_cache_access: FORCE_EVICT 0x%016lx sent host_tag %d, size %d", 
+				debug_msg( "_cache_access: FORCE_EVICT 0x%016lx sent host_tag 0x%06x, size %d", 
 					   this_line->ea, this_line->host_tag, this_line->size );
 				
 				this_line = this_line->_next_line;	  
@@ -639,30 +639,6 @@ static ocxl_cache_line_proxy *_cache_line( struct ocxl_cache_page_proxy *this_pa
 		// ocxl_next_host_tag = ocxl_next_host_tag + (size/64); 
 	}
 
-	// check the state of the line
-	// if the line already has a state, like s, we are getting a synonym...  yuck.
-	// send the synonym_detected and return a NULL???
-	// or return the line and the ocse message code to send back: success vs synonym
-	// OR should we expect ocse to handle the synonym behavior???
-
-	// otherwise let's set up the line and update the state.
-	// pick a state based on op_code
-	switch (op_code) {
-	case AFU_CMD_READ_S:
-	case AFU_CMD_READ_S_T:
-	  //this_line->cache_state = 0x1; // just shared for now
-	  //break;
-	case AFU_CMD_READ_ME:
-	case AFU_CMD_READ_ME_T:
-	case AFU_CMD_READ_MES:
-	case AFU_CMD_READ_MES_T:
-	        this_line->cache_state = 0x2; // just exclusive for now
-	        break;
-	default:
-	        warn_msg(" _cache: invalid op_code 0x%02x received", op_code );
-	        return NULL;
-	}
-
 	return this_line;
 }
 
@@ -928,6 +904,7 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 	cache_page = _cache_page( afu, op_code, addr );
 	cache_line = _cache_line( cache_page, op_code, addr, (uint64_t)size );
 
+	//:lgt: remove this check
 	if (cache_line == NULL) {
 		warn_msg("_handle_ca_read: CA READ from invalid operation 0x%02x", op_code);
 		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
@@ -938,35 +915,89 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 		}
 		return;
 	}
+	//:elgt:
+
+	// cache_line->cache_state may be I or E
+	// I here means the line is newly requested so we can proceed to set the state and send OCSE_CA_MEM_SUCCESS
+	// S, E, or M means it was cached before so we need to send synonym_detected OCSE_CA_SYNONYM_DETECTED
+	// the only difference between the two messages is the data packet really
+
 	int bufsiz;
 	bufsiz = 0;
 
-	buffer[bufsiz] = OCSE_CA_MEM_SUCCESS;
-	bufsiz++;
+	if ( cache_line->cache_state == 0x0 ) {
+	        // new cacheable read - send OCSE_CA_MEM_SUCCESS, adjust and send cache_state
+	        buffer[bufsiz] = OCSE_CA_MEM_SUCCESS;
+		bufsiz++;
 
-	buffer[bufsiz] = cache_line->cache_state;
-	bufsiz++;
+		// pick a state based on op_code - for now, always E
+		switch (op_code) {
+		case AFU_CMD_READ_S:
+		case AFU_CMD_READ_S_T:
+		  //cache_line->cache_state = 0x1; // just shared for now
+		  //break;
+		case AFU_CMD_READ_ME:
+		case AFU_CMD_READ_ME_T:
+		case AFU_CMD_READ_MES:
+		case AFU_CMD_READ_MES_T:
+		  cache_line->cache_state = 0x2; // just exclusive for now
+		  break;
+		default:
+		  warn_msg(" _cache: invalid op_code 0x%02x received", op_code );
+		  return;
+		}
 
-	buffer[bufsiz] = 0; // evict and fill
-	bufsiz++;
+		buffer[bufsiz] = cache_line->cache_state;
+		bufsiz++;
 
-	host_tag = ntohl( cache_line->host_tag );
-	memcpy( &(buffer[bufsiz]), (void *)&host_tag, sizeof(host_tag) );
-	bufsiz = bufsiz + sizeof( host_tag );
+		buffer[bufsiz] = 0; // evict and fill
+		bufsiz++;
 
-	// oh rats - addr could be in a protected region so I can't just memcopy it...
-	mprotect( (char *)(cache_page->ea), cache_page->size, PROT_READ );
-	memcpy( &(buffer[bufsiz]), (void *)addr, size);
-	bufsiz = bufsiz + size;
+		host_tag = ntohl( cache_line->host_tag );
+		memcpy( &(buffer[bufsiz]), (void *)&host_tag, sizeof(host_tag) );
+		bufsiz = bufsiz + sizeof( host_tag );
+
+		// oh rats - addr could be in a protected region so I can't just memcopy it...
+		mprotect( (char *)(cache_page->ea), cache_page->size, PROT_READ );
+		memcpy( &(buffer[bufsiz]), (void *)addr, size);
+		bufsiz = bufsiz + size;
+		debug_msg("_handle_ca_read: cl rd resp for addr @ 0x%016" PRIx64, addr);
+	} else {
+	        // cacheable read of previously cached line - send OCSE_CA_SYNONYM_DETECTED, adjust and send cache_state
+	        buffer[bufsiz] = OCSE_CA_SYNONYM_DETECTED;
+		bufsiz++;
+
+		// pick a state based on op_code - for now, always E
+		switch (op_code) {
+		case AFU_CMD_READ_S:
+		case AFU_CMD_READ_S_T:
+		  //cache_line->cache_state = 0x1; // just shared for now
+		  //break;
+		case AFU_CMD_READ_ME:
+		case AFU_CMD_READ_ME_T:
+		case AFU_CMD_READ_MES:
+		case AFU_CMD_READ_MES_T:
+		  cache_line->cache_state = 0x2; // just exclusive for now
+		  break;
+		default:
+		  warn_msg(" _cache: invalid op_code 0x%02x received", op_code );
+		  return;
+		}
+
+		buffer[bufsiz] = cache_line->cache_state;
+		bufsiz++;
+
+		host_tag = ntohl( cache_line->host_tag );
+		memcpy( &(buffer[bufsiz]), (void *)&host_tag, sizeof(host_tag) );
+		bufsiz = bufsiz + sizeof( host_tag );
+		debug_msg("_handle_ca_read: synonym detected for addr @ 0x%016" PRIx64, addr);
+	}
 	if (put_bytes_silent(afu->fd, bufsiz, buffer) != bufsiz) {
-		afu->opened = 0;
+	        afu->opened = 0;
 		afu->attached = 0;
 	}
-	debug_msg("_handle_ca_read: cache state = %d from addr @ 0x%016" PRIx64 "", cache_line->cache_state, addr);
 
-	// finally, protect the line(s)
-	// for shared, protect from write
-	// for exclusive, protect from read/write
+	// finally, (re)protect the page
 	if ( mprotect( (char *)(cache_page->ea), cache_page->size, PROT_NONE ) == -1 ) {
 	        // could not protect (therefore cache) the address
 	        perror("mprotect");

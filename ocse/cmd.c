@@ -2536,7 +2536,7 @@ void handle_castout(struct cmd *cmd, struct mmio *mmio)
 	  // debug_msg( "handle_castout: no CMD_CACHE event found" );
 	  return;
 	}
-	debug_msg( "handle_castout: we have an event @ 0x%016"PRIx64": command=0x%02x, host_tag=0x%02x, size=%d, cache_state=0x%03x",
+	debug_msg( "handle_castout: we have an event @ 0x%016"PRIx64": command=0x%02x, host_tag=0x%06x, size=%d, cache_state=0x%02x",
 		   event, event->command, event->host_tag, event->size, event->cache_state );
 
 	// Test for client disconnect
@@ -3192,6 +3192,54 @@ static void _update_host_tag( struct ocl *ocl, struct cmd_event *cmd_event )
 }
 
 // Handle data returning from client for cacheable memory read
+static void _handle_synonym_detected(struct ocl *ocl, struct cmd *cmd, struct cmd_event *cmd_event, int fd)
+{
+	uint32_t host_tag;
+        uint8_t cache_state;	
+
+
+	debug_msg("_handle_synonym_detected:");
+
+	cmd_event->resp_opcode = TLX_RSP_SYN_DETECTED;
+
+	// this code assumes that libocxl will return regular ACK byte, followed by cache_state (byte),
+	// EF (byte), host_tag (4 bytes) and then data (either 64B or 128B?)
+	// buffer size = MAX_LINE_CHARS which is 1024 bytes.
+	// debug_msg("_handle_cacheable_mem_read: CMD_CACHE_RD" );
+	// Client is successfully returning data from cacheable memory read, libocxl
+	if ( get_bytes_silent( fd, sizeof( cache_state ), &cache_state, cmd->parms->timeout, cmd_event->abort ) < 0) {
+	        debug_msg("_handle_synonym_detected: %s: failed to get cache_state afutag=0x%04x size=%d ",
+			  cmd->afu_name, cmd_event->afutag, cmd_event->size);
+		cmd_event->state = MEM_DONE;
+		cmd_event->type = CMD_FAILED;
+		cmd_event->resp = 0x0e;
+		debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, cmd_event->afutag,
+				 cmd_event->context, cmd_event->resp);
+		return;
+	}
+	cmd_event->cache_state = cache_state;
+
+	if (get_bytes_silent(fd, sizeof( host_tag ), (uint8_t *)&host_tag, cmd->parms->timeout, cmd_event->abort) < 0) {
+	        debug_msg("_handle_synonym_detected: %s: failed to get host_tag afutag=0x%04x size=%d" ,
+			  cmd->afu_name, cmd_event->afutag, cmd_event->size);
+		cmd_event->state = MEM_DONE;
+		cmd_event->type = CMD_FAILED;
+		cmd_event->resp = 0x0e;
+		debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, cmd_event->afutag,
+				 cmd_event->context, cmd_event->resp);
+		return;
+	}
+	cmd_event->host_tag = ntohl(host_tag);
+
+	// log the host tag in the host tag list. tag, state, client (or context), ?
+	// no, because in a synonym case we know the host tag exists
+	// _update_host_tag( ocl, cmd_event );
+
+	cmd_event->state = MEM_RECEIVED;
+
+}
+
+// Handle data returning from client for cacheable memory read
 static void _handle_cacheable_mem_read(struct ocl *ocl, struct cmd *cmd, struct cmd_event *cmd_event, int fd)
 {
 	uint8_t data[MAX_LINE_CHARS];
@@ -3257,6 +3305,7 @@ static void _handle_cacheable_mem_read(struct ocl *ocl, struct cmd *cmd, struct 
 	}
 
 	// log the host tag in the host tag list. tag, state, client (or context), ?
+	// tempted to remove this as we are not properly managing the host_tag list here
 	_update_host_tag( ocl, cmd_event );
 
 	// we used to put the data in the event->data at the offset implied by the address
@@ -3320,6 +3369,38 @@ static void _handle_cacheable_mem_read(struct ocl *ocl, struct cmd *cmd, struct 
 //	cmd->page_entries.valid[index][oldest] = 1;
 //	cmd->page_entries.age[index][oldest] = 0;
 //}
+
+// Decide what to do with a client memory acknowledgement
+void handle_ca_synonym_return( struct ocl *ocl, struct cmd *cmd, struct cmd_event *cmd_event, int fd )
+{
+	struct client *client;
+
+	debug_msg( "handle_ca_synonym_return:" );
+
+	// Test for valid cmd
+	if ( cmd_event == NULL ) {
+	        debug_msg("handle_ca_synonym_return: %s: invalid command event=0x%016"PRIx64, cmd->afu_name, cmd_event );
+		return;
+	}
+
+	// Test for client disconnect
+	if ( ( client = _get_client( cmd, cmd_event ) ) == NULL ) {
+	        debug_msg("handle_ca_synonym_return: %s: client invalid, likely disconnected", cmd->afu_name );
+		return;
+	}
+
+	debug_msg("handle_ca_synonym_return:%s:MEMORY ACK afutag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
+		  cmd_event->afutag, cmd_event->addr);
+
+	// _update_age(cmd, cmd_event->addr);
+
+	if (cmd_event->type == CMD_CACHE_RD) {
+	        _handle_synonym_detected( ocl, cmd, cmd_event, fd);
+	} else {
+	        debug_msg( "handle_ca_synonym_return: invalid cmd_event type found");
+	}
+	debug_cmd_return(cmd->dbg_fp, cmd->dbg_id, cmd_event->afutag, cmd_event->context);
+}
 
 // Decide what to do with a client memory acknowledgement
 void handle_ca_mem_return( struct ocl *ocl, struct cmd *cmd, struct cmd_event *cmd_event, int fd )

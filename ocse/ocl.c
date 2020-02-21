@@ -226,6 +226,11 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 			        handle_ca_mem_return(ocl, ocl->cmd, cmd, client->fd);
 			client->mem_access = NULL;
 			break;
+		case OCSE_CA_SYNONYM_DETECTED:
+			if (client->mem_access != NULL)
+			        handle_ca_synonym_return(ocl, ocl->cmd, cmd, client->fd);
+			client->mem_access = NULL;
+			break;
 		case OCSE_MMIO_MAP:
 		case OCSE_GLOBAL_MMIO_MAP:
 		case OCSE_LPC_SYSTEM_MAP:

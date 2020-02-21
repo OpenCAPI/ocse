@@ -1221,7 +1221,7 @@ int tlx_signal_afu_model(struct AFU_EVENT *event)
 		event->tbuf[bp++] = (event->tlx_afu_vc0_pg_size & 0x3F);
 		for (i = 0; i < 4; i++) {
 			event->tbuf[bp++] =
-			    ((event->tlx_afu_vc0_host_tag) >> ((3 - i) * 4)) & 0xFF;
+			    ((event->tlx_afu_vc0_host_tag) >> ((3 - i) * 8)) & 0xFF;
 		}
 		event->tbuf[bp++] = (event->tlx_afu_vc0_resp_code & 0x0F);
 		event->tbuf[bp++] = (event->tlx_afu_vc0_cache_state & 0x07);
