@@ -1063,8 +1063,8 @@ static void _parse_vc2_cmd(	struct ocl *ocl, struct cmd *cmd, uint8_t cmd_opcode
 		//TODO - will there ever be data on dcp2 that is not part of castout_push? IF SO, 
 		//need to create a special cmd_data_is_valid to signal data on dcp2 NOT dcp3 
 		// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
-		_add_cmd(cmd, 0xca, cmd_afutag, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl ), MEM_IDLE, 
-			 0, 0, 0, 0, cmd_flag, 0, cmd_host_tag, cmd_cache_state, 0);
+		_add_vc2_cmd(cmd, context, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl ), MEM_IDLE, 
+			 0, 0, cmd_data_is_valid, cmd_flag, cmd_host_tag, cmd_cache_state);
 		break;
 	case AFU_CMD_CASTOUT:
 	        debug_msg( "_parse_vc2_cmd: YES! AFU Command is AFU_CMD_CASTOUT and host_tag=0x%06x", cmd_host_tag );
@@ -2499,6 +2499,7 @@ void handle_upgrade_state(struct cmd *cmd)
 }
 
 // Handle randomly selected upgrade cache cmd from afu
+// this routine sends synonym_done, castout or castout.push to the client socket
 void handle_castout(struct cmd *cmd, struct mmio *mmio)
 {
 	struct cmd_event *event;
@@ -2584,11 +2585,11 @@ void handle_castout(struct cmd *cmd, struct mmio *mmio)
 			memcpy( data, event->data, event->size );
 			bufsiz = bufsiz + event->size;
 		}
-		debug_msg("handle_castout: CASTOUT or CASTOUT PUSH  cmd_flag=0x%02x cmd=0x%02x host_tag=0x%06x", event->cmd_flag, event->command, event->host_tag);
+		debug_msg("handle_castout: CASTOUT or CASTOUT PUSH  cmd_flag=0x%02x cmd=0x%02x host_tag=0x%06x", 
+			  event->cmd_flag, event->command, event->host_tag);
 		if (put_bytes(client->fd, bufsiz, buffer, cmd->dbg_fp, cmd->dbg_id, event->context) < 0) {
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		}
-		free( buffer );
 
 		// need to remove force_evict from mmio list if it matches host_tag
 		// if client->mmio_access matches host_tag then this castout is a response to the force_evict - remove the force_evict mmio
@@ -2601,14 +2602,39 @@ void handle_castout(struct cmd *cmd, struct mmio *mmio)
 			        this_mmio->state = OCSE_DONE;
 			}
 		}
-		//these are posted, so no need to tie up memory interface (TODO - correct??)
-		event->form_flag = 0x2;  //do this so handle_response knows it a posted cmd
-		event->state = MEM_DONE;
-		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
-		debug_msg("handle_castout: exiting after sending castout msg to client");
-		// } else {
-		//	debug_msg("handle_castout: Not a CASTOUT - exiting");
 	}
+	if ( event->command == AFU_CMD_SYNONYM_DONE ) {
+	        // these are posted cmds, so just send the info to libocxl, set state to MEM_DONE and set form_flag to indicated posted
+	        // castout has cmd_flag and castout_push doesn't so send 0 for that field for castout_push
+	        buffer = (uint8_t *)malloc(8);
+		bufsiz = 0;
+		buffer[bufsiz] = (uint8_t)OCSE_CA_SYNONYM_DONE;
+		bufsiz = bufsiz + sizeof( uint8_t );
+
+		buffer[bufsiz] = event->command;
+		bufsiz = bufsiz + sizeof( uint8_t );
+		
+		host_tag = (uint32_t *)&(buffer[bufsiz]);
+		*host_tag = htonl(event->host_tag);
+		bufsiz = bufsiz + sizeof( uint32_t );
+
+		size = (uint16_t *)&(buffer[bufsiz]);
+		*size = htons(event->size);
+		bufsiz = bufsiz + sizeof( uint16_t );
+
+		debug_msg("handle_castout: SYNONYM_DONE host_tag=0x%06x", event->host_tag);
+		if (put_bytes(client->fd, bufsiz, buffer, cmd->dbg_fp, cmd->dbg_id, event->context) < 0) {
+			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		}
+	}
+
+	free( buffer );
+
+	//these are posted, so no need to tie up memory interface (TODO - correct??)
+	event->form_flag = 0x2;  //do this so handle_response knows it a posted cmd
+	event->state = MEM_DONE;
+	debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
+	debug_msg("handle_castout: exiting after sending castout or synonym_done msg to client");
 
 	return;
 }

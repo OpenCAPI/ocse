@@ -794,6 +794,110 @@ static void _handle_castout(struct ocxl_afu *afu)
 	
 }
 
+// Handle the synonym_done from the afu
+// lookup the host tag in the cache proxy page/line list
+// if we find it, clear the synonym detected bit
+// if the line is invalid, free it
+// if we didn't find it, assume that a castout invalidated and freed it so just return
+static void _handle_synonym_done(struct ocxl_afu *afu)
+{
+        uint8_t buffer[MAX_LINE_CHARS];
+	uint16_t size;
+	uint8_t op_code;
+	uint32_t host_tag;
+	
+	ocxl_cache_page_proxy *this_page;
+	ocxl_cache_line_proxy *this_line;
+	ocxl_cache_line_proxy *prev_line;
+
+	if ( afu == NULL ) fatal_msg("_handle_synonym_done: NULL afu passed to libocxl.c:_handle_synonym_done");
+	
+	// retrieve op_code(1), host_tag(4), size(2)
+	if (get_bytes_silent(afu->fd, sizeof(op_code), buffer, 1000, 0) < 0) {
+	      warn_msg("_handle_synonym_done: Socket failure getting ca op_code ");
+	      _all_idle(afu);
+	      return;
+	}
+	memcpy( (char *)&op_code, buffer, sizeof( op_code ) );
+
+	if (get_bytes_silent(afu->fd, sizeof( host_tag ), buffer, -1, 0) < 0) {
+	      warn_msg("_handle_synonym_done: Socket failure getting host_tag");
+	      _all_idle(afu);
+	      return;
+	}
+	memcpy( (uint8_t *)&host_tag, buffer, sizeof( host_tag ) );
+	host_tag = ntohl( host_tag );
+	
+	if (get_bytes_silent(afu->fd, sizeof( size ), buffer, 1000, 0) < 0) {
+	      warn_msg("_handle_synonym_done: Socket failure getting size");
+	      _all_idle(afu);
+	      return;
+	}
+	memcpy( (char *)&size, buffer, sizeof( size ) );
+	size = ntohs( size );
+
+	debug_msg("_handle_synonym_done: host_tag=0x%06x, size=%d", host_tag, size);
+
+	// find host tag in the cache proxy list
+	// loop through the page list
+	this_page = ocxl_cache_page_list;
+	while ( this_page != NULL ) {
+  	        // now scan this lines within the page
+	        // track the previous line just in case we need to free this_line
+	        prev_line = NULL;
+		this_line = this_page->_next_line;
+		while ( this_line != NULL ) {
+		        debug_msg("_handle_synonym_done: this_line->host_tag= 0x%06x,host_tag=0x%06x", this_line->host_tag, host_tag);
+		        if ( this_line->host_tag == host_tag ) {
+			        // we matched
+			        debug_msg("_handle_synonym_done: matched this_line->host_tag= 0x%06x,host_tag=0x%06x", this_line->host_tag, host_tag);
+				this_line->synonym_detected = 0x0;
+				
+				// set new protection based on final cache_state - set by _handle_ca_read or castout
+
+				// if the final state is I, free the line
+				if ( this_line->cache_state == 0x0 ) {
+				        // we can free this_line here
+				        // look carefully at this
+					if ( prev_line == NULL ) {
+					        // this_line is at the head of the list
+					        this_page->_next_line = this_line->_next_line;
+					} else {
+					        prev_line->_next_line = this_line->_next_line;
+					}
+					free( this_line );
+					// we've taken care of the line and freed it
+				}
+
+				// if the page is now empty we can un-mprotect the page 
+				// we can also clear the castout required bit,
+				// we can invalidate this page and reset the castout required bit
+				// - the page may be removed from page list by the sigsegv handler
+				if ( this_page->_next_line == NULL ) {
+				        mprotect( (void *)this_page->ea, this_page->size, PROT_READ | PROT_WRITE | PROT_EXEC );
+					this_page->cache_state = 0;
+					this_page->castout_required = 0;
+				}
+				
+				return;
+			} else {
+			        debug_msg("_handle_synonym_done: did not match this_line->host_tag= 0x%06x,host_tag=0x%06x", this_line->host_tag, host_tag);
+			        prev_line = this_line;
+				this_line = this_line->_next_line;
+			}
+		}
+
+		this_page = this_page->_next_page;
+	}
+
+	// if not found! - it is ok - assume a castout freed the line
+	return;
+	//if ( this_page == NULL ) {
+	//	warn_msg("_handle_synonym_done: castout of line that is not cached" );
+	//}
+	
+}
+
 // Handle the read_s, read_me, and read_mes commands from the afu
 // the address will be a naturally aligned 64, 128 or 256 byte line
 // the line will be treated as multiple 64 byte lines if longer that 64
@@ -964,7 +1068,9 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 		debug_msg("_handle_ca_read: cl rd resp for addr @ 0x%016" PRIx64, addr);
 	} else {
 	        // cacheable read of previously cached line - send OCSE_CA_SYNONYM_DETECTED, adjust and send cache_state
-	        buffer[bufsiz] = OCSE_CA_SYNONYM_DETECTED;
+	        cache_line->synonym_detected = 0x1;
+	        
+		buffer[bufsiz] = OCSE_CA_SYNONYM_DETECTED;
 		bufsiz++;
 
 		// pick a state based on op_code - for now, always E
@@ -1386,6 +1492,13 @@ static void _kill_xlate_all( struct ocxl_afu *afu )
 
 	if ( afu->eas == NULL ) return; // no translated addresses to kill
 
+	cmd_flag = 0x0; // kill all translated addresses - one at a time - this is the way the hardware/os does it
+	// cmd_flag = 0xf; // kill all the translated addresses with a single kill
+	ea = 0;
+	pg_size = 0;
+	bdf = 0;
+	pasid = 0;
+		
 	// init message buffer
 	size = 0;
 	// 1 OCSE_KILL_XLATE
@@ -1393,12 +1506,10 @@ static void _kill_xlate_all( struct ocxl_afu *afu )
 	size++;
 
 	// 1 cmd_flag
-	cmd_flag = 0x0; // kill all translated addresses
 	buffer[size] = cmd_flag;
 	size++;
 
 	// 8 ea
-	ea = 0;
 	ea = htonll( ea );
 	ea_buffer_p = &buffer[size];
 	memcpy( ea_buffer_p, &ea, sizeof( ea ) );
@@ -1410,113 +1521,63 @@ static void _kill_xlate_all( struct ocxl_afu *afu )
 	buffer[size] = pg_size;
 	size++;
 
-	// 2 bdf
-	// bdf[15:8]=bus, bdf[7:3]=dev, bdf[2:0]=fcn
-	bdf = afu->bus;
-	bdf = bdf << 5;
-	bdf = bdf + afu->dev;
-	bdf = bdf << 3;
-	bdf = bdf + afu->fcn;
-	bdf = htons( bdf );
-	memcpy( &buffer[size], &bdf, sizeof( bdf ) );
-	size = size + sizeof( bdf );
-
-	// 4 pasid
-	pasid = afu->context;
-	pasid = htonl( pasid );
-	memcpy( &buffer[size], &pasid, sizeof( pasid ) );
-	size = size + sizeof( pasid );
-
-	this_ea = afu->eas;
-	while ( this_ea != NULL ) {
-	        if ( this_ea->kill_xlate_pending == 1 ) {
-		        this_ea = this_ea->_next;
-			continue;
+	if ( cmd_flag == 0xf ) {
+	        this_ea = afu->eas;
+		while (this_ea != NULL ) {
+		        this_ea->kill_xlate_pending = 1;
+			this_ea = this_ea->_next;
 		}
-		// insert ea and pg_size to buffer
-		ea = htonll( this_ea->ea );
-		memcpy( ea_buffer_p, &ea, sizeof( ea ) );
-		*pg_size_buffer_p = this_ea->pg_size;
-		
-		// set this_ea to pending and transmit buffer
-		this_ea->kill_xlate_pending = 1;
 		if (put_bytes_silent(afu->fd, size, buffer) != size) {
 		        afu->opened = 0;
 			afu->attached = 0;
-			debug_msg( "KILL XLATE ALL socket failure" );
+			debug_msg( "_kill_xlate_all with 0xF: KILL XLATE ALL socket failure" );
 		}
-		debug_msg( "_kill_xlate_all: KILL_XLATE addr @ 0x%016" PRIx64 ", cmd_flag %d, pg_size %d, bdf %d, pasid %d", ntohll( ea ), cmd_flag, pg_size, ntohs(bdf), ntohl(pasid) );
+		debug_msg( "_kill_xlate_all with 0xF: KILL_XLATE addr @ 0x%016" PRIx64 ", cmd_flag %d, pg_size %d, bdf %d, pasid %d", ntohll( ea ), cmd_flag, pg_size, ntohs(bdf), ntohl(pasid) );
+	}
 
-		this_ea = this_ea->_next;	  
+	if ( cmd_flag == 0x0 ) {
+	        // 2 bdf
+	        // bdf[15:8]=bus, bdf[7:3]=dev, bdf[2:0]=fcn
+	        bdf = afu->bus;
+		bdf = bdf << 5;
+		bdf = bdf + afu->dev;
+		bdf = bdf << 3;
+		bdf = bdf + afu->fcn;
+		bdf = htons( bdf );
+		memcpy( &buffer[size], &bdf, sizeof( bdf ) );
+		size = size + sizeof( bdf );
+
+		// 4 pasid
+		pasid = afu->context;
+		pasid = htonl( pasid );
+		memcpy( &buffer[size], &pasid, sizeof( pasid ) );
+		size = size + sizeof( pasid );
+
+		this_ea = afu->eas;
+		while ( this_ea != NULL ) {
+		        if ( this_ea->kill_xlate_pending == 1 ) {
+			        this_ea = this_ea->_next;
+				continue;
+			}
+			// insert ea and pg_size to buffer
+			ea = htonll( this_ea->ea );
+			memcpy( ea_buffer_p, &ea, sizeof( ea ) );
+			*pg_size_buffer_p = this_ea->pg_size;
+			
+			// set this_ea to pending and transmit buffer
+			this_ea->kill_xlate_pending = 1;
+			if (put_bytes_silent(afu->fd, size, buffer) != size) {
+			        afu->opened = 0;
+				afu->attached = 0;
+				debug_msg( "KILL XLATE ALL socket failure" );
+			}
+			debug_msg( "_kill_xlate_all: KILL_XLATE addr @ 0x%016" PRIx64 ", cmd_flag %d, pg_size %d, bdf %d, pasid %d", ntohll( ea ), cmd_flag, pg_size, ntohs(bdf), ntohl(pasid) );
+
+			this_ea = this_ea->_next;	  
+		}
 	}
 	
 	return;
-}
-
-static void _kill_xlate_all_with_0xF( struct ocxl_afu *afu )
-{
-        ocxl_ea_area *this_ea;
-        uint8_t cmd_flag = 0;
-	uint64_t ea;
-	uint8_t pg_size;
-	uint16_t bdf;
-	uint32_t pasid;
-	uint8_t buffer[17];
-	int size;
-
-	if ( !afu ) fatal_msg("_kill_xlate_all_with_0xF: NULL afu passed to libocxl.c:_kill_xlate_all");
-
-	if ( afu->eas == NULL ) return; // no translated addresses to kill
-
-	cmd_flag = 0xf; // kill all translated addresses
-	ea = 0;
-	bdf = 0;
-	pg_size = 0;
-	pasid = 0;
-		
-	this_ea = afu->eas;
-	while (this_ea != NULL ) {
-	    this_ea->kill_xlate_pending = 1;
-	    this_ea = this_ea->_next;
-	}
-	
-	
-	// build and send the message for this ea
-	size = 0;
-	// 1 OCSE_KILL_XLATE
-	buffer[size] = OCSE_KILL_XLATE;
-	size++;
-
-	// 1 cmd_flag
-	buffer[size] = cmd_flag;
-	size++;
-
-	// 8 ea
-	ea = htonll( ea );
-	memcpy( &buffer[size], &ea, sizeof( ea ) );
-	size = size + sizeof( ea );
-
-	// 1 pg siz
-	buffer[size] = pg_size;
-	size++;
-
-	// 2 bdf
-	bdf = htons( bdf );
-	memcpy( &buffer[size], &bdf, sizeof( bdf ) );
-	size = size + sizeof( bdf );
-
-	// 4 pasid
-	pasid = htonl( pasid );
-	memcpy( &buffer[size], &pasid, sizeof( pasid ) );
-	size = size + sizeof( pasid );
-
-	if (put_bytes_silent(afu->fd, size, buffer) != size) {
-		afu->opened = 0;
-		afu->attached = 0;
-		debug_msg( "_kill_xlate_all_with_0xF: KILL XLATE ALL socket failure" );
-	}
-	debug_msg( "_kill_xlate_all_with_0xF: KILL_XLATE addr @ 0x%016" PRIx64 ", cmd_flag %d, pg_size %d, bdf %d, pasid %d", ntohll( ea ), cmd_flag, pg_size, ntohs(bdf), ntohl(pasid) );
-
 }
 
 // add random capp kill_xlate command to the socket here.  Summary
@@ -3363,6 +3424,10 @@ static void *_psl_loop(void *ptr)
 		case OCSE_CASTOUT:
 			debug_msg("AFU CASTOUT OPERATION");
 			_handle_castout( afu );
+			break;
+		case OCSE_CA_SYNONYM_DONE:
+			debug_msg("AFU CASTOUT OPERATION");
+			_handle_synonym_done( afu );
 			break;
 		/* case OCSE_AFU_ERROR: */
 		/* 	if (_handle_afu_error(afu) < 0) { */

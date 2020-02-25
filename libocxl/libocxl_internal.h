@@ -119,6 +119,7 @@ typedef struct ocxl_cache_line_proxy {
         uint64_t ea;                    // the effective address of the line that the afu is going to cache
         uint16_t size;
         uint8_t cache_state;            // the cache state that we have decided to give back to the AFU
+        uint8_t synonym_detected;       // gets set by synonym_detected, cleared when the afu returns synonym_done
         uint32_t host_tag;              // the host_tag that we give back to the afu for subsequent cache ops
         struct ocxl_afu *afu;
         struct ocxl_cache_line_proxy *_next_line;
