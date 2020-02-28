@@ -87,6 +87,11 @@ static int _testmemaddr(uint8_t * memaddr)
 {
 	int fd[2];
 	int ret = 0;
+
+	// this test cannot be done as is because of the mprotect scheme we use for cache support
+	// rethink testing of address ownership within the user space of the host app
+	return 1;
+
 	if (pipe(fd) >= 0) {
 		if (write(fd[1], memaddr, 1) > 0)
 			ret = 1;
@@ -560,7 +565,7 @@ static struct ocxl_cache_page_proxy *_is_page_cached( struct ocxl_afu *afu, uint
 
 // puts a new cache line at the beginning of the cache line list
 // returns a pointer to the new entry
-static ocxl_cache_page_proxy *_cache_page( struct ocxl_afu *afu, uint8_t op_code, uint64_t addr )
+static ocxl_cache_page_proxy *_cache_page( struct ocxl_afu *afu, uint64_t addr )
 {
         ocxl_cache_page_proxy *this_page;
 
@@ -581,7 +586,7 @@ static ocxl_cache_page_proxy *_cache_page( struct ocxl_afu *afu, uint8_t op_code
 		this_page->castout_required = 0;
 		this_page->size = sysconf(_SC_PAGE_SIZE);
 		this_page->ea = addr & ~((uint64_t)(this_page->size) - 1); //TODO page size???
-	        this_page->cache_state = 0x0; // initially invalid
+	        // this_page->cache_state = 0x0; // initially invalid
 		// ocxl_next_host_tag = ocxl_next_host_tag + (size/64); 
 	}
 
@@ -591,31 +596,12 @@ static ocxl_cache_page_proxy *_cache_page( struct ocxl_afu *afu, uint8_t op_code
 	// or return the line and the ocse message code to send back: success vs synonym
 	// OR should we expect ocse to handle the synonym behavior???
 
-	// otherwise let's set up the line and update the state.
-	// pick a state based on op_code
-	switch (op_code) {
-	case AFU_CMD_READ_S:
-	case AFU_CMD_READ_S_T:
-	  //alway E for the moment
-	  //this_line->cache_state = 0x1; // just shared for now
-	  //break;
-	case AFU_CMD_READ_ME:
-	case AFU_CMD_READ_ME_T:
-	case AFU_CMD_READ_MES:
-	case AFU_CMD_READ_MES_T:
-	        this_page->cache_state = 0x2; // just exclusive for now
-	        break;
-	default:
-	        warn_msg(" _cache_page: invalid op_code 0x%02x received", op_code );
-	        return NULL;
-	}
-
 	return this_page;
 }
 
 // puts a new cache line at the beginning of the cache line list
 // returns a pointer to the new entry
-static ocxl_cache_line_proxy *_cache_line( struct ocxl_cache_page_proxy *this_page, uint8_t op_code, uint64_t addr, uint64_t size )
+static ocxl_cache_line_proxy *_cache_line( struct ocxl_cache_page_proxy *this_page, uint64_t addr, uint64_t size )
 {
         ocxl_cache_line_proxy *this_line;
 
@@ -772,7 +758,7 @@ static void _handle_castout(struct ocxl_afu *afu)
 				// - the page may be removed from page list by the sigsegv handler
 				if ( this_page->_next_line == NULL ) {
 				        mprotect( (void *)this_page->ea, this_page->size, PROT_READ | PROT_WRITE | PROT_EXEC );
-					this_page->cache_state = 0;
+					// this_page->cache_state = 0;
 					this_page->castout_required = 0;
 				}
 				
@@ -875,7 +861,7 @@ static void _handle_synonym_done(struct ocxl_afu *afu)
 				// - the page may be removed from page list by the sigsegv handler
 				if ( this_page->_next_line == NULL ) {
 				        mprotect( (void *)this_page->ea, this_page->size, PROT_READ | PROT_WRITE | PROT_EXEC );
-					this_page->cache_state = 0;
+					// this_page->cache_state = 0;
 					this_page->castout_required = 0;
 				}
 				
@@ -896,6 +882,186 @@ static void _handle_synonym_done(struct ocxl_afu *afu)
 	//	warn_msg("_handle_synonym_done: castout of line that is not cached" );
 	//}
 	
+}
+
+// Handle the upgrade_state command from the afu
+// the address will be a naturally aligned 64, 128 or 256 byte line
+// the line will be treated as multiple 64 byte lines if longer that 64
+// build the upgrade_resp or synonym_detected response
+// protect the page/line(s)
+//   we mprotect the page/lines so that we will get a SIGSEGV signal if the host user code references the line that is cached in the afu
+// actually - mprotect the page in which the line is found.
+// if an address is accessed with the protected page, we have to force_evict every line cached within that page and unprotect the page
+static void _handle_upgrade_state(struct ocxl_afu *afu)
+{
+	uint8_t buffer[MAX_LINE_CHARS];
+	uint64_t addr;
+	uint16_t size;
+	uint8_t cmd_flag;
+	uint8_t form_flag;
+	uint32_t host_tag;
+	int rc;
+
+	ocxl_cache_page_proxy *cache_page;
+	ocxl_cache_line_proxy *cache_line;
+
+	if ( afu == NULL ) fatal_msg("_handle_upgrade_state: NULL afu passed to libocxl.c:_handle_ca_read");
+	
+	// retrieve size(2), addr(8), cmd_flag(1), and form_flag(1) from socket
+	if (get_bytes_silent(afu->fd, sizeof( size ), buffer, 1000, 0) < 0) {
+	      warn_msg("_handle_upgrade_state: Socket failure getting size");
+	      _all_idle(afu);
+	      return;
+	}
+	memcpy( (char *)&size, buffer, sizeof( size ) );
+	size = ntohs(size);
+
+	if (get_bytes_silent(afu->fd, sizeof(uint64_t), buffer, -1, 0) < 0) {
+	      warn_msg("_handle_upgrade_state: Socket failure getting addr");
+	      _all_idle(afu);
+	      return;
+	}
+	memcpy((char *)&addr, (char *)buffer, sizeof(uint64_t));
+	addr = ntohll(addr);
+	
+	if (get_bytes_silent(afu->fd, sizeof( cmd_flag ), buffer, 1000, 0) < 0) {
+	      warn_msg("_handle_upgrade_state: Socket failure getting cmd_flag ");
+	      _all_idle(afu);
+	      return;
+	}
+	memcpy( (char *)&cmd_flag, buffer, sizeof( cmd_flag ) );
+
+	if (get_bytes_silent(afu->fd, sizeof( form_flag ), buffer, 1000, 0) < 0) {
+	      warn_msg("_handle_upgrade_state: Socket failure getting form_flag ");
+	      _all_idle(afu);
+	      return;
+	}
+	memcpy( (char *)&form_flag, buffer, sizeof( form_flag ) );
+
+	debug_msg("_handle_upgrade_state: addr @ 0x%016" PRIx64 ", size = %d, cmd = %x, form = %x", addr, size, cmd_flag, form_flag);
+	
+	// at this point, addr is either an ea, ta, (or eventually pa) depending on the form flag.
+	// so lets call a routine to translate the address if form flag is the right value
+	rc = _xlate_addr( afu, &addr, form_flag );
+	if ( rc == 0xc ) {
+	        // bad translation
+	        // need to add the reason code to the mem failure message
+		warn_msg("_handle_upgrade_state: from TA that was invalid addr @ 0x%016" PRIx64 "", addr);
+		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
+		buffer[1] = (uint8_t) 0xc;
+		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
+			afu->opened = 0;
+			afu->attached = 0;
+		}
+		return;
+	}
+	
+	debug_msg("_handle_upgrade_state: addr @ 0x%016" PRIx64 ", size = %d", addr, size);
+
+	// addr now represents an EA
+	// first is the address in a region we have cached?
+	// if the address is in a page we have protected, we cannot do this ownership test
+	// maybe we should just remove it for cacheable reads...
+	// we need to make sure we own this address
+	// if (!_testmemaddr((uint8_t *) addr)) {
+	//        if (_handle_dsi(afu, addr) < 0) {
+	//	        perror("_handle_ca_read: DSI Failure");
+	//		return;
+	//	}
+	//	warn_msg("_handle_upgrade_state: CA READ from invalid addr @ 0x%016" PRIx64 "", addr);
+	//	buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
+	//	buffer[1] = 0xc;
+	//	if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
+	//		afu->opened = 0;
+	//		afu->attached = 0;
+	//	}
+	//	return;
+	//}
+
+	// we need to find or create the page and line entry for this ea
+	// we need to build a response and then "cache" the address
+	// depending on the op_code, we can choose various cache states to send back.
+	// we also get to decide whether or not to set the evict/fill hint.
+	// for now, let's send back E for ME and MES, and S for S
+	cache_page = _cache_page( afu, addr );
+	cache_line = _cache_line( cache_page, addr, (uint64_t)size );
+
+	// cache_line->cache_state may be I or E
+	// I here means the line is newly requested so we can proceed to set the state and send OCSE_CA_MEM_SUCCESS
+	// S, E, or M means it was cached before so we need to send synonym_detected OCSE_CA_SYNONYM_DETECTED
+	// the only difference between the two messages is the data packet really
+
+	int bufsiz;
+	bufsiz = 0;
+
+	if ( cache_line->cache_state == 0x0 ) {
+	        // new cacheable read - send OCSE_CA_MEM_SUCCESS, adjust and send cache_state.
+	        buffer[bufsiz] = OCSE_CA_UPGRADE_RESP;
+		bufsiz++;
+
+		// pick a state based on cmd_flag 
+		switch (cmd_flag) {
+		case 0x08:
+		  cache_line->cache_state = 0x3; // Modified
+		  //break;
+		case 0x09:
+		  cache_line->cache_state = 0x4; // Exclusive - invalid data
+		  break;
+		default:
+		  warn_msg("_handle_upgrade_state: invalid cmd_flag 0x%02x received", cmd_flag );
+		  return;
+		}
+
+		buffer[bufsiz] = cache_line->cache_state;
+		bufsiz++;
+
+		buffer[bufsiz] = 0; // evict and fill
+		bufsiz++;
+
+		host_tag = ntohl( cache_line->host_tag );
+		memcpy( &(buffer[bufsiz]), (void *)&host_tag, sizeof(host_tag) );
+		bufsiz = bufsiz + sizeof( host_tag );
+		debug_msg("_handle_upgrade_state: upgrade resp for addr @ 0x%016" PRIx64, addr);
+	} else {
+	        // upgrade state of previously cached line - send OCSE_CA_SYNONYM_DETECTED, adjust and send cache_state
+	        cache_line->synonym_detected = 0x1;
+	        
+		buffer[bufsiz] = OCSE_CA_SYNONYM_DETECTED;
+		bufsiz++;
+
+		// pick a state based on cmd_flag 
+		switch (cmd_flag) {
+		case 0x08:
+		  cache_line->cache_state = 0x3; // just shared for now
+		  //break;
+		case 0x09:
+		  cache_line->cache_state = 0x4; // just exclusive for now
+		  break;
+		default:
+		  warn_msg("_handle_upgrade_state: invalid cmd_flag 0x%02x received", cmd_flag );
+		  return;
+		}
+
+		buffer[bufsiz] = cache_line->cache_state;
+		bufsiz++;
+
+		host_tag = ntohl( cache_line->host_tag );
+		memcpy( &(buffer[bufsiz]), (void *)&host_tag, sizeof(host_tag) );
+		bufsiz = bufsiz + sizeof( host_tag );
+		debug_msg("_handle_upgrade_state: synonym detected for addr @ 0x%016" PRIx64, addr);
+	}
+	if (put_bytes_silent(afu->fd, bufsiz, buffer) != bufsiz) {
+	        afu->opened = 0;
+		afu->attached = 0;
+	}
+
+	// finally, (re)protect the page
+	if ( mprotect( (char *)(cache_page->ea), cache_page->size, PROT_NONE ) == -1 ) {
+	        // could not protect (therefore cache) the address
+	        perror("mprotect");
+		exit( EXIT_FAILURE );
+	}
+	debug_msg("_handle_upgrade_state: protected addr 0x%016"PRIx64" including line 0x%016"PRIx64, cache_page->ea, cache_line->ea );
 }
 
 // Handle the read_s, read_me, and read_mes commands from the afu
@@ -1005,8 +1171,8 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 	// depending on the op_code, we can choose various cache states to send back.
 	// we also get to decide whether or not to set the evict/fill hint.
 	// for now, let's send back E for ME and MES, and S for S
-	cache_page = _cache_page( afu, op_code, addr );
-	cache_line = _cache_line( cache_page, op_code, addr, (uint64_t)size );
+	cache_page = _cache_page( afu, addr );
+	cache_line = _cache_line( cache_page, addr, (uint64_t)size );
 
 	//:lgt: remove this check
 	if (cache_line == NULL) {
@@ -1804,7 +1970,7 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 				        perror("DSI Failure");
 					return;
 				}
-				warn_msg("TOUCH of invalid addr @ 0x%016" PRIx64 "", addr);
+				warn_msg("TOUCH of invalid page of addr @ 0x%016" PRIx64 "", addr);
 				buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
 				buffer[1] = 0xc;
 				if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
@@ -1818,7 +1984,7 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 				        perror("DSI Failure");
 					return;
 				}
-				warn_msg("TOUCH of invalid addr @ 0x%016" PRIx64 "", addr);
+				warn_msg("TOUCH of invalid line addr @ 0x%016" PRIx64 "", addr);
 				buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
 				buffer[1] = 0xc;
 				if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
@@ -3420,6 +3586,10 @@ static void *_psl_loop(void *ptr)
 		case OCSE_CA_MEMORY_READ:
 			debug_msg("AFU CACHEABLE READ OPERATION");
 			_handle_ca_read( afu );
+			break;
+		case OCSE_UPGRADE_STATE:
+			debug_msg("AFU CACHE UPGRADE STATE OPERATION");
+			_handle_upgrade_state( afu );
 			break;
 		case OCSE_CASTOUT:
 			debug_msg("AFU CASTOUT OPERATION");

@@ -135,7 +135,6 @@ typedef struct ocxl_cache_line_proxy {
 typedef struct ocxl_cache_page_proxy {
         uint64_t ea;                    // the effective address of the page in which the line is that the afu is going to cache
         uint16_t size;                  // page size?
-        uint8_t cache_state;            // the cache state that we have decided to give back to the AFU
         uint8_t castout_required;       // gets set by force evict, cleared when the afu has castout[.push] all the lines in the page
         struct ocxl_afu *afu;
         struct ocxl_cache_line_proxy *_next_line;

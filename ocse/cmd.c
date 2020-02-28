@@ -2442,7 +2442,7 @@ void handle_upgrade_state(struct cmd *cmd)
 
 	// Make sure cmd structure is valid
 	if (cmd == NULL) {
-	        debug_msg( "handle_upgrade_state_or_castout: bad cmd pointer");
+	        debug_msg( "handle_upgrade_state: bad cmd pointer");
 		return;
 	}
 
@@ -2462,13 +2462,13 @@ void handle_upgrade_state(struct cmd *cmd)
 
 	// Test for client disconnect
 	if ((client = _get_client(cmd, event)) == NULL) {
-	        debug_msg( "handle_upgrade_state_or_castout: no client found");
+	        debug_msg( "handle_upgrade_state: no client found");
 		return;
 	}
 
 	// Check that memory request can be driven to client
 	if (client->mem_access != NULL) {
-	        debug_msg( "handle_upgrade_state_or_castout: can't drive request to client - TRY LATER");
+	        debug_msg( "handle_upgrade_state: can't drive request to client - TRY LATER");
 		return;
 	}
 
@@ -2485,26 +2485,27 @@ void handle_upgrade_state(struct cmd *cmd)
 	*addr = htonll(event->addr);
 	buffer[11] = event->cmd_flag;
 	buffer[12] = event->form_flag;
-	debug_msg("%s:UPGRADE STATE cmd_flag=0x%x afutag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
-		  event->cmd_flag, event->afutag, event->addr);
+	debug_msg("handle_upgrade_state: UPGRADE STATE cmd_flag=0x%x afutag=0x%02x addr=0x%016"PRIx64, event->cmd_flag, event->afutag, event->addr);
 	if (put_bytes(client->fd, 13, buffer, cmd->dbg_fp, cmd->dbg_id,
 		      event->context) < 0) {
 	        client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 	}
 	event->state = MEM_REQUEST;
 	client->mem_access = (void *)event;
-	debug_msg("Setting client->mem_access in handle_upgrade_state_or_castout");
+	debug_msg("handle_upgrade_state: Setting client->mem_access");
 	debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
        	     
 }
 
 // Handle randomly selected upgrade cache cmd from afu
 // this routine sends synonym_done, castout or castout.push to the client socket
+// it will also process the upgrade_state command
 void handle_castout(struct cmd *cmd, struct mmio *mmio)
 {
 	struct cmd_event *event;
 	struct mmio_event *this_mmio;
 	struct client *client;
+	uint64_t *addr;
 	uint8_t *data;
 	uint16_t *size;
 	uint32_t *host_tag;
@@ -2602,6 +2603,9 @@ void handle_castout(struct cmd *cmd, struct mmio *mmio)
 			        this_mmio->state = OCSE_DONE;
 			}
 		}
+		//these are posted, so no need to tie up memory interface (TODO - correct??)
+		event->form_flag = 0x2;  //do this so handle_response knows it a posted cmd
+		event->state = MEM_DONE;
 	}
 	if ( event->command == AFU_CMD_SYNONYM_DONE ) {
 	        // these are posted cmds, so just send the info to libocxl, set state to MEM_DONE and set form_flag to indicated posted
@@ -2626,15 +2630,46 @@ void handle_castout(struct cmd *cmd, struct mmio *mmio)
 		if (put_bytes(client->fd, bufsiz, buffer, cmd->dbg_fp, cmd->dbg_id, event->context) < 0) {
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		}
+		//these are posted, so no need to tie up memory interface (TODO - correct??)
+		event->form_flag = 0x2;  //do this so handle_response knows it a posted cmd
+		event->state = MEM_DONE;
+	}
+	if ( event->command == AFU_CMD_UPGRADE_STATE ) {
+	        // Send upgrade_state request to client
+	        buffer = (uint8_t *) malloc(13);
+		bufsiz = 0;
+		buffer[bufsiz] = (uint8_t) OCSE_UPGRADE_STATE;
+		bufsiz = bufsiz + sizeof( uint8_t );
+
+		size = (uint16_t *)&(buffer[bufsiz]);
+		*size = htons(event->size);
+		bufsiz = bufsiz + sizeof( uint16_t );
+
+		addr = (uint64_t *) & (buffer[bufsiz]);
+		*addr = htonll(event->addr);
+		bufsiz = bufsiz + sizeof( uint64_t );
+
+		buffer[bufsiz] = event->cmd_flag;
+		bufsiz = bufsiz + sizeof( uint8_t );
+
+		buffer[bufsiz] = event->form_flag;
+		bufsiz = bufsiz + sizeof( uint8_t );
+
+		debug_msg("handle_castout: UPGRADE STATE cmd_flag=0x%x afutag=0x%02x addr=0x%016"PRIx64, event->cmd_flag, event->afutag, event->addr);
+		if (put_bytes(client->fd, bufsiz, buffer, cmd->dbg_fp, cmd->dbg_id,
+			      event->context) < 0) {
+		  client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
+		}
+		event->state = MEM_REQUEST;
+		client->mem_access = (void *)event;
+		debug_msg("handle_upgrade_state: Setting client->mem_access");
+		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
 	}
 
 	free( buffer );
 
-	//these are posted, so no need to tie up memory interface (TODO - correct??)
-	event->form_flag = 0x2;  //do this so handle_response knows it a posted cmd
-	event->state = MEM_DONE;
 	debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
-	debug_msg("handle_castout: exiting after sending castout or synonym_done msg to client");
+	debug_msg("handle_castout: exiting after sending castout or synonym_done or upgrade_state msg to client");
 
 	return;
 }
@@ -3072,7 +3107,8 @@ static void _handle_upgrade_resp(struct cmd *cmd, struct cmd_event *event, int f
 			return;
 	}
 	event->host_tag = ntohl(host_tag);
-	event->state = MEM_DONE;
+
+	event->state = MEM_RECEIVED;
 
 	debug_msg("%s:_handle_upgrade_resp afutag=0x%04x cache_state=0x%02x,  ef=0x%02x, host_tag=0x%04x",
 		  cmd->afu_name, event->afutag, event->cache_state, event->resp_ef, event->host_tag);
@@ -3341,8 +3377,6 @@ static void _handle_cacheable_mem_read(struct ocl *ocl, struct cmd *cmd, struct 
 
 }
 
-
-
 // Calculate page address in cached index for translation
 //static void _calc_index(struct cmd *cmd, uint64_t * addr, uint64_t * index)
 //{
@@ -3418,12 +3452,39 @@ void handle_ca_synonym_return( struct ocl *ocl, struct cmd *cmd, struct cmd_even
 	debug_msg("handle_ca_synonym_return:%s:MEMORY ACK afutag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
 		  cmd_event->afutag, cmd_event->addr);
 
-	// _update_age(cmd, cmd_event->addr);
-
-	if (cmd_event->type == CMD_CACHE_RD) {
+	if ( (cmd_event->type == CMD_CACHE_RD) || (cmd_event->type == CMD_CACHE) ) {
 	        _handle_synonym_detected( ocl, cmd, cmd_event, fd);
 	} else {
 	        debug_msg( "handle_ca_synonym_return: invalid cmd_event type found");
+	}
+	debug_cmd_return(cmd->dbg_fp, cmd->dbg_id, cmd_event->afutag, cmd_event->context);
+}
+
+// Decide what to do with a client memory acknowledgement
+void handle_ca_upgrade_resp( struct ocl *ocl, struct cmd *cmd, struct cmd_event *cmd_event, int fd )
+{
+	struct client *client;
+
+	debug_msg( "handle_ca_upgrade_resp:" );
+
+	// Test for valid cmd
+	if ( cmd_event == NULL ) {
+	        debug_msg("handle_ca_upgrade_resp: invalid command event=0x%016"PRIx64, cmd_event );
+		return;
+	}
+
+	// Test for client disconnect
+	if ( ( client = _get_client( cmd, cmd_event ) ) == NULL ) {
+	        debug_msg("handle_ca_upgrade_resp: client invalid, likely disconnected" );
+		return;
+	}
+
+	debug_msg("handle_ca_upgrade_state: MEMORY ACK afutag=0x%02x addr=0x%016"PRIx64, cmd_event->afutag, cmd_event->addr);
+
+	if (cmd_event->type == CMD_CACHE) {
+	        _handle_cacheable_mem_read( ocl, cmd, cmd_event, fd);
+	} else {
+	        debug_msg( "handle_ca_upgrade_state: invalid cmd_event type found");
 	}
 	debug_cmd_return(cmd->dbg_fp, cmd->dbg_id, cmd_event->afutag, cmd_event->context);
 }
@@ -3449,8 +3510,6 @@ void handle_ca_mem_return( struct ocl *ocl, struct cmd *cmd, struct cmd_event *c
 
 	debug_msg("handle_ca_mem_return:%s:MEMORY ACK afutag=0x%02x addr=0x%016"PRIx64, cmd->afu_name,
 		  cmd_event->afutag, cmd_event->addr);
-
-	// _update_age(cmd, cmd_event->addr);
 
 	if (cmd_event->type == CMD_CACHE_RD) {
 	        _handle_cacheable_mem_read( ocl, cmd, cmd_event, fd);
@@ -3620,7 +3679,7 @@ void handle_response(struct cmd *cmd)
 		return;
 	}
 	if ((event->command == AFU_RSP_KILL_XLATE_DONE) && (event->state == MEM_DONE)) { // not really a cmd; no resp needed so free structs
-	debug_msg("%s:RESPONSE event @ 0x%016" PRIx64 ", NO RESPONSE sent for AFU_RSP_KILL_XLATE_DONE cmd=0x%2x   afutag=0x%02x code=0x%x", cmd->afu_name,
+	        debug_msg("%s:RESPONSE event @ 0x%016" PRIx64 ", NO RESPONSE sent for AFU_RSP_KILL_XLATE_DONE cmd=0x%2x   afutag=0x%02x code=0x%x", cmd->afu_name,
 		    event, event->command, event->afutag, event->resp);
 		debug_cmd_response(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->resp_opcode, event->resp);
 	            debug_msg( "%s:RESPONSE event @ 0x%016" PRIx64 ", free event",
@@ -3678,8 +3737,10 @@ void handle_response(struct cmd *cmd)
 						0,
 						event->resp_dp,
 						0);
-	} else if ( (event->type == CMD_READ) || (event->type == CMD_CACHE_RD) || (event->type == CMD_AMO_RD) ||
-		    (event->type == CMD_AMO_RW)  ){
+	} else if ( (event->type == CMD_READ)     || 
+		    (event->type == CMD_CACHE_RD) || 
+		    (event->type == CMD_AMO_RD)   ||
+		    (event->type == CMD_AMO_RW)   ) {
 		// if not AMO or PR_RD, check to see if split response is warranted
 		// For this initial implementation, there is a parm called HOST_CL_SIZE that is used to determine max resp length
 		// This could alternatively be thought of as an internal bus transfer restriction. Valid sizes are 64, 128 and 256.

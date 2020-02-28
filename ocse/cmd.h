@@ -68,6 +68,10 @@ void handle_interrupt(struct cmd *cmd);
 
 void handle_mem_return(struct cmd *cmd, struct cmd_event *event, int fd);
 
+void handle_ca_upgrade_resp(struct ocl *ocl, struct cmd *cmd, struct cmd_event *cmd_event, int fd);
+
+void handle_ca_synonym_return(struct ocl *ocl, struct cmd *cmd, struct cmd_event *cmd_event, int fd);
+
 void handle_ca_mem_return(struct ocl *ocl, struct cmd *cmd, struct cmd_event *cmd_event, int fd);
 
 void handle_aerror(struct cmd *cmd, struct cmd_event *event, int fd);

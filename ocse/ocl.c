@@ -166,7 +166,7 @@ static void _handle_afu(struct ocl *ocl)
 		handle_touch(ocl->cmd);
 		handle_interrupt(ocl->cmd);
 		handle_write_be_or_amo(ocl->cmd);
-		// handle_upgrade_state(ocl->cmd);           // ocse 5.0
+		// handle_upgrade_state(ocl->cmd);              // 
 		handle_castout(ocl->cmd, ocl->mmio);         // there may be a force evict in the mmio list to be removed
 	}
 }
@@ -224,6 +224,11 @@ static void _handle_client(struct ocl *ocl, struct client *client)
 		case OCSE_CA_MEM_SUCCESS:
 			if (client->mem_access != NULL)
 			        handle_ca_mem_return(ocl, ocl->cmd, cmd, client->fd);
+			client->mem_access = NULL;
+			break;
+		case OCSE_CA_UPGRADE_RESP:
+			if (client->mem_access != NULL)
+			        handle_ca_upgrade_resp(ocl, ocl->cmd, cmd, client->fd);
 			client->mem_access = NULL;
 			break;
 		case OCSE_CA_SYNONYM_DETECTED:
