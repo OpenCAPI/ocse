@@ -137,6 +137,15 @@ OtherCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
       rc = afu_tlx_send_cmd_vc2(afu_event, Command::code, cmd_dl,
         cmd_host_tag, cmd_cache_state, cmd_flag);
       break; 
+    case AFU_CMD_SYNONYM_DONE:
+      cmd_dl = afu_event->afu_tlx_vc2_dl;
+      cmd_host_tag = afu_event->afu_tlx_vc2_host_tag;
+      cmd_cache_state = afu_event->afu_tlx_vc2_cache_state;
+      cmd_flag = afu_event->afu_tlx_vc2_cmdflg;
+      printf("Commands: sending synonym done.\n");
+      rc = afu_tlx_send_cmd_vc2(afu_event, Command::code, cmd_dl,
+        cmd_host_tag, cmd_cache_state, cmd_flag);
+
 	default:
 	    break;
     }
