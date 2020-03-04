@@ -214,6 +214,11 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
       command = new LoadCommand(command_code, command_address_parity,
         command_code_parity, command_tag_parity, buffer_read_parity);
       break;
+    case AFU_CMD_READ_ME_T:
+      printf("Machine: read_me.t 0xE8\n");
+      command = new LoadCommand(command_code, command_address_parity,
+        command_code_parity, command_tag_parity, buffer_read_parity);
+      break;
     case AFU_CMD_READ_S_T:
       printf("Machine: read_s.t 0xEA\n");
       command = new LoadCommand(command_code, command_address_parity,
@@ -226,6 +231,11 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
       break;
     case AFU_CMD_CASTOUT:
       printf("Machine: castout 0x55\n");
+      command = new OtherCommand(command_code, command_address_parity,
+        command_code_parity, command_tag_parity, buffer_read_parity);
+      break;
+    case AFU_CMD_SYNONYM_DONE:
+      printf("Machine: synonym done 0x54\n");
       command = new OtherCommand(command_code, command_address_parity,
         command_code_parity, command_tag_parity, buffer_read_parity);
       break;

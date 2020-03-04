@@ -85,6 +85,7 @@ AFU::AFU (int port, string filename, bool parity, bool jerror):
   config_state = IDLE;
   mem_state = IDLE;
   resp_state = IDLE;
+
   debug_msg("AFU: Set AFU and CONFIG state to IDLE");
   afu_event.afu_tlx_vc0_initial_credit = MAX_AFU_TLX_RESP_CREDITS; 
   afu_event.afu_tlx_vc1_initial_credit = MAX_AFU_TLX_CMD_CREDITS;
@@ -605,9 +606,9 @@ void
 AFU::resp_command(uint16_t cmd, uint64_t address)
 {
   //write command to mmio offset, data, size
-  descriptor.set_mmio_mem(8*0, (char*) cmd, 2);;
+  descriptor.set_mmio_mem(8*0, (char*) &cmd, 2);
   //write address config[2] to mmio
-  descriptor.set_mmio_mem(8*2, (char*) address, 8);
+  descriptor.set_mmio_mem(8*2, (char*) &address, 8);
 }
 
 void
@@ -879,12 +880,21 @@ AFU::resolve_tlx_afu_resp()
 
 	    break;
 		case TLX_RSP_UGRADE_RESP:
+      printf("AFU: tlx rsp upgrade resp.\n");
 	    break;
 		case TLX_RSP_READ_FAILED:
 	    printf("AFU: TLX read response failed\n");
 	    printf("AFU: afutag = 0x%x\n", afu_event.tlx_afu_vc0_afutag);
       printf("AFU: read failed code 0x%x\n", resp_code);
 	    break;
+    case TLX_RSP_SYN_DETECTED:
+      printf("AFU: TLX rsp syn detected.\n");
+      printf("AFU: setup afu cmd synonym done\n");
+      printf("AFU: t_address = 0x%llx\n", t_address_v[0]);
+      resp_command(0x54, t_address_v[0]);
+      cmd_ready = 1;
+      break;
+
 		case TLX_RSP_CL_RD_RESP:  //vc0 and dcp0
       afu_cmd.afutag = resp_afutag;
       afu_cmd.host_tag = resp_host_tag;
