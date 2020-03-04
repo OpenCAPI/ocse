@@ -57,7 +57,11 @@ PAGED_PERCENT:0
 
 # Percentage chance of OCL responding with RETRY for any read or write command response.
 #RETRY_PERCENT:60, 80
-RETRY_PERCENT:20
+RETRY_PERCENT:10
+
+# Percentage chance of OCL responding with LIGHT WEIGHT RETRY for any read or write command response.
+#RETRY_PERCENT:60, 80
+LW_RETRY_PERCENT:20
 
 # Percentage chance of OCL responding with FAILED for any read or write command response.
 #FAILED_PERCENT:50, 60

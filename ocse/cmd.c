@@ -1576,6 +1576,14 @@ void handle_buffer_write(struct ocl *ocl, struct cmd *cmd)
 			debug_msg("handle_buffer_write:RETRY this cmd =0x%x \n", event->command);
 			return;
 		}
+	        if ( allow_lw_retry(cmd->parms) ) {
+			event->state = MEM_DONE;
+			event->type = CMD_FAILED;
+			event->resp_opcode = TLX_RSP_READ_FAILED;
+			event->resp = 0x03;
+			debug_msg("handle_buffer_write:LIGHT WEIGHT RETRY this cmd =0x%x \n", event->command);
+			return;
+		}
 		if ( allow_failed(cmd->parms)) {
 			event->state = MEM_DONE;
 			event->type = CMD_FAILED;
@@ -1892,6 +1900,14 @@ void handle_afu_tlx_write_cmd(struct cmd *cmd)
 			debug_msg("handle_afu_tlx_write_cmd: RETRY this cmd =0x%x \n", event->command);
 			return;
 		}
+	        if ( allow_lw_retry(cmd->parms) ) {
+		        event->state = MEM_DONE;
+			event->type = CMD_FAILED;
+			event->resp_opcode = TLX_RSP_WRITE_FAILED;
+			event->resp = 0x03;
+			debug_msg("handle_afu_tlx_write_cmd: LIGHT WEIGHT RETRY this cmd =0x%x \n", event->command);
+			return;
+		}
 		if ( allow_failed(cmd->parms)) {
 		        event->state = MEM_DONE;
 			event->type = CMD_FAILED;
@@ -2043,6 +2059,17 @@ void handle_write_be_or_amo(struct cmd *cmd)
 			event->type = CMD_FAILED;
 			event->resp = 0x02;
 			debug_msg("handle_write_be_or_amo: RETRY this cmd =0x%x \n", event->command);
+			return;
+		}
+	        if ( allow_lw_retry(cmd->parms) ) {
+		        event->state = MEM_DONE;
+			if ((event->type == CMD_AMO_RD) || (event->type == CMD_AMO_RW))
+			        event->resp_opcode = TLX_RSP_READ_FAILED;
+			else	
+			        event->resp_opcode = TLX_RSP_WRITE_FAILED;
+			event->type = CMD_FAILED;
+			event->resp = 0x03;
+			debug_msg("handle_write_be_or_amo: LIGHT WEIGHT RETRY this cmd =0x%x \n", event->command);
 			return;
 		}
 		if ( allow_failed(cmd->parms)) {
@@ -2745,6 +2772,14 @@ void handle_touch(struct cmd *cmd)
 			event->type = CMD_FAILED;
 			event->resp = 0x02;
 			debug_msg("handle_touch: RETRY this cmd =0x%x \n", event->command);
+			return;
+		}
+		if ( allow_lw_retry(cmd->parms) ) {
+			event->state = MEM_DONE;
+			event->resp_opcode = TLX_RSP_TOUCH_RESP;
+			event->type = CMD_FAILED;
+			event->resp = 0x03;
+			debug_msg("handle_touch: LIGHT WEIGHT RETRY this cmd =0x%x \n", event->command);
 			return;
 		}
 		if ( allow_failed(cmd->parms)) {

@@ -87,6 +87,7 @@ struct parms {
 	uint32_t resp_percent;
 	uint32_t paged_percent;
 	uint32_t retry_percent;
+	uint32_t lw_retry_percent;
 	uint32_t failed_percent;
 	uint32_t pending_percent;
 	uint32_t pending_kill_xlate_percent;

@@ -50,6 +50,12 @@ int allow_retry(struct parms *parms)
 	return percent_chance(parms->retry_percent);
 }
 
+// Randomly decide to allow LIGHT WEIGHT RETRY response
+int allow_lw_retry(struct parms *parms)
+{
+	return percent_chance(parms->lw_retry_percent);
+}
+
 // Randomly decide to allow FAILED response
 int allow_failed(struct parms *parms)
 {

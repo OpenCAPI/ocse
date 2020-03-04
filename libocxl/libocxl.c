@@ -83,18 +83,75 @@ static int _delay_1ms()
 	return nanosleep(&ts, &ts);
 }
 
+// scans through the list of cached addresses.  returns line address if found
+static struct ocxl_cache_line_proxy *_is_line_cached( ocxl_cache_page_proxy *this_page, uint64_t addr )
+{
+        ocxl_cache_line_proxy *this_line;
+
+	this_line = this_page->_next_line;
+	while (this_line != NULL) {
+	        // if the address matches
+	        if ( this_line->ea == ( addr & ~((uint64_t)(this_line->size) - 1) ) ) {
+		        return this_line;
+		}
+		this_line = this_line->_next_line;
+	}
+	
+	return NULL;
+}
+
+// scans through the list of cached addresses.  returns line address if found
+static struct ocxl_cache_page_proxy *_is_page_cached( uint64_t addr )
+{
+        ocxl_cache_page_proxy *this_page;
+
+	this_page = ocxl_cache_page_list;
+	while (this_page != NULL) {
+	        // if the address matches
+	        if ( ( this_page->ea == ( addr & ~( (uint64_t)(this_page->size) - 1 ) ) ) &&
+		     ( this_page->_next_line != NULL )                                    ) {
+		        // the page's ea contains addr AND there are lines cached 
+		        return this_page;
+		}
+		this_page = this_page->_next_page;
+	}
+	
+	return NULL;
+}
+
+// this routine tests the accessibility of memaddr within this users space
+// if we can read it, we assume we "own" it.  If we cannot read it, we return 0
+// and subsequently return a read or write failed message to the afu and set a
+// data segment/storage interrupt
 static int _testmemaddr(uint8_t * memaddr)
 {
 	int fd[2];
 	int ret = 0;
+	ocxl_cache_page_proxy *this_page;
 
 	// this test cannot be done as is because of the mprotect scheme we use for cache support
 	// rethink testing of address ownership within the user space of the host app
-	return 1;
+	// return 1;
 
+	// first, look to see if the page in which the address resides has been cached
+	this_page = _is_page_cached( (uint64_t)memaddr );
+
+	// if it has (this_page != NULL), un-protect it so we can test the accessibility
+	if ( this_page != NULL ) {
+	  mprotect( (void *)this_page->ea, this_page->size, PROT_READ | PROT_WRITE | PROT_EXEC );
+	}
+
+	// test the accessiblity of memaddr
 	if (pipe(fd) >= 0) {
 		if (write(fd[1], memaddr, 1) > 0)
 			ret = 1;
+	}
+
+	// if this_page != NULL, reprotect the page
+	// since the page is now reprotected, a non-cache read or write will hit the sigsegv handler
+	// and the line will be castout of the afu through the normal process...  I hope
+	if ( this_page != NULL ) {
+	  mprotect( (void *)this_page->ea, this_page->size, PROT_NONE );
 	}
 
 	close(fd[0]);
@@ -529,40 +586,6 @@ static int _xlate_addr(struct ocxl_afu *afu, uint64_t *addr, uint8_t form_flag)
       return 0;
 }
 
-// scans through the list of cached addresses.  returns line address if found
-static struct ocxl_cache_line_proxy *_is_line_cached( ocxl_cache_page_proxy *this_page, uint64_t addr )
-{
-        ocxl_cache_line_proxy *this_line;
-
-	this_line = this_page->_next_line;
-	while (this_line != NULL) {
-	        // if the address matches
-	        if ( this_line->ea == ( addr & ~((uint64_t)(this_line->size) - 1) ) ) {
-		        return this_line;
-		}
-		this_line = this_line->_next_line;
-	}
-	
-	return NULL;
-}
-
-// scans through the list of cached addresses.  returns line address if found
-static struct ocxl_cache_page_proxy *_is_page_cached( struct ocxl_afu *afu, uint64_t addr )
-{
-        ocxl_cache_page_proxy *this_page;
-
-	this_page = ocxl_cache_page_list;
-	while (this_page != NULL) {
-	        // if the address matches
-	        if ( this_page->ea == ( addr & ~((uint64_t)(this_page->size) - 1) ) ) {
-		        return this_page;
-		}
-		this_page = this_page->_next_page;
-	}
-	
-	return NULL;
-}
-
 // puts a new cache line at the beginning of the cache line list
 // returns a pointer to the new entry
 static ocxl_cache_page_proxy *_cache_page( struct ocxl_afu *afu, uint64_t addr )
@@ -570,7 +593,7 @@ static ocxl_cache_page_proxy *_cache_page( struct ocxl_afu *afu, uint64_t addr )
         ocxl_cache_page_proxy *this_page;
 
 	// we need to check to see if we've cached it already...
-	this_page = _is_page_cached( afu, addr );
+	this_page = _is_page_cached( addr );
 
 	if ( this_page == NULL ) {
 	        // it is not, so allocate the line
@@ -963,20 +986,20 @@ static void _handle_upgrade_state(struct ocxl_afu *afu)
 	// if the address is in a page we have protected, we cannot do this ownership test
 	// maybe we should just remove it for cacheable reads...
 	// we need to make sure we own this address
-	// if (!_testmemaddr((uint8_t *) addr)) {
-	//        if (_handle_dsi(afu, addr) < 0) {
-	//	        perror("_handle_ca_read: DSI Failure");
-	//		return;
-	//	}
-	//	warn_msg("_handle_upgrade_state: CA READ from invalid addr @ 0x%016" PRIx64 "", addr);
-	//	buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
-	//	buffer[1] = 0xc;
-	//	if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
-	//		afu->opened = 0;
-	//		afu->attached = 0;
-	//	}
-	//	return;
-	//}
+	if (!_testmemaddr((uint8_t *) addr)) {
+	        if (_handle_dsi(afu, addr) < 0) {
+		        perror("_handle_ca_read: DSI Failure");
+			return;
+		}
+		warn_msg("_handle_upgrade_state: CA READ from invalid addr @ 0x%016" PRIx64 "", addr);
+		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
+		buffer[1] = 0xe;
+		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
+			afu->opened = 0;
+			afu->attached = 0;
+		}
+		return;
+	}
 
 	// we need to find or create the page and line entry for this ea
 	// we need to build a response and then "cache" the address
@@ -1151,20 +1174,20 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 	// if the address is in a page we have protected, we cannot do this ownership test
 	// maybe we should just remove it for cacheable reads...
 	// we need to make sure we own this address
-	// if (!_testmemaddr((uint8_t *) addr)) {
-	//        if (_handle_dsi(afu, addr) < 0) {
-	//	        perror("_handle_ca_read: DSI Failure");
-	//		return;
-	//	}
-	//	warn_msg("_handle_ca_read: CA READ from invalid addr @ 0x%016" PRIx64 "", addr);
-	//	buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
-	//	buffer[1] = 0xc;
-	//	if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
-	//		afu->opened = 0;
-	//		afu->attached = 0;
-	//	}
-	//	return;
-	//}
+	if (!_testmemaddr((uint8_t *) addr)) {
+	        if (_handle_dsi(afu, addr) < 0) {
+		        perror("_handle_ca_read: DSI Failure");
+			return;
+		}
+		warn_msg("_handle_ca_read: CA READ from invalid addr @ 0x%016" PRIx64 "", addr);
+		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
+		buffer[1] = 0xe;
+		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
+			afu->opened = 0;
+			afu->attached = 0;
+		}
+		return;
+	}
 
 	// we need to find or create the page and line entry for this ea
 	// we need to build a response and then "cache" the address
@@ -1336,7 +1359,7 @@ static void _handle_read(struct ocxl_afu *afu)
 		}
 		warn_msg("READ from invalid addr @ 0x%016" PRIx64 "", addr);
 		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
-		buffer[1] = 0xc;
+		buffer[1] = 0xe;
 		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
 			afu->opened = 0;
 			afu->attached = 0;
@@ -1427,7 +1450,7 @@ static void _handle_write_be(struct ocxl_afu *afu)
 		}
 		warn_msg("WRITE to invalid addr @ 0x%016" PRIx64 "", addr);
 		buffer[0] = OCSE_MEM_FAILURE;
-		buffer[1] = 0xc;
+		buffer[1] = 0xe;
 		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
 			afu->opened = 0;
 			afu->attached = 0;
@@ -1524,7 +1547,7 @@ static void _handle_write(struct ocxl_afu *afu)
 		}
 		warn_msg("WRITE to invalid addr @ 0x%016" PRIx64 "", addr);
 		buffer[0] = OCSE_MEM_FAILURE;
-		buffer[1] = 0xc;
+		buffer[1] = 0xe;
 		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
 			afu->opened = 0;
 			afu->attached = 0;
@@ -1878,7 +1901,6 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 	int size;
 	struct ocxl_ea_area *prev;
 	struct ocxl_ea_area *this;
-        ocxl_cache_page_proxy *this_page;
 
 	if (!afu) fatal_msg("NULL afu passed to libocxl.c:_handle_xlate");
 
@@ -1963,36 +1985,18 @@ static void _handle_xlate( struct ocxl_afu *afu, uint8_t ocse_message )
 	        // if function code is request a ta 
 	        // add a reason code to the fail message
 	        if (!_testmemaddr((uint8_t *) addr)) {
-		        // if it is not something we cached, continue down this error checking path
-		        this_page = _is_page_cached( afu, addr );
-			if ( this_page == NULL ) {
-			        if (_handle_dsi(afu, addr) < 0) {
-				        perror("DSI Failure");
-					return;
-				}
-				warn_msg("TOUCH of invalid page of addr @ 0x%016" PRIx64 "", addr);
-				buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
-				buffer[1] = 0xc;
-				if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
-				        afu->opened = 0;
-					afu->attached = 0;
-				}
+		        if (_handle_dsi(afu, addr) < 0) {
+			        perror("DSI Failure");
 				return;
 			}
-		        if ( _is_line_cached( this_page, addr ) == NULL ) {
-			        if (_handle_dsi(afu, addr) < 0) {
-				        perror("DSI Failure");
-					return;
-				}
-				warn_msg("TOUCH of invalid line addr @ 0x%016" PRIx64 "", addr);
-				buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
-				buffer[1] = 0xc;
-				if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
-				        afu->opened = 0;
-					afu->attached = 0;
-				}
-				return;
-		        }
+			warn_msg("TOUCH of invalid page of addr @ 0x%016" PRIx64 "", addr);
+			buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
+			buffer[1] = 0xe;
+			if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
+			        afu->opened = 0;
+				afu->attached = 0;
+			}
+			return;
 		}
 
 	        if ( (cmd_flag & 0x08 ) == 0x08 ) {
@@ -2217,7 +2221,7 @@ static void _handle_DMO_OPs(struct ocxl_afu *afu, uint8_t amo_op)
 		}
 		warn_msg("READ2 from invalid addr @ 0x%016" PRIx64 "", addr);
 		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
-		buffer[1] = 0xb;
+		buffer[1] = 0xe;
 		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
 			afu->opened = 0;
 			afu->attached = 0;

@@ -28,6 +28,9 @@ int allow_paged(struct parms *parms);
 // Randomly decide to allow RETRY response
 int allow_retry(struct parms *parms);
 
+// Randomly decide to allow LIGHT WEIGHT RETRY response
+int allow_lw_retry(struct parms *parms);
+
 // Randomly decide to allow FAILED response
 int allow_failed(struct parms *parms);
 
