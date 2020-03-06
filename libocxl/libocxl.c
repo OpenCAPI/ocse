@@ -1766,6 +1766,96 @@ static void _kill_xlate_all( struct ocxl_afu *afu )
 		}
 	}
 	
+	// wait some time for the afu to respond to the kill_xlate's that are pending
+	while (afu->eas != NULL) {
+	  this_ea = afu->eas;
+	  while ( this_ea != NULL ) {
+	    if ( this_ea->kill_xlate_pending != 1 ) {
+	      this_ea = this_ea->_next;
+	    } else {
+	      break;
+	    }
+	  }
+	  if ( this_ea == NULL ) {
+	    // nothing pending
+	    break;
+	  } 
+	  // something is pending, wait a little bit
+	  _delay_1ms();
+	}
+
+	return;
+}
+
+static void _force_evict_all( struct ocxl_afu *afu )
+{
+	uint8_t buffer[17];
+	uint32_t host_tag;
+	uint8_t *host_tag_p;
+	uint8_t size;
+	uint8_t *size_p;
+	int buffer_len;
+
+	ocxl_cache_page_proxy *this_page;
+	ocxl_cache_line_proxy *this_line;
+
+	if ( !afu ) fatal_msg("_force_evict_all: NULL afu passed to libocxl.c:_force_evict_all");
+
+	if ( ocxl_cache_page_list == NULL ) return; // no lines have been cached
+
+	// build the ocse message template
+	buffer_len = 0;
+	// 1 OCSE_FORCE_EVICT
+	buffer[buffer_len] = OCSE_FORCE_EVICT;
+	buffer_len++;
+	
+	// 4 host_tag
+	host_tag = 0;
+	host_tag_p = &buffer[buffer_len];
+	memcpy( &buffer[buffer_len], &host_tag, sizeof( host_tag ) );
+	buffer_len = buffer_len + sizeof( host_tag );
+	
+	// 2 size
+	size = 0;
+	size_p = &buffer[buffer_len];
+	memcpy( &buffer[buffer_len], &size, sizeof( size ) );
+	buffer_len = buffer_len + sizeof( size );
+	
+	this_page = ocxl_cache_page_list;
+	while ( this_page != NULL ) {
+	        this_page->castout_required = 0;
+		
+	        this_line = this_page->_next_line;
+		while ( this_line != NULL ) {
+		        this_page->castout_required = 1;
+		        // insert host_tag and size to buffer
+		        host_tag = htonl( this_line->host_tag );
+			memcpy( host_tag_p, &host_tag, sizeof( host_tag ) );
+
+			size = htons( this_line->size );
+			memcpy( size_p, &size, sizeof( size ) );
+	  
+			if (put_bytes_silent(afu->fd, buffer_len, buffer) != buffer_len) {
+			  afu->opened = 0;
+			  afu->attached = 0;
+			  debug_msg( "_force_evict_all: socket failure" );
+			}
+			debug_msg( "_force_evict_all: FORCE_EVICT addr @ 0x%016" PRIx64 ", host_tag %06x, size %d", 
+				   this_line->ea, this_line->host_tag, this_line->size );
+
+			this_line = this_line->_next_line;
+		}
+
+		// wait for this pages lines to be castout
+		while ( this_page->castout_required == 1 ) {	/*infinite loop */
+		        if (_delay_1ms() < 0) exit( EXIT_FAILURE );
+		}
+
+		// proceed to the next page and casout its lines
+		this_page = this_page->_next_page;
+	}
+
+	// all the lines have been castout
 	return;
 }
 
@@ -4248,7 +4338,6 @@ void _afu_free( ocxl_afu_h afu )
 
 ocxl_err ocxl_afu_close( ocxl_afu_h afu )
 {
-        ocxl_ea_area *this_ea;
         struct ocxl_afu *my_afu;
 	struct ocxl_irq *irq;
 	int i;
@@ -4269,28 +4358,16 @@ ocxl_err ocxl_afu_close( ocxl_afu_h afu )
 	}
 	
 	// Free eas
-	// in any eas are not kill pending, then issue a kill_xlate.
+	// if any eas are not kill pending, then issue a kill_xlate.
+	debug_msg( "ocxl_afu_close: sending xlate_kills");
 	_kill_xlate_all( afu ); // this one makes sure a kill_xlate has been sent for every address in the translation cache
-	//_kill_xlate_all_with_0xF( afu ); // this one send a single kill_xlate with cmd_flag=0xf
 
-	// wait some time for the afu to respond to the kill_xlate's that are pending
-	while (afu->eas != NULL) {
-	  this_ea = afu->eas;
-	  while ( this_ea != NULL ) {
-	    if ( this_ea->kill_xlate_pending != 1 ) {
-	      this_ea = this_ea->_next;
-	    } else {
-	      break;
-	    }
-	  }
-	  if ( this_ea == NULL ) {
-	    // nothing pending
-	    break;
-	  } 
-	  // something is pending, wait a little bit
-	  _delay_1ms();
-	}
+	// castout remaining cache lines
+	// if any lines are still in the proxy cache, issue a force_evict.
+	debug_msg( "ocxl_afu_close: sending force_evicts");
+	_force_evict_all( afu ); // this one makes sure a kill_xlate has been sent for every address in the translation cache
 
+	debug_msg("ocxl_afu_close: finally free structures");
 	_afu_free( afu );
 
 	return OCXL_OK;
