@@ -246,7 +246,7 @@ int main(int argc, char *argv[])
     printf("Failed to clear machine config for read command\n");
     goto done;
   }
-
+/*
   printf("Attempt synonym done 0x54\n");
   config_param.context = 0;
   config_param.enable_always = 1;
@@ -269,6 +269,7 @@ int main(int argc, char *argv[])
     printf("FAILED: config_enable_and_run_machine\n");
     goto done;
   }
+
   timeout = 0;
   printf("Polling synonym done completion status\n");
   while(status[0] != 0x0) {
@@ -280,6 +281,7 @@ int main(int argc, char *argv[])
     printf("Failed to clear machine config for read command\n");
     goto done;
   }
+  */
   status[0] = 0x55;	// send test complete status
   printf("Polling test completion status\n");
   while(status[0] != 0x00) {

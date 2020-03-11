@@ -45,6 +45,8 @@ uint8_t interrupt_pending = 0;
 uint8_t read_resp_completed = 0;
 uint8_t write_resp_completed = 0;
 uint8_t cmd_ready = 1;
+uint8_t resp_cmd_ready = 0;
+uint16_t resp_cmd_code = 0;
 uint8_t status_data[256];
 uint8_t status_resp_valid = 0;
 uint8_t status_updated = 0;
@@ -193,6 +195,19 @@ AFU::start ()
     if (rc <= 0)		
       continue;
 	
+    if(resp_cmd_ready) {
+      resp_cmd_ready = 0;
+      printf("AFU: attempt resp command\n");
+      --highest_priority_mc;
+      printf("AFU: context = %d mc = 0x%x\n", highest_priority_mc->first,
+      highest_priority_mc->second);
+      highest_priority_mc->second->change_machine_config(0, 0, 
+        (uint64_t)resp_cmd_code << 48); //0x8054000000000000LL);
+      
+      highest_priority_mc->second->send_command(&afu_event, cycle);
+      printf("AFU: resp command sent\n");
+    } // resp_cmd_ready
+
 	  // tlx returing a response credit to afu
 	  if(afu_event.tlx_afu_vc0_credit) {
 	    TagManager::release_tlx_credit(RESP_CREDIT);
@@ -892,7 +907,8 @@ AFU::resolve_tlx_afu_resp()
       printf("AFU: setup afu cmd synonym done\n");
       printf("AFU: t_address = 0x%llx\n", t_address_v[0]);
       resp_command(0x54, t_address_v[0]);
-      cmd_ready = 1;
+      resp_cmd_code = 0x8054;
+      resp_cmd_ready = 1;
       break;
 
 		case TLX_RSP_CL_RD_RESP:  //vc0 and dcp0
