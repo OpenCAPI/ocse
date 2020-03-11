@@ -807,11 +807,11 @@ void tlx_bfm(
       }
       if(c_afu_tlx_vc2_valid & (c_afu_tlx_dcp2_data_valid == 0)) {
         printf("%08lld: ", (long long) c_sim_time);
-        int resp_code = afu_tlx_send_cmd_vc2(&event,
- 		 c_afu_tlx_vc2_opcode, c_afu_tlx_vc2_dl, c_afu_tlx_vc2_host_tag,
- 		 c_afu_tlx_vc2_cache_state, c_afu_tlx_vc2_cmdflag);
-        printf( "The AFU to TLX VC2 opcode 0x%x, host_tag 0x%02x, cache state 0x%02x, cmdflag 0x%02x, dl 0x%02x\n", 
-		c_afu_tlx_vc2_opcode, c_afu_tlx_vc2_host_tag, c_afu_tlx_vc2_cache_state, c_afu_tlx_vc2_cmdflag, c_afu_tlx_vc2_dl );
+        int resp_code = afu_tlx_send_cmd_vc2( &event,
+					      c_afu_tlx_vc2_opcode, c_afu_tlx_vc2_dl, c_afu_tlx_vc2_host_tag,
+					      c_afu_tlx_vc2_cache_state, c_afu_tlx_vc2_cmdflag);
+        printf( "The AFU to TLX VC2 opcode 0x%x, host_tag 0x%02x, cache state 0x%02x, cmdflag 0x%02x, dl 0x%02x 0x%02x\n", 
+		c_afu_tlx_vc2_opcode, c_afu_tlx_vc2_host_tag, c_afu_tlx_vc2_cache_state, c_afu_tlx_vc2_cmdflag, c_afu_tlx_vc2_dl, resp_code );
       } else if((c_afu_tlx_vc2_valid == 0) & c_afu_tlx_dcp2_data_valid ) {
         printf("%08lld: ", (long long) c_sim_time);
         int resp_code = afu_tlx_send_dcp2_data(&event,

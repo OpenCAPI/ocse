@@ -167,7 +167,7 @@ static void _handle_afu(struct ocl *ocl)
 		handle_interrupt(ocl->cmd);
 		handle_write_be_or_amo(ocl->cmd);
 		// handle_upgrade_state(ocl->cmd);              // 
-		handle_castout(ocl->cmd, ocl->mmio);         // there may be a force evict in the mmio list to be removed
+		handle_castout(ocl, ocl->cmd, ocl->mmio);         // there may be a force evict in the mmio list to be removed
 	}
 }
 

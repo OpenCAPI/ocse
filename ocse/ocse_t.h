@@ -339,6 +339,7 @@ struct host_tag {
   uint32_t ca_host_tag;
   uint32_t context;
   uint8_t ca_state;
+  uint8_t ef_expected;
   struct host_tag *_next;
 };
 

@@ -1687,7 +1687,7 @@ void handle_buffer_write(struct ocl *ocl, struct cmd *cmd)
 			*addr = htonll(event->addr);
 			host_tag = (uint32_t *)&(buffer[13]);
 			*host_tag = htonl(ocl->next_host_tag);
-			ocl->next_host_tag += ( event->size / 64 );
+			ocl->next_host_tag = ( ocl->next_host_tag + ( event->size / 64 ) ) ;// % 8; // lgt temporary to force host_tag reuse
 			event->abort = &(client->abort);
 			if (put_bytes(client->fd, 17, buffer, cmd->dbg_fp,
 				cmd->dbg_id, event->context) < 0) {
@@ -2524,10 +2524,65 @@ void handle_upgrade_state(struct cmd *cmd)
        	     
 }
 
+static void _remove_host_tag( struct ocl *ocl, struct cmd_event *cmd_event )
+{
+  struct host_tag *prev_host_tag;
+  struct host_tag *this_host_tag;
+
+  // first scan the host_tag list for cmd_event->host_tag AND ef_expected
+  // that will mean that this castout was due to the ef hint
+  prev_host_tag = NULL;
+  this_host_tag = ocl->host_tag;
+  while ( this_host_tag != NULL ) {
+    if ( this_host_tag->ca_host_tag == cmd_event->host_tag ) {
+      // we found an existing host_tag - does the host_tag have ef_expected?
+      if ( this_host_tag->ef_expected == 1 ) {
+	// remove it and return
+	if ( prev_host_tag == NULL ) {
+	  ocl->host_tag = this_host_tag->_next;
+	} else {
+	  prev_host_tag->_next = this_host_tag->_next;
+	}
+	free( this_host_tag );
+	debug_msg( "_remove_host_tag_list: found existing host tag entry with ef_expected field - removed it" );
+	return;
+      }
+    }
+    prev_host_tag = this_host_tag;
+    this_host_tag = this_host_tag->_next;
+  }
+
+  // scan again, because this castout must not be for an evict/fill hint.
+  // if the cache_state is invalid, free the host_tag_entry
+  prev_host_tag = NULL;
+  this_host_tag = ocl->host_tag;
+  while ( this_host_tag != NULL ) {
+    if ( this_host_tag->ca_host_tag == cmd_event->host_tag ) {
+      // we found an existing host_tag - is the final cache_state I?
+      if ( cmd_event->cache_state == 0x0 ) {
+	// remove it and return
+	if ( prev_host_tag == NULL ) {
+	  ocl->host_tag = this_host_tag->_next;
+	} else {
+	  prev_host_tag->_next = this_host_tag->_next;
+	}
+	free( this_host_tag );
+	debug_msg( "_remove_host_tag_list: found existing host tag entry and final cache state is to be I - removed it" );
+	return;
+      }
+    }
+    prev_host_tag = this_host_tag;
+    this_host_tag = this_host_tag->_next;
+  }
+
+  // no matching host tag... let the castout keep going...  it is ok if it doesn't hit anything...  I think
+  return;
+}
+
 // Handle randomly selected upgrade cache cmd from afu
 // this routine sends synonym_done, castout or castout.push to the client socket
 // it will also process the upgrade_state command
-void handle_castout(struct cmd *cmd, struct mmio *mmio)
+void handle_castout(struct ocl *ocl, struct cmd *cmd, struct mmio *mmio)
 {
 	struct cmd_event *event;
 	struct mmio_event *this_mmio;
@@ -2619,6 +2674,9 @@ void handle_castout(struct cmd *cmd, struct mmio *mmio)
 			client_drop(client, TLX_IDLE_CYCLES, CLIENT_NONE);
 		}
 
+		// need to update the host_tag_list
+		_remove_host_tag( ocl, event );
+		
 		// need to remove force_evict from mmio list if it matches host_tag
 		// if client->mmio_access matches host_tag then this castout is a response to the force_evict - remove the force_evict mmio
 		if (client->mmio_access != NULL) {
@@ -3262,29 +3320,45 @@ static void _handle_mem_read(struct cmd *cmd, struct cmd_event *event, int fd)
 	}
 }
 
-static void _update_host_tag( struct ocl *ocl, struct cmd_event *cmd_event )
+static void _update_host_tag_list( struct ocl *ocl, struct cmd_event *cmd_event )
 {
+  struct host_tag *prev_host_tag;
   struct host_tag *this_host_tag;
+
   // scan the host_tag list for cmd_event->host_tag
+  prev_host_tag = NULL;
   this_host_tag = ocl->host_tag;
   while ( this_host_tag != NULL ) {
     if ( this_host_tag->ca_host_tag == cmd_event->host_tag ) {
       // we found an existing host_tag - ???
-      fatal_msg( "_update_host_tag_list: we didn't expect to match host_tags in this routine" );
-      return;
+      // mark this host tag as ef_expected
+      // set the ef field in the cmd_event
+      this_host_tag->ef_expected = 1;
+      cmd_event->resp_ef = 1;
+      // change this message
+      debug_msg( "_update_host_tag_list: found existing host tag entry, setting its ef_expected field and setting the command ef bit" );
     }
+    prev_host_tag = this_host_tag;
     this_host_tag = this_host_tag->_next;
   }
 
-  // this_host_tag should be NULL
-  // add a new entry to the head of the list
+  // always add a new entry to the end of the list
+  // prev needs to point to the last host tag entry - if prev = NULL, prev is actually ocl
+  // add a new entry to the end of the list
   this_host_tag = (struct host_tag *)malloc( sizeof(struct host_tag) );
   this_host_tag->ca_host_tag = cmd_event->host_tag;
   this_host_tag->context = cmd_event->context;
   this_host_tag->ca_state = cmd_event->cache_state;
-  this_host_tag->_next = ocl->host_tag;
-  ocl->host_tag = this_host_tag;
+  this_host_tag->_next = NULL;
 
+  if ( prev_host_tag == NULL ) {
+    ocl->host_tag = this_host_tag;
+  } else {
+    prev_host_tag->_next = this_host_tag;
+  }
+
+  // now there may be two host_tag entries with the same host_tag
+  // one will be marked with ef_expected.
   return;
 }
 
@@ -3327,10 +3401,6 @@ static void _handle_synonym_detected(struct ocl *ocl, struct cmd *cmd, struct cm
 		return;
 	}
 	cmd_event->host_tag = ntohl(host_tag);
-
-	// log the host tag in the host tag list. tag, state, client (or context), ?
-	// no, because in a synonym case we know the host tag exists
-	// _update_host_tag( ocl, cmd_event );
 
 	cmd_event->state = MEM_RECEIVED;
 
@@ -3403,7 +3473,8 @@ static void _handle_cacheable_mem_read(struct ocl *ocl, struct cmd *cmd, struct 
 
 	// log the host tag in the host tag list. tag, state, client (or context), ?
 	// tempted to remove this as we are not properly managing the host_tag list here
-	_update_host_tag( ocl, cmd_event );
+	// scan the host tag list for an entry with this host_tag.
+	_update_host_tag_list( ocl, cmd_event );
 
 	// we used to put the data in the event->data at the offset implied by the address
 	// should we still do that?  
@@ -3412,58 +3483,6 @@ static void _handle_cacheable_mem_read(struct ocl *ocl, struct cmd *cmd, struct 
 
 }
 
-// Calculate page address in cached index for translation
-//static void _calc_index(struct cmd *cmd, uint64_t * addr, uint64_t * index)
-//{
-//	*addr &= cmd->page_entries.page_filter;
-//	*index = *addr & cmd->page_entries.entry_filter;
-//	*index >>= PAGE_ADDR_BITS;
-//}
-
-// Update age of translation entries and create new entry if needed
-//static void _update_age(struct cmd *cmd, uint64_t addr)
-//{
-//	uint64_t index;
-//	int i, set, age, oldest, empty;
-//
-//	_calc_index(cmd, &addr, &index);
-//	set = age = oldest = 0;
-//	empty = PAGE_WAYS;
-//	for (i = 0; i < PAGE_WAYS; i++) {
-//		if (cmd->page_entries.valid[index][i] &&
-//		    (cmd->page_entries.entry[index][i] != addr)) {
-//			cmd->page_entries.age[index][i]++;
-//			if (cmd->page_entries.age[index][i] > age) {
-//				age = cmd->page_entries.age[index][i];
-//				oldest = i;
-//			}
-//		}
-//		if (!cmd->page_entries.valid[index][i] && (empty == PAGE_WAYS)) {
-//			empty = i;
-//		}
-//		if (cmd->page_entries.valid[index][i] &&
-//		    (cmd->page_entries.entry[index][i] == addr)) {
-//			cmd->page_entries.age[index][i] = 0;
-//			set = 1;
-//		}
-//	}
-//
-//	// Entry found and updated
-//	if (set)
-//		return;
-//
-//	// Empty slot exists
-//	if (empty < PAGE_WAYS) {
-//		cmd->page_entries.entry[index][empty] = addr;
-//		cmd->page_entries.valid[index][empty] = 1;
-//		cmd->page_entries.age[index][empty] = 0;
-//		return;
-//	}
-//	// Evict oldest entry and replace with new entry
-//	cmd->page_entries.entry[index][oldest] = addr;
-//	cmd->page_entries.valid[index][oldest] = 1;
-//	cmd->page_entries.age[index][oldest] = 0;
-//}
 
 // Decide what to do with a client memory acknowledgement
 void handle_ca_synonym_return( struct ocl *ocl, struct cmd *cmd, struct cmd_event *cmd_event, int fd )

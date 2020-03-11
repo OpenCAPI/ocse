@@ -84,6 +84,35 @@ static int _delay_1ms()
 }
 
 // scans through the list of cached addresses.  returns line address if found
+uint8_t _is_host_tag_reused( uint32_t host_tag, uint64_t addr )
+{
+        ocxl_cache_page_proxy *this_page;
+        ocxl_cache_line_proxy *this_line;
+	uint8_t evict_fill = 0;
+
+	this_page = ocxl_cache_page_list;
+	while (this_page != NULL) {
+	        this_line = this_page->_next_line;
+		while (this_line != NULL) {
+		        // if the next_host_tag matches
+		        if ( this_line->host_tag == host_tag ) {
+			        // check the ea
+			        if ( this_line->ea != ( addr & ~((uint64_t)(this_line->size) - 1) ) ) {
+				        debug_msg( "_is_host_tag_reused: reusing host tag 0x%06x", host_tag );
+				        evict_fill = 1;
+					this_line->ef_expected = 1;
+					return evict_fill;
+				}
+			}
+			this_line = this_line->_next_line;
+		}
+		this_page = this_page->_next_page;
+	}
+
+	return evict_fill;
+}
+
+// scans through the list of cached addresses.  returns line address if found
 static struct ocxl_cache_line_proxy *_is_line_cached( ocxl_cache_page_proxy *this_page, uint64_t addr )
 {
         ocxl_cache_line_proxy *this_line;
@@ -283,7 +312,7 @@ ocxl_wait_event *_alloc_wait_event( uint16_t tid )
   }
 
   // if not found, create it
-  this_wait_event = (ocxl_wait_event *)malloc( sizeof(ocxl_wait_event) );
+  this_wait_event = (ocxl_wait_event *)calloc( 1, sizeof(ocxl_wait_event) );
   this_wait_event->tid = tid;
   this_wait_event->enabled = 0;
   this_wait_event->received = 0;
@@ -597,7 +626,7 @@ static ocxl_cache_page_proxy *_cache_page( struct ocxl_afu *afu, uint64_t addr )
 
 	if ( this_page == NULL ) {
 	        // it is not, so allocate the line
-	        this_page = (ocxl_cache_page_proxy *)malloc( sizeof(ocxl_cache_page_proxy) );
+	  this_page = (ocxl_cache_page_proxy *)calloc( 1, sizeof(ocxl_cache_page_proxy) );
 
 		//put at head of list
 		this_page->afu = afu;
@@ -633,7 +662,7 @@ static ocxl_cache_line_proxy *_cache_line( struct ocxl_cache_page_proxy *this_pa
 
 	if ( this_line == NULL ) {
 	        // it is not, so allocate the line
-	        this_line = (ocxl_cache_line_proxy *)malloc( sizeof(ocxl_cache_line_proxy) );
+	  this_line = (ocxl_cache_line_proxy *)calloc( 1, sizeof(ocxl_cache_line_proxy) );
 
 		//put at head of list
 		this_line->afu = this_page->afu;
@@ -720,7 +749,7 @@ static void _handle_castout(struct ocxl_afu *afu)
 	
 	debug_msg("_handle_castout: host_tag=0x%06x, size=%d, cmd_flag=%x", host_tag, size, cmd_flag);
 
-	// find host tag in the cache proxy list
+	// scan the cache proxy list to see if this host tag exists AND has the ef_expected bit set
 	// loop through the page list
 	this_page = ocxl_cache_page_list;
 	while ( this_page != NULL ) {
@@ -729,33 +758,16 @@ static void _handle_castout(struct ocxl_afu *afu)
 	        prev_line = NULL;
 		this_line = this_page->_next_line;
 		while ( this_line != NULL ) {
-		        debug_msg("_handle_castout: this_line->host_tag= 0x%06x,host_tag=0x%06x", this_line->host_tag, host_tag);
-		        if ( this_line->host_tag == host_tag ) {
-			        // we matched
-			        debug_msg("_handle_castout: matched this_line->host_tag= 0x%06x,host_tag=0x%06x", this_line->host_tag, host_tag);
+		  debug_msg("_handle_castout: this_line->host_tag= 0x%06x, host_tag=0x%06x, ef_expected=0x%02x", this_line->host_tag, host_tag, this_line->ef_expected );
+		        if ( ( this_line->host_tag == host_tag ) && ( this_line->ef_expected == 1 ) ) {
+			        // we matched - castout this line as invalid
+			        debug_msg("_handle_castout: EVICT FILL matched this_line ea=0x%016llx host_tag=0x%06x,host_tag=0x%06x", this_line->ea, this_line->host_tag, host_tag);
 			        if ( op_code == AFU_CMD_CASTOUT_PUSH ) {
 				        // update the memory - if it was a push
-				        // un protect the page and update memory
+				        // un protect the page update memory, and reprotect the page
 				        mprotect( (void *)this_page->ea, this_page->size, PROT_READ | PROT_WRITE | PROT_EXEC );
 					memcpy( (void *)(this_line->ea), (void *)buffer, size );
-				}
-				// set new protection based on final cache_state
-				switch ( cache_state ) {
-				case 0x0: // invalid
-				  // unprotect the entry
-				  mprotect( (void *)this_page->ea, this_page->size, PROT_READ | PROT_WRITE | PROT_EXEC );
-				  break;
-				case 0x1: // shared - allow read - we actually don't have a good way to optimize for this so alway protect NONE
-				  //mprotect( (void *)this_line->ea, this_line->size, PROT_READ );
-				  //break;
-				case 0x2: // exclusive - allow none
-				case 0x3: // modified - allow none
-				case 0x4: // exclusive with no valid data - allow none
-				  mprotect( (void *)this_page->ea, this_page->size, PROT_NONE );
-				  break;
-				default:
-				  warn_msg("_handle_castout: invalid final cache state" );
-				  break;
+					mprotect( (void *)this_page->ea, this_page->size, PROT_NONE );
 				}
 
 				// if the final state is I, free the line
@@ -785,6 +797,69 @@ static void _handle_castout(struct ocxl_afu *afu)
 					this_page->castout_required = 0;
 				}
 				
+				debug_msg("_handle_castout: EVICT FILL complete");
+				return;
+			} else {
+			        debug_msg("_handle_castout: EVICT FILL did not match this_line->host_tag= 0x%06x,host_tag=0x%06x", this_line->host_tag, host_tag);
+			        prev_line = this_line;
+				this_line = this_line->_next_line;
+			}
+		}
+
+		this_page = this_page->_next_page;
+	}
+
+
+	// we did not find an entry that was expecting to be castout due to the ef hint
+	// find host tag in the cache proxy list
+	// loop through the page list
+	this_page = ocxl_cache_page_list;
+	while ( this_page != NULL ) {
+  	        // now scan this lines within the page
+	        // track the previous line just in case we need to free this_line
+	        prev_line = NULL;
+		this_line = this_page->_next_line;
+		while ( this_line != NULL ) {
+		  debug_msg("_handle_castout: this_line host_tag=0x%06x, host_tag=0x%06x, ef_expected=0x%02x", this_line->host_tag, host_tag, this_line->ef_expected );
+		        if ( this_line->host_tag == host_tag ) {
+			        // we matched
+			        debug_msg("_handle_castout: matched this_line ea=0x%016llx, host_tag= 0x%06x,host_tag=0x%06x", this_line->ea, this_line->host_tag, host_tag);
+			        if ( op_code == AFU_CMD_CASTOUT_PUSH ) {
+				        // update the memory - if it was a push
+				        // un protect the page, update memory, reprotect the memory
+				        mprotect( (void *)this_page->ea, this_page->size, PROT_READ | PROT_WRITE | PROT_EXEC );
+					memcpy( (void *)(this_line->ea), (void *)buffer, size );
+					mprotect( (void *)this_page->ea, this_page->size, PROT_NONE );
+				}
+
+				// if the final state is I, free the line
+				if ( cache_state == 0x0 ) {
+				        // we can free this_line here
+				        // look carefully at this
+					if ( prev_line == NULL ) {
+					        // this_line is at the head of the list
+					        this_page->_next_line = this_line->_next_line;
+					} else {
+					        prev_line->_next_line = this_line->_next_line;
+					}
+					free( this_line );
+					// we've taken care of the line and freed it
+				} else {
+				        // we manage the line
+				        this_line->cache_state = cache_state;
+				}
+
+				// if the page is now empty we can un-mprotect the page 
+				// we can also clear the castout required bit,
+				// we can invalidate this page and reset the castout required bit
+				// - the page may be removed from page list by the sigsegv handler
+				if ( this_page->_next_line == NULL ) {
+				        mprotect( (void *)this_page->ea, this_page->size, PROT_READ | PROT_WRITE | PROT_EXEC );
+					// this_page->cache_state = 0;
+					this_page->castout_required = 0;
+				}
+				
+				debug_msg("_handle_castout: complete");
 				return;
 			} else {
 			        debug_msg("_handle_castout: did not match this_line->host_tag= 0x%06x,host_tag=0x%06x", this_line->host_tag, host_tag);
@@ -922,6 +997,7 @@ static void _handle_upgrade_state(struct ocxl_afu *afu)
 	uint16_t size;
 	uint8_t cmd_flag;
 	uint8_t form_flag;
+	uint8_t ef;
 	uint32_t host_tag;
 	int rc;
 
@@ -1001,6 +1077,11 @@ static void _handle_upgrade_state(struct ocxl_afu *afu)
 		return;
 	}
 
+	// determine if we are reusing the incoming host_tag
+	// if there is a line with this host_tag and the ea does not match, we need to set the EF hint
+	// and we need to note that a ef castout is expected for the line that we found.
+	ef = _is_host_tag_reused( ocxl_next_host_tag, addr );
+
 	// we need to find or create the page and line entry for this ea
 	// we need to build a response and then "cache" the address
 	// depending on the op_code, we can choose various cache states to send back.
@@ -1038,13 +1119,13 @@ static void _handle_upgrade_state(struct ocxl_afu *afu)
 		buffer[bufsiz] = cache_line->cache_state;
 		bufsiz++;
 
-		buffer[bufsiz] = 0; // evict and fill
+		buffer[bufsiz] = ef; // evict and fill
 		bufsiz++;
 
 		host_tag = ntohl( cache_line->host_tag );
 		memcpy( &(buffer[bufsiz]), (void *)&host_tag, sizeof(host_tag) );
 		bufsiz = bufsiz + sizeof( host_tag );
-		debug_msg("_handle_upgrade_state: upgrade resp for addr @ 0x%016" PRIx64, addr);
+		debug_msg("_handle_upgrade_state: upgrade resp for addr @ 0x%016, host_tag=0x%06x, ef=0x02x" PRIx64, addr, cache_line->host_tag, ef);
 	} else {
 	        // upgrade state of previously cached line - send OCSE_CA_SYNONYM_DETECTED, adjust and send cache_state
 	        cache_line->synonym_detected = 0x1;
@@ -1102,6 +1183,7 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 	uint16_t size;
 	uint8_t op_code;
 	uint8_t form_flag;
+	uint8_t ef;
 	uint32_t host_tag;
 	int rc;
 
@@ -1189,6 +1271,11 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 		return;
 	}
 
+	// determine if we are reusing the incoming host_tag
+	// if there is a line with this host_tag and the ea does not match, we need to set the EF hint
+	// and we need to note that a ef castout is expected for the line that we found.
+	ef = _is_host_tag_reused( ocxl_next_host_tag, addr );
+
 	// we need to find or create the page and line entry for this ea
 	// we need to build a response and then "cache" the address
 	// depending on the op_code, we can choose various cache states to send back.
@@ -1196,19 +1283,6 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 	// for now, let's send back E for ME and MES, and S for S
 	cache_page = _cache_page( afu, addr );
 	cache_line = _cache_line( cache_page, addr, (uint64_t)size );
-
-	//:lgt: remove this check
-	if (cache_line == NULL) {
-		warn_msg("_handle_ca_read: CA READ from invalid operation 0x%02x", op_code);
-		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
-		buffer[1] = 0xf;
-		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
-			afu->opened = 0;
-			afu->attached = 0;
-		}
-		return;
-	}
-	//:elgt:
 
 	// cache_line->cache_state may be I or E
 	// I here means the line is newly requested so we can proceed to set the state and send OCSE_CA_MEM_SUCCESS
@@ -1243,7 +1317,7 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 		buffer[bufsiz] = cache_line->cache_state;
 		bufsiz++;
 
-		buffer[bufsiz] = 0; // evict and fill
+		buffer[bufsiz] = ef; // evict and fill
 		bufsiz++;
 
 		host_tag = ntohl( cache_line->host_tag );
@@ -1254,7 +1328,7 @@ static void _handle_ca_read(struct ocxl_afu *afu)
 		mprotect( (char *)(cache_page->ea), cache_page->size, PROT_READ );
 		memcpy( &(buffer[bufsiz]), (void *)addr, size);
 		bufsiz = bufsiz + size;
-		debug_msg("_handle_ca_read: cl rd resp for addr @ 0x%016" PRIx64, addr);
+		debug_msg("_handle_ca_read: cl rd resp for addr @ 0x%016llx, host_tag=0x%06x, ef = 0x%02x", addr, cache_line->host_tag, ef);
 	} else {
 	        // cacheable read of previously cached line - send OCSE_CA_SYNONYM_DETECTED, adjust and send cache_state
 	        cache_line->synonym_detected = 0x1;

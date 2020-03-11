@@ -56,7 +56,7 @@ void handle_buffer_write(struct ocl *ocl, struct cmd *cmd);
 
 void handle_afu_tlx_write_cmd(struct cmd *cmd);
 
-void handle_castout(struct cmd *cmd, struct mmio *mmio);
+void handle_castout(struct ocl *ocl, struct cmd *cmd, struct mmio *mmio);
 
 void handle_upgrade_state(struct cmd *cmd);
 
