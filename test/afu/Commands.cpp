@@ -80,7 +80,7 @@ OtherCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     cmd_afutag = new_tag;
     printf("OtherCommand: sending command = 0x%x\n", Command::code);
     printf("OtherCommand: cmd_flag = 0x%x\n", cmd_flag);
-    debug_msg("calling afu_tlx_send_cmd with command = 0x%x and paddress = 0x%x cmd_actag = 0x%x", Command::code, address, cmd_actag);
+    printf("calling afu_tlx_send_cmd with command = 0x%x and paddress = %lx cmd_actag = 0x%x", Command::code, address, cmd_actag);
     debug_msg("ACTAG = 0x%x BDF = 0x%x PASID = 0x%x", cmd_actag, cmd_bdf, cmd_pasid);
     switch(Command::code) {
 	case AFU_CMD_INTRP_REQ:
@@ -110,6 +110,14 @@ OtherCommand::send_command (AFU_EVENT * afu_event, uint32_t new_tag,
     case AFU_CMD_XLATE_TOUCH:
         printf("Commands: Sending AFU_CMD_XLATE_TOUCH\n");
         rc = afu_tlx_send_cmd_vc3(afu_event, Command::code, 
+            cmd_actag, cmd_stream_id, ea_addr, cmd_afutag, cmd_dl, 
+            cmd_pl, cmd_os, cmd_be, cmd_flag, cmd_endian, cmd_bdf, 
+            cmd_pasid, cmd_pg_size, cmd_mad, cmd_capptag, cmd_resp_code);
+        break;
+    case AFU_CMD_UPGRADE_STATE_T:
+      printf("Commands: Sending AFU_CMD_UPGRADE_STATE_T\n");
+      cmd_flag = 0x08;
+      rc = afu_tlx_send_cmd_vc3(afu_event, Command::code, 
             cmd_actag, cmd_stream_id, ea_addr, cmd_afutag, cmd_dl, 
             cmd_pl, cmd_os, cmd_be, cmd_flag, cmd_endian, cmd_bdf, 
             cmd_pasid, cmd_pg_size, cmd_mad, cmd_capptag, cmd_resp_code);
