@@ -153,6 +153,12 @@ MachineController::Machine::read_machine_config (AFU_EVENT* afu_event)
                     command_code_parity, command_tag_parity,
                     buffer_read_parity);
       break;
+    case AFU_CMD_UPGRADE_STATE_T:
+      printf("Machine: upgrade state t\n");
+      command = new OtherCommand(command_code, command_address_parity,
+                    command_code_parity, command_tag_parity,
+                    buffer_read_parity);
+      break;
     case AFU_CMD_PR_RD_WNITC:
     case AFU_CMD_RD_WNITC:
       printf("Machine: rd_wnitc pl = 0x%x and dl = 0x%x\n", afu_event->afu_tlx_vc3_pl,
@@ -330,7 +336,7 @@ bool MachineController::Machine::attempt_new_command (AFU_EVENT * afu_event,
       ("MachineController::Machine::attempt_new_command(): attemp to send new command when machine is not enabled");
 
   if ((!command || command->is_completed ()) && delay == 0) {
-      debug_msg("Machine::attempt_new_command: read_machine_config");
+      printf("Machine::attempt_new_command: read_machine_config");
       read_machine_config (afu_event);
 
       // randomly generates address within the range

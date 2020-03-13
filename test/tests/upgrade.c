@@ -179,11 +179,11 @@ int main(int argc, char *argv[])
   printf("Result = 0x%"PRIx64"\n", result);
 
 
-  printf("Attempt read_s 0xEA\n");
+  printf("Attempt upgrade_state_t 0xE0\n");
   config_param.context = 0;
   config_param.enable_always = 1;
   config_param.mem_size = 64;
-  config_param.command = AFU_CMD_READ_S_T;
+  config_param.command = AFU_CMD_UPGRADE_STATE_T;
   config_param.mem_base_address = (uint64_t)t_address;
   config_param.machine_number = 0;
   config_param.status_address = (uint32_t)status;
@@ -202,7 +202,7 @@ int main(int argc, char *argv[])
 	  goto done;
   }
   timeout = 0;
-  printf("Polling read_s.t completion status\n");
+  printf("Polling upgrade_state_t completion status\n");
   while(status[0] != 0x0) {
 	  nanosleep(&t, &t);
   }
@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
 	  printf("Failed to clear machine config for read command\n");
 	  goto done;
   }
-
+/*
   printf("Attempt read_me.t 0xE8\n");
   config_param.context = 0;
   config_param.enable_always = 1;
@@ -246,42 +246,7 @@ int main(int argc, char *argv[])
     printf("Failed to clear machine config for read command\n");
     goto done;
   }
-/*
-  printf("Attempt synonym done 0x54\n");
-  config_param.context = 0;
-  config_param.enable_always = 1;
-  config_param.mem_size = 64;
-  config_param.command = AFU_CMD_SYNONYM_DONE;
-  config_param.mem_base_address = (uint64_t)t_address;
-  config_param.machine_number = 0;
-  config_param.status_address = (uint32_t)status;
-  printf("status address = 0x%p\n", status);
-  printf("rcacheline = 0x%p\n", rcacheline);
-  printf("command = 0x%x\n", config_param.command);
-  printf("mem base address = 0x%"PRIx64"\n", config_param.mem_base_address);
-  rc = config_enable_and_run_machine(mafu_h, pp_mmio_h, &machine_config, config_param, DIRECTED);
-  status[0] = 0xff;
-  if( rc != -1) {
-    printf("Response = 0x%x\n", rc);
-    printf("config_enable_and_run_machine PASS\n");
-  }
-  else {
-    printf("FAILED: config_enable_and_run_machine\n");
-    goto done;
-  }
-
-  timeout = 0;
-  printf("Polling synonym done completion status\n");
-  while(status[0] != 0x0) {
-    nanosleep(&t, &t);
-  }
-  // clear machine config
-  rc = clear_machine_config(pp_mmio_h, &machine_config, config_param, DIRECTED, &result);
-  if(rc != 0) {
-    printf("Failed to clear machine config for read command\n");
-    goto done;
-  }
-  */
+*/
   status[0] = 0x55;	// send test complete status
   printf("Polling test completion status\n");
   while(status[0] != 0x00) {
