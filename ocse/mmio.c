@@ -1922,6 +1922,7 @@ struct mmio_event *handle_mmio_done(struct mmio *mmio, struct client *client)
 		debug_msg("handle_mmio_done: KILL XLATE DONE SENT to HOST!!!!");
 	} else if (this_event->cmd_opcode == OCSE_FORCE_EVICT) {
 	        // no response necessary, a castout is now in flight to finish the evict
+		buffer = (uint8_t *) malloc(10);
 		debug_msg("handle_mmio_done: FORCE_EVICT being completed by CASTOUT!!!!");
 	} else if ((this_event->cmd_opcode == OCSE_DISABLE_CACHE) || (this_event->cmd_opcode == OCSE_ENABLE_CACHE)
 			|| (this_event->cmd_opcode == OCSE_DISABLE_ATC) || (this_event->cmd_opcode == OCSE_ENABLE_ATC)) {

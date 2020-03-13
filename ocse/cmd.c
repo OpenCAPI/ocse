@@ -2641,6 +2641,7 @@ void handle_castout(struct ocl *ocl, struct cmd *cmd, struct mmio *mmio)
 	        // 
 	        // these are posted cmds, so just send the info to libocxl, set state to MEM_DONE and set form_flag to indicated posted
 	        // castout has cmd_flag and castout_push doesn't so send 0 for that field for castout_push
+	        debug_msg("handle_castout: CASTOUT 0x%02x", event->command );
 	        buffer = (uint8_t *)malloc(10 + event->size);
 		bufsiz = 0;
 		buffer[bufsiz] = (uint8_t)OCSE_CASTOUT;
@@ -2695,6 +2696,7 @@ void handle_castout(struct ocl *ocl, struct cmd *cmd, struct mmio *mmio)
 	if ( event->command == AFU_CMD_SYNONYM_DONE ) {
 	        // these are posted cmds, so just send the info to libocxl, set state to MEM_DONE and set form_flag to indicated posted
 	        // castout has cmd_flag and castout_push doesn't so send 0 for that field for castout_push
+		debug_msg("handle_castout: SYNONYM DONE");
 	        buffer = (uint8_t *)malloc(8);
 		bufsiz = 0;
 		buffer[bufsiz] = (uint8_t)OCSE_CA_SYNONYM_DONE;
@@ -2721,6 +2723,7 @@ void handle_castout(struct ocl *ocl, struct cmd *cmd, struct mmio *mmio)
 	}
 	if ( event->command == AFU_CMD_UPGRADE_STATE ) {
 	        // Send upgrade_state request to client
+		debug_msg("handle_castout: UPGRADE STATE");
 	        buffer = (uint8_t *) malloc(13);
 		bufsiz = 0;
 		buffer[bufsiz] = (uint8_t) OCSE_UPGRADE_STATE;
