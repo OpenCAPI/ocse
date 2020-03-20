@@ -1518,13 +1518,14 @@ void handle_buffer_write(struct ocl *ocl, struct cmd *cmd)
 	//      so here we just set MEM_DONE and TLX_RESPONSE_DONE for the event that we selected
 	event = cmd->list;
 	while ( event != NULL ) {
-	        if ( (( event->type == CMD_CACHE_RD) || ( event->type == CMD_READ )) && // add in test to get cacheable reads too
-		     ( event->state != MEM_DONE ) &&
-		     ( ( event->client_state != CLIENT_VALID ) ) && (!allow_reorder(cmd->parms))) { 
-	  //debug_msg( "%s:HANDLE BUFFER WRITE event @ 0x%016" PRIx64 "  NOT skipped because !allow_reorder", cmd->afu_name, event );
+	        if ( ( ( event->type == CMD_CACHE_RD ) || ( event->type == CMD_CACHE ) || ( event->type == CMD_READ ) ) && 
+		     ( event->state != MEM_DONE )                                       &&
+		     ( event->client_state != CLIENT_VALID )                            && 
+		     ( !allow_reorder( cmd->parms ) ) ) { 
+	                //debug_msg( "%s:HANDLE BUFFER WRITE event @ 0x%016" PRIx64 "  NOT skipped because !allow_reorder", cmd->afu_name, event );
 			break;
 		}
-	  //debug_msg( "%s:HANDLE BUFFER WRITE event @ 0x%016" PRIx64 " skipped because allow_reorder=1", cmd->afu_name, event );
+		//debug_msg( "%s:HANDLE BUFFER WRITE event @ 0x%016" PRIx64 " skipped because allow_reorder=1", cmd->afu_name, event );
 		event = event->_next;
 	}
 
@@ -1566,7 +1567,7 @@ void handle_buffer_write(struct ocl *ocl, struct cmd *cmd)
 	else
 		debug_msg(" handle_buffer_write: NO NEED to check presyncq");
 	// end of new code for .s cmds
-	if ((event->state == MEM_IDLE) && (client->mem_access == NULL)) {
+	if ( ( event->type != CMD_CACHE ) && ( event->state == MEM_IDLE ) && ( client->mem_access == NULL ) ) {
 	        // Check to see if this cmd gets selected for a RETRY or FAILED or PENDING or DERROR read_failed response
 	        if ( allow_retry(cmd->parms) && !(event->form_flag & 0x80) ) {
 			event->state = MEM_DONE;
@@ -1630,19 +1631,20 @@ void handle_buffer_write(struct ocl *ocl, struct cmd *cmd)
 	  	event->state = MEM_DONE;
 	}
 	debug_msg( "event->state is not MEM_RECEIVED" );
-	    // we need to send back 1 or more 64B response
-	    // we can:
-	    //    send a complete response, with all the data
-	    //    send partial responses, in any order, with aligned partial data (vary dl and dp in the response
-	    //       power will likely send back chunks in <= 128 B responses...
-	    //    responses can come back in any order
-	    // I'm thinking ocse decides what response to send and whether or not to split it.
-	    // and sends all the data associated with the selected response.
-	    // then tlx_interface/afu_driver forward the response portion and hold the data in a fifo linked list of 64 B values.
-	    // then when the afu does a resp_rd_req of some resp_rd_cnt, tlx_interaface/afu_driver just starts pumping values out of the
-	    // fifo.  This method actually works for partial read as well as the minimum size of a split response is 64 B.
-	    // it is the afu's responsiblity to manage resp_rd_cnt correctly, and this is not information for us to check
-	    // anything other than an overrun (i.e. resp_rd_req of an empty fifo, or resp_rd_cnt exceeds the amount of data in the fifo)
+
+	// we need to send back 1 or more 64B response
+	// we can:
+	//    send a complete response, with all the data
+	//    send partial responses, in any order, with aligned partial data (vary dl and dp in the response
+	//       power will likely send back chunks in <= 128 B responses...
+	//    responses can come back in any order
+	// I'm thinking ocse decides what response to send and whether or not to split it.
+	// and sends all the data associated with the selected response.
+	// then tlx_interface/afu_driver forward the response portion and hold the data in a fifo linked list of 64 B values.
+	// then when the afu does a resp_rd_req of some resp_rd_cnt, tlx_interaface/afu_driver just starts pumping values out of the
+	// fifo.  This method actually works for partial read as well as the minimum size of a split response is 64 B.
+	// it is the afu's responsiblity to manage resp_rd_cnt correctly, and this is not information for us to check
+	// anything other than an overrun (i.e. resp_rd_req of an empty fifo, or resp_rd_cnt exceeds the amount of data in the fifo)
 
 	if (event->state != MEM_IDLE) { //more dead code or just case where client->mem_access !=NULL?
 	        debug_msg( "handle_buffer_write: LOOK event->state is not equal MEM_IDLE" );
@@ -2722,6 +2724,7 @@ void handle_castout(struct ocl *ocl, struct cmd *cmd, struct mmio *mmio)
 		event->state = MEM_DONE;
 	}
 	if ( event->command == AFU_CMD_UPGRADE_STATE ) {
+	  if ( client->mem_access == NULL ) {
 	        // Send upgrade_state request to client
 		debug_msg("handle_castout: UPGRADE STATE");
 	        buffer = (uint8_t *) malloc(13);
@@ -2740,6 +2743,11 @@ void handle_castout(struct ocl *ocl, struct cmd *cmd, struct mmio *mmio)
 		buffer[bufsiz] = event->cmd_flag;
 		bufsiz = bufsiz + sizeof( uint8_t );
 
+		host_tag = (uint32_t *)&(buffer[bufsiz]);
+		*host_tag = htonl(ocl->next_host_tag);
+		bufsiz = bufsiz + sizeof( uint32_t );
+		ocl->next_host_tag = ( ocl->next_host_tag + ( event->size / 64 ) ) ;// % 8; // lgt temporary to force host_tag reuse
+
 		buffer[bufsiz] = event->form_flag;
 		bufsiz = bufsiz + sizeof( uint8_t );
 
@@ -2750,8 +2758,10 @@ void handle_castout(struct ocl *ocl, struct cmd *cmd, struct mmio *mmio)
 		}
 		event->state = MEM_REQUEST;
 		client->mem_access = (void *)event;
-		debug_msg("handle_upgrade_state: Setting client->mem_access");
-		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
+		debug_msg("handle_castout: Setting client->mem_access");
+		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context);
+	  } else  
+	    debug_msg( "handle_castout: upgrade_state: client->mem_access was not NULL meaning we have a memory action in progress" );
 	}
 
 	free( buffer );
@@ -3462,26 +3472,29 @@ static void _handle_cacheable_mem_read(struct ocl *ocl, struct cmd *cmd, struct 
 	}
 	cmd_event->host_tag = ntohl(host_tag);
 
-	if (get_bytes_silent(fd, cmd_event->size, data, cmd->parms->timeout, cmd_event->abort) < 0) {
-	        debug_msg("_handle_cacheable_mem_read: %s: failed afutag=0x%04x size=%d addr=0x%016"PRIx64,
-			  cmd->afu_name, cmd_event->afutag, cmd_event->size, cmd_event->addr);
-		cmd_event->state = MEM_DONE;
-		cmd_event->resp_opcode = TLX_RSP_READ_FAILED;
-		cmd_event->type = CMD_FAILED;
-		cmd_event->resp = 0x0e;
-		debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, cmd_event->afutag,
-				 cmd_event->context, cmd_event->resp);
-		return;
-	}
-
 	// log the host tag in the host tag list. tag, state, client (or context), ?
 	// tempted to remove this as we are not properly managing the host_tag list here
 	// scan the host tag list for an entry with this host_tag.
 	_update_host_tag_list( ocl, cmd_event );
 
-	// we used to put the data in the event->data at the offset implied by the address
-	// should we still do that?  
-	memcpy((void *)&(cmd_event->data[offset]), (void *)&data, cmd_event->size);
+	if ( cmd_event->type == CMD_CACHE_RD ) {
+	        if (get_bytes_silent(fd, cmd_event->size, data, cmd->parms->timeout, cmd_event->abort) < 0) {
+		        debug_msg("_handle_cacheable_mem_read: %s: failed afutag=0x%04x size=%d addr=0x%016"PRIx64,
+				  cmd->afu_name, cmd_event->afutag, cmd_event->size, cmd_event->addr);
+			cmd_event->state = MEM_DONE;
+			cmd_event->resp_opcode = TLX_RSP_READ_FAILED;
+			cmd_event->type = CMD_FAILED;
+			cmd_event->resp = 0x0e;
+			debug_cmd_update(cmd->dbg_fp, cmd->dbg_id, cmd_event->afutag,
+					 cmd_event->context, cmd_event->resp);
+			return;
+		}
+
+		// we used to put the data in the event->data at the offset implied by the address
+		// should we still do that?  
+		memcpy((void *)&(cmd_event->data[offset]), (void *)&data, cmd_event->size);
+	}
+	
 	cmd_event->state = MEM_RECEIVED;
 
 }
@@ -3735,6 +3748,7 @@ void handle_response(struct cmd *cmd)
 	 	free(event);
 		return;
 	}
+
 	if ((event->command == AFU_RSP_KILL_XLATE_DONE) && (event->state == MEM_DONE)) { // not really a cmd; no resp needed so free structs
 	        debug_msg("%s:RESPONSE event @ 0x%016" PRIx64 ", NO RESPONSE sent for AFU_RSP_KILL_XLATE_DONE cmd=0x%2x   afutag=0x%02x code=0x%x", cmd->afu_name,
 		    event, event->command, event->afutag, event->resp);
@@ -3794,6 +3808,23 @@ void handle_response(struct cmd *cmd)
 						0,
 						event->resp_dp,
 						0);
+	} else if ( event->type == CMD_CACHE ) {
+	  // this is the dataless upgrade_state response  send just the resp with no data
+		rc = tlx_afu_send_resp_cmd_vc0( cmd->afu_event, 
+						event->resp_opcode, 
+						event->afutag, 
+						0,
+						0,
+						event->resp_dl,
+						event->host_tag,
+						event->cache_state,
+						event->resp_ef,
+						1,
+					        0,
+						0,
+						0,
+						event->resp_capptag );
+		
 	} else if ( (event->type == CMD_READ)     || 
 		    (event->type == CMD_CACHE_RD) || 
 		    (event->type == CMD_AMO_RD)   ||

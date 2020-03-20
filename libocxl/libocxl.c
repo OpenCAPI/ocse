@@ -1004,7 +1004,7 @@ static void _handle_upgrade_state(struct ocxl_afu *afu)
 	ocxl_cache_page_proxy *cache_page;
 	ocxl_cache_line_proxy *cache_line;
 
-	if ( afu == NULL ) fatal_msg("_handle_upgrade_state: NULL afu passed to libocxl.c:_handle_ca_read");
+	if ( afu == NULL ) fatal_msg("_handle_upgrade_state: NULL afu passed to libocxl.c:_handle_upgrade_state");
 	
 	// retrieve size(2), addr(8), cmd_flag(1), and form_flag(1) from socket
 	if (get_bytes_silent(afu->fd, sizeof( size ), buffer, 1000, 0) < 0) {
@@ -1030,6 +1030,14 @@ static void _handle_upgrade_state(struct ocxl_afu *afu)
 	}
 	memcpy( (char *)&cmd_flag, buffer, sizeof( cmd_flag ) );
 
+	if (get_bytes_silent(afu->fd, sizeof(uint32_t), buffer, -1, 0) < 0) {
+	      warn_msg("_handle_upgrade_state: Socket failure getting next host tag");
+	      _all_idle(afu);
+	      return;
+	}
+	memcpy((char *)&ocxl_next_host_tag, (char *)buffer, sizeof(uint32_t));
+	ocxl_next_host_tag = ntohl(ocxl_next_host_tag);
+	
 	if (get_bytes_silent(afu->fd, sizeof( form_flag ), buffer, 1000, 0) < 0) {
 	      warn_msg("_handle_upgrade_state: Socket failure getting form_flag ");
 	      _all_idle(afu);
@@ -1067,7 +1075,7 @@ static void _handle_upgrade_state(struct ocxl_afu *afu)
 		        perror("_handle_ca_read: DSI Failure");
 			return;
 		}
-		warn_msg("_handle_upgrade_state: CA READ from invalid addr @ 0x%016" PRIx64 "", addr);
+		warn_msg("_handle_upgrade_state: from invalid addr @ 0x%016" PRIx64 "", addr);
 		buffer[0] = (uint8_t) OCSE_MEM_FAILURE;
 		buffer[1] = 0xe;
 		if (put_bytes_silent(afu->fd, 2, buffer) != 2) {
@@ -1107,7 +1115,7 @@ static void _handle_upgrade_state(struct ocxl_afu *afu)
 		switch (cmd_flag) {
 		case 0x08:
 		  cache_line->cache_state = 0x3; // Modified
-		  //break;
+		  break;
 		case 0x09:
 		  cache_line->cache_state = 0x4; // Exclusive - invalid data
 		  break;
@@ -1125,7 +1133,7 @@ static void _handle_upgrade_state(struct ocxl_afu *afu)
 		host_tag = ntohl( cache_line->host_tag );
 		memcpy( &(buffer[bufsiz]), (void *)&host_tag, sizeof(host_tag) );
 		bufsiz = bufsiz + sizeof( host_tag );
-		debug_msg("_handle_upgrade_state: upgrade resp for addr @ 0x%016, host_tag=0x%06x, ef=0x02x" PRIx64, addr, cache_line->host_tag, ef);
+		debug_msg("_handle_upgrade_state: upgrade resp for addr @ 0x%016llx, host_tag=0x%06x, ef=0x%02x", addr, cache_line->host_tag, ef);
 	} else {
 	        // upgrade state of previously cached line - send OCSE_CA_SYNONYM_DETECTED, adjust and send cache_state
 	        cache_line->synonym_detected = 0x1;
@@ -1136,10 +1144,10 @@ static void _handle_upgrade_state(struct ocxl_afu *afu)
 		// pick a state based on cmd_flag 
 		switch (cmd_flag) {
 		case 0x08:
-		  cache_line->cache_state = 0x3; // just shared for now
-		  //break;
+		  cache_line->cache_state = 0x3; // modified
+		  break;
 		case 0x09:
-		  cache_line->cache_state = 0x4; // just exclusive for now
+		  cache_line->cache_state = 0x4; // exclusuve, invalidate data
 		  break;
 		default:
 		  warn_msg("_handle_upgrade_state: invalid cmd_flag 0x%02x received", cmd_flag );
