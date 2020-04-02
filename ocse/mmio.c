@@ -2519,6 +2519,7 @@ struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
 
 	// pull host_tag
  	if ( get_bytes_silent( fd, 4, (uint8_t *)&host_tag, mmio->timeout, &(client->abort) ) < 0 ) { 
+	  debug_msg( "handle_force_evict: failed to retrieve host tag from socket" );
 	  goto handle_force_evict_fail; 
  	} 
  	event->cmd_host_tag = ntohl(host_tag); 
@@ -2528,6 +2529,7 @@ struct mmio_event *handle_afu_amo(struct mmio *mmio, struct client *client,
 
 	// pull size
  	if ( get_bytes_silent( fd, 2, (uint8_t *)&size, mmio->timeout, &(client->abort) ) < 0 ) { 
+	  debug_msg( "handle_force_evict: failed to retrieve size from socket" );
 	  goto handle_force_evict_fail; 
  	} 
  	event->size = ntohs(size); 
