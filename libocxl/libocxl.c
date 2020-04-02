@@ -137,8 +137,9 @@ static struct ocxl_cache_page_proxy *_is_page_cached( uint64_t addr )
 	this_page = ocxl_cache_page_list;
 	while (this_page != NULL) {
 	        // if the address matches
-	        if ( ( this_page->ea == ( addr & ~( (uint64_t)(this_page->size) - 1 ) ) ) &&
-		     ( this_page->_next_line != NULL )                                    ) {
+	        if ( ( this_page->ea == ( addr & ~( (uint64_t)(this_page->size) - 1 ) ) ) // &&
+		     // ( this_page->_next_line != NULL )                                    
+		     ) {
 		        // the page's ea contains addr AND there are lines cached 
 		        return this_page;
 		}
@@ -165,9 +166,11 @@ static int _testmemaddr(uint8_t * memaddr)
 	// first, look to see if the page in which the address resides has been cached
 	this_page = _is_page_cached( (uint64_t)memaddr );
 
-	// if it has (this_page != NULL), un-protect it so we can test the accessibility
+	// if it has (this_page != NULL), check to see if any lines are cached and un-protect it so we can test the accessibility
 	if ( this_page != NULL ) {
-	  mprotect( (void *)this_page->ea, this_page->size, PROT_READ | PROT_WRITE | PROT_EXEC );
+	  if ( this_page->_next_line != NULL ) {
+	    mprotect( (void *)this_page->ea, this_page->size, PROT_READ | PROT_WRITE | PROT_EXEC );
+	  }
 	}
 
 	// test the accessiblity of memaddr
@@ -180,7 +183,9 @@ static int _testmemaddr(uint8_t * memaddr)
 	// since the page is now reprotected, a non-cache read or write will hit the sigsegv handler
 	// and the line will be castout of the afu through the normal process...  I hope
 	if ( this_page != NULL ) {
-	  mprotect( (void *)this_page->ea, this_page->size, PROT_NONE );
+	  if ( this_page->_next_line != NULL ) {
+	    mprotect( (void *)this_page->ea, this_page->size, PROT_NONE );
+	  }
 	}
 
 	close(fd[0]);
