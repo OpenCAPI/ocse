@@ -1879,7 +1879,7 @@ static void _force_evict_all( struct ocxl_afu *afu )
 	uint8_t buffer[17];
 	uint32_t host_tag;
 	uint8_t *host_tag_p;
-	uint8_t size;
+	uint16_t size;
 	uint8_t *size_p;
 	int buffer_len;
 
