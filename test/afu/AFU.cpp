@@ -659,6 +659,48 @@ AFU::resolve_tlx_vc2_cmd()
   }
 }
 // process commands from ocse to AFU
+void
+AFU::resolve_tlx_vc0_cmd()
+{
+  uint8_t  resp_opcode;
+  uint16_t resp_afutag;
+  uint8_t  resp_code;
+  uint8_t  resp_pg_size;
+  uint8_t  resp_resp_dl;
+  uint32_t resp_host_tag;
+  uint8_t  resp_cache_state;
+  uint8_t  resp_ef;
+  uint8_t  resp_w;
+  uint8_t  resp_mh;
+  uint64_t  resp_pa_or_ta;
+  uint8_t  resp_dp;
+  uint16_t  resp_capptag;
+  int rc;
+  printf("AFU: receive tlx vc0 command.\n");
+  rc = tlx_afu_read_cmd_resp_vc0(&afu_event, &resp_opcode,
+    &resp_afutag, &resp_code, &resp_pg_size, &resp_resp_dl,
+    &resp_host_tag, &resp_cache_state, &resp_ef,
+    &resp_w, &resp_mh, &resp_pa_or_ta, &resp_dp, &resp_capptag);
+  if(rc != TLX_SUCCESS) {
+    error_msg("Failed: tlx_afu_read_cmd_resp_vc0");
+  }
+  printf("AFU: vc0 opcode = 0x%x\n", resp_opcode);
+  switch(resp_opcode) {
+  case TLX_CMD_FORCE_EVICT:
+    printf("receive force evict cmd\n");
+    printf("sending xlate release cmd\n");
+
+    break;
+  case TLX_CMD_XLATE_DONE:
+    printf("receive kill xlate done cmd\n");
+    break;
+  case TLX_RSP_TOUCH_RESP:
+    printf("receive touch resp.\n");
+    break;
+  default:
+    break;
+  }
+}
 void 
 AFU::resolve_tlx_afu_cmd()
 {
@@ -830,7 +872,7 @@ AFU::resolve_tlx_afu_resp()
  		}
 		//	read_resp_completed = 1;	//debug1
   }
-
+  printf("tlx resp opcode = 0x%x\n", tlx_resp_opcode);
   switch (tlx_resp_opcode) {
     case TLX_CMD_FORCE_EVICT:
       printf("AFU: received tlx force evict\n");
@@ -845,9 +887,10 @@ AFU::resolve_tlx_afu_resp()
           cache.UpdateAttribute(dcache, current[i].address,
             0, 0);
           // set mmio for castout cmd 0x55
-          resp_command(0x55, current[i].address);
+          resp_cmd_code = 0x8055;
+          //resp_command(0x5580, current[i].address);
           //set cmd_ready flag to send cmd on next clock cycle
-          cmd_ready = 1;
+          resp_cmd_ready = 1;
           break;
         }
       }

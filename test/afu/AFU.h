@@ -91,6 +91,7 @@ class AFU
     int reset_delay;
 
     void resolve_tlx_afu_cmd();
+    void resolve_tlx_vc0_cmd();
     void resolve_tlx_vc2_cmd();
     void resolve_tlx_afu_resp();
     void resolve_cfg_cmd();
