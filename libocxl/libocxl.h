@@ -191,8 +191,8 @@ const char *ocxl_err_to_string( ocxl_err err );
    * afu irq functions 
    */
   // returns an interrupt handle describing the a new interrupt of the given afu
-  ocxl_err ocxl_afu_irq_alloc( ocxl_afu_h afu, void *info, ocxl_irq_h *irq_handle );
-  uint64_t ocxl_afu_irq_get_handle( ocxl_afu_h afu, ocxl_irq_h irq );
+  ocxl_err ocxl_irq_alloc( ocxl_afu_h afu, void *info, ocxl_irq_h *irq_handle );
+  uint64_t ocxl_irq_get_handle( ocxl_afu_h afu, ocxl_irq_h irq );
   /* Returns the file descriptor for the open AFU to use with event loops. Returns -1 if the AFU is not open. */
   int ocxl_afu_get_event_fd( ocxl_afu_h afu );
   int ocxl_irq_get_fd( ocxl_afu_h afu, ocxl_irq_h irq );

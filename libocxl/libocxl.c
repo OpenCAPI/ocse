@@ -4511,7 +4511,7 @@ int ocxl_irq_get_fd( ocxl_afu_h afu, ocxl_irq_h irq )
 	return afu->pipe[0];
 }
 
-ocxl_err ocxl_afu_irq_alloc( ocxl_afu_h afu, void *info, ocxl_irq_h *irq_handle )
+ocxl_err ocxl_irq_alloc( ocxl_afu_h afu, void *info, ocxl_irq_h *irq_handle )
 {
         // create an irq, link it to the afu, and return the address of the irq to the caller
         struct ocxl_irq *new_irq;
@@ -4558,7 +4558,7 @@ ocxl_err ocxl_afu_irq_alloc( ocxl_afu_h afu, void *info, ocxl_irq_h *irq_handle 
 	return OCXL_OK;
 }
 
-uint64_t ocxl_afu_irq_get_handle( ocxl_afu_h afu, ocxl_irq_h irq )
+uint64_t ocxl_irq_get_handle( ocxl_afu_h afu, ocxl_irq_h irq )
 {
   // scan the irq list of the afu for an irq with a matching ocxl_irq_h
   // return the id of the irq we found or 0 if none found
