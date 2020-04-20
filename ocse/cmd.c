@@ -1089,58 +1089,58 @@ static void _parse_vc2_cmd(	struct ocl *ocl, struct cmd *cmd, uint8_t cmd_opcode
 }
 
 // Determine what type of vc1 or vc2 command to add to list
-static void _parse_vc1_vc2_cmd(	struct ocl *ocl, struct cmd *cmd, uint8_t cmd_opcode, uint8_t cmd_stream_id, uint8_t *cmd_pa,
-		       uint16_t cmd_afutag, uint8_t cmd_dl, uint8_t cmd_flag, uint32_t cmd_host_tag,
-		       uint8_t cmd_cache_state, 
-		       uint8_t cmd_data_is_valid,
-		       uint8_t *cdata_bus, uint8_t cdata_bad)
-
-{
-        // Based on the cmd_opcode we have received from the afu, add a cmd_event to the list associated with our cmd struct
-	int64_t addr = 0;
-	int32_t context;
-
-	// find cmd_host_tag in the host_tag list so that we can correctly set the context for _add_cmd
-	// but host_tag list is under ocl, so we need to pass that into this routine
-	context = _find_client_by_host_tag( ocl, cmd_host_tag );
-
-	switch (cmd_opcode) {
-	case AFU_CMD_MEM_PA_FLUSH:
-	case AFU_CMD_BACK_FLUSH:
-	        debug_msg("NO! THESE CMDS are NOT SUPPORTED in OpenCAPI 4!");
-		break;
-	  
-	case AFU_CMD_SYNONYM_DONE:
-	        debug_msg("YES! AFU response is AFU_CMD_MEM_SYN_DONE and host_tag= 0x%04x", cmd_host_tag);
-		//TODO - will there ever be data on dcp2 that is not part of castout_push? IF SO, 
-		//need to create a special cmd_data_is_valid to signal data on dcp2 NOT dcp3 
-		// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
-		_add_cmd(cmd, 0xca, cmd_afutag, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl ), MEM_IDLE, 
-			 0, 0, 0, 0, cmd_flag, 0, cmd_host_tag, cmd_cache_state, 0);
-		break;
-	case AFU_CMD_CASTOUT:
-	        debug_msg( "YES! AFU Command is AFU_CMD_CASTOUT and host_tag=0x%08x", cmd_host_tag );
-		//TODO - will there ever be data on dcp2 that is not part of castout_push? IF SO, 
-		//need to create a special cmd_data_is_valid to signal data on dcp2 NOT dcp3 
-		// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
-		_add_cmd(cmd, context, 0, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl ), MEM_IDLE, 
-			 0, 0, 0, 0, cmd_flag, 0, cmd_host_tag, cmd_cache_state, 0);
-		break;
-
-
-	case AFU_CMD_CASTOUT_PUSH:
-	        debug_msg("YES! AFU response is AFU_CMD_CASTOUT_PUSH and host_tag= 0x%04x", cmd_host_tag);
-		// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
-		_add_cmd(cmd, context, 0, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl ), MEM_IDLE, 
-			 0, 0, 0, 0, cmd_flag, 0, cmd_host_tag, cmd_cache_state, 0);
-		break;
-	default:
-	        warn_msg("Unsupported command 0x%04x", cmd_opcode);
-		// TODO this type of error is signaled as "malformed packet error type 0 event" but how??  
-		_add_fail(cmd, 0xca, cmd_afutag, cmd_opcode, TLX_RESPONSE_FAILED, TLX_RESPONSE_FAILED);
-		break;
-	}
-}
+//static void _parse_vc1_vc2_cmd(	struct ocl *ocl, struct cmd *cmd, uint8_t cmd_opcode, uint8_t cmd_stream_id, uint8_t *cmd_pa,
+//		       uint16_t cmd_afutag, uint8_t cmd_dl, uint8_t cmd_flag, uint32_t cmd_host_tag,
+//		       uint8_t cmd_cache_state, 
+//		       uint8_t cmd_data_is_valid,
+//		       uint8_t *cdata_bus, uint8_t cdata_bad)
+//
+//{
+//        // Based on the cmd_opcode we have received from the afu, add a cmd_event to the list associated with our cmd struct
+//	int64_t addr = 0;
+//	int32_t context;
+//
+//	// find cmd_host_tag in the host_tag list so that we can correctly set the context for _add_cmd
+//	// but host_tag list is under ocl, so we need to pass that into this routine
+//	context = _find_client_by_host_tag( ocl, cmd_host_tag );
+//
+//	switch (cmd_opcode) {
+//	case AFU_CMD_MEM_PA_FLUSH:
+//	case AFU_CMD_BACK_FLUSH:
+//	        debug_msg("NO! THESE CMDS are NOT SUPPORTED in OpenCAPI 4!");
+//		break;
+//	  
+//	case AFU_CMD_SYNONYM_DONE:
+//	        debug_msg("YES! AFU response is AFU_CMD_MEM_SYN_DONE and host_tag= 0x%04x", cmd_host_tag);
+//		//TODO - will there ever be data on dcp2 that is not part of castout_push? IF SO, 
+//		//need to create a special cmd_data_is_valid to signal data on dcp2 NOT dcp3 
+//		// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
+//		_add_cmd(cmd, 0xca, cmd_afutag, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl ), MEM_IDLE, 
+//			 0, 0, 0, 0, cmd_flag, 0, cmd_host_tag, cmd_cache_state, 0);
+//		break;
+//	case AFU_CMD_CASTOUT:
+//	        debug_msg( "YES! AFU Command is AFU_CMD_CASTOUT and host_tag=0x%08x", cmd_host_tag );
+//		//TODO - will there ever be data on dcp2 that is not part of castout_push? IF SO, 
+//		//need to create a special cmd_data_is_valid to signal data on dcp2 NOT dcp3 
+//		// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
+//		_add_cmd(cmd, context, 0, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl ), MEM_IDLE, 
+//			 0, 0, 0, 0, cmd_flag, 0, cmd_host_tag, cmd_cache_state, 0);
+//		break;
+//
+//
+//	case AFU_CMD_CASTOUT_PUSH:
+//	        debug_msg("YES! AFU response is AFU_CMD_CASTOUT_PUSH and host_tag= 0x%04x", cmd_host_tag);
+//		// overlay resp_opcode with cmd_host_tag and stream_id with cmd_cache_state
+//		_add_cmd(cmd, context, 0, cmd_opcode, CMD_CACHE, addr, dl_to_size( cmd_dl ), MEM_IDLE, 
+//			 0, 0, 0, 0, cmd_flag, 0, cmd_host_tag, cmd_cache_state, 0);
+//		break;
+//	default:
+//	        warn_msg("Unsupported command 0x%04x", cmd_opcode);
+//		// TODO this type of error is signaled as "malformed packet error type 0 event" but how??  
+//		_add_fail(cmd, 0xca, cmd_afutag, cmd_opcode, TLX_RESPONSE_FAILED, TLX_RESPONSE_FAILED);
+//		break;
+//	}
+//}
 
 // Determine what type of vc3 command to add to list
 static void _parse_vc3_cmd(struct cmd *cmd,
