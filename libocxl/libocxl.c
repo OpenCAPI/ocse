@@ -4659,11 +4659,12 @@ ocxl_err ocxl_mmio_map_advanced( ocxl_afu_h afu, ocxl_mmio_type type, size_t siz
 		goto map_fail;
 	}
 
-	if (!afu->attached) {
-		warn_msg("ocxl_mmio_map_advanced: Must attach afu first!");
-		err = OCXL_NO_CONTEXT;
-		goto map_fail;
-	}
+	// it turns out it is not necessary for the afu to be attached prior to mapping the mmio regions
+	//if (!afu->attached) {
+	//	warn_msg("ocxl_mmio_map_advanced: Must attach afu first!");
+	//	err = OCXL_NO_CONTEXT;
+	//	goto map_fail;
+	//}
 
 	if (afu->mmio_count == afu->mmio_max) {
 		warn_msg("ocxl_mmio_map_advanced: insufficient memory to map the new mmio area!");
