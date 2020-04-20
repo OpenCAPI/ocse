@@ -2694,6 +2694,7 @@ void handle_castout(struct ocl *ocl, struct cmd *cmd, struct mmio *mmio)
 		//these are posted, so no need to tie up memory interface (TODO - correct??)
 		event->form_flag = 0x2;  //do this so handle_response knows it a posted cmd
 		event->state = MEM_DONE;
+		free( buffer );
 	}
 	if ( event->command == AFU_CMD_SYNONYM_DONE ) {
 	        // these are posted cmds, so just send the info to libocxl, set state to MEM_DONE and set form_flag to indicated posted
@@ -2722,11 +2723,12 @@ void handle_castout(struct ocl *ocl, struct cmd *cmd, struct mmio *mmio)
 		//these are posted, so no need to tie up memory interface (TODO - correct??)
 		event->form_flag = 0x2;  //do this so handle_response knows it a posted cmd
 		event->state = MEM_DONE;
+		free( buffer );
 	}
 	if ( event->command == AFU_CMD_UPGRADE_STATE ) {
-	  buffer = (uint8_t *) malloc(13);
 	  if ( client->mem_access == NULL ) {
 	        // Send upgrade_state request to client
+	        buffer = (uint8_t *) malloc(13);
 		debug_msg("handle_castout: UPGRADE STATE");
 		bufsiz = 0;
 		buffer[bufsiz] = (uint8_t) OCSE_UPGRADE_STATE;
@@ -2760,11 +2762,12 @@ void handle_castout(struct ocl *ocl, struct cmd *cmd, struct mmio *mmio)
 		client->mem_access = (void *)event;
 		debug_msg("handle_castout: Setting client->mem_access");
 		debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context);
+		free( buffer );
 	  } else  
 	    debug_msg( "handle_castout: upgrade_state: client->mem_access was not NULL meaning we have a memory action in progress" );
 	}
 
-	free( buffer );
+	//free( buffer );
 
 	debug_cmd_client(cmd->dbg_fp, cmd->dbg_id, event->afutag, event->context); 
 	debug_msg("handle_castout: exiting after sending castout or synonym_done or upgrade_state msg to client");
