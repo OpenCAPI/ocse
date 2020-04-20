@@ -884,6 +884,7 @@ static void _add_amo(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 	// for AMO_WR and AMO_RW unless told elsewise. AMO_RD has no immediate data
 
 	size = 16;
+	sizecheck = 0;
   	switch (cmd_pl) {
   		case 2:
   		case 3:
@@ -929,8 +930,8 @@ static void _add_amo(struct cmd *cmd, uint16_t actag, uint16_t afutag,
 			resp_opcode = TLX_RSP_READ_FAILED;}
 		}
 	if ( size == -1) {
-	debug_msg("AMO CMD FAILED SIZE or CMD_FLAG CHECKS cmd_opcode= 0x%x, cmd_pl= 0x%x, cmd_flag=0x%x !!! ", cmd_opcode, cmd_pl, cmd_flag);
-	  _add_fail(cmd, actag, afutag, cmd_opcode,  0x09,resp_opcode );
+	        debug_msg("AMO CMD FAILED SIZE or CMD_FLAG CHECKS cmd_opcode= 0x%x, cmd_pl= 0x%x, cmd_flag=0x%x !!! ", cmd_opcode, cmd_pl, cmd_flag);
+		_add_fail(cmd, actag, afutag, cmd_opcode,  0x09,resp_opcode );
 		return;
 	}
 	// Check command size and address
