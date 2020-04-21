@@ -26,9 +26,9 @@ SETUP:
 	- the Makefile will set "VPI_USER_H_DIR" depending on certain simulate specific 
 	  "install" environment variables 
 
-4) Use top.v in afu_driver/verilog as a top level wrapper around your AFU
+4) Use top_<afu>.v in afu_driver/verilog as a top level wrapper around your AFU
 	Verilog.  Build a model as required for your simulator.  You may need to set flags
-	or options to allow SystemVerilog keywords as top.v include references to
+	or options to allow SystemVerilog keywords as top_<afu>.v include references to
 	C code that uses SystemVerilog DPI functionality.
 
 5) Look at the Makefiles in sample_app for examples of how to build your
@@ -49,7 +49,7 @@ SETUP:
 
 RUNNING:
 
-1) Start your simulator with the model that uses top.v as it's top level and
+1) Start your simulator with the model that uses top_<afu>.v as it's top level and
    uses the afu_driver/src code for DPI functions.  Most simulators use LD_LIBRARY_PATH
    to find the afu_driver/src compiled code and DPI libraries.  Check with your simulator
    for complete details.  Allow your simulator to advance time and you should eventually 
