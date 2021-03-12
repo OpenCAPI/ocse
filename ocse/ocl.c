@@ -335,7 +335,7 @@ static void *_ocl_loop(void *ptr)
 			if (ocl->state == OCSE_RESET)
 				continue;
 			_handle_client(ocl, ocl->client[i]);
-			if (ocl->client[i]->idle_cycles) {
+			while (ocl->client[i]->idle_cycles) {
 				ocl->client[i]->idle_cycles--;
 			}
 			if (client_cmd(ocl->cmd, ocl->client[i])) {
