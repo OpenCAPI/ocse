@@ -1023,4 +1023,5 @@ void get_simuation_error(svLogic *simulationError)
 //  printf("inside C: error value  = %08d\n",  c_sim_error);
 }
 
-
+// Branch issue10 has been created to try and fix the issue#10 on git: https://github.com/OpenCAPI/ocse/issues/10
+// Let us see how it goes
