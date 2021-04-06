@@ -223,7 +223,9 @@ static void _add_cmd(struct cmd *cmd, uint32_t context, uint32_t afutag,
 
 	// make sure data buffer is big enough to hold 256B (MAX memory transfer for OpenCAPI 3.0)
 	event->data = (uint8_t *) malloc(CACHELINE_BYTES * 4);
-	memset(event->data, 0xFF, CACHELINE_BYTES * 4);
+//	memset(event->data, 0xFF, CACHELINE_BYTES * 4);
+//	issue10: 03/Apr/2021: trial to initialize the value of the buffer to 0x0, instead of all ones
+	memset(event->data, 0x00, CACHELINE_BYTES * 4);
 
 	event->resp_bytes_sent = 0;  //init this to 0 (used for split responses)
 	// lgt may not need parity
