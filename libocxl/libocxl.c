@@ -2791,6 +2791,8 @@ void _afu_free( ocxl_afu_h afu )
 			_delay_1ms();
 			loop_count = loop_count + 1;
 		}
+                if(loop_count == 180000)
+		   fatal_msg("_afu_free: time out of 3s reached");
 	}
 	debug_msg( "_afu_free: closing host side socket %d", afu->fd );
 	// free some other stuff in the afu like the irq list
