@@ -2772,6 +2772,7 @@ void _afu_free( ocxl_afu_h afu )
 {
 	uint8_t buffer;
 	int rc;
+	int loop_count = 0;
 
 	if (!afu) {
 		warn_msg("_afu_free: No AFU given");
@@ -2786,8 +2787,12 @@ void _afu_free( ocxl_afu_h afu )
 	rc = put_bytes_silent(afu->fd, 1, &buffer);
 	if (rc == 1) {
 	        debug_msg("_afu_free:detach request sent from from host on socket %d", afu->fd);
-		while (afu->attached)	/*infinite loop */
+		while ((afu->attached) && (loop_count < 180000)) {	/*infinite loop changed to a 3 minute timeout*/
 			_delay_1ms();
+			loop_count = loop_count + 1;
+		}
+                if(loop_count == 180000)
+		   fatal_msg("_afu_free: time out of 3s reached");
 	}
 	debug_msg( "_afu_free: closing host side socket %d", afu->fd );
 	// free some other stuff in the afu like the irq list
