@@ -1536,7 +1536,7 @@ static void *_psl_loop(void *ptr)
 			afu->attach.state = LIBOCXL_REQ_IDLE;
 			break;
 		case OCSE_DETACH:
-		        info_msg("detach response from from ocse");
+		        info_msg("detach response from ocse");
 			afu->mapped = 0;
 			afu->global_mapped = 0;
 			afu->attached = 0;
@@ -2786,7 +2786,7 @@ void _afu_free( ocxl_afu_h afu )
 	buffer = OCSE_DETACH;
 	rc = put_bytes_silent(afu->fd, 1, &buffer);
 	if (rc == 1) {
-	        debug_msg("_afu_free:detach request sent from from host on socket %d", afu->fd);
+	        debug_msg("_afu_free:detach request sent from host on socket %d", afu->fd);
 		while ((afu->attached) && (loop_count < 180000)) {	/*infinite loop changed to a 3 minute timeout*/
 			_delay_1ms();
 			loop_count = loop_count + 1;
